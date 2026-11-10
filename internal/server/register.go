@@ -9,6 +9,7 @@ import (
 	"github.com/fhazal/beeircd/internal/cloak"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/state"
+	"github.com/fhazal/beeircd/internal/store"
 	"github.com/fhazal/beeircd/internal/version"
 )
 
@@ -117,6 +118,10 @@ func (s *Server) cmdNick(c *Client, m irc.Message) {
 		s.reply(c, irc.ErrErroneusNickname, nick, "Reserved for services")
 		return
 	}
+	if f, ok := s.forbidden(store.ForbidNick, nick); ok && !c.isOper() {
+		s.reply(c, irc.ErrErroneusNickname, nick, "Forbidden by the network: "+f.Reason)
+		return
+	}
 	if !c.registered {
 		if s.net.NickInUse(nick) {
 			s.reply(c, irc.ErrNicknameInUse, nick, "Nickname is already in use")
@@ -216,6 +221,16 @@ func (s *Server) tryRegister(c *Client) {
 		u.Account = a.Name
 		u.Modes['r'] = true
 	}
+	if s.localUsers() >= s.cfg.Limits.MaxUsers {
+		s.quit(c, "This server is full. Please try again later.")
+		return
+	}
+	if k := s.akillFor(c.ident, c.host, c.ip); k != nil {
+		s.reply(c, irc.ErrYoureBannedCreep, "You are banned from this network: "+k.Reason)
+		s.snotice("AKILL %s stopped %s (%s@%s)", k.Mask, c.nick, c.ident, c.host)
+		s.quit(c, "Banned: "+k.Reason)
+		return
+	}
 	if err := s.net.AddUser(u); err != nil {
 		s.reply(c, irc.ErrNicknameInUse, c.nick, "Nickname is already in use")
 		c.nick = ""
@@ -227,7 +242,9 @@ func (s *Server) tryRegister(c *Client) {
 		s.maxLocal = n
 	}
 	s.log.Printf("connect %s (%s@%s) %s", u.Nick, u.Ident, u.RealHost, c.ip)
+	s.snoticeOnly(fmt.Sprintf("Connect: %s (%s@%s) [%s]", u.Nick, u.Ident, u.RealHost, c.ip))
 	s.welcome(c)
+	s.sendNews(c)
 	if a != nil {
 		c.accountID = a.ID
 		a.LastSeen, a.LastHost = now, u.Ident+"@"+u.RealHost

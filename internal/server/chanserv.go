@@ -127,6 +127,10 @@ func csRegister(s *Server, c *Client, args []string) {
 		s.cs(c, "Syntax: REGISTER #chan <description>")
 		return
 	}
+	if _, ok := s.forbidden(store.ForbidChan, name); ok {
+		s.cs(c, "%s is forbidden by the network and can't be registered.", name)
+		return
+	}
 	desc := strings.Join(args[1:], " ")
 	if desc == "" {
 		s.cs(c, "Give a short description: /cs register %s <description>", name)
@@ -561,7 +565,12 @@ func csKick(s *Server, c *Client, args []string) {
 
 // csKickUser kicks u from ch as ChanServ.
 func (s *Server) csKickUser(ch *state.Channel, u *state.User, reason string) {
-	s.broadcast(ch, s.out(s.chanServ.user, "KICK", ch.Name, u.Nick, irc.Truncate(reason, s.cfg.Limits.KickLen)).text(), nil)
+	s.svcKick(s.chanServ, ch, u, reason)
+}
+
+// svcKick kicks u from ch as a service.
+func (s *Server) svcKick(sv *service, ch *state.Channel, u *state.User, reason string) {
+	s.broadcast(ch, s.out(sv.user, "KICK", ch.Name, u.Nick, irc.Truncate(reason, s.cfg.Limits.KickLen)).text(), nil)
 	s.net.Part(u, ch)
 }
 

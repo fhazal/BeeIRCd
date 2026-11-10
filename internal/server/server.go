@@ -43,13 +43,28 @@ type Server struct {
 	wg        sync.WaitGroup
 
 	// Services.
-	store    *store.Store
-	services map[string]*service // by folded nick
-	nickServ *service
-	memoServ *service
-	chanServ *service
-	lockouts map[int64]*lockout // wrong passwords per account
-	hashSem  chan struct{}      // limits password hashing running at once
+	store     *store.Store
+	services  map[string]*service // by folded nick
+	nickServ  *service
+	memoServ  *service
+	chanServ  *service
+	operServ  *service
+	adminServ *service
+	global    *service
+	lockouts  map[int64]*lockout // wrong passwords per account
+	hashSem   chan struct{}      // limits password hashing running at once
+
+	// Oper data from the services database, kept in memory.
+	akills         []store.Akill
+	news           []store.News
+	sessionExcepts []store.SessionExcept
+	forbidNicks    map[string]store.Forbid
+	forbidChans    map[string]store.Forbid
+
+	tlsConf    *tls.Config
+	lmu        sync.Mutex // guards listeners against Addrs from other goroutines
+	stopAfter  int        // stopRestart or stopDie once AdminServ asked
+	stopReason string
 
 	// resolve looks up a hostname for an IP; replaceable in tests.
 	resolve func(ctx context.Context, ip string) (string, bool)
@@ -57,8 +72,17 @@ type Server struct {
 
 type listener struct {
 	net.Listener
-	tls bool
+	tls  bool
+	addr string // as written in the config
 }
+
+const (
+	stopRestart = 1
+	stopDie     = 2
+)
+
+// ErrRestart is returned by Serve when an admin asked for a restart.
+var ErrRestart = errors.New("restart requested")
 
 // New opens the configured ports. Call Serve to start answering.
 func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
@@ -83,6 +107,10 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	}
 	s.store = db
 	s.startServices()
+	if err := s.loadOperData(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("services database: %w", err)
+	}
 	var tlsConf *tls.Config
 	if cfg.NeedsTLS() {
 		var err error
@@ -91,6 +119,7 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 			db.Close()
 			return nil, err
 		}
+		s.tlsConf = tlsConf
 	}
 	for _, l := range cfg.Listen {
 		ln, err := net.Listen("tcp", l.Address)
@@ -102,13 +131,15 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 		if l.TLS {
 			ln = tls.NewListener(ln, tlsConf)
 		}
-		s.listeners = append(s.listeners, listener{ln, l.TLS})
+		s.listeners = append(s.listeners, listener{ln, l.TLS, l.Address})
 	}
 	return s, nil
 }
 
 // Addrs returns the address of each open port, in config order.
 func (s *Server) Addrs() []net.Addr {
+	s.lmu.Lock()
+	defer s.lmu.Unlock()
 	out := make([]net.Addr, len(s.listeners))
 	for i, l := range s.listeners {
 		out[i] = l.Addr()
@@ -118,10 +149,12 @@ func (s *Server) Addrs() []net.Addr {
 
 // Serve runs until ctx is cancelled, then closes every connection.
 func (s *Server) Serve(ctx context.Context) error {
+	s.lmu.Lock()
 	for _, l := range s.listeners {
 		s.wg.Add(1)
 		go s.acceptLoop(l)
 	}
+	s.lmu.Unlock()
 	s.log.Printf("%s ready on %d port(s)", s.cfg.Server.Name, len(s.listeners))
 	tick := time.NewTicker(s.tickEvery())
 	defer tick.Stop()
@@ -132,17 +165,32 @@ func (s *Server) Serve(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			s.shutdown()
+			s.shutdown("Server shutting down")
 			return nil
 		case f := <-s.events:
 			f()
 			s.reap()
+			if s.stopAfter != 0 {
+				reason := "Server shutting down"
+				if s.stopAfter == stopRestart {
+					reason = "Server restarting"
+				}
+				if s.stopReason != "" {
+					reason += " (" + s.stopReason + ")"
+				}
+				s.shutdown(reason)
+				if s.stopAfter == stopRestart {
+					return ErrRestart
+				}
+				return nil
+			}
 		case now := <-tick.C:
 			s.checkTimeouts(now)
 			s.reap()
 		case now := <-hourly.C:
 			s.expireAccounts(now)
 			s.expireChannels(now)
+			s.expireAkills(now)
 		}
 	}
 }
@@ -195,16 +243,18 @@ func (s *Server) post(f func()) {
 }
 
 func (s *Server) closeListeners() {
+	s.lmu.Lock()
+	defer s.lmu.Unlock()
 	for _, l := range s.listeners {
 		l.Close()
 	}
 }
 
-func (s *Server) shutdown() {
+func (s *Server) shutdown(reason string) {
 	close(s.done)
 	s.closeListeners()
 	for _, c := range s.clients {
-		s.quit(c, "Server shutting down")
+		s.quit(c, reason)
 	}
 	finished := make(chan struct{})
 	go func() { s.wg.Wait(); close(finished) }()

@@ -94,6 +94,12 @@ const (
 	ErrBanListFull       = "478"
 	ErrBadChanName       = "479"
 	ErrChanOPrivsNeeded  = "482"
+	ErrCantKillServer    = "483"
+	ErrNoOperHost        = "491"
+	ErrPasswdMismatch    = "464"
+	ErrYoureBannedCreep  = "465"
+	ErrNoPrivileges      = "481"
+	RplYoureOper         = "381"
 	ErrUModeUnknownFlag  = "501"
 	ErrUsersDontMatch    = "502"
 )

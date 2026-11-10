@@ -180,8 +180,8 @@ Every change is saved straight to the config file and applies at once, so there'
 | `k` | KILL, AKILL, session limits |
 | `s` | OperServ nick and channel tools |
 
-- An oper entry is an **account** (a registered nick), flags, a title and host masks. The installer creates the first one for your admin nick with all flags.
-- **Opered on identify (decided 11 Nov):** you only become an oper after you identify to your registered nick, and only from a host on your oper entry. Services then give `+o` straight away, so no separate /oper password sits in client configs. Someone who takes your nick without the password gets nothing. `/oper <account> <password>` also works, and asks for the same NickServ password.
+- An oper entry is an **account** (a registered nick), flags, a title, host masks and its **own oper password**. The admin named in `beeircd.conf` (`admin`) always has every flag; their oper password is a hash in `admin_password` (`beeircd mkpasswd` makes one, the installer asks for it).
+- **Opering up (changed 11 Nov after testing, ConferenceRoom style):** `/oper <nick> <oper password>`, from a host on the entry. Identifying to NickServ never opers anyone, and logging out of NickServ doesn't end oper status. The oper password is separate from the NickServ password, so a leaked nick password gives no oper powers. Five wrong oper passwords lock that entry for 10 minutes.
 
 ---
 

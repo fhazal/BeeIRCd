@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"strings"
@@ -48,6 +49,13 @@ type Client struct {
 	saslBuf     strings.Builder
 	saslBusy    bool
 	saslAccount *store.Account // SASL done before registration finished
+	operFlags   string         // oper flags like "acghks", "" when not an oper
+	operTitle   string
+	operAccount int64     // the oper entry (account ID) c opered with
+	confirm     string    // confirms AdminServ RESTART and DIE
+	confirmTill time.Time // confirm is valid until then
+
+	floodBurst, floodRate int // read by readLoop, fixed at connect
 
 	connectedAt time.Time
 	lastRecv    time.Time
@@ -78,11 +86,18 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 		lastMsg:     now,
 		notify:      make(chan struct{}, 1),
 		caps:        make(map[string]bool),
+		floodBurst:  s.cfg.Limits.FloodBurst,
+		floodRate:   s.cfg.Limits.FloodRate,
 	}
 	s.clients[c.uid] = c
 	s.wg.Add(1)
 	go c.writeLoop()
 	go c.readLoop()
+	if n, max := s.sessions(ip), s.sessionLimit(ip); n > max {
+		s.snotice("Too many connections from %s (%d, the limit is %d)", ip, n, max)
+		s.quit(c, fmt.Sprintf("Too many connections from your IP (the limit is %d)", max))
+		return
+	}
 
 	if !s.cfg.ResolveHosts() {
 		c.hostDone = true
@@ -226,9 +241,8 @@ func (c *Client) writeLoop() {
 
 func (c *Client) readLoop() {
 	r := bufio.NewReaderSize(c.conn, maxInput)
-	lim := c.s.cfg.Limits
-	gap := time.Second / time.Duration(lim.FloodRate)
-	allow := time.Duration(lim.FloodBurst) * gap
+	gap := time.Second / time.Duration(c.floodRate)
+	allow := time.Duration(c.floodBurst) * gap
 	var clock time.Time
 	for {
 		line, err := readLine(r)
@@ -294,6 +308,7 @@ func (s *Server) quit(c *Client, reason string) {
 		s.addWhowas(u)
 		s.net.RemoveUser(u)
 		s.log.Printf("quit %s (%s): %s", u.Nick, c.ip, reason)
+		s.snoticeOnly(fmt.Sprintf("Quit: %s (%s@%s) [%s]", u.Nick, u.Ident, u.RealHost, reason))
 	}
 	c.send("ERROR :Closing Link: " + c.host + " (" + reason + ")")
 	c.close()

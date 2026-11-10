@@ -18,7 +18,7 @@ func (s *Server) cmdWho(c *Client, m irc.Message) {
 	opersOnly := m.Param(1) == "o"
 	if irc.IsChannel(mask) {
 		if ch := s.net.Channel(mask); ch != nil {
-			inside := ch.Member(c.user) != nil
+			inside := ch.Member(c.user) != nil || c.can('h')
 			if inside || !(ch.HasMode('s') || ch.HasMode('p')) {
 				for _, mem := range ch.SortedMembers() {
 					if !inside && mem.User.HasMode('i') {
@@ -38,7 +38,7 @@ func (s *Server) cmdWho(c *Client, m irc.Message) {
 		mask = "*"
 	}
 	for _, u := range s.net.Users() {
-		if u != c.user && u.HasMode('i') && !state.SharesChannel(u, c.user) {
+		if u != c.user && u.HasMode('i') && !state.SharesChannel(u, c.user) && !c.can('h') {
 			continue
 		}
 		if opersOnly && !u.HasMode('o') {
@@ -77,7 +77,7 @@ func (s *Server) cmdWhois(c *Client, m irc.Message) {
 		if chans := s.whoisChannels(c, u); chans != "" {
 			s.reply(c, irc.RplWhoisChannels, u.Nick, chans)
 		}
-		if u == c.user && u.Host != u.RealHost {
+		if (u == c.user || c.can('h')) && !u.Service && (u.Host != u.RealHost || u != c.user) {
 			s.reply(c, irc.RplWhoisHost, u.Nick, "is connecting from *@"+u.RealHost+" "+u.IP)
 		}
 		s.reply(c, irc.RplWhoisServer, u.Nick, u.Server, s.cfg.Server.Description)
@@ -86,6 +86,12 @@ func (s *Server) cmdWhois(c *Client, m irc.Message) {
 		}
 		if u.Service {
 			s.reply(c, irc.RplWhoisOperator, u.Nick, "is a Network Service")
+		} else if tc := s.clientOf(u); tc != nil && tc.isOper() {
+			text := "is an IRC Operator"
+			if tc.operTitle != "" {
+				text += " (" + tc.operTitle + ")"
+			}
+			s.reply(c, irc.RplWhoisOperator, u.Nick, text)
 		}
 		if u.Account != "" {
 			s.reply(c, irc.RplWhoisAccount, u.Nick, u.Account, "is logged in as")
@@ -111,7 +117,7 @@ func (s *Server) whoisChannels(c *Client, u *state.User) string {
 			continue
 		}
 		hidden := ch.HasMode('s') || ch.HasMode('p')
-		if hidden && asker != u && ch.Member(asker) == nil {
+		if hidden && asker != u && ch.Member(asker) == nil && !c.can('h') {
 			continue
 		}
 		out = append(out, memberPrefix(c, mem)+ch.Name)

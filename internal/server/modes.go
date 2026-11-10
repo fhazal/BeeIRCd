@@ -77,14 +77,25 @@ func (s *Server) userMode(c *Client, m irc.Message) {
 			if !add && u.Modes['o'] { // anyone may drop oper, nobody may take it here
 				delete(u.Modes, 'o')
 				changes = append(changes, modeChange{mode: 'o'})
+				c.operFlags, c.operTitle, c.operAccount = "", "", 0
+				if u.Modes['s'] {
+					delete(u.Modes, 's')
+					changes = append(changes, modeChange{mode: 's'})
+				}
+				s.snotice("%s is no longer an operator", u.Nick)
+			}
+		case 's':
+			if c.isOper() && u.Modes['s'] != add {
+				setFlag(u.Modes, 's', add)
+				changes = append(changes, modeChange{add: add, mode: 's'})
 			}
 		case 'x':
 			if s.cfg.CloakEnabled() && u.Modes['x'] != add {
 				setFlag(u.Modes, 'x', add)
 				changes = append(changes, modeChange{add: add, mode: 'x'})
 			}
-		case 'r', 's':
-			// Set by services or for opers only; ignored when asked for.
+		case 'r':
+			// Only services set it; ignored when asked for.
 		default:
 			unknown = true
 		}
@@ -126,8 +137,12 @@ func (s *Server) channelMode(c *Client, m irc.Message) {
 		s.replyBare(c, irc.RplCreationTime, ch.Name, strconv.FormatInt(ch.TS, 10))
 		return
 	}
-	isOp := mem != nil && mem.Op
-	args := m.Params[2:]
+	s.applyChannelModes(c, u, ch, mem != nil && mem.Op, m.Params[1], m.Params[2:])
+}
+
+// applyChannelModes carries out a mode string on ch for src (a person, or
+// OperServ with isOp true). Errors go to c.
+func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel, isOp bool, modes string, args []string) {
 	next := func() (string, bool) {
 		if len(args) == 0 {
 			return "", false
@@ -139,8 +154,8 @@ func (s *Server) channelMode(c *Client, m irc.Message) {
 	var out []modeChange
 	add, needOp, used := true, false, 0
 	now := time.Now()
-	for i := 0; i < len(m.Params[1]); i++ {
-		mc := m.Params[1][i]
+	for i := 0; i < len(modes); i++ {
+		mc := modes[i]
 		switch mc {
 		case '+':
 			add = true
@@ -170,7 +185,7 @@ func (s *Server) channelMode(c *Client, m irc.Message) {
 					s.reply(c, irc.ErrBanListFull, ch.Name, mask, "Channel list is full")
 					continue
 				}
-				if ch.AddListEntry(mc, mask, u.Nick, now) {
+				if ch.AddListEntry(mc, mask, src.Nick, now) {
 					out = append(out, modeChange{true, mc, mask})
 				}
 			} else if stored, ok := ch.RemoveListEntry(mc, mask); ok {
@@ -274,7 +289,7 @@ func (s *Server) channelMode(c *Client, m irc.Message) {
 	}
 	if len(out) > 0 {
 		params := append([]string{ch.Name}, formatModes(out)...)
-		s.broadcast(ch, s.out(u, "MODE", params...), nil)
+		s.broadcast(ch, s.out(src, "MODE", params...), nil)
 		s.csAfterUserModes(ch, out)
 	}
 }

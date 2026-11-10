@@ -43,6 +43,10 @@ func (s *Server) joinOne(c *Client, name, key string) {
 		s.reply(c, irc.ErrBadChanName, name, "Illegal channel name")
 		return
 	}
+	if f, ok := s.forbidden(store.ForbidChan, name); ok && !c.isOper() {
+		s.reply(c, irc.ErrBadChanName, name, "Cannot join channel (forbidden by the network: "+f.Reason+")")
+		return
+	}
 	ch := s.net.Channel(name)
 	if ch != nil && ch.Member(u) != nil {
 		return
@@ -224,7 +228,7 @@ func (s *Server) cmdList(c *Client, m irc.Message) {
 	}
 	s.reply(c, irc.RplListStart, "Channel", "Users  Name")
 	for _, ch := range chans {
-		if (ch.HasMode('s') || ch.HasMode('p')) && ch.Member(c.user) == nil {
+		if (ch.HasMode('s') || ch.HasMode('p')) && ch.Member(c.user) == nil && !c.can('h') {
 			continue
 		}
 		modes, _ := ch.ModeString(false)

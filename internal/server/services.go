@@ -29,6 +29,7 @@ type service struct {
 	intro string // first line of HELP
 	cmds  map[string]svcCmd
 	order []string // HELP order
+	need  byte     // 'o' = opers only, 'a' = oper flag a, 0 = everyone
 }
 
 // reservedNicks can't be used by people even before their service exists.
@@ -49,6 +50,11 @@ func (s *Server) startServices() {
 	s.nickServ = s.addService("NickServ", "ns", "Nickname Services", "NickServ keeps your nick yours. Commands:", nickServCommands())
 	s.chanServ = s.addService("ChanServ", "cs", "Channel Services", "ChanServ keeps a channel yours. Commands:", chanServCommands())
 	s.memoServ = s.addService("MemoServ", "ms", "Memo Services", "MemoServ keeps messages for people who are away. Commands:", memoServCommands())
+	s.operServ = s.addService("OperServ", "os", "Operator Services", "OperServ is the toolbox for IRC operators. Commands:", operServCommands())
+	s.operServ.need = 'o'
+	s.adminServ = s.addService("AdminServ", "as", "Admin Services", "AdminServ changes the server while it runs; changes are saved to beeircd.conf. Commands:", adminServCommands())
+	s.adminServ.need = 'a'
+	s.global = s.addService("Global", "", "Network Announcements", "Global sends network notices. It takes no commands.", map[string]svcCmd{})
 }
 
 func (s *Server) addService(nick, alias, realname, intro string, cmds map[string]svcCmd, order ...string) *service {
@@ -100,6 +106,17 @@ func (s *Server) toService(c *Client, sv *service, text string) {
 	}
 	name := strings.ToUpper(fields[0])
 	args := fields[1:]
+	switch {
+	case sv.need == 'o' && !c.isOper():
+		s.svcReply(c, sv, sv.user.Nick+" is for IRC operators.")
+		return
+	case sv.need == 'a' && !c.can('a'):
+		s.svcReply(c, sv, sv.user.Nick+" is for server admins (oper flag a).")
+		return
+	case sv.alias == "":
+		s.svcReply(c, sv, sv.intro)
+		return
+	}
 	if name == "HELP" {
 		s.serviceHelp(c, sv, args)
 		return
@@ -186,7 +203,13 @@ func (s *Server) lockedFor(id int64) time.Duration {
 
 // checkPassword checks pw against a's hash and calls result on the loop.
 func (s *Server) checkPassword(c *Client, a *store.Account, pw string, result func(pwResult)) {
-	if s.lockedFor(a.ID) > 0 {
+	s.checkSecret(c, a.ID, a.PassHash, pw, result)
+}
+
+// checkSecret checks pw against hash off the loop. Wrong tries count
+// against key (an account ID, or operLockKey for oper passwords).
+func (s *Server) checkSecret(c *Client, key int64, hash, pw string, result func(pwResult)) {
+	if s.lockedFor(key) > 0 {
 		result(pwLocked)
 		return
 	}
@@ -195,7 +218,7 @@ func (s *Server) checkPassword(c *Client, a *store.Account, pw string, result fu
 		return
 	}
 	c.pwBusy = true
-	id, hash := a.ID, a.PassHash
+	id := key
 	go func() {
 		s.hashSem <- struct{}{}
 		ok := passwd.Check(pw, hash)

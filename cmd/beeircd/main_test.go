@@ -40,3 +40,16 @@ func TestRun(t *testing.T) {
 		})
 	}
 }
+
+func TestMkpasswd(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := mkpasswd(strings.NewReader("Hive-2026-secret\n"), &out, &errOut); code != 0 {
+		t.Fatalf("code %d: %s", code, errOut.String())
+	}
+	if !strings.HasPrefix(out.String(), "$argon2id$") {
+		t.Fatalf("hash = %q", out.String())
+	}
+	if code := mkpasswd(strings.NewReader("short\n"), &out, &errOut); code != 2 {
+		t.Fatalf("short password accepted")
+	}
+}

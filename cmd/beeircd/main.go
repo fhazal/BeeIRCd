@@ -4,7 +4,9 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -15,6 +17,7 @@ import (
 	"syscall"
 
 	"github.com/fhazal/beeircd/internal/config"
+	"github.com/fhazal/beeircd/internal/passwd"
 	"github.com/fhazal/beeircd/internal/server"
 	"github.com/fhazal/beeircd/internal/version"
 )
@@ -31,6 +34,8 @@ const usage = `Usage: beeircd <command>
   update    install the newest release (backup first)
   backup    save config, database and certificates
   version   show the version
+  mkpasswd  read a password on standard input, print its hash
+            (for admin_password in beeircd.conf)
   run       run in the foreground (used by the service)
             beeircd run [-config /etc/beeircd/beeircd.conf]
 `
@@ -63,6 +68,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 0
 	case cmd == "run":
 		return runServer(args[1:], stderr)
+	case cmd == "mkpasswd":
+		return mkpasswd(os.Stdin, stdout, stderr)
 	case planned[cmd]:
 		fmt.Fprintf(stderr, "beeircd %s isn't built yet in %s.\n", cmd, version.String())
 		return 2
@@ -70,6 +77,27 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "Unknown command %q.\n\n%s", args[0], usage)
 		return 2
 	}
+}
+
+// mkpasswd hashes the first line of in for beeircd.conf.
+func mkpasswd(in io.Reader, stdout, stderr io.Writer) int {
+	line, err := bufio.NewReader(in).ReadString('\n')
+	if err != nil && line == "" {
+		fmt.Fprintln(stderr, "Type the password and press Enter.")
+		return 2
+	}
+	pw := strings.TrimRight(line, "\r\n")
+	if len(pw) < 8 {
+		fmt.Fprintln(stderr, "Use at least 8 characters.")
+		return 2
+	}
+	h, err := passwd.Hash(pw)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	fmt.Fprintln(stdout, h)
+	return 0
 }
 
 // runServer runs the server until SIGINT or SIGTERM.
@@ -94,7 +122,16 @@ func runServer(args []string, stderr io.Writer) int {
 	logger.Printf("%s starting as %s", version.String(), cfg.Server.Name)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := srv.Serve(ctx); err != nil {
+	err = srv.Serve(ctx)
+	if errors.Is(err, server.ErrRestart) {
+		stop()
+		logger.Printf("restarting")
+		if err := reexec(); err != nil {
+			logger.Printf("restart failed: %v", err)
+			return 3
+		}
+	}
+	if err != nil {
 		logger.Print(err)
 		return 1
 	}

@@ -103,7 +103,11 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
-	if _, err := db.Exec(schema + channelSchema); err != nil {
+	if _, err := db.Exec(schema + channelSchema + operSchema); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("services database %s: %w", path, err)
+	}
+	if err := migrateOpers(db); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("services database %s: %w", path, err)
 	}

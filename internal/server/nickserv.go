@@ -587,14 +587,25 @@ func nsDrop(s *Server, c *Client, args []string) {
 		return
 	}
 	c.dropCode = ""
-	id, name := a.ID, a.Name
-	changes, err := s.store.DeleteAccount(id)
-	if err != nil {
+	name := a.Name
+	if err := s.dropAccount(a, "founder "+name+" dropped the account", "by its owner"); err != nil {
 		s.dbErr(c, s.nickServ, err)
 		return
 	}
-	s.applyFounderChanges(changes, "founder "+name+" dropped the account")
-	s.log.Printf("dropped account %s (by its owner)", name)
+	s.ns(c, "The account %s is gone.", name)
+}
+
+// dropAccount removes a with its nicks and memos and logs out everyone
+// using it. founderWhy and by go to the log.
+func (s *Server) dropAccount(a *store.Account, founderWhy, by string) error {
+	id, name := a.ID, a.Name
+	changes, err := s.store.DeleteAccount(id)
+	if err != nil {
+		return err
+	}
+	delete(s.lockouts, id)
+	s.applyFounderChanges(changes, founderWhy)
+	s.log.Printf("dropped account %s (%s)", name, by)
 	for _, other := range s.clients {
 		if other.accountID == id {
 			other.accountID = 0 // no touchAccount: it's gone
@@ -605,8 +616,11 @@ func nsDrop(s *Server, c *Client, args []string) {
 			s.toNeighbours(other.user, o, true)
 			s.reply(other, irc.RplLoggedOut, other.user.Prefix(), "You are now logged out")
 		}
+		if other.operAccount == id {
+			s.deoper(other, "Your account is gone, so you are no longer an operator.")
+		}
 	}
-	s.ns(c, "The account %s is gone.", name)
+	return nil
 }
 
 func nsList(s *Server, c *Client, args []string) {

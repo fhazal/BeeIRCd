@@ -45,6 +45,9 @@ type Config struct {
 	Cloak    Cloak    `toml:"cloak"`
 	Services Services `toml:"services"`
 	Limits   Limits   `toml:"limits"`
+
+	// Path is the file this was read from; AdminServ writes changes there.
+	Path string `toml:"-"`
 }
 
 // Cloak hides people's IPs and hostnames (user mode +x).
@@ -102,6 +105,11 @@ type Limits struct {
 	// second. Faster senders are slowed down, not disconnected.
 	FloodBurst int `toml:"flood_burst"`
 	FloodRate  int `toml:"flood_rate"`
+	// MaxUsers is the most people connected at once.
+	MaxUsers int `toml:"max_users"`
+	// SessionLimit is the most connections from one IP, unless an
+	// OperServ session exception allows more.
+	SessionLimit int `toml:"session_limit"`
 }
 
 // CloakEnabled reports whether hosts are cloaked.
@@ -148,6 +156,7 @@ func Load(path string) (*Config, error) {
 	if err := c.Check(); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
+	c.Path = path
 	return &c, nil
 }
 
@@ -169,6 +178,8 @@ func (c *Config) SetDefaults() {
 	setInt(&l.KickLen, 390)
 	setInt(&l.FloodBurst, 10)
 	setInt(&l.FloodRate, 2)
+	setInt(&l.MaxUsers, 5000)
+	setInt(&l.SessionLimit, 3)
 	sv := &c.Services
 	if sv.Database == "" {
 		sv.Database = "/var/lib/beeircd/services.db"
@@ -193,6 +204,13 @@ type Services struct {
 	IdentifyWithin Duration `toml:"identify_within"`
 	// GuestPrefix starts the nick given to people who didn't identify.
 	GuestPrefix string `toml:"guest_prefix"`
+	// Admin is the account of the server admin. It always has every oper
+	// flag and can't be changed from IRC.
+	Admin string `toml:"admin"`
+	// AdminPassword is the admin's oper password as an argon2id hash
+	// (beeircd mkpasswd makes one). Empty: the admin sets it with their
+	// first /oper while identified.
+	AdminPassword string `toml:"admin_password"`
 }
 
 func setDur(d *Duration, v time.Duration) {
@@ -235,6 +253,9 @@ func (c *Config) Check() error {
 	}
 	if c.CloakEnabled() && len(c.Cloak.Secret) < 16 {
 		return fmt.Errorf("[cloak] secret must be at least 16 characters of random text (or set enabled = false)")
+	}
+	if p := c.Services.AdminPassword; p != "" && !strings.HasPrefix(p, "$argon2id$") {
+		return fmt.Errorf("[services] admin_password must be a hash from `beeircd mkpasswd`, not the password itself")
 	}
 	if c.Limits.NickLen > 50 || c.Limits.ChannelLen > 64 {
 		return fmt.Errorf("nick_length is at most 50 and channel_length at most 64")

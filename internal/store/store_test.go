@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"path/filepath"
 	"testing"
 	"time"
@@ -110,5 +111,35 @@ func TestMemosAccessAndDelete(t *testing.T) {
 	accounts, nicks, memoCount, _ := s.Counts()
 	if accounts != 1 || nicks != 1 || memoCount != 0 {
 		t.Errorf("after delete: %d accounts, %d nicks, %d memos (cascade failed?)", accounts, nicks, memoCount)
+	}
+}
+
+func TestOpersMigration(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "old.db")
+	old, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The opers table as step 6 first shipped it, without pass_hash.
+	if _, err := old.Exec(`CREATE TABLE opers (account_id INTEGER PRIMARY KEY, flags TEXT NOT NULL, title TEXT NOT NULL DEFAULT '',
+		hosts TEXT NOT NULL DEFAULT '', added_by TEXT NOT NULL DEFAULT '', added_at INTEGER NOT NULL)`); err != nil {
+		t.Fatal(err)
+	}
+	old.Close()
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	a, err := s.CreateAccount("ember", "x", "", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveOper(&Oper{AccountID: a.ID, Flags: "g", Hosts: []string{"*@*"}, PassHash: "h", AddedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	o, err := s.OperByAccount(a.ID)
+	if err != nil || o == nil || o.PassHash != "h" {
+		t.Fatalf("oper = %+v, %v", o, err)
 	}
 }

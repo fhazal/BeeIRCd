@@ -53,6 +53,13 @@ func init() {
 		"MEMOSERV":     {1, false, (*Server).cmdMS},
 		"CS":           {1, false, (*Server).cmdCS},
 		"CHANSERV":     {1, false, (*Server).cmdCS},
+		"OS":           {1, false, (*Server).cmdOS},
+		"OPERSERV":     {1, false, (*Server).cmdOS},
+		"AS":           {1, false, (*Server).cmdAS},
+		"ADMINSERV":    {1, false, (*Server).cmdAS},
+		"OPER":         {2, false, (*Server).cmdOper},
+		"KILL":         {1, false, (*Server).cmdKill},
+		"WALLOPS":      {1, false, (*Server).cmdWallops},
 	}
 }
 
