@@ -14,11 +14,14 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/state"
+	"github.com/fhazal/beeircd/internal/store"
 	"github.com/fhazal/beeircd/internal/tlsutil"
 )
 
@@ -39,6 +42,14 @@ type Server struct {
 	batchSeq  uint64
 	wg        sync.WaitGroup
 
+	// Services.
+	store    *store.Store
+	services map[string]*service // by folded nick
+	nickServ *service
+	memoServ *service
+	lockouts map[int64]*lockout // wrong passwords per account
+	hashSem  chan struct{}      // limits password hashing running at once
+
 	// resolve looks up a hostname for an IP; replaceable in tests.
 	resolve func(ctx context.Context, ip string) (string, bool)
 }
@@ -51,20 +62,32 @@ type listener struct {
 // New opens the configured ports. Call Serve to start answering.
 func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	s := &Server{
-		cfg:     cfg,
-		log:     logger,
-		net:     state.NewNetwork(cfg.Server.SID),
-		clients: make(map[string]*Client),
-		events:  make(chan func(), 1024),
-		done:    make(chan struct{}),
-		created: time.Now(),
-		resolve: lookupHost,
+		cfg:      cfg,
+		log:      logger,
+		net:      state.NewNetwork(cfg.Server.SID),
+		clients:  make(map[string]*Client),
+		events:   make(chan func(), 1024),
+		done:     make(chan struct{}),
+		created:  time.Now(),
+		resolve:  lookupHost,
+		lockouts: make(map[int64]*lockout),
+		hashSem:  make(chan struct{}, 2),
 	}
+	if err := os.MkdirAll(filepath.Dir(cfg.Services.Database), 0o750); err != nil {
+		return nil, err
+	}
+	db, err := store.Open(cfg.Services.Database)
+	if err != nil {
+		return nil, err
+	}
+	s.store = db
+	s.startServices()
 	var tlsConf *tls.Config
 	if cfg.NeedsTLS() {
 		var err error
 		tlsConf, err = tlsutil.Load(cfg.TLS.Cert, cfg.TLS.Key, cfg.TLS.SelfSigned, cfg.Server.Name)
 		if err != nil {
+			db.Close()
 			return nil, err
 		}
 	}
@@ -72,6 +95,7 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 		ln, err := net.Listen("tcp", l.Address)
 		if err != nil {
 			s.closeListeners()
+			db.Close()
 			return nil, fmt.Errorf("listen on %s: %w", l.Address, err)
 		}
 		if l.TLS {
@@ -100,6 +124,9 @@ func (s *Server) Serve(ctx context.Context) error {
 	s.log.Printf("%s ready on %d port(s)", s.cfg.Server.Name, len(s.listeners))
 	tick := time.NewTicker(s.tickEvery())
 	defer tick.Stop()
+	hourly := time.NewTicker(time.Hour)
+	defer hourly.Stop()
+	s.expireAccounts(time.Now())
 	for {
 		select {
 		case <-ctx.Done():
@@ -111,6 +138,8 @@ func (s *Server) Serve(ctx context.Context) error {
 		case now := <-tick.C:
 			s.checkTimeouts(now)
 			s.reap()
+		case now := <-hourly.C:
+			s.expireAccounts(now)
 		}
 	}
 }
@@ -118,7 +147,7 @@ func (s *Server) Serve(ctx context.Context) error {
 // tickEvery checks timeouts often enough for the shortest one.
 func (s *Server) tickEvery() time.Duration {
 	l := s.cfg.Limits
-	d := min(l.PingInterval.Duration, l.PingTimeout.Duration, l.RegisterTimeout.Duration)
+	d := min(l.PingInterval.Duration, l.PingTimeout.Duration, l.RegisterTimeout.Duration, s.cfg.Services.IdentifyWithin.Duration)
 	d /= 4
 	switch {
 	case d < 20*time.Millisecond:
@@ -181,6 +210,9 @@ func (s *Server) shutdown() {
 	case <-time.After(3 * time.Second):
 		s.log.Printf("some connections did not close in time")
 	}
+	if err := s.store.Close(); err != nil {
+		s.log.Printf("closing services database: %v", err)
+	}
 	s.log.Printf("%s stopped", s.cfg.Server.Name)
 }
 
@@ -206,6 +238,9 @@ func (s *Server) checkTimeouts(now time.Time) {
 				s.quit(c, "Registration timed out")
 			}
 			continue
+		}
+		if !c.enforceAt.IsZero() && now.After(c.enforceAt) {
+			s.enforce(c)
 		}
 		if c.pingSent.IsZero() {
 			if now.Sub(c.lastRecv) > lim.PingInterval.Duration {

@@ -12,13 +12,24 @@ import (
 	"github.com/fhazal/beeircd/internal/version"
 )
 
-// capabilities are the IRCv3 features BeeIRCd offers. sasl joins them with
-// NickServ in step 4.
+// capabilities are the IRCv3 features BeeIRCd offers.
 var capabilities = []string{
 	"account-notify", "account-tag", "away-notify", "batch", "cap-notify",
 	"chghost", "echo-message", "extended-join", "invite-notify",
-	"labeled-response", "message-tags", "multi-prefix", "server-time",
+	"labeled-response", "message-tags", "multi-prefix", "sasl", "server-time",
 	"userhost-in-names",
+}
+
+// capLS is the CAP LS list; CAP 302 clients also see values.
+func capLS(v302 bool) string {
+	out := make([]string, len(capabilities))
+	for i, c := range capabilities {
+		if c == "sasl" && v302 {
+			c = "sasl=PLAIN"
+		}
+		out[i] = c
+	}
+	return strings.Join(out, " ")
 }
 
 func supportedCap(name string) bool {
@@ -36,10 +47,11 @@ func (s *Server) cmdCap(c *Client, m irc.Message) {
 		if !c.registered {
 			c.capBusy = true
 		}
-		if v, _ := strconv.Atoi(m.Param(1)); v >= 302 {
+		v, _ := strconv.Atoi(m.Param(1))
+		if v >= 302 {
 			c.caps["cap-notify"] = true // implied by CAP LS 302
 		}
-		s.capReply(c, "LS", strings.Join(capabilities, " "))
+		s.capReply(c, "LS", capLS(v >= 302))
 	case "LIST":
 		var on []string
 		for _, name := range capabilities {
@@ -101,6 +113,10 @@ func (s *Server) cmdNick(c *Client, m irc.Message) {
 		s.reply(c, irc.ErrErroneusNickname, nick, "Erroneous nickname")
 		return
 	}
+	if isReserved(nick) {
+		s.reply(c, irc.ErrErroneusNickname, nick, "Reserved for services")
+		return
+	}
 	if !c.registered {
 		if s.net.NickInUse(nick) {
 			s.reply(c, irc.ErrNicknameInUse, nick, "Nickname is already in use")
@@ -122,6 +138,7 @@ func (s *Server) cmdNick(c *Client, m irc.Message) {
 	}
 	s.addWhowasNick(old, u)
 	s.toNeighbours(u, o, true)
+	s.nickCheck(c)
 }
 
 func (s *Server) cmdUser(c *Client, m irc.Message) {
@@ -171,7 +188,7 @@ func (s *Server) cmdQuit(c *Client, m irc.Message) {
 // tryRegister finishes registration once NICK, USER, CAP and the host
 // lookup are all done.
 func (s *Server) tryRegister(c *Client) {
-	if c.registered || c.closed || c.nick == "" || c.ident == "" || !c.hostDone || c.capBusy {
+	if c.registered || c.closed || c.nick == "" || c.ident == "" || !c.hostDone || c.capBusy || c.saslBusy {
 		return
 	}
 	now := time.Now()
@@ -193,6 +210,12 @@ func (s *Server) tryRegister(c *Client) {
 		u.Modes['x'] = true
 		u.Host = s.cloakFor(u)
 	}
+	a := c.saslAccount
+	c.saslAccount = nil
+	if a != nil {
+		u.Account = a.Name
+		u.Modes['r'] = true
+	}
 	if err := s.net.AddUser(u); err != nil {
 		s.reply(c, irc.ErrNicknameInUse, c.nick, "Nickname is already in use")
 		c.nick = ""
@@ -205,6 +228,15 @@ func (s *Server) tryRegister(c *Client) {
 	}
 	s.log.Printf("connect %s (%s@%s) %s", u.Nick, u.Ident, u.RealHost, c.ip)
 	s.welcome(c)
+	if a != nil {
+		c.accountID = a.ID
+		a.LastSeen, a.LastHost = now, u.Ident+"@"+u.RealHost
+		if err := s.store.SaveAccount(a); err != nil {
+			s.log.Printf("services database: %v", err)
+		}
+		s.memoSummary(c, a)
+	}
+	s.nickCheck(c)
 }
 
 func (s *Server) welcome(c *Client) {
@@ -293,9 +325,12 @@ func (s *Server) localUsers() int {
 }
 
 func (s *Server) lusers(c *Client) {
-	total := s.net.UserCount()
-	invisible, opers := 0, 0
+	total, invisible, opers := 0, 0, 0
 	for _, u := range s.net.Users() {
+		if u.Service {
+			continue // services aren't people
+		}
+		total++
 		if u.HasMode('i') {
 			invisible++
 		}

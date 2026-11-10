@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,9 +19,18 @@ type Duration struct{ time.Duration }
 
 // UnmarshalText reads "90s" and the like.
 func (d *Duration) UnmarshalText(b []byte) error {
-	v, err := time.ParseDuration(string(b))
+	s := string(b)
+	if days, ok := strings.CutSuffix(s, "d"); ok {
+		n, err := strconv.Atoi(days)
+		if err != nil || n < 0 {
+			return fmt.Errorf("%q is not a time like 90d, 90s or 5m", s)
+		}
+		d.Duration = time.Duration(n) * 24 * time.Hour
+		return nil
+	}
+	v, err := time.ParseDuration(s)
 	if err != nil {
-		return fmt.Errorf("%q is not a time like 90s or 5m", string(b))
+		return fmt.Errorf("%q is not a time like 90d, 90s or 5m", s)
 	}
 	d.Duration = v
 	return nil
@@ -28,12 +38,13 @@ func (d *Duration) UnmarshalText(b []byte) error {
 
 // Config is the whole file.
 type Config struct {
-	Server Server   `toml:"server"`
-	Listen []Listen `toml:"listen"`
-	TLS    TLS      `toml:"tls"`
-	MOTD   MOTD     `toml:"motd"`
-	Cloak  Cloak    `toml:"cloak"`
-	Limits Limits   `toml:"limits"`
+	Server   Server   `toml:"server"`
+	Listen   []Listen `toml:"listen"`
+	TLS      TLS      `toml:"tls"`
+	MOTD     MOTD     `toml:"motd"`
+	Cloak    Cloak    `toml:"cloak"`
+	Services Services `toml:"services"`
+	Limits   Limits   `toml:"limits"`
 }
 
 // Cloak hides people's IPs and hostnames (user mode +x).
@@ -128,7 +139,7 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("%s: unknown setting %s", path, strings.Join(keys, ", "))
 	}
 	dir := filepath.Dir(path)
-	for _, p := range []*string{&c.TLS.Cert, &c.TLS.Key, &c.MOTD.File} {
+	for _, p := range []*string{&c.TLS.Cert, &c.TLS.Key, &c.MOTD.File, &c.Services.Database} {
 		if *p != "" && !filepath.IsAbs(*p) {
 			*p = filepath.Join(dir, *p)
 		}
@@ -158,6 +169,27 @@ func (c *Config) SetDefaults() {
 	setInt(&l.KickLen, 390)
 	setInt(&l.FloodBurst, 10)
 	setInt(&l.FloodRate, 2)
+	sv := &c.Services
+	if sv.Database == "" {
+		sv.Database = "/var/lib/beeircd/services.db"
+	}
+	setDur(&sv.NickExpire, 90*24*time.Hour)
+	setDur(&sv.IdentifyWithin, 60*time.Second)
+	if sv.GuestPrefix == "" {
+		sv.GuestPrefix = "Guest"
+	}
+}
+
+// Services holds NickServ, ChanServ and MemoServ settings.
+type Services struct {
+	// Database is the SQLite file with accounts, nicks and memos.
+	Database string `toml:"database"`
+	// NickExpire drops accounts nobody identified to for this long.
+	NickExpire Duration `toml:"nick_expire"`
+	// IdentifyWithin is how long someone on a protected nick has.
+	IdentifyWithin Duration `toml:"identify_within"`
+	// GuestPrefix starts the nick given to people who didn't identify.
+	GuestPrefix string `toml:"guest_prefix"`
 }
 
 func setDur(d *Duration, v time.Duration) {

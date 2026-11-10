@@ -95,10 +95,16 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 			continue
 		}
 		o := build(t.Nick)
-		s.deliverTo(t, o)
 		if c.caps["echo-message"] {
 			c.deliver(o)
 		}
+		if sv := s.serviceFor(t); sv != nil {
+			if verb == "PRIVMSG" {
+				s.toService(c, sv, m.Params[1])
+			}
+			continue
+		}
+		s.deliverTo(t, o)
 		if verb == "PRIVMSG" && t.Away != "" {
 			s.reply(c, irc.RplAway, t.Nick, t.Away)
 		}

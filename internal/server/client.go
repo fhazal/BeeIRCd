@@ -12,6 +12,7 @@ import (
 
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/state"
+	"github.com/fhazal/beeircd/internal/store"
 )
 
 // maxInput is the longest line we read: 8191 bytes of tags plus 512.
@@ -35,6 +36,18 @@ type Client struct {
 	closed                bool
 	caps                  map[string]bool // IRCv3 capabilities this client asked for
 	capture               *[]string       // lines held back for labeled-response
+
+	// Services state.
+	accountID   int64     // NickServ account, 0 when not identified
+	enforceAt   time.Time // rename to Guest at this time, unless identified
+	enforceNick string    // the nick enforceAt is about
+	pwBusy      bool      // a password check is running
+	dropCode    string    // confirms /ns drop
+	dropUntil   time.Time // dropCode is valid until then
+	saslMech    string    // SASL mechanism in progress
+	saslBuf     strings.Builder
+	saslBusy    bool
+	saslAccount *store.Account // SASL done before registration finished
 
 	connectedAt time.Time
 	lastRecv    time.Time
@@ -276,6 +289,7 @@ func (s *Server) quit(c *Client, reason string) {
 	delete(s.clients, c.uid)
 	if c.user != nil {
 		u := c.user
+		s.touchAccount(c)
 		s.toNeighbours(u, s.out(u, "QUIT", reason).text(), false)
 		s.addWhowas(u)
 		s.net.RemoveUser(u)

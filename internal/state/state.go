@@ -31,6 +31,7 @@ type User struct {
 	Account  string // services account, "" when not identified
 	Away     string
 	TLS      bool
+	Service  bool // NickServ and the other built-in services
 	SignOn   time.Time
 	NickTS   int64
 	Modes    map[byte]bool

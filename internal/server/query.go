@@ -84,6 +84,12 @@ func (s *Server) cmdWhois(c *Client, m irc.Message) {
 		if u.Away != "" {
 			s.reply(c, irc.RplAway, u.Nick, u.Away)
 		}
+		if u.Service {
+			s.reply(c, irc.RplWhoisOperator, u.Nick, "is a Network Service")
+		}
+		if u.Account != "" {
+			s.reply(c, irc.RplWhoisAccount, u.Nick, u.Account, "is logged in as")
+		}
 		if u.TLS {
 			s.reply(c, irc.RplWhoisSecure, u.Nick, "is using a secure connection")
 		}
