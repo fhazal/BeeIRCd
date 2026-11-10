@@ -1,0 +1,370 @@
+<title>BeeIRCD Walkthrough</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one calm reading column; mockups sit in their own scroll boxes, fixed dark like real screenshots. */
+:root{
+  --bg:#f5f6f8; --fg:#1b1e25; --muted:#5a6170; --line:#dde1e8; --card:#ffffff; --accent:#a8690f; --accent-soft:#f6e7cc;
+  --display:"Space Grotesk","Segoe UI",system-ui,sans-serif;
+  --body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"JetBrains Mono",Consolas,"Cascadia Mono",monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#13151a; --fg:#e5e7ec; --muted:#9aa1ae; --line:#2a2e37; --card:#1a1d24; --accent:#f0b54a; --accent-soft:#3a2e17; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#13151a; --fg:#e5e7ec; --muted:#9aa1ae; --line:#2a2e37; --card:#1a1d24; --accent:#f0b54a; --accent-soft:#3a2e17; color-scheme:dark}
+
+body{background:var(--bg);color:var(--fg);font:15px/1.6 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 64px}
+.wrap{max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:56px}
+header{display:flex;flex-direction:column;gap:6px}
+.eyebrow{font:600 12px/1 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+h1{font:600 40px/1.1 var(--display);margin:0;text-wrap:balance}
+h2{font:600 24px/1.2 var(--display);margin:0;text-wrap:balance;display:flex;gap:12px;align-items:baseline}
+h2 .step{font:600 14px/1 var(--mono);color:var(--accent)}
+p{margin:0;max-width:68ch}
+.lead{color:var(--muted);font-size:16px}
+section{display:flex;flex-direction:column;gap:16px}
+code{font:13px var(--mono);background:var(--accent-soft);padding:1px 5px;border-radius:4px}
+
+/* Names */
+.names{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.name{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.name b{font:600 20px/1.2 var(--display)}
+.name span{color:var(--muted);font-size:14px}
+.name em{font:12px var(--mono);font-style:normal;color:var(--accent)}
+.note{color:var(--muted);font-size:14px}
+@media (max-width:640px){.names{grid-template-columns:1fr}h1{font-size:32px}}
+
+/* Scroll boxes for fixed-size mockups */
+.scroll{overflow-x:auto;padding-bottom:4px}
+
+/* Terminal (fixed dark, like a real SSH window) */
+.term{min-width:720px;background:#0f1115;color:#d7dae0;border-radius:10px;border:1px solid #262a33;font:13.5px/1.65 var(--mono);overflow:hidden}
+.term .bar{background:#1a1d24;color:#8a909c;font:12px var(--body);padding:8px 14px;display:flex;gap:8px;align-items:center}
+.term .bar i{width:10px;height:10px;border-radius:50%;background:#3a3f4b;display:inline-block}
+.term pre{margin:0;padding:16px 18px;white-space:pre;font:inherit}
+.pr{color:#8bd49c}.dm{color:#6f7684}.an{color:#f0b54a}.ok{color:#8bd49c}.hd{color:#ffffff;font-weight:600}.bl{color:#8ab4f8}
+
+/* BChat window (Catppuccin Mocha, as BChat ships) */
+.switch{display:flex;flex-wrap:wrap;gap:6px}
+.switch button{font:500 14px var(--body);color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 14px;cursor:pointer}
+.switch button:hover{border-color:var(--accent)}
+.switch button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.switch button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.caption{color:var(--muted);font-size:14px;min-height:1.6em}
+
+.bchat{min-width:940px;background:#1e1e2e;color:#cdd6f4;border:1px solid #11111b;border-radius:8px;overflow:hidden;font:14px/1.4 "Segoe UI",system-ui,sans-serif}
+.bc-title{background:#181825;display:flex;align-items:center;gap:10px;padding:7px 12px;font-size:14px}
+.bc-title .logo{width:18px;height:18px;border-radius:4px;background:#45475a;color:#cdd6f4;font:600 8px/18px var(--body);text-align:center}
+.bc-title .dots{margin-left:auto;display:flex;gap:9px}
+.bc-title .dots i{width:13px;height:13px;border-radius:50%;display:block}
+.bc-menu{display:flex;gap:22px;padding:4px 16px 6px;border-bottom:1px solid #11111b;font-size:14px}
+.bc-body{display:grid;grid-template-columns:210px minmax(0,1fr) 170px;gap:6px;padding:6px;min-height:440px}
+.pane{border:1px solid #313244;background:#1e1e2e}
+.tree{padding:6px 0;font-size:14px}
+.tree div{padding:3px 10px;display:flex;gap:7px;align-items:center;white-space:nowrap}
+.tree .l1{padding-left:28px}.tree .l2{padding-left:50px}
+.tree .act{background:#45475a}
+.tree .ic{width:13px;height:11px;border-radius:2px;display:inline-block}
+.chat{display:flex;flex-direction:column;gap:6px;min-width:0}
+.topic{border:1px solid #313244;padding:5px 8px;font-size:14px;min-height:1.4em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.buf{flex:1;border:1px solid #313244;padding:8px 10px;font:13.5px/1.75 var(--mono)}
+.buf p{margin:0;max-width:none;white-space:pre-wrap;word-break:break-word}
+.buf i{font-style:normal;color:#6c7086}
+.buf i::before{content:"["}.buf i::after{content:"] "}
+.sv{color:#fab387}.me{color:#cba6f7}.mt{color:#a6adc8}.ev{color:#a6e3a1}.inf{color:#89b4fa}.gl{color:#f9e2af}.hi{color:#ffffff;font-weight:600}.dmm{color:#7f849c}.red{color:#f38ba8}
+.nicks{font-size:14px}
+.nicks .head{text-align:center;padding:5px;border-bottom:1px solid #313244}
+.nicks div.n{padding:3px 10px;display:flex;gap:9px;align-items:center}
+.nicks .lt{width:8px;height:8px;border-radius:50%;display:inline-block;box-shadow:inset 0 -2px 2px rgba(0,0,0,.35)}
+.lt.op{background:#7fd13b}.lt.vo{background:#e7c234}.lt.no{background:transparent}
+.bc-input{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center;padding:0 6px 6px}
+.bc-input .nick{padding:4px 14px}
+.bc-input .box{border:1px solid #313244;padding:4px 8px;font:13.5px var(--mono);min-height:1.6em}
+.scene[hidden]{display:none!important}
+
+/* Open items */
+.todo{display:flex;flex-direction:column;gap:10px;margin:0;padding:0;list-style:none}
+.todo li{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:72ch}
+.todo b{font-weight:600}
+@media (prefers-reduced-motion:no-preference){.switch button{transition:background .15s,border-color .15s}}
+</style>
+
+<div class="wrap">
+
+<header>
+  <span class="eyebrow">Mockup · 11 Nov 2026 · nothing built yet</span>
+  <h1>BeeIRCD, from install to chat</h1>
+  <p class="lead">What running your own server would look like: one install on Linux, one command to start, and every service answering in BChat. All names, nicks and addresses below are examples.</p>
+</header>
+
+<section>
+  <h2>The names</h2>
+  <p>My recommendation: drop BeeHive. One name for the thing you download, install and run is calmer than a package name plus a server name. The two web parts keep their own names because people open them separately.</p>
+  <div class="names">
+    <div class="name"><em>beeircd</em><b>BeeIRCD</b><span>The download, the server, the services, the <code>beeircd</code> command.</span></div>
+    <div class="name"><em>https://…:8443</em><b>Hive Panel</b><span>Web admin inside BeeIRCD. Stage 3.</span></div>
+    <div class="name"><em>https://…/chat</em><b>BeeRoom</b><span>Web chat inside BeeIRCD. Stage 4.</span></div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="step">1</span>Install</h2>
+  <p>Unpack, run <code>./install</code>, answer a few questions. Enter keeps the value in brackets. Nothing is written until you confirm the summary.</p>
+  <div class="scroll"><div class="term">
+<div class="bar"><i></i><i></i><i></i><span>root@irc: ~/beeircd-0.1.0</span></div>
+<pre><span class="pr">root@irc:~#</span> tar xf beeircd-0.1.0-linux-amd64.tar.gz &amp;&amp; cd beeircd-0.1.0
+<span class="pr">root@irc:~/beeircd-0.1.0#</span> ./install
+
+  <span class="hd">BeeIRCD 0.1.0 setup</span>
+  <span class="dm">Answer each question. Enter keeps the [default]. Ctrl+C stops without changes.</span>
+
+  1/8  Server name           <span class="dm">[irc.beenet.org]</span>  <span class="an">⏎</span>
+  2/8  Network name          <span class="dm">[BeeNet]</span>          <span class="an">⏎</span>
+  3/8  Your admin nick                          <span class="an">Bee</span>
+  4/8  Admin password                           <span class="an">••••••••••</span>
+  5/8  Ports                 <span class="dm">[6667 plain, 6697 TLS]</span>  <span class="an">⏎</span>
+  6/8  TLS certificate       <span class="dm">1) Let's Encrypt  2) self-signed  3) my own files  [1]</span>  <span class="an">⏎</span>
+  7/8  This server is        <span class="dm">1) on its own  2) a hub  3) a leaf  [1]</span>  <span class="an">2</span>
+  8/8  Link port             <span class="dm">[7000, TLS only]</span>  <span class="an">⏎</span>
+
+  <span class="hd">Summary</span>
+  Server      irc.beenet.org   on network BeeNet
+  Admin       Bee   <span class="dm">(registered with NickServ, opered on identify, all flags)</span>
+  Ports       6667 plain · 6697 TLS · 7000 links
+  Role        hub   <span class="dm">(add leaves later with /as server … add)</span>
+  Certificate Let's Encrypt for irc.beenet.org, renews by itself
+  Files       /opt/beeircd   data /var/lib/beeircd   logs /var/log/beeircd
+
+  Install with these settings? <span class="dm">[Y/n]</span> <span class="an">y</span>
+
+  <span class="ok">✓</span> system user beeircd created
+  <span class="ok">✓</span> files copied, config written to /etc/beeircd/beeircd.conf
+  <span class="ok">✓</span> certificate issued for irc.beenet.org
+  <span class="ok">✓</span> firewall: 6667, 6697, 7000 open
+  <span class="ok">✓</span> service beeircd enabled, starts with the machine, restarts if it stops
+
+  Start BeeIRCD now? <span class="dm">[Y/n]</span> <span class="an">y</span>
+  <span class="ok">✓</span> BeeIRCD is running.  Connect with:  <span class="bl">irc.beenet.org  port 6697 (TLS)</span>
+</pre></div></div>
+</section>
+
+<section>
+  <h2><span class="step">2</span>Start and check</h2>
+  <p>After that, one command for everything. <code>status</code> is the quick look, <code>check</code> tests the config before a restart so a typo never takes the server down.</p>
+  <div class="scroll"><div class="term">
+<div class="bar"><i></i><i></i><i></i><span>root@irc: ~</span></div>
+<pre><span class="pr">root@irc:~#</span> beeircd status
+
+  <span class="hd">BeeIRCD 0.1.0</span>   <span class="ok">● running</span>  for 3 days 4 h   <span class="dm">pid 4121</span>
+  Server     irc.beenet.org  · hub of BeeNet
+  Ports      6667 plain · 6697 TLS · 7000 links
+  People     48 online <span class="dm">(peak 61)</span> · 12 channels · 4 opers
+  Services   NickServ  ChanServ  MemoServ  OperServ  AdminServ   <span class="ok">all up</span>
+  Links      leaf1.beenet.org  <span class="ok">linked</span> 2 ms   ·   leaf2.beenet.org  <span class="dm">disabled</span>
+  Cert       Let's Encrypt, valid until 9 Feb 2027
+
+<span class="pr">root@irc:~#</span> beeircd check
+  <span class="ok">✓</span> config reads cleanly
+  <span class="ok">✓</span> certificate matches irc.beenet.org
+  <span class="ok">✓</span> services database OK  <span class="dm">(412 nicks, 37 channels, 9 memos)</span>
+  <span class="ok">✓</span> safe to restart
+
+<span class="pr">root@irc:~#</span> beeircd
+  start · stop · restart · status · check · update · backup
+</pre></div></div>
+</section>
+
+<section>
+  <h2><span class="step">3</span>In BChat</h2>
+  <p>Services answer as notices, the way IRC always did, with a ConferenceRoom feel: short sentences, tidy lists, a hint for the next step. Pick a service to see it.</p>
+  <div class="switch" role="group" aria-label="Choose a service">
+    <button type="button" data-go="connect" aria-pressed="true">Connect</button>
+    <button type="button" data-go="ns" aria-pressed="false">NickServ</button>
+    <button type="button" data-go="cs" aria-pressed="false">ChanServ</button>
+    <button type="button" data-go="ms" aria-pressed="false">MemoServ</button>
+    <button type="button" data-go="os" aria-pressed="false">OperServ</button>
+    <button type="button" data-go="as" aria-pressed="false">AdminServ</button>
+  </div>
+  <p class="caption" id="caption">Bee connects, identifies, and is opered by services. No /oper line needed.</p>
+
+  <div class="scroll"><div class="bchat">
+    <div class="bc-title"><span class="logo">chat</span><span id="wtitle">BChat: Bee @ irc.beenet.org / BeeNet</span>
+      <span class="dots"><i style="background:#f5b82e"></i><i style="background:#3fc04f"></i><i style="background:#ef4b4b"></i></span></div>
+    <div class="bc-menu"><span>BChat</span><span>View</span><span>Server</span><span>Settings</span><span>Window</span><span>Help</span></div>
+    <div class="bc-body">
+      <div class="pane tree">
+        <div id="t-net" class="act"><span class="ic" style="background:#89b4fa"></span>BeeNet</div>
+        <div class="l1"><span class="ic" style="background:#f9c74f"></span>Channels: 2</div>
+        <div class="l2" id="t-chan"><span class="ic" style="background:#89b4fa"></span>#bchat</div>
+        <div class="l2"><span class="ic" style="background:#89b4fa"></span><span style="color:#f38ba8">#help</span></div>
+      </div>
+
+      <div class="chat">
+        <div class="topic" id="wtopic">BeeNet · irc.beenet.org</div>
+        <div class="buf">
+
+<div class="scene" data-scene="connect" data-chan="0" data-cap="Bee connects, identifies, and is opered by services. No /oper line needed.">
+<p><i>21:04</i><span class="inf">*</span> Connecting to irc.beenet.org (6697) with TLS</p>
+<p><i>21:04</i><span class="inf">*</span> Connected. Logging in…</p>
+<p><i>21:04</i><span class="sv">-irc.beenet.org-</span> Welcome to BeeNet, Bee</p>
+<p><i>21:04</i><span class="sv">-irc.beenet.org-</span> Your host is irc.beenet.org, running BeeIRCD 0.1.0</p>
+<p><i>21:04</i><span class="inf">*</span> Message of the day</p>
+<p><i>21:04</i>  Welcome to BeeNet · be kind, stay curious</p>
+<p><i>21:04</i>  Services: /ns /cs /ms   ·   new here? type <span class="hi">/ns help</span></p>
+<p><i>21:04</i><span class="sv">-NickServ-</span> <span class="hi">Bee</span> is a registered nick. Identify within 60 seconds: /ns identify &lt;password&gt;</p>
+<p><i>21:04</i><span class="me">&gt;NickServ&lt;</span> <span class="mt">IDENTIFY ••••••••••</span></p>
+<p><i>21:04</i><span class="sv">-NickServ-</span> Password accepted. You are identified as <span class="hi">Bee</span>.</p>
+<p><i>21:04</i><span class="ev">*</span> Your mode is now <span class="hi">+r</span> (registered)</p>
+<p><i>21:04</i><span class="sv">-OperServ-</span> Welcome back, Bee. You are opered as <span class="hi">Network Admin</span> · flags a c g h k s</p>
+<p><i>21:04</i><span class="ev">*</span> Your mode is now <span class="hi">+o</span></p>
+<p><i>21:04</i><span class="sv">-MemoServ-</span> You have <span class="hi">1 new memo</span>. Read it: /ms read 1</p>
+</div>
+
+<div class="scene" data-scene="ns" data-chan="0" data-cap="NickServ keeps a nick yours. The help list is short; /ns help <command> explains one." hidden>
+<p><i>21:06</i><span class="me">&gt;NickServ&lt;</span> <span class="mt">HELP</span></p>
+<p><i>21:06</i><span class="sv">-NickServ-</span> NickServ keeps your nick yours. Commands:</p>
+<p><i>21:06</i><span class="sv">-NickServ-</span>   <span class="hi">REGISTER</span> &lt;password&gt; [email]   register the nick you are using</p>
+<p><i>21:06</i><span class="sv">-NickServ-</span>   <span class="hi">IDENTIFY</span> &lt;password&gt;           prove the nick is yours</p>
+<p><i>21:06</i><span class="sv">-NickServ-</span>   <span class="hi">GHOST</span> &lt;nick&gt; &lt;password&gt;       free your nick from an old connection</p>
+<p><i>21:06</i><span class="sv">-NickServ-</span>   <span class="hi">GROUP</span> &lt;nick&gt; &lt;password&gt;       add this nick to your account</p>
+<p><i>21:06</i><span class="sv">-NickServ-</span>   <span class="hi">ACCESS</span> ADD | DEL | LIST         hosts that identify you by themselves</p>
+<p><i>21:06</i><span class="sv">-NickServ-</span>   <span class="hi">SET</span> PASSWORD | EMAIL | ENFORCE | HIDE</p>
+<p><i>21:06</i><span class="sv">-NickServ-</span>   <span class="hi">INFO</span> &lt;nick&gt;                    who owns a nick, when last seen</p>
+<p><i>21:06</i><span class="sv">-NickServ-</span>   <span class="hi">DROP</span>                           unregister your nick</p>
+<p><i>21:06</i><span class="sv">-NickServ-</span> More on one command: /ns help &lt;command&gt;</p>
+<p><i>21:07</i><span class="me">&gt;NickServ&lt;</span> <span class="mt">INFO ember</span></p>
+<p><i>21:07</i><span class="sv">-NickServ-</span> <span class="hi">ember</span> · registered 11 Nov 2026 (2 days ago)</p>
+<p><i>21:07</i><span class="sv">-NickServ-</span>   Last seen     online now</p>
+<p><i>21:07</i><span class="sv">-NickServ-</span>   Also uses     ember_, emberAway</p>
+<p><i>21:07</i><span class="sv">-NickServ-</span>   Options       enforce, email hidden</p>
+<p><i>21:08</i><span class="ev">*</span> Someone is using your other nick <span class="hi">Bee_</span></p>
+<p><i>21:08</i><span class="me">&gt;NickServ&lt;</span> <span class="mt">GHOST Bee_ ••••••••••</span></p>
+<p><i>21:08</i><span class="sv">-NickServ-</span> Bee_ was disconnected. The nick is free.</p>
+</div>
+
+<div class="scene" data-scene="cs" data-chan="1" data-cap="ChanServ in #bchat: register, add people to the access levels, see who has what. Only @ and +, as on your servers." hidden>
+<p><i>21:10</i><span class="me">&gt;ChanServ&lt;</span> <span class="mt">REGISTER #bchat Be kind, stay curious</span></p>
+<p><i>21:10</i><span class="sv">-ChanServ-</span> <span class="hi">#bchat</span> is registered to Bee. You are its Founder.</p>
+<p><i>21:10</i><span class="ev">*</span> ChanServ gives channel operator status to Bee</p>
+<p><i>21:11</i><span class="me">&gt;ChanServ&lt;</span> <span class="mt">SOP #bchat ADD Kestrel</span></p>
+<p><i>21:11</i><span class="sv">-ChanServ-</span> Kestrel added to the SOP list of #bchat.</p>
+<p><i>21:11</i><span class="me">&gt;ChanServ&lt;</span> <span class="mt">AOP #bchat ADD ember</span></p>
+<p><i>21:11</i><span class="sv">-ChanServ-</span> ember added to the AOP list of #bchat.</p>
+<p><i>21:11</i><span class="ev">*</span> ChanServ gives channel operator status to ember</p>
+<p><i>21:12</i><span class="me">&gt;ChanServ&lt;</span> <span class="mt">VOP #bchat ADD mira</span></p>
+<p><i>21:12</i><span class="sv">-ChanServ-</span> mira added to the VOP list of #bchat.</p>
+<p><i>21:12</i><span class="ev">*</span> ChanServ gives voice to mira</p>
+<p><i>21:13</i><span class="me">&gt;ChanServ&lt;</span> <span class="mt">ACCESS #bchat LIST</span></p>
+<p><i>21:13</i><span class="sv">-ChanServ-</span> Access list of <span class="hi">#bchat</span></p>
+<p><i>21:13</i><span class="sv">-ChanServ-</span>   <span class="dmm">Level    Nick      Gets   Can also</span></p>
+<p><i>21:13</i><span class="sv">-ChanServ-</span>   Founder  Bee       @      everything</p>
+<p><i>21:13</i><span class="sv">-ChanServ-</span>   SOP      Kestrel   @      add/remove AOP, VOP, UOP · akick</p>
+<p><i>21:13</i><span class="sv">-ChanServ-</span>   AOP      ember     @      kick, ban, topic</p>
+<p><i>21:13</i><span class="sv">-ChanServ-</span>   VOP      mira      +      </p>
+<p><i>21:13</i><span class="sv">-ChanServ-</span>   UOP      nova      –      invite and unban themself</p>
+<p><i>21:13</i><span class="sv">-ChanServ-</span> 5 entries. Change one: /cs aop #bchat del ember</p>
+</div>
+
+<div class="scene" data-scene="ms" data-chan="0" data-cap="MemoServ leaves a message for someone who is away. They are told the next time they identify." hidden>
+<p><i>21:20</i><span class="me">&gt;MemoServ&lt;</span> <span class="mt">READ 1</span></p>
+<p><i>21:20</i><span class="sv">-MemoServ-</span> Memo 1 from <span class="hi">Kestrel</span> · 11 Nov 2026 20:41</p>
+<p><i>21:20</i><span class="sv">-MemoServ-</span>   leaf2 is ready on my side. Link password is set, just enable it.</p>
+<p><i>21:21</i><span class="me">&gt;MemoServ&lt;</span> <span class="mt">SEND nova Meeting about the new leaf, Friday 21:00 in #ops</span></p>
+<p><i>21:21</i><span class="sv">-MemoServ-</span> Memo sent to nova. They are away; they will see it when they identify.</p>
+<p><i>21:22</i><span class="me">&gt;MemoServ&lt;</span> <span class="mt">LIST</span></p>
+<p><i>21:22</i><span class="sv">-MemoServ-</span>   <span class="dmm">#  From      Sent          </span></p>
+<p><i>21:22</i><span class="sv">-MemoServ-</span>   1  Kestrel   11 Nov 20:41  read</p>
+<p><i>21:22</i><span class="sv">-MemoServ-</span>   2  ember     10 Nov 08:02  read</p>
+<p><i>21:22</i><span class="sv">-MemoServ-</span> 2 memos, none new. Delete one: /ms del 2</p>
+</div>
+
+<div class="scene" data-scene="os" data-chan="0" data-cap="OperServ is for opers: network stats, network-wide bans, notices to everyone." hidden>
+<p><i>21:30</i><span class="me">&gt;OperServ&lt;</span> <span class="mt">STATS</span></p>
+<p><i>21:30</i><span class="sv">-OperServ-</span> <span class="hi">BeeNet</span> · 2 servers · 48 people (peak 61) · 12 channels · 4 opers online</p>
+<p><i>21:31</i><span class="me">&gt;OperServ&lt;</span> <span class="mt">AKILL ADD *@203.0.113.* 7d Spam bots</span></p>
+<p><i>21:31</i><span class="sv">-OperServ-</span> Network ban on <span class="hi">*@203.0.113.*</span> for 7 days, on every server. 2 connections removed.</p>
+<p><i>21:32</i><span class="me">&gt;OperServ&lt;</span> <span class="mt">AKILL LIST</span></p>
+<p><i>21:32</i><span class="sv">-OperServ-</span>   <span class="dmm">#  Mask             By    Ends in  Reason</span></p>
+<p><i>21:32</i><span class="sv">-OperServ-</span>   1  *@203.0.113.*    Bee   7 days   Spam bots</p>
+<p><i>21:33</i><span class="me">&gt;OperServ&lt;</span> <span class="mt">GLOBAL leaf1 restarts at 23:00, about 2 minutes</span></p>
+<p><i>21:33</i><span class="gl">-Global-</span> leaf1 restarts at 23:00, about 2 minutes</p>
+<p><i>21:34</i><span class="me">&gt;OperServ&lt;</span> <span class="mt">MODE #bchat +m</span></p>
+<p><i>21:34</i><span class="ev">*</span> OperServ sets mode +m on #bchat</p>
+</div>
+
+<div class="scene" data-scene="as" data-chan="0" data-cap="AdminServ changes the server live from IRC. Here: linking a new leaf server, then adding an oper." hidden>
+<p><i>21:40</i><span class="me">&gt;AdminServ&lt;</span> <span class="mt">SERVER leaf2.beenet.org ADD</span></p>
+<p><i>21:40</i><span class="sv">-AdminServ-</span> leaf2.beenet.org added, <span class="hi">disabled</span>. Set its details, then ENABLE it.</p>
+<p><i>21:40</i><span class="me">&gt;AdminServ&lt;</span> <span class="mt">SERVER leaf2.beenet.org SET HOST 198.51.100.20</span></p>
+<p><i>21:40</i><span class="me">&gt;AdminServ&lt;</span> <span class="mt">SERVER leaf2.beenet.org SET PORT 7000</span></p>
+<p><i>21:41</i><span class="me">&gt;AdminServ&lt;</span> <span class="mt">SERVER leaf2.beenet.org SET INPASS ••••••</span></p>
+<p><i>21:41</i><span class="me">&gt;AdminServ&lt;</span> <span class="mt">SERVER leaf2.beenet.org SET OUTPASS ••••••</span></p>
+<p><i>21:41</i><span class="me">&gt;AdminServ&lt;</span> <span class="mt">SERVER leaf2.beenet.org SET AUTOCONNECT ON</span></p>
+<p><i>21:41</i><span class="sv">-AdminServ-</span> leaf2.beenet.org: host, port, passwords and autoconnect saved. TLS is on by default.</p>
+<p><i>21:42</i><span class="me">&gt;AdminServ&lt;</span> <span class="mt">SERVER leaf2.beenet.org ENABLE</span></p>
+<p><i>21:42</i><span class="sv">-AdminServ-</span> Linking to leaf2.beenet.org (198.51.100.20:7000, TLS)…</p>
+<p><i>21:42</i><span class="ev">*</span> leaf2.beenet.org linked to irc.beenet.org · 3 ms · 9 people and 4 channels joined the network</p>
+<p><i>21:43</i><span class="me">&gt;AdminServ&lt;</span> <span class="mt">SERVER LIST</span></p>
+<p><i>21:43</i><span class="sv">-AdminServ-</span>   <span class="dmm">Name               Role  State       Ping   Auto  TLS</span></p>
+<p><i>21:43</i><span class="sv">-AdminServ-</span>   irc.beenet.org     hub   this one    –      –     –</p>
+<p><i>21:43</i><span class="sv">-AdminServ-</span>   leaf1.beenet.org   leaf  <span class="ev">linked</span>      2 ms   on    on</p>
+<p><i>21:43</i><span class="sv">-AdminServ-</span>   leaf2.beenet.org   leaf  <span class="ev">linked</span>      3 ms   on    on</p>
+<p><i>21:44</i><span class="me">&gt;AdminServ&lt;</span> <span class="mt">OPER Kestrel ADD FLAGS c g h HOST *@*.beenet.net</span></p>
+<p><i>21:44</i><span class="sv">-AdminServ-</span> Kestrel is now an oper (flags c g h) from *@*.beenet.net. Opered when they identify.</p>
+</div>
+
+        </div>
+      </div>
+
+      <div class="pane nicks">
+        <div class="head" id="nhead">&nbsp;</div>
+        <div id="nlist" hidden>
+          <div class="n"><span class="lt op"></span>Bee</div>
+          <div class="n"><span class="lt op"></span>ember</div>
+          <div class="n"><span class="lt op"></span>Kestrel</div>
+          <div class="n"><span class="lt vo"></span>mira</div>
+          <div class="n"><span class="lt no"></span>nova</div>
+          <div class="n"><span class="lt no"></span>pixelfox</div>
+          <div class="n"><span class="lt no"></span>sol</div>
+          <div class="n"><span class="lt no"></span>wren</div>
+        </div>
+      </div>
+    </div>
+    <div class="bc-input"><span class="nick">Bee</span><div class="box" id="wbox">/ns help</div></div>
+  </div></div>
+</section>
+
+<section>
+  <h2>Still to decide</h2>
+  <ul class="todo">
+    <li><b>Full command list per service.</b> Standard services with a ConferenceRoom flavor; the lists above are a first taste. We settle the complete list later.</li>
+    <li><b>Opered on identify.</b> Shown above: opers get their status from services when they identify, so no /oper password in client configs. Plain /oper would still work. Keep it?</li>
+    <li><b>Hive Panel mockup.</b> The web admin comes next, as its own picture.</li>
+  </ul>
+</section>
+
+</div>
+
+<script>
+(function(){
+  var next={connect:"/ns help",ns:"/cs register #bchat Be kind, stay curious",cs:"/cs aop #bchat del ember",ms:"/ms del 2",os:"/os akill del 1",as:"/as server list"};
+  var btns=document.querySelectorAll(".switch button");
+  var scenes=document.querySelectorAll(".scene");
+  function show(id){
+    var chan=false;
+    scenes.forEach(function(s){var on=s.dataset.scene===id;s.hidden=!on;if(on){chan=s.dataset.chan==="1";document.getElementById("caption").textContent=s.dataset.cap;}});
+    btns.forEach(function(b){b.setAttribute("aria-pressed",b.dataset.go===id?"true":"false");});
+    document.getElementById("t-net").className=chan?"":"act";
+    document.getElementById("t-chan").className="l2"+(chan?" act":"");
+    document.getElementById("wtitle").textContent=chan?"BChat: Bee @ irc.beenet.org / #bchat (+nt 8)":"BChat: Bee @ irc.beenet.org / BeeNet";
+    document.getElementById("wtopic").textContent=chan?"Welcome to #bchat · be kind, stay curious":"BeeNet · irc.beenet.org";
+    document.getElementById("nhead").textContent=chan?"3 ops, 8 total":" ";
+    document.getElementById("nlist").hidden=!chan;
+    document.getElementById("wbox").textContent=next[id]||"";
+  }
+  btns.forEach(function(b){b.addEventListener("click",function(){show(b.dataset.go);});});
+})();
+</script>

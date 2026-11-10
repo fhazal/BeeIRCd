@@ -1,0 +1,12 @@
+# build output
+/dist/
+/bin/
+*.exe
+*.test
+*.out
+
+# local test data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm

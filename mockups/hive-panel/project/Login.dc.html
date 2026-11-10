@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hive Panel sign in</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap">
+<style>
+body{margin:0;background:#0f1115}
+a{color:#f0b54a}a:hover{color:#ffd27f}
+</style>
+</helmet>
+<div style="width: 100%; min-height: 800px; box-sizing: border-box; padding: 40px 16px; display: flex; align-items: center; justify-content: center; background: #0f1115; color: #e6e8ee; font-family: Inter, 'Segoe UI', system-ui, sans-serif; font-size: 15px; line-height: 1.5">
+  <form aria-label="Sign in" style="width: 100%; max-width: 380px; box-sizing: border-box; padding: 32px; border-radius: 16px; background: #161a21; border: 1px solid #232833; display: flex; flex-direction: column; gap: 20px">
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#f0b54a" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z"></path><path d="M12 8l3.5 2v4L12 16l-3.5-2v-4z"></path></svg>
+      <h1 style="margin: 0; font-family: 'Space Grotesk', Inter, sans-serif; font-weight: 600; font-size: 24px; line-height: 1.2">Hive Panel</h1>
+      <span style="color: #a9b0bc">BeeNet · irc.beenet.org</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <label for="nick" style="color: #a9b0bc; font-size: 13px">Nick</label>
+      <input id="nick" value="Bee" autocomplete="username" style="min-height: 44px; box-sizing: border-box; padding: 0 12px; border-radius: 8px; border: 1px solid #2c3240; background: #0f1115; color: #e6e8ee; font: inherit; width: 100%">
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <label for="pw" style="color: #a9b0bc; font-size: 13px">NickServ password</label>
+      <input id="pw" type="password" value="example" autocomplete="current-password" style="min-height: 44px; box-sizing: border-box; padding: 0 12px; border-radius: 8px; border: 1px solid #2c3240; background: #0f1115; color: #e6e8ee; font: inherit; width: 100%">
+    </div>
+    <button type="button" style="min-height: 46px; border-radius: 8px; border: 0; background: #f0b54a; color: #1a1408; font: inherit; font-weight: 600; cursor: pointer">Sign in</button>
+    <p style="margin: 0; color: #8a92a0; font-size: 13px; text-align: center">Only opers can sign in. After 5 wrong tries, wait 10 minutes.</p>
+  </form>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

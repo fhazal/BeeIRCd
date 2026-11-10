@@ -1,0 +1,42 @@
+package main
+
+import (
+	"bytes"
+	"strings"
+	"testing"
+)
+
+func TestRun(t *testing.T) {
+	cases := []struct {
+		name   string
+		args   []string
+		code   int
+		outHas string
+		errHas string
+	}{
+		{"no args shows usage", nil, 0, "Usage: beeircd", ""},
+		{"help", []string{"help"}, 0, "Usage: beeircd", ""},
+		{"version", []string{"version"}, 0, "BeeIRCD ", ""},
+		{"version is case blind", []string{"VERSION"}, 0, "BeeIRCD ", ""},
+		{"planned command says so", []string{"start"}, 2, "", "isn't built yet"},
+		{"unknown command", []string{"fly"}, 2, "", `Unknown command "fly"`},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var out, errb bytes.Buffer
+			code := run(c.args, &out, &errb)
+			if code != c.code {
+				t.Errorf("exit code %d, want %d", code, c.code)
+			}
+			if c.outHas != "" && !strings.Contains(out.String(), c.outHas) {
+				t.Errorf("stdout %q lacks %q", out.String(), c.outHas)
+			}
+			if c.errHas != "" && !strings.Contains(errb.String(), c.errHas) {
+				t.Errorf("stderr %q lacks %q", errb.String(), c.errHas)
+			}
+			if c.errHas == "" && errb.Len() > 0 {
+				t.Errorf("unexpected stderr %q", errb.String())
+			}
+		})
+	}
+}
