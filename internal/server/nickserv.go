@@ -588,10 +588,12 @@ func nsDrop(s *Server, c *Client, args []string) {
 	}
 	c.dropCode = ""
 	id, name := a.ID, a.Name
-	if err := s.store.DeleteAccount(id); err != nil {
+	changes, err := s.store.DeleteAccount(id)
+	if err != nil {
 		s.dbErr(c, s.nickServ, err)
 		return
 	}
+	s.applyFounderChanges(changes, "founder "+name+" dropped the account")
 	s.log.Printf("dropped account %s (by its owner)", name)
 	for _, other := range s.clients {
 		if other.accountID == id {

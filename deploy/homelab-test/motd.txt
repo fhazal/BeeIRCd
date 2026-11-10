@@ -1,5 +1,5 @@
 Welcome to the BeeIRCd test server
 be kind, stay curious
 
-This is Stage 1 step 4: NickServ and MemoServ (/ns /ms).
-ChanServ, OperServ and AdminServ arrive in steps 5 and 6.
+This is Stage 1 step 5: NickServ, ChanServ and MemoServ (/ns /cs /ms).
+OperServ and AdminServ arrive in step 6.

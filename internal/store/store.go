@@ -103,7 +103,7 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
-	if _, err := db.Exec(schema); err != nil {
+	if _, err := db.Exec(schema + channelSchema); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("services database %s: %w", path, err)
 	}
@@ -188,12 +188,6 @@ func (s *Store) SaveAccount(a *Account) error {
 	_, err := s.db.Exec(`UPDATE accounts SET pass_hash=?, email=?, last_seen=?, last_host=?, enforce=?, hide_email=?,
 		hide_host=?, memo_notify=?, memo_limit=? WHERE id=?`,
 		a.PassHash, a.Email, a.LastSeen.Unix(), a.LastHost, a.Enforce, a.HideEmail, a.HideHost, a.MemoNotify, a.MemoLimit, a.ID)
-	return err
-}
-
-// DeleteAccount removes an account with its nicks, access list and memos.
-func (s *Store) DeleteAccount(id int64) error {
-	_, err := s.db.Exec("DELETE FROM accounts WHERE id = ?", id)
 	return err
 }
 

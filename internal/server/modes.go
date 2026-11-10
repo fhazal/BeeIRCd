@@ -275,6 +275,7 @@ func (s *Server) channelMode(c *Client, m irc.Message) {
 	if len(out) > 0 {
 		params := append([]string{ch.Name}, formatModes(out)...)
 		s.broadcast(ch, s.out(u, "MODE", params...), nil)
+		s.csAfterUserModes(ch, out)
 	}
 }
 

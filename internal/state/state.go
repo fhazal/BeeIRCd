@@ -49,8 +49,9 @@ func (u *User) ModeString() string {
 	return "+" + string(sortedKeys(u.Modes))
 }
 
-// masks are the forms bans are matched against.
-func (u *User) masks() []string {
+// Masks are the forms bans are matched against: nick!ident@ with the
+// shown host, the real host and the IP.
+func (u *User) Masks() []string {
 	base := u.Nick + "!" + u.Ident + "@"
 	out := []string{base + u.Host}
 	if u.RealHost != "" && u.RealHost != u.Host {
@@ -154,7 +155,7 @@ func (c *Channel) ModeString(showKey bool) (string, []string) {
 // Matches reports whether any entry of list matches u.
 func (c *Channel) Matches(list byte, u *User) bool {
 	for _, e := range c.Lists[list] {
-		for _, m := range u.masks() {
+		for _, m := range u.Masks() {
 			if irc.Match(e.Mask, m) {
 				return true
 			}

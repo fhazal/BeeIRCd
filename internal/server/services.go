@@ -47,6 +47,7 @@ func isReserved(nick string) bool {
 func (s *Server) startServices() {
 	s.services = make(map[string]*service)
 	s.nickServ = s.addService("NickServ", "ns", "Nickname Services", "NickServ keeps your nick yours. Commands:", nickServCommands())
+	s.chanServ = s.addService("ChanServ", "cs", "Channel Services", "ChanServ keeps a channel yours. Commands:", chanServCommands())
 	s.memoServ = s.addService("MemoServ", "ms", "Memo Services", "MemoServ keeps messages for people who are away. Commands:", memoServCommands())
 }
 
@@ -291,6 +292,7 @@ func (s *Server) login(c *Client, a *store.Account) {
 	o := s.out(u, "ACCOUNT", a.Name)
 	o.needCap = "account-notify"
 	s.toNeighbours(u, o, true)
+	s.csOnIdentify(c)
 	s.memoSummary(c, a)
 }
 
@@ -436,10 +438,12 @@ func (s *Server) expireAccounts(now time.Time) {
 		if inUse[a.ID] {
 			continue
 		}
-		if err := s.store.DeleteAccount(a.ID); err != nil {
+		changes, err := s.store.DeleteAccount(a.ID)
+		if err != nil {
 			s.log.Printf("services database: %v", err)
 			continue
 		}
+		s.applyFounderChanges(changes, "founder "+a.Name+" expired")
 		s.log.Printf("expired account %s (last seen %s)", a.Name, a.LastSeen.UTC().Format(time.DateOnly))
 	}
 }
@@ -466,7 +470,15 @@ func plural(n int, word string) string {
 	if n == 1 {
 		return "1 " + word
 	}
-	return strconv.Itoa(n) + " " + word + "s"
+	switch {
+	case word == "person":
+		word = "people"
+	case strings.HasSuffix(word, "y"):
+		word = word[:len(word)-1] + "ies"
+	default:
+		word += "s"
+	}
+	return strconv.Itoa(n) + " " + word
 }
 
 func onOff(v string) (bool, bool) {

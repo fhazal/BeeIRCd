@@ -62,7 +62,7 @@ func msSend(s *Server, c *Client, args []string) {
 		return
 	}
 	if irc.IsChannel(target) {
-		s.ms(c, "%s isn't registered with ChanServ.", target)
+		s.memoToChannel(c, from, target, text)
 		return
 	}
 	to, err := s.store.AccountByNick(target)

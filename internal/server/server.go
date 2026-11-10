@@ -47,6 +47,7 @@ type Server struct {
 	services map[string]*service // by folded nick
 	nickServ *service
 	memoServ *service
+	chanServ *service
 	lockouts map[int64]*lockout // wrong passwords per account
 	hashSem  chan struct{}      // limits password hashing running at once
 
@@ -127,6 +128,7 @@ func (s *Server) Serve(ctx context.Context) error {
 	hourly := time.NewTicker(time.Hour)
 	defer hourly.Stop()
 	s.expireAccounts(time.Now())
+	s.expireChannels(time.Now())
 	for {
 		select {
 		case <-ctx.Done():
@@ -140,6 +142,7 @@ func (s *Server) Serve(ctx context.Context) error {
 			s.reap()
 		case now := <-hourly.C:
 			s.expireAccounts(now)
+			s.expireChannels(now)
 		}
 	}
 }

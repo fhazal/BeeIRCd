@@ -51,6 +51,8 @@ func init() {
 		"NICKSERV":     {1, false, (*Server).cmdNS},
 		"MS":           {1, false, (*Server).cmdMS},
 		"MEMOSERV":     {1, false, (*Server).cmdMS},
+		"CS":           {1, false, (*Server).cmdCS},
+		"CHANSERV":     {1, false, (*Server).cmdCS},
 	}
 }
 

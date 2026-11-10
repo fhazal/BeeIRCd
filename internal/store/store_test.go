@@ -104,7 +104,7 @@ func TestMemosAccessAndDelete(t *testing.T) {
 		t.Errorf("Expired = %+v", exp)
 	}
 
-	if err := s.DeleteAccount(a.ID); err != nil {
+	if _, err := s.DeleteAccount(a.ID); err != nil {
 		t.Fatal(err)
 	}
 	accounts, nicks, memoCount, _ := s.Counts()

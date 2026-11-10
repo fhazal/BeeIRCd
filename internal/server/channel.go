@@ -7,6 +7,7 @@ import (
 
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/state"
+	"github.com/fhazal/beeircd/internal/store"
 )
 
 const (
@@ -52,11 +53,12 @@ func (s *Server) joinOne(c *Client, name, key string) {
 	}
 	if ch != nil {
 		invited := ch.Invited[u.UID]
+		uop := s.csJoinLevel(c, ch.Name) >= store.LevelUOP // ChanServ UOP and up get past +i and +k
 		switch {
-		case ch.HasMode('i') && !invited && !ch.Matches('I', u):
+		case ch.HasMode('i') && !invited && !uop && !ch.Matches('I', u):
 			s.reply(c, irc.ErrInviteOnlyChan, ch.Name, "Cannot join channel (+i)")
 			return
-		case ch.HasMode('k') && key != ch.Key && !invited:
+		case ch.HasMode('k') && key != ch.Key && !invited && !uop:
 			s.reply(c, irc.ErrBadChannelKey, ch.Name, "Cannot join channel (+k)")
 			return
 		case ch.HasMode('l') && len(ch.Members) >= ch.Limit && !invited:
@@ -70,7 +72,7 @@ func (s *Server) joinOne(c *Client, name, key string) {
 			return
 		}
 	}
-	ch, _, _ = s.net.Join(u, name, time.Now().Unix())
+	ch, _, created := s.net.Join(u, name, time.Now().Unix())
 	join := s.out(u, "JOIN", ch.Name)
 	join.extParams = []string{ch.Name, accountOrStar(u), u.Realname}
 	s.broadcast(ch, join, nil)
@@ -83,6 +85,7 @@ func (s *Server) joinOne(c *Client, name, key string) {
 		s.sendTopic(c, ch)
 	}
 	s.sendNames(c, ch)
+	s.csJoin(c, ch, created)
 }
 
 func (s *Server) cmdPart(c *Client, m irc.Message) {
@@ -138,6 +141,9 @@ func (s *Server) cmdTopic(c *Client, m irc.Message) {
 	case ch.HasMode('t') && !mem.Op:
 		s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You're not channel operator")
 		return
+	case s.csTopicLocked(c, ch):
+		s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "The topic is locked by ChanServ (AOP and up may change it)")
+		return
 	}
 	topic := irc.Truncate(m.Params[1], s.cfg.Limits.TopicLen)
 	if topic == ch.Topic {
@@ -145,6 +151,7 @@ func (s *Server) cmdTopic(c *Client, m irc.Message) {
 	}
 	ch.Topic, ch.TopicBy, ch.TopicAt = topic, u.Nick, time.Now()
 	s.broadcast(ch, s.out(u, "TOPIC", ch.Name, topic).text(), nil)
+	s.csTopicChanged(ch)
 }
 
 func (s *Server) sendTopic(c *Client, ch *state.Channel) {

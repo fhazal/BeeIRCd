@@ -175,6 +175,7 @@ func (c *Config) SetDefaults() {
 	}
 	setDur(&sv.NickExpire, 90*24*time.Hour)
 	setDur(&sv.IdentifyWithin, 60*time.Second)
+	setDur(&sv.ChanExpire, 60*24*time.Hour)
 	if sv.GuestPrefix == "" {
 		sv.GuestPrefix = "Guest"
 	}
@@ -186,6 +187,8 @@ type Services struct {
 	Database string `toml:"database"`
 	// NickExpire drops accounts nobody identified to for this long.
 	NickExpire Duration `toml:"nick_expire"`
+	// ChanExpire drops channels no access-list member joined for this long.
+	ChanExpire Duration `toml:"chan_expire"`
 	// IdentifyWithin is how long someone on a protected nick has.
 	IdentifyWithin Duration `toml:"identify_within"`
 	// GuestPrefix starts the nick given to people who didn't identify.
