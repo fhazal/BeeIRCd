@@ -107,6 +107,10 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("services database %s: %w", path, err)
 	}
+	if err := migrateLevels(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("services database %s: %w", path, err)
+	}
 	if err := migrateOpers(db); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("services database %s: %w", path, err)

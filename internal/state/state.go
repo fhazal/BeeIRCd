@@ -70,34 +70,109 @@ type ListEntry struct {
 	SetAt time.Time
 }
 
+// Rank is a member's status in a channel. A member can hold several ranks;
+// higher ranks have higher values, so they compare with < and >.
+type Rank uint8
+
+// The ranks, lowest first. A server with only @ and + uses Op and Voice.
+const (
+	RankVoice  Rank = 1 << iota // +v  +
+	RankHalfop                  // +h  %
+	RankOp                      // +o  @
+	RankAdmin                   // +a  &  (protected)
+	RankOwner                   // +q  ~
+)
+
+// RankInfo ties a rank to its mode letter and NAMES prefix.
+type RankInfo struct {
+	Rank   Rank
+	Mode   byte
+	Prefix byte
+}
+
+// Ranks lists every rank, highest first.
+var Ranks = []RankInfo{
+	{RankOwner, 'q', '~'},
+	{RankAdmin, 'a', '&'},
+	{RankOp, 'o', '@'},
+	{RankHalfop, 'h', '%'},
+	{RankVoice, 'v', '+'},
+}
+
+// RankForMode returns the rank behind a mode letter like 'o', or 0.
+func RankForMode(m byte) Rank {
+	for _, r := range Ranks {
+		if r.Mode == m {
+			return r.Rank
+		}
+	}
+	return 0
+}
+
+// RankForPrefix returns the rank behind a prefix like '@', or 0.
+func RankForPrefix(p byte) Rank {
+	for _, r := range Ranks {
+		if r.Prefix == p {
+			return r.Rank
+		}
+	}
+	return 0
+}
+
 // Member is a user's place in a channel.
 type Member struct {
 	User  *User
-	Op    bool
-	Voice bool
+	Ranks Rank
 }
 
-// Prefix is "@", "+" or "".
+// Has reports whether the member holds rank r.
+func (m *Member) Has(r Rank) bool { return m.Ranks&r != 0 }
+
+// Set gives or takes rank r and reports whether anything changed.
+func (m *Member) Set(r Rank, on bool) bool {
+	if m.Has(r) == on {
+		return false
+	}
+	if on {
+		m.Ranks |= r
+	} else {
+		m.Ranks &^= r
+	}
+	return true
+}
+
+// Top is the member's highest rank, 0 for none.
+func (m *Member) Top() Rank {
+	for _, r := range Ranks {
+		if m.Has(r.Rank) {
+			return r.Rank
+		}
+	}
+	return 0
+}
+
+// AtLeast reports whether the member's highest rank is r or above.
+func (m *Member) AtLeast(r Rank) bool { return m.Top() >= r }
+
+// Prefix is the highest prefix, like "@", or "".
 func (m *Member) Prefix() string {
-	switch {
-	case m.Op:
-		return "@"
-	case m.Voice:
-		return "+"
+	for _, r := range Ranks {
+		if m.Has(r.Rank) {
+			return string(r.Prefix)
+		}
 	}
 	return ""
 }
 
-// AllPrefixes is every status the member has, highest first ("@+").
+// AllPrefixes is every prefix the member has, highest first ("@+").
 func (m *Member) AllPrefixes() string {
-	p := ""
-	if m.Op {
-		p += "@"
+	var b []byte
+	for _, r := range Ranks {
+		if m.Has(r.Rank) {
+			b = append(b, r.Prefix)
+		}
 	}
-	if m.Voice {
-		p += "+"
-	}
-	return p
+	return string(b)
 }
 
 // Channel is one channel.
@@ -321,7 +396,10 @@ func (n *Network) Join(u *User, name string, ts int64) (ch *Channel, m *Member, 
 	if m = ch.Members[u.UID]; m != nil {
 		return ch, m, false
 	}
-	m = &Member{User: u, Op: created}
+	m = &Member{User: u}
+	if created {
+		m.Ranks = RankOp
+	}
 	ch.Members[u.UID] = m
 	u.Channels[key] = ch
 	delete(ch.Invited, u.UID)

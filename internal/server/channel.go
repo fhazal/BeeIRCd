@@ -142,7 +142,7 @@ func (s *Server) cmdTopic(c *Client, m irc.Message) {
 	case mem == nil:
 		s.reply(c, irc.ErrNotOnChannel, ch.Name, "You're not on that channel")
 		return
-	case ch.HasMode('t') && !mem.Op:
+	case ch.HasMode('t') && !mem.AtLeast(state.RankHalfop):
 		s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You're not channel operator")
 		return
 	case s.csTopicLocked(c, ch):
@@ -249,7 +249,7 @@ func (s *Server) cmdKick(c *Client, m irc.Message) {
 		s.reply(c, irc.ErrNotOnChannel, ch.Name, "You're not on that channel")
 		return
 	}
-	if !mem.Op {
+	if !mem.AtLeast(state.RankHalfop) {
 		s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You're not channel operator")
 		return
 	}
@@ -267,8 +267,13 @@ func (s *Server) cmdKick(c *Client, m irc.Message) {
 			s.reply(c, irc.ErrNoSuchNick, nick, "No such nick/channel")
 			continue
 		}
-		if ch.Member(t) == nil {
+		tm := ch.Member(t)
+		if tm == nil {
 			s.reply(c, irc.ErrUserNotInChannel, t.Nick, ch.Name, "They aren't on that channel")
+			continue
+		}
+		if t != u && !canKick(mem, tm) {
+			s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You can't kick "+t.Nick+": their channel status protects them")
 			continue
 		}
 		s.broadcast(ch, s.out(u, "KICK", ch.Name, t.Nick, reason).text(), nil)
@@ -290,7 +295,7 @@ func (s *Server) cmdInvite(c *Client, m irc.Message) {
 		case mem == nil:
 			s.reply(c, irc.ErrNotOnChannel, ch.Name, "You're not on that channel")
 			return
-		case ch.HasMode('i') && !mem.Op:
+		case ch.HasMode('i') && !mem.AtLeast(state.RankHalfop):
 			s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You're not channel operator")
 			return
 		case ch.Member(t) != nil:
@@ -302,7 +307,7 @@ func (s *Server) cmdInvite(c *Client, m irc.Message) {
 		notify := s.out(u, "INVITE", t.Nick, ch.Name)
 		notify.needCap = "invite-notify"
 		for _, other := range ch.Members {
-			if other.Op && other.User != u {
+			if other.AtLeast(state.RankHalfop) && other.User != u {
 				s.deliverTo(other.User, notify)
 			}
 		}
@@ -312,6 +317,20 @@ func (s *Server) cmdInvite(c *Client, m irc.Message) {
 		s.reply(c, irc.RplAway, t.Nick, t.Away)
 	}
 	s.deliverTo(t, s.out(u, "INVITE", t.Nick, name))
+}
+
+// canKick follows UnrealIRCd: halfops kick only people below halfop, ops
+// kick anyone below admin, and only owners kick admins and owners.
+func canKick(kicker, target *state.Member) bool {
+	switch {
+	case target.AtLeast(state.RankAdmin):
+		return kicker.AtLeast(state.RankOwner)
+	case kicker.AtLeast(state.RankOp):
+		return true
+	case kicker.AtLeast(state.RankHalfop):
+		return !target.AtLeast(state.RankHalfop)
+	}
+	return false
 }
 
 // memberPrefix is "@+" for multi-prefix clients, else the highest only.

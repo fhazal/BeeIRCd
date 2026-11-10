@@ -137,12 +137,16 @@ func (s *Server) channelMode(c *Client, m irc.Message) {
 		s.replyBare(c, irc.RplCreationTime, ch.Name, strconv.FormatInt(ch.TS, 10))
 		return
 	}
-	s.applyChannelModes(c, u, ch, mem != nil && mem.Op, m.Params[1], m.Params[2:])
+	var rank state.Rank
+	if mem != nil {
+		rank = mem.Top()
+	}
+	s.applyChannelModes(c, u, ch, rank, m.Params[1], m.Params[2:])
 }
 
-// applyChannelModes carries out a mode string on ch for src (a person, or
-// OperServ with isOp true). Errors go to c.
-func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel, isOp bool, modes string, args []string) {
+// applyChannelModes carries out a mode string on ch for src, who holds
+// srcRank (OperServ passes servicesRank). Errors go to c.
+func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel, srcRank state.Rank, modes string, args []string) {
 	next := func() (string, bool) {
 		if len(args) == 0 {
 			return "", false
@@ -151,31 +155,36 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 		args = args[1:]
 		return a, true
 	}
+	// can reports whether src's rank allows a mode change that needs need.
+	denied := false
+	can := func(need state.Rank) bool {
+		if srcRank >= need {
+			return true
+		}
+		denied = true
+		return false
+	}
 	var out []modeChange
-	add, needOp, used := true, false, 0
+	add, used := true, 0
 	now := time.Now()
 	for i := 0; i < len(modes); i++ {
 		mc := modes[i]
-		switch mc {
-		case '+':
+		switch {
+		case mc == '+':
 			add = true
-		case '-':
+		case mc == '-':
 			add = false
-		case 'b', 'e', 'I':
+		case mc == 'b' || mc == 'e' || mc == 'I':
 			arg, ok := next()
 			if !ok {
-				if mc == 'b' || isOp {
+				if mc == 'b' || srcRank >= state.RankHalfop {
 					s.sendList(c, ch, mc)
 				} else {
-					needOp = true
+					denied = true
 				}
 				continue
 			}
-			if !isOp {
-				needOp = true
-				continue
-			}
-			if used >= maxModeParams {
+			if !can(state.RankHalfop) || used >= maxModeParams {
 				continue
 			}
 			used++
@@ -191,13 +200,14 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 			} else if stored, ok := ch.RemoveListEntry(mc, mask); ok {
 				out = append(out, modeChange{false, mc, stored})
 			}
-		case 'o', 'v':
+		case state.RankForMode(mc) != 0:
 			arg, ok := next()
 			if !ok {
 				continue
 			}
-			if !isOp {
-				needOp = true
+			rank := state.RankForMode(mc)
+			if !s.rankEnabled(rank) {
+				s.reply(c, irc.ErrUnknownMode, string(mc), "is unknown mode char to me for "+ch.Name)
 				continue
 			}
 			if used >= maxModeParams {
@@ -214,21 +224,25 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 				s.reply(c, irc.ErrUserNotInChannel, t.Nick, ch.Name, "They aren't on that channel")
 				continue
 			}
-			flag := &tm.Op
-			if mc == 'v' {
-				flag = &tm.Voice
+			self := t == src && !add
+			if !self && !can(rankNeeded(rank)) {
+				continue
 			}
-			if *flag != add {
-				*flag = add
+			// Owners and admins are protected: only an owner may take
+			// status from them.
+			if !add && !self && tm.AtLeast(state.RankAdmin) && srcRank < state.RankOwner {
+				denied = true
+				continue
+			}
+			if tm.Set(rank, add) {
 				out = append(out, modeChange{add, mc, t.Nick})
 			}
-		case 'k':
+		case mc == 'k':
 			arg, ok := next()
 			if add && !ok {
 				continue
 			}
-			if !isOp {
-				needOp = true
+			if !can(state.RankOp) {
 				continue
 			}
 			if add {
@@ -244,7 +258,7 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 				delete(ch.Modes, 'k')
 				ch.Key = ""
 			}
-		case 'l':
+		case mc == 'l':
 			var arg string
 			if add {
 				var ok bool
@@ -252,8 +266,7 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 					continue
 				}
 			}
-			if !isOp {
-				needOp = true
+			if !can(state.RankOp) {
 				continue
 			}
 			if add {
@@ -269,23 +282,30 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 				ch.Limit = 0
 				out = append(out, modeChange{false, 'l', ""})
 			}
-		case 'i', 'm', 'n', 'p', 's', 't', 'R', 'M':
-			if !isOp {
-				needOp = true
+		case strings.IndexByte("imnt", mc) >= 0, strings.IndexByte("psRM", mc) >= 0:
+			need := state.RankOp
+			if strings.IndexByte("imnt", mc) >= 0 {
+				need = state.RankHalfop
+			}
+			if !can(need) {
 				continue
 			}
 			if ch.Modes[mc] != add {
 				setFlag(ch.Modes, mc, add)
 				out = append(out, modeChange{add, mc, ""})
 			}
-		case 'r':
+		case mc == 'r':
 			// Only ChanServ sets +r.
 		default:
 			s.reply(c, irc.ErrUnknownMode, string(mc), "is unknown mode char to me for "+ch.Name)
 		}
 	}
-	if needOp {
-		s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You're not channel operator")
+	if denied {
+		if srcRank == state.RankHalfop {
+			s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You need a higher channel status for that")
+		} else {
+			s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You're not channel operator")
+		}
 	}
 	if len(out) > 0 {
 		params := append([]string{ch.Name}, formatModes(out)...)
@@ -293,6 +313,21 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 		s.csAfterUserModes(ch, out)
 	}
 }
+
+// rankNeeded is the rank needed to give or take rank r from someone else,
+// following UnrealIRCd: owners give ~ and &, ops give @ and %, halfops +.
+func rankNeeded(r state.Rank) state.Rank {
+	switch r {
+	case state.RankOwner, state.RankAdmin:
+		return state.RankOwner
+	case state.RankOp, state.RankHalfop:
+		return state.RankOp
+	}
+	return state.RankHalfop
+}
+
+// servicesRank is what services and OperServ act with: above everyone.
+const servicesRank = state.RankOwner << 1
 
 // cleanKey drops characters a key can't hold and caps it at 23.
 func cleanKey(k string) string {

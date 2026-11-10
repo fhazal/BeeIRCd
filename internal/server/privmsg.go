@@ -47,7 +47,7 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 	for _, target := range targets {
 		status := ""
 		name := target
-		if len(name) > 1 && (name[0] == '@' || name[0] == '+') && irc.IsChannel(name[1:]) {
+		if len(name) > 1 && strings.IndexByte(s.rankPrefixes(), name[0]) >= 0 && irc.IsChannel(name[1:]) {
 			status, name = name[:1], name[1:]
 		}
 		build := func(to string) *outMsg {
@@ -79,7 +79,7 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 				if mem.User == u {
 					continue
 				}
-				if status == "@" && !mem.Op || status == "+" && !mem.Op && !mem.Voice {
+				if status != "" && !mem.AtLeast(state.RankForPrefix(status[0])) {
 					continue
 				}
 				s.deliverTo(mem.User, o)
@@ -114,7 +114,7 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 // cannotSend returns why u may not talk in ch, or "" when it may.
 func cannotSend(ch *state.Channel, u *state.User) string {
 	mem := ch.Member(u)
-	if mem != nil && (mem.Op || mem.Voice) {
+	if mem != nil && mem.AtLeast(state.RankVoice) {
 		return ""
 	}
 	switch {

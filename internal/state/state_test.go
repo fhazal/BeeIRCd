@@ -46,12 +46,12 @@ func TestJoinPart(t *testing.T) {
 	n := NewNetwork("0BE")
 	bee, ember := newUser(n, "Bee"), newUser(n, "ember")
 	ch, m, created := n.Join(bee, "#BChat", 100)
-	if !created || !m.Op || !ch.HasMode('n') || !ch.HasMode('t') || ch.TS != 100 {
-		t.Fatalf("first join: created=%v op=%v modes=%v", created, m.Op, ch.Modes)
+	if !created || !m.Has(RankOp) || !ch.HasMode('n') || !ch.HasMode('t') || ch.TS != 100 {
+		t.Fatalf("first join: created=%v op=%v modes=%v", created, m.Has(RankOp), ch.Modes)
 	}
 	ch.Invited[ember.UID] = true
 	ch2, m2, created2 := n.Join(ember, "#bchat", 200)
-	if ch2 != ch || created2 || m2.Op || ch.Invited[ember.UID] {
+	if ch2 != ch || created2 || m2.Has(RankOp) || ch.Invited[ember.UID] {
 		t.Fatal("second join should reuse the channel, not op, and clear the invite")
 	}
 	if len(n.Neighbours(bee)) != 1 || !SharesChannel(bee, ember) {
@@ -98,5 +98,31 @@ func TestModeStrings(t *testing.T) {
 	bee.Modes['w'], bee.Modes['i'] = true, true
 	if bee.ModeString() != "+iw" {
 		t.Errorf("user ModeString = %s", bee.ModeString())
+	}
+}
+
+func TestRanks(t *testing.T) {
+	m := &Member{}
+	if m.Prefix() != "" || m.Top() != 0 {
+		t.Fatal("empty member has a rank")
+	}
+	m.Set(RankVoice, true)
+	m.Set(RankOp, true)
+	if !m.Set(RankOwner, true) || m.Set(RankOwner, true) {
+		t.Fatal("Set should report a change once")
+	}
+	if m.Prefix() != "~" || m.AllPrefixes() != "~@+" || m.Top() != RankOwner {
+		t.Fatalf("prefix %q all %q", m.Prefix(), m.AllPrefixes())
+	}
+	if !m.AtLeast(RankHalfop) || !m.AtLeast(RankOwner) {
+		t.Fatal("AtLeast")
+	}
+	m.Set(RankOwner, false)
+	m.Set(RankOp, false)
+	if m.AtLeast(RankHalfop) || m.Prefix() != "+" {
+		t.Fatal("voice only")
+	}
+	if RankForMode('h') != RankHalfop || RankForPrefix('&') != RankAdmin || RankForMode('x') != 0 {
+		t.Fatal("lookups")
 	}
 }

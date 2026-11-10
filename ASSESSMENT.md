@@ -46,15 +46,21 @@ in [FEATURES.md](FEATURES.md).
 
 ## Decided by the user (11 Nov)
 
-- Channel prefixes are a server option: `@+` only or `~&@%+`.
+- Channel prefixes are a server option: `@+` only or `~&@%+`. New installs
+  default to `@+`; the installer asks which one.
 - Opers must /oper up (`/oper <nick> <oper password>`) with a separate oper
   password per oper, ConferenceRoom style; identifying to NickServ does not
   oper anyone.
+- ChanServ keeps SOP/AOP/VOP/UOP; levels are stored as permission sets from
+  Stage 1.5 so Anope-style FLAGS/LEVELS can come later as an advanced option.
+- Services follow Anope (most used, most modern): same commands, syntax and
+  behaviour where Anope has the feature; ConferenceRoom extras on top.
+- HostServ (vhosts) is built in Stage 1.5, before linking; BotServ is Anope
+  style, a separate bot per channel. HelpServ helpers use user mode +h.
 - Built-in services get an off switch; Anope support comes after BeeIRCd is
   finished.
 
 ## Open
 
-- Default prefix style for new installs.
 - Which innovation ideas to plan in.
 - Full command list per service.

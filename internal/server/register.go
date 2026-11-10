@@ -262,7 +262,7 @@ func (s *Server) welcome(c *Client) {
 	s.reply(c, irc.RplWelcome, fmt.Sprintf("Welcome to %s, %s", cfg.Network, u.Nick))
 	s.reply(c, irc.RplYourHost, fmt.Sprintf("Your host is %s, running %s", cfg.Name, version.String()))
 	s.reply(c, irc.RplCreated, "This server was created "+s.created.UTC().Format("Mon Jan 2 2006 at 15:04:05 UTC"))
-	s.replyBare(c, irc.RplMyInfo, cfg.Name, version.Name+"-"+version.Version, userModes, channelModes, channelModesWithParam)
+	s.replyBare(c, irc.RplMyInfo, cfg.Name, version.Name+"-"+version.Version, userModes, s.channelModes(), s.channelModesWithParam())
 	s.sendISupport(c)
 	s.lusers(c)
 	s.motd(c)
@@ -290,11 +290,52 @@ func (s *Server) setHost(c *Client, host string) {
 	s.reply(c, irc.RplHostHidden, host, "is now your displayed host")
 }
 
-const (
-	userModes             = "iorswx"
-	channelModes          = "IMRbeiklmnoprstv"
-	channelModesWithParam = "Ibeklov"
-)
+const userModes = "iorswx"
+
+// rankEnabled reports whether this server uses rank r (owner, admin and
+// halfop exist only with prefixes "~&@%+").
+func (s *Server) rankEnabled(r state.Rank) bool {
+	if s.cfg.FullPrefixes() {
+		return true
+	}
+	return r == state.RankOp || r == state.RankVoice
+}
+
+// rankModes and rankPrefixes are the enabled ranks, highest first:
+// "ov" and "@+", or "qaohv" and "~&@%+".
+func (s *Server) rankModes() string {
+	var b []byte
+	for _, r := range state.Ranks {
+		if s.rankEnabled(r.Rank) {
+			b = append(b, r.Mode)
+		}
+	}
+	return string(b)
+}
+
+func (s *Server) rankPrefixes() string {
+	var b []byte
+	for _, r := range state.Ranks {
+		if s.rankEnabled(r.Rank) {
+			b = append(b, r.Prefix)
+		}
+	}
+	return string(b)
+}
+
+func (s *Server) channelModes() string {
+	if s.cfg.FullPrefixes() {
+		return "IMRabehiklmnopqrstv"
+	}
+	return "IMRbeiklmnoprstv"
+}
+
+func (s *Server) channelModesWithParam() string {
+	if s.cfg.FullPrefixes() {
+		return "Iabehkloqv"
+	}
+	return "Ibeklov"
+}
 
 func (s *Server) isupport() []string {
 	l := s.cfg.Limits
@@ -314,8 +355,8 @@ func (s *Server) isupport() []string {
 		"MODES=" + strconv.Itoa(maxModeParams),
 		"NETWORK=" + s.cfg.Server.Network,
 		"NICKLEN=" + strconv.Itoa(l.NickLen),
-		"PREFIX=(ov)@+",
-		"STATUSMSG=@+",
+		"PREFIX=(" + s.rankModes() + ")" + s.rankPrefixes(),
+		"STATUSMSG=" + s.rankPrefixes(),
 		"TARGMAX=JOIN:,KICK:4,NAMES:1,NOTICE:4,PART:,PRIVMSG:4,WHOIS:1",
 		"TOPICLEN=" + strconv.Itoa(l.TopicLen),
 		"USERLEN=10",

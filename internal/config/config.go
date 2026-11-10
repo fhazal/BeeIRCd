@@ -68,7 +68,14 @@ type Server struct {
 	SID string `toml:"sid"`
 	// ResolveHosts looks up hostnames for connecting IPs. On by default.
 	ResolveHosts *bool `toml:"resolve_hosts"`
+	// Prefixes is the channel status style: "@+" (op and voice, the
+	// default) or "~&@%+" (owner, admin, op, halfop, voice). Changing it
+	// needs a restart.
+	Prefixes string `toml:"prefixes"`
 }
+
+// FullPrefixes reports whether owner, admin and halfop exist.
+func (c *Config) FullPrefixes() bool { return c.Server.Prefixes == "~&@%+" }
 
 // Listen is one port.
 type Listen struct {
@@ -165,6 +172,9 @@ func (c *Config) SetDefaults() {
 	if c.Server.Description == "" {
 		c.Server.Description = c.Server.Network + " IRC"
 	}
+	if c.Server.Prefixes == "" {
+		c.Server.Prefixes = "@+"
+	}
 	l := &c.Limits
 	setDur(&l.PingInterval, 90*time.Second)
 	setDur(&l.PingTimeout, 90*time.Second)
@@ -240,6 +250,8 @@ func (c *Config) Check() error {
 		return fmt.Errorf("network name %q must be one word (letters, digits, dot, dash or underscore)", c.Server.Network)
 	case !sidRe.MatchString(c.Server.SID):
 		return fmt.Errorf("server sid %q must be a digit and two capital letters or digits, like 0BE", c.Server.SID)
+	case c.Server.Prefixes != "@+" && c.Server.Prefixes != "~&@%+":
+		return fmt.Errorf("server prefixes %q must be \"@+\" or \"~&@%%+\"", c.Server.Prefixes)
 	case len(c.Listen) == 0:
 		return fmt.Errorf("add at least one [[listen]] port")
 	}

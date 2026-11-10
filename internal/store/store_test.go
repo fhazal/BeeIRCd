@@ -143,3 +143,33 @@ func TestOpersMigration(t *testing.T) {
 		t.Fatalf("oper = %+v, %v", o, err)
 	}
 }
+
+func TestLevelsMigration(t *testing.T) {
+	s, path := open(t)
+	bee, _ := s.CreateAccount("Bee", "x", "", time.Now())
+	ember, _ := s.CreateAccount("ember", "x", "", time.Now())
+	c, err := s.CreateChannel("#bchat", bee, "test", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Pretend this database is from step 5: AOP stored as 3, schema 1.
+	if _, err := s.db.Exec("INSERT INTO chan_access (channel_id, account_id, level, added_by, added_at) VALUES (?, ?, 3, 'Bee', 0)", c.ID, ember.ID); err != nil {
+		t.Fatal(err)
+	}
+	s.db.Exec("UPDATE meta SET value = '1' WHERE key = 'schema'")
+	s.Close()
+	s2, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s2.Close()
+	if l, _ := s2.Level(c, ember.ID); l != LevelAOP {
+		t.Fatalf("level after migration = %d, want %d", l, LevelAOP)
+	}
+	s2.Close()
+	s3, _ := Open(path) // a second start must not multiply again
+	defer s3.Close()
+	if l, _ := s3.Level(c, ember.ID); l != LevelAOP {
+		t.Fatalf("level after second start = %d", l)
+	}
+}

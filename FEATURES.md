@@ -20,7 +20,7 @@ Last updated: 11 Nov 2026 (Stage 1 step 6, not yet committed).
 | MOTD, LUSERS, VERSION, TIME | Implemented | |
 | User modes i w o s r x | Implemented | |
 | Channel modes o v b e I k l i m n p s t R M r | Implemented | |
-| Prefix option `@+` or `~&@%+` | Planned | phase 4 |
+| Prefix option `@+` (default) or `~&@%+` | Implemented | `[server] prefixes`; +q +a +h with UnrealIRCd rules; restart to change |
 | TLS 1.2+ listeners, self-signed or own certificate | Implemented | |
 | Let's Encrypt built in, STS | Planned | step 7 |
 | Host cloaking (HMAC) | Implemented | |
@@ -58,10 +58,11 @@ Last updated: 11 Nov 2026 (Stage 1 step 6, not yet committed).
 | Service | Status |
 | --- | --- |
 | NickServ (register, identify, SASL, ghost, recover, group, access, set, info, drop, list) | Implemented |
-| ChanServ (levels Founder/SOP/AOP/VOP/UOP, AKICK, op tools, SET options) | Implemented |
+| ChanServ (levels Founder/QOP/SOP/AOP/HOP/VOP/UOP, AKICK, op tools incl. OWNER/PROTECT/HALFOP/UP/DOWN, SET options) | Implemented |
 | MemoServ (nick and channel memos, ignore) | Implemented |
 | OperServ (stats, global, AKILL, kill, mode, kick, nick and chan tools, forbids, sessions, news) | Implemented |
 | AdminServ (settings saved to config, MOTD, ports, opers, restart, die) | Implemented |
+| HostServ (vhosts) | Planned (Stage 1.5) |
 | HelpServ | Planned (phase 6) |
 | Switch off built-in services, link Anope | Planned (after Stage 4) |
 

@@ -304,7 +304,7 @@ func osMode(s *Server, c *Client, args []string) {
 		s.os(c, "%s is empty right now.", args[0])
 		return
 	}
-	s.applyChannelModes(c, s.operServ.user, ch, true, args[1], args[2:])
+	s.applyChannelModes(c, s.operServ.user, ch, servicesRank, args[1], args[2:])
 	modes, params := ch.ModeString(true)
 	s.audit(c, s.operServ, "MODE %s %s", ch.Name, strings.Join(args[1:], " "))
 	s.os(c, "%s is now %s.", ch.Name, strings.TrimSpace(modes+" "+strings.Join(params, " ")))

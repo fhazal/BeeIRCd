@@ -65,7 +65,7 @@ func TestChanServRegisterAndLevels(t *testing.T) {
 	mira.expect(csLine("mira", "Access list of #bchat"))
 	mira.expect("Level    Nick     Gets   Can also")
 	mira.expect("Founder  Bee      @      everything")
-	mira.expect("SOP      Kestrel  @      add/remove AOP, VOP, UOP · akick")
+	mira.expect("SOP      Kestrel  @      add/remove AOP and below · akick")
 	mira.expect(csLine("mira", "4 entries. Change one: /cs aop #bchat del <nick>"))
 	mira.send("CS AOP #bchat LIST")
 	mira.expect(csLine("mira", "AOP list of #bchat:"))

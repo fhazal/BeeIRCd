@@ -9,19 +9,63 @@ import (
 	"github.com/fhazal/beeircd/internal/irc"
 )
 
-// Channel access levels. The founder isn't stored in the access table.
+// Channel access levels, spaced out so new ones fit between. The founder
+// isn't stored in the access table. HOP and QOP are used on servers with
+// ~&@%+ prefixes.
 const (
 	LevelNone    = 0
-	LevelUOP     = 1
-	LevelVOP     = 2
-	LevelAOP     = 3
-	LevelSOP     = 4
-	LevelFounder = 5
+	LevelUOP     = 10
+	LevelVOP     = 20
+	LevelHOP     = 25
+	LevelAOP     = 30
+	LevelSOP     = 40
+	LevelQOP     = 45
+	LevelFounder = 50
 )
 
 // LevelName is "SOP", "AOP" and so on.
 func LevelName(l int) string {
-	return [...]string{"none", "UOP", "VOP", "AOP", "SOP", "Founder"}[l]
+	switch l {
+	case LevelUOP:
+		return "UOP"
+	case LevelVOP:
+		return "VOP"
+	case LevelHOP:
+		return "HOP"
+	case LevelAOP:
+		return "AOP"
+	case LevelSOP:
+		return "SOP"
+	case LevelQOP:
+		return "QOP"
+	case LevelFounder:
+		return "Founder"
+	}
+	return "none"
+}
+
+// migrateLevels moves access levels from the first numbering (1 to 5) to
+// the spaced one (10 to 50), once.
+func migrateLevels(db *sql.DB) error {
+	var v string
+	if err := db.QueryRow("SELECT value FROM meta WHERE key = 'schema'").Scan(&v); err != nil {
+		return err
+	}
+	if v != "1" {
+		return nil
+	}
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec("UPDATE chan_access SET level = level * 10 WHERE level BETWEEN 1 AND 5"); err != nil {
+		return err
+	}
+	if _, err := tx.Exec("UPDATE meta SET value = '2' WHERE key = 'schema'"); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // Channel is a ChanServ-registered channel.

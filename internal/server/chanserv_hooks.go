@@ -92,9 +92,9 @@ func (s *Server) csAfterUserModes(ch *state.Channel, changes []modeChange) {
 	fix := mlockChanges(reg, ch)
 	if reg.Secure {
 		for _, m := range changes {
-			if m.mode == 'o' && m.add {
-				if t := s.net.UserByNick(m.arg); t != nil && s.levelOf(reg, t) < store.LevelAOP {
-					fix = append(fix, modeChange{false, 'o', t.Nick})
+			if m.add && m.mode != 'v' && state.RankForMode(m.mode) != 0 {
+				if t := s.net.UserByNick(m.arg); t != nil && s.levelOf(reg, t) < csSecureLevel(m.mode) {
+					fix = append(fix, modeChange{false, m.mode, t.Nick})
 				}
 			}
 		}
