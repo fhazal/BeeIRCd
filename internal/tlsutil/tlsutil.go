@@ -46,7 +46,7 @@ func MakeSelfSigned(certFile, keyFile, host string) error {
 	now := time.Now()
 	tmpl := &x509.Certificate{
 		SerialNumber:          serial,
-		Subject:               pkix.Name{CommonName: host, Organization: []string{"BeeIRCD self-signed"}},
+		Subject:               pkix.Name{CommonName: host, Organization: []string{"BeeIRCd self-signed"}},
 		DNSNames:              []string{host},
 		NotBefore:             now.Add(-time.Hour),
 		NotAfter:              now.AddDate(10, 0, 0),

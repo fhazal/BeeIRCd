@@ -1,4 +1,4 @@
-# BeeIRCD test server for the homelab. The binary is built on the dev PC:
+# BeeIRCd test server for the homelab. The binary is built on the dev PC:
 #   GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o beeircd ./cmd/beeircd
 FROM scratch
 COPY beeircd /beeircd

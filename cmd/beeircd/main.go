@@ -1,4 +1,4 @@
-// Command beeircd is the BeeIRCD server and its admin command.
+// Command beeircd is the BeeIRCd server and its admin command.
 //
 //	beeircd start | stop | restart | status | check | update | backup | version
 package main

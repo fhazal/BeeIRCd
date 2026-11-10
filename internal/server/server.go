@@ -22,7 +22,7 @@ import (
 	"github.com/fhazal/beeircd/internal/tlsutil"
 )
 
-// Server is one running BeeIRCD.
+// Server is one running BeeIRCd.
 type Server struct {
 	cfg       *config.Config
 	log       *log.Logger

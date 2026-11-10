@@ -1,4 +1,4 @@
-// Package state is the network as BeeIRCD sees it: users, channels and who
+// Package state is the network as BeeIRCd sees it: users, channels and who
 // is in which channel. Everything is keyed by unique ID (UID), never by nick,
 // so linked servers (Stage 2) can share the same model.
 //

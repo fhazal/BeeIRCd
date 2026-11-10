@@ -149,8 +149,8 @@ func TestRegistration(t *testing.T) {
 	c.expect("CAP Bee NAK :sasl")
 	c.send("CAP END")
 	c.expect(":irc.test.local 001 Bee :Welcome to BeeNet, Bee")
-	c.expect(" 002 Bee :Your host is irc.test.local, running BeeIRCD")
-	c.expect(" 004 Bee irc.test.local BeeIRCD-")
+	c.expect(" 002 Bee :Your host is irc.test.local, running BeeIRCd")
+	c.expect(" 004 Bee irc.test.local BeeIRCd-")
 	l := c.expect(" 005 Bee ") + c.expect(" 005 Bee ")
 	for _, tok := range []string{"CASEMAPPING=rfc1459", "PREFIX=(ov)@+", "CHANMODES=beI,k,l,MRimnprst", "NETWORK=BeeNet", "STATUSMSG=@+"} {
 		if !strings.Contains(l, tok) {

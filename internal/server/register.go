@@ -92,7 +92,7 @@ func (s *Server) cmdUser(c *Client, m irc.Message) {
 }
 
 // cleanIdent keeps letters, digits and . _ - and marks it with ~ because
-// BeeIRCD does no ident lookups.
+// BeeIRCd does no ident lookups.
 func cleanIdent(raw string) string {
 	var b strings.Builder
 	for i := 0; i < len(raw) && b.Len() < 9; i++ {

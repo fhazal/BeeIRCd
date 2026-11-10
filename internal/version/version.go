@@ -1,4 +1,4 @@
-// Package version holds the BeeIRCD version and build details.
+// Package version holds the BeeIRCd version and build details.
 package version
 
 import "fmt"
@@ -11,10 +11,10 @@ var (
 )
 
 // Name is the product name as people see it.
-const Name = "BeeIRCD"
+const Name = "BeeIRCd"
 
 // String is the one-line version shown by `beeircd version` and in the
-// server's welcome lines, for example "BeeIRCD 0.1.0 (8e0aa2f)".
+// server's welcome lines, for example "BeeIRCd 0.1.0 (8e0aa2f)".
 func String() string {
 	if Commit == "" || Commit == "unknown" {
 		return fmt.Sprintf("%s %s", Name, Version)

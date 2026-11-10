@@ -1,6 +1,6 @@
-# BeeIRCD spec (draft 2, 11 Nov 2026)
+# BeeIRCd spec (draft 2, 11 Nov 2026)
 
-BeeIRCD is one Go program: the IRC server, the five services, and later the Hive Panel (web admin) and BeeRoom (web chat). This spec covers **Stage 1**: one server with all services working, plus install and start. Everything is built so that Stage 2 (linking BeeIRCD to BeeIRCD) can be added without redoing it.
+BeeIRCd is one Go program: the IRC server, the five services, and later the Hive Panel (web admin) and BeeRoom (web chat). This spec covers **Stage 1**: one server with all services working, plus install and start. Everything is built so that Stage 2 (linking BeeIRCd to BeeIRCd) can be added without redoing it.
 
 Mockups this spec follows:
 - Walkthrough (install, start, BChat): https://claude.ai/artifact/XW22t7xnzRnV5yw8tDJviw

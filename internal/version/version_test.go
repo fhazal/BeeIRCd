@@ -9,9 +9,9 @@ func TestString(t *testing.T) {
 	cases := []struct {
 		version, commit, want string
 	}{
-		{"0.0.0-dev", "unknown", "BeeIRCD 0.0.0-dev"},
-		{"0.1.0", "", "BeeIRCD 0.1.0"},
-		{"0.1.0", "8e0aa2f", "BeeIRCD 0.1.0 (8e0aa2f)"},
+		{"0.0.0-dev", "unknown", "BeeIRCd 0.0.0-dev"},
+		{"0.1.0", "", "BeeIRCd 0.1.0"},
+		{"0.1.0", "8e0aa2f", "BeeIRCd 0.1.0 (8e0aa2f)"},
 	}
 	for _, c := range cases {
 		Version, Commit = c.version, c.commit

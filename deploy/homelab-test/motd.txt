@@ -1,4 +1,4 @@
-Welcome to the BeeIRCD test server
+Welcome to the BeeIRCd test server
 be kind, stay curious
 
 This is Stage 1 step 2: the core chat server.

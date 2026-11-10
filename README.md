@@ -1,6 +1,6 @@
-# BeeIRCD
+# BeeIRCd
 
-An IRC server with its services built in: NickServ, ChanServ, MemoServ, OperServ and AdminServ in one program, with BeeIRCD-to-BeeIRCD linking, a web admin panel (Hive Panel) and a web chat (BeeRoom) to follow.
+An IRC server with its services built in: NickServ, ChanServ, MemoServ, OperServ and AdminServ in one program, with BeeIRCd-to-BeeIRCd linking, a web admin panel (Hive Panel) and a web chat (BeeRoom) to follow.
 
 **Status:** early work, not usable yet. The plan is in [SPEC.md](SPEC.md).
 
@@ -31,7 +31,7 @@ Runs gofmt, `go vet`, [staticcheck](https://staticcheck.dev) and the tests.
 
 ## Licence
 
-GNU Affero General Public License v3.0 or later, see [LICENSE](LICENSE). If you run a changed BeeIRCD for other people, you share your changes.
+GNU Affero General Public License v3.0 or later, see [LICENSE](LICENSE). If you run a changed BeeIRCd for other people, you share your changes.
 
 ---
 
