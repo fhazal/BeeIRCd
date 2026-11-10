@@ -1,4 +1,4 @@
-# BeeIRCD spec (draft 1, 11 Nov 2026)
+# BeeIRCD spec (draft 2, 11 Nov 2026)
 
 BeeIRCD is one Go program: the IRC server, the five services, and later the Hive Panel (web admin) and BeeRoom (web chat). This spec covers **Stage 1**: one server with all services working, plus install and start. Everything is built so that Stage 2 (linking BeeIRCD to BeeIRCD) can be added without redoing it.
 
@@ -181,7 +181,7 @@ Every change is saved straight to the config file and applies at once, so there'
 | `s` | OperServ nick and channel tools |
 
 - An oper entry is an **account** (a registered nick), flags, a title and host masks. The installer creates the first one for your admin nick with all flags.
-- **Opered on identify (DRAFT, your call):** when an oper identifies from an allowed host, services give `+o` straight away, so there's no /oper password stored in clients. `/oper <name> <password>` still works for anyone who wants it.
+- **Opered on identify (decided 11 Nov):** you only become an oper after you identify to your registered nick, and only from a host on your oper entry. Services then give `+o` straight away, so no separate /oper password sits in client configs. Someone who takes your nick without the password gets nothing. `/oper <account> <password>` also works, and asks for the same NickServ password.
 
 ---
 
@@ -222,7 +222,7 @@ Things Stage 1 does now so linking doesn't mean a rewrite:
 - Every server has a **server ID** (3 chars, like `0BE`). Every user has a **unique ID** (server ID + 6 chars) besides their nick, and everything inside the server uses the ID, never the nick.
 - Every channel and nick carries a **timestamp**, so collisions after a split can be settled the classic way (older wins).
 - The network state (users, channels, modes) sits in one module that only changes through **events** ("user joined", "mode set"). In Stage 2 the same events go over the link.
-- Services run on **one server, the hub** (the classic layout). Leaves forward service commands over the link. Services data stays in one database, so there are no sync conflicts. **DRAFT:** if the hub is down, services are down too until it's back. Replicating services to leaves can come later.
+- Services run on **one server, the hub**, like ConferenceRoom. Leaves forward service commands over the link. Services data stays in one database, so there are no sync conflicts. If the hub is down, services are down too until it's back (decided 11 Nov). Replicating services to leaves can come later.
 - The link layer sits behind one interface, so an UnrealIRCd or InspIRCd link module can be added later.
 
 ---
@@ -243,10 +243,9 @@ Each step ends with tests passing and something you can try. I'll ask before the
 
 Testing at every step: Go unit tests, plus an automatic test that runs a real server and drives it with several fake clients (join, modes, every service command). I'll run all of that myself before asking you to try anything.
 
-Test server: a separate container on the homelab with its own ports, so your real IRC servers aren't touched. **DRAFT:** is that OK, or would you rather use somewhere else?
+Test server (decided 11 Nov): a separate Docker container `beeircd-test` on the homelab, ports **26667** plain and **26697** TLS, open only on the home network. No router or VPS forward, nothing shared with the running UnrealIRCd, InspIRCd or ConferenceRoom.
 
 ## 6. Still open
 1. The full command lists above (2.1 to 2.5): strike out, add or rename anything.
-2. Opered on identify: keep?
-3. Services down while the hub is down (section 4): OK for now?
-4. Test server as a separate container on the homelab: OK?
+
+Licence: AGPL-3.0-or-later (decided 11 Nov).

@@ -29,6 +29,10 @@ Runs gofmt, `go vet`, [staticcheck](https://staticcheck.dev) and the tests.
 | `internal/` | the server, services and storage, one package each |
 | `scripts/` | developer scripts |
 
+## Licence
+
+GNU Affero General Public License v3.0 or later, see [LICENSE](LICENSE). If you run a changed BeeIRCD for other people, you share your changes.
+
 ---
 
 A BajuBesi Labs project.
