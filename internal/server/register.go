@@ -1,0 +1,264 @@
+package server
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/fhazal/beeircd/internal/irc"
+	"github.com/fhazal/beeircd/internal/state"
+	"github.com/fhazal/beeircd/internal/version"
+)
+
+func (s *Server) cmdCap(c *Client, m irc.Message) {
+	switch strings.ToUpper(m.Params[0]) {
+	case "LS":
+		if !c.registered {
+			c.capBusy = true
+		}
+		s.capReply(c, "LS", "")
+	case "LIST":
+		s.capReply(c, "LIST", "")
+	case "REQ":
+		if !c.registered {
+			c.capBusy = true
+		}
+		// No capabilities yet (they arrive in step 3), so every request is refused.
+		s.capReply(c, "NAK", m.Param(1))
+	case "END":
+		c.capBusy = false
+		s.tryRegister(c)
+	default:
+		s.reply(c, "410", m.Params[0], "Invalid CAP command")
+	}
+}
+
+func (s *Server) capReply(c *Client, sub, text string) {
+	c.send(irc.Message{Source: s.cfg.Server.Name, Command: "CAP", Params: []string{c.target(), sub, text}, Trailing: true}.String())
+}
+
+func (s *Server) cmdPass(c *Client, m irc.Message) {
+	if c.registered {
+		s.reply(c, irc.ErrAlreadyRegistered, "You may not reregister")
+	}
+	// No server password in Stage 1; SASL and NickServ come later.
+}
+
+func (s *Server) cmdNick(c *Client, m irc.Message) {
+	nick := m.Param(0)
+	if nick == "" {
+		s.reply(c, irc.ErrNoNicknameGiven, "No nickname given")
+		return
+	}
+	if !irc.ValidNick(nick, s.cfg.Limits.NickLen) {
+		s.reply(c, irc.ErrErroneusNickname, nick, "Erroneous nickname")
+		return
+	}
+	if !c.registered {
+		if s.net.NickInUse(nick) {
+			s.reply(c, irc.ErrNicknameInUse, nick, "Nickname is already in use")
+			return
+		}
+		c.nick = nick
+		s.tryRegister(c)
+		return
+	}
+	u := c.user
+	if nick == u.Nick {
+		return
+	}
+	old := u.Prefix()
+	if err := s.net.ChangeNick(u, nick, time.Now().Unix()); err != nil {
+		s.reply(c, irc.ErrNicknameInUse, nick, "Nickname is already in use")
+		return
+	}
+	s.addWhowasNick(old, u)
+	line := irc.Message{Source: old, Command: "NICK", Params: []string{nick}}.String()
+	c.send(line)
+	for _, n := range s.net.Neighbours(u) {
+		s.sendTo(n, line)
+	}
+}
+
+func (s *Server) cmdUser(c *Client, m irc.Message) {
+	if c.registered {
+		s.reply(c, irc.ErrAlreadyRegistered, "You may not reregister")
+		return
+	}
+	c.ident = cleanIdent(m.Params[0])
+	c.realname = irc.Truncate(m.Params[3], 50)
+	s.tryRegister(c)
+}
+
+// cleanIdent keeps letters, digits and . _ - and marks it with ~ because
+// BeeIRCD does no ident lookups.
+func cleanIdent(raw string) string {
+	var b strings.Builder
+	for i := 0; i < len(raw) && b.Len() < 9; i++ {
+		ch := raw[i]
+		if ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9' || ch == '.' || ch == '_' || ch == '-' {
+			b.WriteByte(ch)
+		}
+	}
+	if b.Len() == 0 {
+		return "~user"
+	}
+	return "~" + b.String()
+}
+
+func (s *Server) cmdPing(c *Client, m irc.Message) {
+	if len(m.Params) == 0 {
+		s.reply(c, irc.ErrNoOrigin, "No origin specified")
+		return
+	}
+	c.send(irc.Message{Source: s.cfg.Server.Name, Command: "PONG", Params: []string{s.cfg.Server.Name, m.Params[0]}, Trailing: true}.String())
+}
+
+func (s *Server) cmdPong(c *Client, m irc.Message) {} // handleLine already reset the ping timer
+
+func (s *Server) cmdQuit(c *Client, m irc.Message) {
+	reason := "Quit"
+	if r := m.Param(0); r != "" {
+		reason = "Quit: " + irc.Truncate(r, s.cfg.Limits.KickLen)
+	}
+	s.quit(c, reason)
+}
+
+// tryRegister finishes registration once NICK, USER, CAP and the host
+// lookup are all done.
+func (s *Server) tryRegister(c *Client) {
+	if c.registered || c.closed || c.nick == "" || c.ident == "" || !c.hostDone || c.capBusy {
+		return
+	}
+	now := time.Now()
+	u := &state.User{
+		UID:      c.uid,
+		Nick:     c.nick,
+		Ident:    c.ident,
+		Host:     c.host,
+		RealHost: c.host,
+		IP:       c.ip,
+		Realname: c.realname,
+		Server:   s.cfg.Server.Name,
+		TLS:      c.tls,
+		SignOn:   now,
+		NickTS:   now.Unix(),
+		Modes:    map[byte]bool{'i': true},
+	}
+	if err := s.net.AddUser(u); err != nil {
+		s.reply(c, irc.ErrNicknameInUse, c.nick, "Nickname is already in use")
+		c.nick = ""
+		return
+	}
+	c.user = u
+	c.registered = true
+	if n := s.localUsers(); n > s.maxLocal {
+		s.maxLocal = n
+	}
+	s.log.Printf("connect %s (%s@%s) %s", u.Nick, u.Ident, u.RealHost, c.ip)
+	s.welcome(c)
+}
+
+func (s *Server) welcome(c *Client) {
+	cfg := s.cfg.Server
+	u := c.user
+	s.reply(c, irc.RplWelcome, fmt.Sprintf("Welcome to %s, %s", cfg.Network, u.Nick))
+	s.reply(c, irc.RplYourHost, fmt.Sprintf("Your host is %s, running %s", cfg.Name, version.String()))
+	s.reply(c, irc.RplCreated, "This server was created "+s.created.UTC().Format("Mon Jan 2 2006 at 15:04:05 UTC"))
+	s.replyBare(c, irc.RplMyInfo, cfg.Name, version.Name+"-"+version.Version, userModes, channelModes, channelModesWithParam)
+	s.sendISupport(c)
+	s.lusers(c)
+	s.motd(c)
+	c.send(irc.Message{Source: u.Nick, Command: "MODE", Params: []string{u.Nick, u.ModeString()}}.String())
+}
+
+const (
+	userModes             = "iorswx"
+	channelModes          = "IMRbeiklmnoprstv"
+	channelModesWithParam = "Ibeklov"
+)
+
+func (s *Server) isupport() []string {
+	l := s.cfg.Limits
+	return []string{
+		"AWAYLEN=" + strconv.Itoa(l.AwayLen),
+		"CASEMAPPING=rfc1459",
+		"CHANLIMIT=#:" + strconv.Itoa(l.MaxChannels),
+		"CHANMODES=beI,k,l,MRimnprst",
+		"CHANNELLEN=" + strconv.Itoa(l.ChannelLen),
+		"CHANTYPES=#",
+		"EXCEPTS=e",
+		"HOSTLEN=63",
+		"INVEX=I",
+		"KICKLEN=" + strconv.Itoa(l.KickLen),
+		"MAXLIST=beI:" + strconv.Itoa(maxListEntries),
+		"MAXTARGETS=" + strconv.Itoa(maxTargets),
+		"MODES=" + strconv.Itoa(maxModeParams),
+		"NETWORK=" + s.cfg.Server.Network,
+		"NICKLEN=" + strconv.Itoa(l.NickLen),
+		"PREFIX=(ov)@+",
+		"STATUSMSG=@+",
+		"TARGMAX=JOIN:,KICK:4,NAMES:1,NOTICE:4,PART:,PRIVMSG:4,WHOIS:1",
+		"TOPICLEN=" + strconv.Itoa(l.TopicLen),
+		"USERLEN=10",
+	}
+}
+
+func (s *Server) sendISupport(c *Client) {
+	tokens := s.isupport()
+	for len(tokens) > 0 {
+		n := min(13, len(tokens))
+		s.reply(c, irc.RplISupport, append(tokens[:n:n], "are supported by this server")...)
+		tokens = tokens[n:]
+	}
+}
+
+func (s *Server) localUsers() int {
+	n := 0
+	for _, c := range s.clients {
+		if c.registered {
+			n++
+		}
+	}
+	return n
+}
+
+func (s *Server) lusers(c *Client) {
+	total := s.net.UserCount()
+	invisible, opers := 0, 0
+	for _, u := range s.net.Users() {
+		if u.HasMode('i') {
+			invisible++
+		}
+		if u.HasMode('o') {
+			opers++
+		}
+	}
+	unknown := len(s.clients) - s.localUsers()
+	local := s.localUsers()
+	s.reply(c, irc.RplLuserClient, fmt.Sprintf("There are %d users and %d invisible on 1 servers", total-invisible, invisible))
+	if opers > 0 {
+		s.reply(c, irc.RplLuserOp, strconv.Itoa(opers), "operator(s) online")
+	}
+	if unknown > 0 {
+		s.reply(c, irc.RplLuserUnknown, strconv.Itoa(unknown), "unknown connection(s)")
+	}
+	s.reply(c, irc.RplLuserChannels, strconv.Itoa(s.net.ChannelCount()), "channels formed")
+	s.reply(c, irc.RplLuserMe, fmt.Sprintf("I have %d clients and 0 servers", local))
+	s.reply(c, irc.RplLocalUsers, strconv.Itoa(local), strconv.Itoa(s.maxLocal), fmt.Sprintf("Current local users %d, max %d", local, s.maxLocal))
+	s.reply(c, irc.RplGlobalUsers, strconv.Itoa(total), strconv.Itoa(s.maxLocal), fmt.Sprintf("Current global users %d, max %d", total, s.maxLocal))
+}
+
+func (s *Server) motd(c *Client) {
+	lines := s.cfg.MOTDLines()
+	if len(lines) == 0 {
+		s.reply(c, irc.ErrNoMotd, "MOTD File is missing")
+		return
+	}
+	s.reply(c, irc.RplMotdStart, "- "+s.cfg.Server.Name+" Message of the Day -")
+	for _, l := range lines {
+		s.reply(c, irc.RplMotd, "- "+l)
+	}
+	s.reply(c, irc.RplEndOfMotd, "End of /MOTD command.")
+}

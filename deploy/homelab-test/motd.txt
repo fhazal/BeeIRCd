@@ -1,0 +1,5 @@
+Welcome to the BeeIRCD test server
+be kind, stay curious
+
+This is Stage 1 step 2: the core chat server.
+Services (/ns /cs /ms /os /as) arrive in steps 4 to 6.
