@@ -27,7 +27,7 @@ func (s *Server) cmdWho(c *Client, m irc.Message) {
 					if opersOnly && !mem.User.HasMode('o') {
 						continue
 					}
-					s.whoLine(c, ch.Name, mem.User, mem.Prefix())
+					s.whoLine(c, ch.Name, mem.User, memberPrefix(c, mem))
 				}
 			}
 		}
@@ -74,8 +74,11 @@ func (s *Server) cmdWhois(c *Client, m irc.Message) {
 			continue
 		}
 		s.reply(c, irc.RplWhoisUser, u.Nick, u.Ident, u.Host, "*", u.Realname)
-		if chans := s.whoisChannels(c.user, u); chans != "" {
+		if chans := s.whoisChannels(c, u); chans != "" {
 			s.reply(c, irc.RplWhoisChannels, u.Nick, chans)
+		}
+		if u == c.user && u.Host != u.RealHost {
+			s.reply(c, irc.RplWhoisHost, u.Nick, "is connecting from *@"+u.RealHost+" "+u.IP)
 		}
 		s.reply(c, irc.RplWhoisServer, u.Nick, u.Server, s.cfg.Server.Description)
 		if u.Away != "" {
@@ -92,8 +95,9 @@ func (s *Server) cmdWhois(c *Client, m irc.Message) {
 	}
 }
 
-// whoisChannels lists u's channels that asker may see.
-func (s *Server) whoisChannels(asker, u *state.User) string {
+// whoisChannels lists u's channels that c may see.
+func (s *Server) whoisChannels(c *Client, u *state.User) string {
+	asker := c.user
 	var out []string
 	for _, ch := range s.net.Channels() {
 		mem := ch.Member(u)
@@ -104,7 +108,7 @@ func (s *Server) whoisChannels(asker, u *state.User) string {
 		if hidden && asker != u && ch.Member(asker) == nil {
 			continue
 		}
-		out = append(out, mem.Prefix()+ch.Name)
+		out = append(out, memberPrefix(c, mem)+ch.Name)
 	}
 	return strings.Join(out, " ")
 }
@@ -147,13 +151,25 @@ func (s *Server) cmdWhowas(c *Client, m irc.Message) {
 }
 
 func (s *Server) cmdAway(c *Client, m irc.Message) {
-	if msg := m.Param(0); msg != "" {
-		c.user.Away = irc.Truncate(msg, s.cfg.Limits.AwayLen)
+	u := c.user
+	msg := irc.Truncate(m.Param(0), s.cfg.Limits.AwayLen)
+	changed := msg != u.Away
+	u.Away = msg
+	if msg != "" {
 		s.reply(c, irc.RplNowAway, "You have been marked as being away")
-		return
+	} else {
+		s.reply(c, irc.RplUnAway, "You are no longer marked as being away")
 	}
-	c.user.Away = ""
-	s.reply(c, irc.RplUnAway, "You are no longer marked as being away")
+	if changed {
+		var o *outMsg
+		if msg != "" {
+			o = s.out(u, "AWAY", msg).text()
+		} else {
+			o = s.out(u, "AWAY")
+		}
+		o.needCap = "away-notify"
+		s.toNeighbours(u, o, false)
+	}
 }
 
 func (s *Server) cmdIson(c *Client, m irc.Message) {

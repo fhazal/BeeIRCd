@@ -6,10 +6,29 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fhazal/beeircd/internal/cloak"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/version"
 )
+
+// capabilities are the IRCv3 features BeeIRCd offers. sasl joins them with
+// NickServ in step 4.
+var capabilities = []string{
+	"account-notify", "account-tag", "away-notify", "batch", "cap-notify",
+	"chghost", "echo-message", "extended-join", "invite-notify",
+	"labeled-response", "message-tags", "multi-prefix", "server-time",
+	"userhost-in-names",
+}
+
+func supportedCap(name string) bool {
+	for _, c := range capabilities {
+		if c == name {
+			return true
+		}
+	}
+	return false
+}
 
 func (s *Server) cmdCap(c *Client, m irc.Message) {
 	switch strings.ToUpper(m.Params[0]) {
@@ -17,15 +36,42 @@ func (s *Server) cmdCap(c *Client, m irc.Message) {
 		if !c.registered {
 			c.capBusy = true
 		}
-		s.capReply(c, "LS", "")
+		if v, _ := strconv.Atoi(m.Param(1)); v >= 302 {
+			c.caps["cap-notify"] = true // implied by CAP LS 302
+		}
+		s.capReply(c, "LS", strings.Join(capabilities, " "))
 	case "LIST":
-		s.capReply(c, "LIST", "")
+		var on []string
+		for _, name := range capabilities {
+			if c.caps[name] {
+				on = append(on, name)
+			}
+		}
+		s.capReply(c, "LIST", strings.Join(on, " "))
 	case "REQ":
 		if !c.registered {
 			c.capBusy = true
 		}
-		// No capabilities yet (they arrive in step 3), so every request is refused.
-		s.capReply(c, "NAK", m.Param(1))
+		req := m.Param(1)
+		wanted := strings.Fields(req)
+		ok := len(wanted) > 0
+		for _, w := range wanted {
+			if !supportedCap(strings.TrimPrefix(w, "-")) {
+				ok = false
+			}
+		}
+		if !ok {
+			s.capReply(c, "NAK", req)
+			return
+		}
+		for _, w := range wanted {
+			if name, off := strings.CutPrefix(w, "-"); off {
+				delete(c.caps, name)
+			} else {
+				c.caps[w] = true
+			}
+		}
+		s.capReply(c, "ACK", req)
 	case "END":
 		c.capBusy = false
 		s.tryRegister(c)
@@ -69,16 +115,13 @@ func (s *Server) cmdNick(c *Client, m irc.Message) {
 		return
 	}
 	old := u.Prefix()
+	o := s.out(u, "NICK", nick) // built now, while the source is the old nick
 	if err := s.net.ChangeNick(u, nick, time.Now().Unix()); err != nil {
 		s.reply(c, irc.ErrNicknameInUse, nick, "Nickname is already in use")
 		return
 	}
 	s.addWhowasNick(old, u)
-	line := irc.Message{Source: old, Command: "NICK", Params: []string{nick}}.String()
-	c.send(line)
-	for _, n := range s.net.Neighbours(u) {
-		s.sendTo(n, line)
-	}
+	s.toNeighbours(u, o, true)
 }
 
 func (s *Server) cmdUser(c *Client, m irc.Message) {
@@ -146,6 +189,10 @@ func (s *Server) tryRegister(c *Client) {
 		NickTS:   now.Unix(),
 		Modes:    map[byte]bool{'i': true},
 	}
+	if s.cfg.CloakEnabled() {
+		u.Modes['x'] = true
+		u.Host = s.cloakFor(u)
+	}
 	if err := s.net.AddUser(u); err != nil {
 		s.reply(c, irc.ErrNicknameInUse, c.nick, "Nickname is already in use")
 		c.nick = ""
@@ -171,6 +218,27 @@ func (s *Server) welcome(c *Client) {
 	s.lusers(c)
 	s.motd(c)
 	c.send(irc.Message{Source: u.Nick, Command: "MODE", Params: []string{u.Nick, u.ModeString()}}.String())
+	if u.Host != u.RealHost {
+		s.reply(c, irc.RplHostHidden, u.Host, "is now your displayed host")
+	}
+}
+
+// cloakFor is u's cloaked host.
+func (s *Server) cloakFor(u *state.User) string {
+	return cloak.Host(s.cfg.Cloak.Secret, s.cfg.Server.Network, u.RealHost, u.IP, u.RealHost == displayIP(u.IP))
+}
+
+// setHost changes the host others see and tells chghost clients.
+func (s *Server) setHost(c *Client, host string) {
+	u := c.user
+	if host == u.Host {
+		return
+	}
+	o := s.out(u, "CHGHOST", u.Ident, host)
+	o.needCap = "chghost"
+	u.Host = host
+	s.toNeighbours(u, o, true)
+	s.reply(c, irc.RplHostHidden, host, "is now your displayed host")
 }
 
 const (

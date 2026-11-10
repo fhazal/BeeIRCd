@@ -86,6 +86,18 @@ func (m *Member) Prefix() string {
 	return ""
 }
 
+// AllPrefixes is every status the member has, highest first ("@+").
+func (m *Member) AllPrefixes() string {
+	p := ""
+	if m.Op {
+		p += "@"
+	}
+	if m.Voice {
+		p += "+"
+	}
+	return p
+}
+
 // Channel is one channel.
 type Channel struct {
 	Name    string

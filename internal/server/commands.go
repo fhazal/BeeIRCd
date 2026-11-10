@@ -45,6 +45,7 @@ func init() {
 		"LUSERS":   {0, false, (*Server).cmdLusers},
 		"VERSION":  {0, false, (*Server).cmdVersion},
 		"TIME":     {0, false, (*Server).cmdTime},
+		"TAGMSG":   {1, false, (*Server).cmdTagmsg},
 	}
 }
 
@@ -59,6 +60,20 @@ func (s *Server) handleLine(c *Client, line string) {
 	if err != nil {
 		return
 	}
+	if label := m.Tags["label"]; label != "" && c.caps["labeled-response"] {
+		held := []string{}
+		c.capture = &held
+		s.runCommand(c, m)
+		if c.capture != nil { // nil when the command closed the connection
+			c.capture = nil
+			s.flushLabeled(c, label, held)
+		}
+		return
+	}
+	s.runCommand(c, m)
+}
+
+func (s *Server) runCommand(c *Client, m irc.Message) {
 	cmd, ok := commands[m.Command]
 	switch {
 	case !ok && !c.registered:

@@ -35,6 +35,8 @@ type Server struct {
 	whowas    []whowasEntry
 	maxLocal  int
 	toKill    []*Client
+	msgSeq    uint64
+	batchSeq  uint64
 	wg        sync.WaitGroup
 
 	// resolve looks up a hostname for an IP; replaceable in tests.

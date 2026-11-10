@@ -38,6 +38,9 @@ self_signed = true
 [motd]
 file = "motd.txt"
 
+[cloak]
+secret = "0123456789abcdef-test"
+
 [limits]
 ping_interval = "2m"
 `
@@ -54,7 +57,7 @@ func TestLoadGood(t *testing.T) {
 	if c.TLS.Cert != filepath.Join(filepath.Dir(p), "tls", "cert.pem") {
 		t.Errorf("cert path not made absolute: %s", c.TLS.Cert)
 	}
-	if !c.ResolveHosts() || !c.NeedsTLS() || c.Server.Description != "BeeNet IRC" {
+	if !c.ResolveHosts() || !c.NeedsTLS() || !c.CloakEnabled() || c.Limits.FloodBurst != 10 || c.Server.Description != "BeeNet IRC" {
 		t.Errorf("defaults wrong: %+v", c.Server)
 	}
 	os.WriteFile(filepath.Join(filepath.Dir(p), "motd.txt"), []byte("one\r\ntwo\n\n"), 0o600)
@@ -70,6 +73,7 @@ func TestLoadErrors(t *testing.T) {
 		"sid":                         strings.Replace(good, `"0BE"`, `"BEE"`, 1),
 		"needs [tls] cert":            strings.Replace(good, `cert = "tls/cert.pem"`, "", 1),
 		"not a time":                  strings.Replace(good, `"2m"`, `"soon"`, 1),
+		"[cloak] secret":              strings.Replace(good, `"0123456789abcdef-test"`, `"short"`, 1),
 	}
 	for want, body := range cases {
 		_, err := Load(write(t, body))

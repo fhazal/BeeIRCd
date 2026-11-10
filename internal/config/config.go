@@ -32,7 +32,17 @@ type Config struct {
 	Listen []Listen `toml:"listen"`
 	TLS    TLS      `toml:"tls"`
 	MOTD   MOTD     `toml:"motd"`
+	Cloak  Cloak    `toml:"cloak"`
 	Limits Limits   `toml:"limits"`
+}
+
+// Cloak hides people's IPs and hostnames (user mode +x).
+type Cloak struct {
+	// Enabled is on by default.
+	Enabled *bool `toml:"enabled"`
+	// Secret makes cloaks impossible to reverse. Every linked server
+	// needs the same one, and changing it changes everyone's cloak.
+	Secret string `toml:"secret"`
 }
 
 // Server names this server and its network.
@@ -77,7 +87,14 @@ type Limits struct {
 	TopicLen        int      `toml:"topic_length"`
 	AwayLen         int      `toml:"away_length"`
 	KickLen         int      `toml:"kick_length"`
+	// FloodBurst lines go through at once; after that FloodRate lines per
+	// second. Faster senders are slowed down, not disconnected.
+	FloodBurst int `toml:"flood_burst"`
+	FloodRate  int `toml:"flood_rate"`
 }
+
+// CloakEnabled reports whether hosts are cloaked.
+func (c *Config) CloakEnabled() bool { return c.Cloak.Enabled == nil || *c.Cloak.Enabled }
 
 // ResolveHosts reports whether hostname lookups are on.
 func (c *Config) ResolveHosts() bool {
@@ -139,6 +156,8 @@ func (c *Config) SetDefaults() {
 	setInt(&l.TopicLen, 390)
 	setInt(&l.AwayLen, 200)
 	setInt(&l.KickLen, 390)
+	setInt(&l.FloodBurst, 10)
+	setInt(&l.FloodRate, 2)
 }
 
 func setDur(d *Duration, v time.Duration) {
@@ -178,6 +197,9 @@ func (c *Config) Check() error {
 	}
 	if c.NeedsTLS() && (c.TLS.Cert == "" || c.TLS.Key == "") {
 		return fmt.Errorf("a TLS port needs [tls] cert and key")
+	}
+	if c.CloakEnabled() && len(c.Cloak.Secret) < 16 {
+		return fmt.Errorf("[cloak] secret must be at least 16 characters of random text (or set enabled = false)")
 	}
 	if c.Limits.NickLen > 50 || c.Limits.ChannelLen > 64 {
 		return fmt.Errorf("nick_length is at most 50 and channel_length at most 64")

@@ -87,7 +87,7 @@ func (m Message) String() string {
 			b.WriteString(k)
 			if v := m.Tags[k]; v != "" {
 				b.WriteByte('=')
-				b.WriteString(escapeTag(v))
+				b.WriteString(EscapeTag(v))
 			}
 		}
 		b.WriteByte(' ')
@@ -145,7 +145,8 @@ func parseTags(raw string) map[string]string {
 
 var tagEscaper = strings.NewReplacer(`\`, `\\`, ";", `\:`, " ", `\s`, "\r", `\r`, "\n", `\n`)
 
-func escapeTag(v string) string { return tagEscaper.Replace(v) }
+// EscapeTag escapes a tag value for the wire.
+func EscapeTag(v string) string { return tagEscaper.Replace(v) }
 
 func unescapeTag(v string) string {
 	if strings.IndexByte(v, '\\') < 0 {

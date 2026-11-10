@@ -15,15 +15,6 @@ const (
 	maxListEntries = 100
 )
 
-// broadcast sends line to every member of ch except skip (may be nil).
-func (s *Server) broadcast(ch *state.Channel, line string, skip *state.User) {
-	for _, m := range ch.Members {
-		if m.User != skip {
-			s.sendTo(m.User, line)
-		}
-	}
-}
-
 func (s *Server) cmdJoin(c *Client, m irc.Message) {
 	u := c.user
 	if m.Params[0] == "0" {
@@ -80,7 +71,14 @@ func (s *Server) joinOne(c *Client, name, key string) {
 		}
 	}
 	ch, _, _ = s.net.Join(u, name, time.Now().Unix())
-	s.broadcast(ch, irc.Message{Source: u.Prefix(), Command: "JOIN", Params: []string{ch.Name}}.String(), nil)
+	join := s.out(u, "JOIN", ch.Name)
+	join.extParams = []string{ch.Name, accountOrStar(u), u.Realname}
+	s.broadcast(ch, join, nil)
+	if u.Away != "" {
+		away := s.out(u, "AWAY", u.Away).text()
+		away.needCap = "away-notify"
+		s.broadcast(ch, away, u)
+	}
 	if ch.Topic != "" {
 		s.sendTopic(c, ch)
 	}
@@ -107,7 +105,9 @@ func (s *Server) partOne(u *state.User, ch *state.Channel, reason string) {
 	if reason != "" {
 		params = append(params, reason)
 	}
-	s.broadcast(ch, irc.Message{Source: u.Prefix(), Command: "PART", Params: params, Trailing: reason != ""}.String(), nil)
+	o := s.out(u, "PART", params...)
+	o.msg.Trailing = reason != ""
+	s.broadcast(ch, o, nil)
 	s.net.Part(u, ch)
 }
 
@@ -144,7 +144,7 @@ func (s *Server) cmdTopic(c *Client, m irc.Message) {
 		return
 	}
 	ch.Topic, ch.TopicBy, ch.TopicAt = topic, u.Nick, time.Now()
-	s.broadcast(ch, irc.Message{Source: u.Prefix(), Command: "TOPIC", Params: []string{ch.Name, topic}, Trailing: true}.String(), nil)
+	s.broadcast(ch, s.out(u, "TOPIC", ch.Name, topic).text(), nil)
 }
 
 func (s *Server) sendTopic(c *Client, ch *state.Channel) {
@@ -190,7 +190,10 @@ func (s *Server) sendNames(c *Client, ch *state.Channel) {
 		if !inside && mem.User.HasMode('i') {
 			continue
 		}
-		n := mem.Prefix() + mem.User.Nick
+		n := memberPrefix(c, mem) + mem.User.Nick
+		if c.caps["userhost-in-names"] {
+			n = memberPrefix(c, mem) + mem.User.Prefix()
+		}
 		if size+len(n)+1 > irc.MaxLine {
 			flush()
 		}
@@ -257,7 +260,7 @@ func (s *Server) cmdKick(c *Client, m irc.Message) {
 			s.reply(c, irc.ErrUserNotInChannel, t.Nick, ch.Name, "They aren't on that channel")
 			continue
 		}
-		s.broadcast(ch, irc.Message{Source: u.Prefix(), Command: "KICK", Params: []string{ch.Name, t.Nick, reason}, Trailing: true}.String(), nil)
+		s.broadcast(ch, s.out(u, "KICK", ch.Name, t.Nick, reason).text(), nil)
 		s.net.Part(t, ch)
 	}
 }
@@ -285,10 +288,32 @@ func (s *Server) cmdInvite(c *Client, m irc.Message) {
 		}
 		ch.Invited[t.UID] = true
 		name = ch.Name
+		notify := s.out(u, "INVITE", t.Nick, ch.Name)
+		notify.needCap = "invite-notify"
+		for _, other := range ch.Members {
+			if other.Op && other.User != u {
+				s.deliverTo(other.User, notify)
+			}
+		}
 	}
 	s.replyBare(c, irc.RplInviting, t.Nick, name)
 	if t.Away != "" {
 		s.reply(c, irc.RplAway, t.Nick, t.Away)
 	}
-	s.sendTo(t, irc.Message{Source: u.Prefix(), Command: "INVITE", Params: []string{t.Nick, name}}.String())
+	s.deliverTo(t, s.out(u, "INVITE", t.Nick, name))
+}
+
+// memberPrefix is "@+" for multi-prefix clients, else the highest only.
+func memberPrefix(c *Client, m *state.Member) string {
+	if c.caps["multi-prefix"] {
+		return m.AllPrefixes()
+	}
+	return m.Prefix()
+}
+
+func accountOrStar(u *state.User) string {
+	if u.Account == "" {
+		return "*"
+	}
+	return u.Account
 }

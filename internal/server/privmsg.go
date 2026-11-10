@@ -11,11 +11,15 @@ import (
 func (s *Server) cmdPrivmsg(c *Client, m irc.Message) { s.message(c, m, "PRIVMSG") }
 func (s *Server) cmdNotice(c *Client, m irc.Message)  { s.message(c, m, "NOTICE") }
 
-// message delivers PRIVMSG or NOTICE. NOTICE never sends errors back.
+// cmdTagmsg carries only tags, like +typing. It reaches only clients with
+// message-tags and never sends errors back.
+func (s *Server) cmdTagmsg(c *Client, m irc.Message) { s.message(c, m, "TAGMSG") }
+
+// message delivers PRIVMSG, NOTICE or TAGMSG. Only PRIVMSG sends errors.
 func (s *Server) message(c *Client, m irc.Message, verb string) {
-	notice := verb == "NOTICE"
+	quiet := verb != "PRIVMSG"
 	fail := func(code string, params ...string) {
-		if !notice {
+		if !quiet {
 			s.reply(c, code, params...)
 		}
 	}
@@ -23,13 +27,19 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 		fail(irc.ErrNoRecipient, "No recipient given ("+verb+")")
 		return
 	}
-	if len(m.Params) < 2 || m.Params[1] == "" {
+	tagOnly := verb == "TAGMSG"
+	if !tagOnly && (len(m.Params) < 2 || m.Params[1] == "") {
 		fail(irc.ErrNoTextToSend, "No text to send")
 		return
 	}
 	u := c.user
-	text := m.Params[1]
-	c.lastMsg = time.Now()
+	tags := clientTags(m.Tags)
+	if tagOnly && len(tags) == 0 {
+		return
+	}
+	if !tagOnly {
+		c.lastMsg = time.Now()
+	}
 	targets := strings.Split(m.Params[0], ",")
 	if len(targets) > maxTargets {
 		targets = targets[:maxTargets]
@@ -39,6 +49,20 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 		name := target
 		if len(name) > 1 && (name[0] == '@' || name[0] == '+') && irc.IsChannel(name[1:]) {
 			status, name = name[:1], name[1:]
+		}
+		build := func(to string) *outMsg {
+			params := []string{to}
+			if !tagOnly {
+				params = append(params, m.Params[1])
+			}
+			o := s.out(u, verb, params...)
+			o.msg.Trailing = !tagOnly
+			o.tags = tags
+			o.msgid = s.newMsgID()
+			if tagOnly {
+				o.needCap = "message-tags"
+			}
+			return o
 		}
 		if irc.IsChannel(name) {
 			ch := s.net.Channel(name)
@@ -50,7 +74,7 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 				fail(irc.ErrCannotSendToChan, ch.Name, why)
 				continue
 			}
-			line := irc.Message{Source: u.Prefix(), Command: verb, Params: []string{status + ch.Name, text}, Trailing: true}.String()
+			o := build(status + ch.Name)
 			for _, mem := range ch.Members {
 				if mem.User == u {
 					continue
@@ -58,7 +82,10 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 				if status == "@" && !mem.Op || status == "+" && !mem.Op && !mem.Voice {
 					continue
 				}
-				s.sendTo(mem.User, line)
+				s.deliverTo(mem.User, o)
+			}
+			if c.caps["echo-message"] {
+				c.deliver(o)
 			}
 			continue
 		}
@@ -67,8 +94,12 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 			fail(irc.ErrNoSuchNick, name, "No such nick/channel")
 			continue
 		}
-		s.sendTo(t, irc.Message{Source: u.Prefix(), Command: verb, Params: []string{t.Nick, text}, Trailing: true}.String())
-		if !notice && t.Away != "" {
+		o := build(t.Nick)
+		s.deliverTo(t, o)
+		if c.caps["echo-message"] {
+			c.deliver(o)
+		}
+		if verb == "PRIVMSG" && t.Away != "" {
 			s.reply(c, irc.RplAway, t.Nick, t.Away)
 		}
 	}

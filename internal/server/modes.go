@@ -78,7 +78,12 @@ func (s *Server) userMode(c *Client, m irc.Message) {
 				delete(u.Modes, 'o')
 				changes = append(changes, modeChange{mode: 'o'})
 			}
-		case 'r', 's', 'x':
+		case 'x':
+			if s.cfg.CloakEnabled() && u.Modes['x'] != add {
+				setFlag(u.Modes, 'x', add)
+				changes = append(changes, modeChange{add: add, mode: 'x'})
+			}
+		case 'r', 's':
 			// Set by services or for opers only; ignored when asked for.
 		default:
 			unknown = true
@@ -89,6 +94,13 @@ func (s *Server) userMode(c *Client, m irc.Message) {
 	}
 	if len(changes) > 0 {
 		c.send(irc.Message{Source: u.Nick, Command: "MODE", Params: []string{u.Nick, formatModes(changes)[0]}}.String())
+	}
+	if s.cfg.CloakEnabled() {
+		host := u.RealHost
+		if u.Modes['x'] {
+			host = s.cloakFor(u)
+		}
+		s.setHost(c, host)
 	}
 }
 
@@ -262,7 +274,7 @@ func (s *Server) channelMode(c *Client, m irc.Message) {
 	}
 	if len(out) > 0 {
 		params := append([]string{ch.Name}, formatModes(out)...)
-		s.broadcast(ch, irc.Message{Source: u.Prefix(), Command: "MODE", Params: params}.String(), nil)
+		s.broadcast(ch, s.out(u, "MODE", params...), nil)
 	}
 }
 

@@ -33,6 +33,8 @@ type Client struct {
 	capBusy               bool // CAP negotiation not finished
 	hostDone              bool
 	closed                bool
+	caps                  map[string]bool // IRCv3 capabilities this client asked for
+	capture               *[]string       // lines held back for labeled-response
 
 	connectedAt time.Time
 	lastRecv    time.Time
@@ -62,6 +64,7 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 		lastRecv:    now,
 		lastMsg:     now,
 		notify:      make(chan struct{}, 1),
+		caps:        make(map[string]bool),
 	}
 	s.clients[c.uid] = c
 	s.wg.Add(1)
@@ -119,9 +122,14 @@ func (c *Client) target() string {
 	return "*"
 }
 
-// send queues one line. Lines over 510 bytes are cut. Called from the loop.
+// send queues one line. The part after the tags is cut to 510 bytes.
+// Called from the loop only.
 func (c *Client) send(line string) {
-	line = irc.Truncate(line, irc.MaxLine) + "\r\n"
+	if c.capture != nil {
+		*c.capture = append(*c.capture, line)
+		return
+	}
+	line = clip(line) + "\r\n"
 	c.mu.Lock()
 	if c.closing || c.over {
 		c.mu.Unlock()
@@ -151,6 +159,21 @@ func (c *Client) close() {
 	case c.notify <- struct{}{}:
 	default:
 	}
+}
+
+// clip cuts a line to the IRC limits: 510 bytes after the tags, and tags
+// that are too long are dropped.
+func clip(line string) string {
+	if strings.HasPrefix(line, "@") {
+		if sp := strings.IndexByte(line, ' '); sp > 0 {
+			tags, rest := line[:sp+1], line[sp+1:]
+			if len(tags) > 8191 {
+				tags = ""
+			}
+			return tags + irc.Truncate(rest, irc.MaxLine)
+		}
+	}
+	return irc.Truncate(line, irc.MaxLine)
 }
 
 func (c *Client) writeLoop() {
@@ -190,8 +213,25 @@ func (c *Client) writeLoop() {
 
 func (c *Client) readLoop() {
 	r := bufio.NewReaderSize(c.conn, maxInput)
+	lim := c.s.cfg.Limits
+	gap := time.Second / time.Duration(lim.FloodRate)
+	allow := time.Duration(lim.FloodBurst) * gap
+	var clock time.Time
 	for {
 		line, err := readLine(r)
+		// Flood control: every line moves this connection's clock forward.
+		// Once it runs more than the burst ahead, reading pauses, so a
+		// flooder is slowed down instead of filling the server's memory.
+		if err == nil {
+			now := time.Now()
+			if clock.Before(now) {
+				clock = now
+			}
+			clock = clock.Add(gap)
+			if ahead := clock.Sub(now); ahead > allow {
+				time.Sleep(ahead - allow)
+			}
+		}
 		switch {
 		case errors.Is(err, errTooLong):
 			c.s.post(func() { c.s.reply(c, irc.ErrInputTooLong, "Input line was too long") })
@@ -232,26 +272,17 @@ func (s *Server) quit(c *Client, reason string) {
 		return
 	}
 	c.closed = true
+	c.capture = nil
 	delete(s.clients, c.uid)
 	if c.user != nil {
 		u := c.user
-		line := irc.Message{Source: u.Prefix(), Command: "QUIT", Params: []string{reason}, Trailing: true}.String()
-		for _, n := range s.net.Neighbours(u) {
-			s.sendTo(n, line)
-		}
+		s.toNeighbours(u, s.out(u, "QUIT", reason).text(), false)
 		s.addWhowas(u)
 		s.net.RemoveUser(u)
 		s.log.Printf("quit %s (%s): %s", u.Nick, c.ip, reason)
 	}
 	c.send("ERROR :Closing Link: " + c.host + " (" + reason + ")")
 	c.close()
-}
-
-// sendTo queues a line for a user that is connected here.
-func (s *Server) sendTo(u *state.User, line string) {
-	if c := s.clients[u.UID]; c != nil {
-		c.send(line)
-	}
 }
 
 // reply sends a numeric whose last parameter is text.

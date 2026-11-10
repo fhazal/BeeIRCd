@@ -33,6 +33,9 @@ func testServerWith(t *testing.T, tweak func(*config.Config), setup func(*Server
 		Listen: []config.Listen{{Address: "127.0.0.1:0"}, {Address: "127.0.0.1:0", TLS: true}},
 		TLS:    config.TLS{Cert: filepath.Join(dir, "cert.pem"), Key: filepath.Join(dir, "key.pem"), SelfSigned: true},
 		MOTD:   config.MOTD{Text: "Welcome to BeeNet\nbe kind, stay curious"},
+		// Cloaks off and room for fast test clients; tests of those turn them back.
+		Cloak:  config.Cloak{Enabled: &off, Secret: "0123456789abcdef-test"},
+		Limits: config.Limits{FloodBurst: 10000, FloodRate: 10000},
 	}
 	if tweak != nil {
 		tweak(cfg)
@@ -511,6 +514,7 @@ func TestShutdownTellsEveryone(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.Server{Name: "irc.test.local", Network: "BeeNet", SID: "0BE", ResolveHosts: &off},
 		Listen: []config.Listen{{Address: "127.0.0.1:0"}},
+		Cloak:  config.Cloak{Enabled: &off},
 	}
 	cfg.SetDefaults()
 	s, err := New(cfg, log.New(io.Discard, "", 0))
