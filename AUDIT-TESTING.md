@@ -475,7 +475,7 @@ None of these was changed, since they're outside the approved scope. They're goo
 
 - **Risks:**
   - **O1** ordering (above).
-  - **S3** connection floods (step 7; temporary firewall mitigation in TESTING.md §6).
+  - **S3** connection floods: fixed in step 7a (12 Nov 2026).
   - The 12 protocol gaps.
   - Go 1.27.4 toolchain update recommended (not done).
 - **Docs to change** (not changed yet, your OK):

@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -111,6 +112,11 @@ func (c *Config) FullPrefixes() bool { return c.Server.Prefixes == "~&@%+" }
 type Listen struct {
 	Address string `toml:"address"`
 	TLS     bool   `toml:"tls"`
+	// Proxy: connections start with a PROXY protocol v1/v2 header (from a
+	// load balancer or a VPS tunnel) giving the real IP. Only ProxyFrom
+	// (IPs or CIDRs) may connect to such a port.
+	Proxy     bool     `toml:"proxy"`
+	ProxyFrom []string `toml:"proxy_from"`
 }
 
 // TLS points at the certificate. With SelfSigned, missing files are made.
@@ -147,6 +153,33 @@ type Limits struct {
 	// SessionLimit is the most connections from one IP, unless an
 	// OperServ session exception allows more.
 	SessionLimit int `toml:"session_limit"`
+	// ConnectRate is "connections:seconds" one IP may open (5:60), like
+	// UnrealIRCd's connect-flood; "off" for none. MaxUnregistered and
+	// MaxUnregisteredPerIP cap connections that haven't finished logging
+	// in (500 and 3). LAN IPs and exceptions skip all three.
+	ConnectRate          string `toml:"connect_rate"`
+	MaxUnregistered      int    `toml:"max_unregistered"`
+	MaxUnregisteredPerIP int    `toml:"max_unregistered_per_ip"`
+}
+
+// ConnectLimit reads connect_rate: n connections per period; ok false
+// when it is off.
+func (l Limits) ConnectLimit() (n int, period time.Duration, ok bool) {
+	return ParseRate(l.ConnectRate)
+}
+
+// ParseRate reads "count:seconds" like 5:60; "off" (or "") gives ok false.
+func ParseRate(v string) (n int, period time.Duration, ok bool) {
+	a, b, found := strings.Cut(strings.TrimSpace(v), ":")
+	if !found {
+		return 0, 0, false
+	}
+	x, err1 := strconv.Atoi(a)
+	y, err2 := strconv.Atoi(b)
+	if err1 != nil || err2 != nil || x < 1 || y < 1 || x > 1000 || y > 3600 {
+		return 0, 0, false
+	}
+	return x, time.Duration(y) * time.Second, true
 }
 
 // CloakEnabled reports whether hosts are cloaked.
@@ -219,6 +252,11 @@ func (c *Config) SetDefaults() {
 	setInt(&l.FloodBurst, 10)
 	setInt(&l.FloodRate, 2)
 	setInt(&l.MaxUsers, 5000)
+	if l.ConnectRate == "" {
+		l.ConnectRate = "5:60"
+	}
+	setInt(&l.MaxUnregistered, 500)
+	setInt(&l.MaxUnregisteredPerIP, 3)
 	setInt(&l.SessionLimit, 3)
 	sv := &c.Services
 	if sv.Database == "" {
@@ -369,6 +407,24 @@ func (c *Config) Check() error {
 	if err := c.Channels.check(); err != nil {
 		return err
 	}
+	if r := c.Limits.ConnectRate; !strings.EqualFold(r, "off") {
+		if _, _, ok := ParseRate(r); !ok {
+			return fmt.Errorf("[limits] connect_rate %q: use connections:seconds like 5:60, or off", r)
+		}
+	}
+	for _, l := range c.Listen {
+		if !l.Proxy {
+			continue
+		}
+		if len(l.ProxyFrom) == 0 {
+			return fmt.Errorf("[[listen]] %s: proxy = true needs proxy_from (the IPs of your proxy)", l.Address)
+		}
+		for _, m := range l.ProxyFrom {
+			if _, err := ParseCIDR(m); err != nil {
+				return fmt.Errorf("[[listen]] %s: proxy_from %q is not an IP or CIDR", l.Address, m)
+			}
+		}
+	}
 	switch {
 	case !serverRe.MatchString(c.Server.Name) || len(c.Server.Name) > 63:
 		return fmt.Errorf("server name %q must look like irc.example.org", c.Server.Name)
@@ -435,4 +491,21 @@ func (c *Config) MOTDLines() []string {
 		return nil
 	}
 	return strings.Split(text, "\n")
+}
+
+// ParseCIDR reads an IP (as a /32 or /128) or a CIDR.
+func ParseCIDR(v string) (*net.IPNet, error) {
+	if !strings.Contains(v, "/") {
+		ip := net.ParseIP(v)
+		if ip == nil {
+			return nil, fmt.Errorf("bad IP %q", v)
+		}
+		bits := 128
+		if ip.To4() != nil {
+			ip, bits = ip.To4(), 32
+		}
+		return &net.IPNet{IP: ip, Mask: net.CIDRMask(bits, bits)}, nil
+	}
+	_, n, err := net.ParseCIDR(v)
+	return n, err
 }

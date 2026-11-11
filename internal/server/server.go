@@ -59,11 +59,16 @@ type Server struct {
 	floodBoot   time.Duration // join floods aren't counted this long after start
 	rejoinBlock map[string]time.Time
 	// held are the clients with lines waiting for a password check (O1).
-	held     map[*Client]struct{}
-	hist     histState                   // 1.5.9c channel history (+H, CHATHISTORY)
-	watchers map[string]map[*Client]bool // MONITOR: folded nick -> clients watching it
-	loop     loopStats                   // how long each piece of loop work took
-	wg       sync.WaitGroup
+	held map[*Client]struct{}
+	hist histState // 1.5.9c channel history (+H, CHATHISTORY)
+	// 7a connect throttle and unregistered caps; throttleSkip says which
+	// IPs skip them (LAN), replaceable in tests.
+	throttle     connThrottle
+	throttleSkip func(ip string) bool
+	noticeAt     map[string]time.Time        // snoticeEvery
+	watchers     map[string]map[*Client]bool // MONITOR: folded nick -> clients watching it
+	loop         loopStats                   // how long each piece of loop work took
+	wg           sync.WaitGroup
 
 	// Services. The store is shared: the server reads oper entries and
 	// SASL accounts from it, services own the rest.
@@ -86,9 +91,12 @@ type Server struct {
 }
 
 type listener struct {
-	net.Listener
-	tls  bool
-	addr string // as written in the config
+	net.Listener // plain TCP; TLS is added per connection
+	tls          bool
+	addr         string // as written in the config
+	proxy        bool   // PROXY protocol header first (7a)
+	proxyFrom    []*net.IPNet
+	tlsConf      *tls.Config // captured: accept goroutines must not read Server.tlsConf
 }
 
 const (
@@ -102,25 +110,28 @@ var ErrRestart = errors.New("restart requested")
 // New opens the configured ports. Call Serve to start answering.
 func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	s := &Server{
-		cfg:         cfg,
-		log:         logger,
-		net:         state.NewNetwork(cfg.Server.SID),
-		clients:     make(map[string]*Client),
-		watchers:    make(map[string]map[*Client]bool),
-		perIP:       make(map[string]int),
-		opers:       make(map[*Client]bool),
-		events:      make(chan func(), 1024),
-		done:        make(chan struct{}),
-		created:     time.Now(),
-		floods:      make(map[string]*chanFloodState),
-		floodCache:  make(map[string]floodSet),
-		floodBoot:   floodBootDelay,
-		rejoinBlock: make(map[string]time.Time),
-		held:        make(map[*Client]struct{}),
-		resolve:     lookupHost,
-		lookupA:     lookupA,
-		dnsblSkip:   dnsblSkipped,
-		dnsbl:       dnsblState{cache: make(map[string]dnsblResult), hits: make(map[string]int), off: make(map[string]bool)},
+		cfg:          cfg,
+		log:          logger,
+		net:          state.NewNetwork(cfg.Server.SID),
+		clients:      make(map[string]*Client),
+		watchers:     make(map[string]map[*Client]bool),
+		perIP:        make(map[string]int),
+		opers:        make(map[*Client]bool),
+		events:       make(chan func(), 1024),
+		done:         make(chan struct{}),
+		created:      time.Now(),
+		floods:       make(map[string]*chanFloodState),
+		floodCache:   make(map[string]floodSet),
+		floodBoot:    floodBootDelay,
+		rejoinBlock:  make(map[string]time.Time),
+		held:         make(map[*Client]struct{}),
+		resolve:      lookupHost,
+		lookupA:      lookupA,
+		dnsblSkip:    dnsblSkipped,
+		throttle:     newConnThrottle(),
+		throttleSkip: dnsblSkipped,
+		noticeAt:     make(map[string]time.Time),
+		dnsbl:        dnsblState{cache: make(map[string]dnsblResult), hits: make(map[string]int), off: make(map[string]bool)},
 	}
 	if err := os.MkdirAll(filepath.Dir(cfg.Services.Database), 0o750); err != nil {
 		return nil, err
@@ -167,10 +178,12 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 			db.Close()
 			return nil, fmt.Errorf("listen on %s: %w", l.Address, err)
 		}
-		if l.TLS {
-			ln = tls.NewListener(ln, tlsConf)
+		li := listener{Listener: ln, tls: l.TLS, addr: l.Address, proxy: l.Proxy, tlsConf: tlsConf}
+		for _, m := range l.ProxyFrom {
+			n, _ := config.ParseCIDR(m) // checked by config.Check
+			li.proxyFrom = append(li.proxyFrom, n)
 		}
-		s.listeners = append(s.listeners, listener{ln, l.TLS, l.Address})
+		s.listeners = append(s.listeners, li)
 	}
 	return s, nil
 }
@@ -243,6 +256,7 @@ func (s *Server) Serve(ctx context.Context) error {
 			s.expireTimedBans(now)
 			s.floodTick(now)
 			s.historyTick(now)
+			s.throttleTick(now)
 			s.svc.Tick(now)
 			s.reap()
 			s.flushWrites()
@@ -304,6 +318,14 @@ func (s *Server) acceptLoop(l listener) {
 		// firewall) per line.
 		if tc, ok := conn.(*net.TCPConn); ok {
 			tc.SetNoDelay(false)
+		}
+		if l.proxy {
+			s.wg.Add(1)
+			go s.acceptProxied(conn, l)
+			continue
+		}
+		if l.tls {
+			conn = tls.Server(conn, l.tlsConf)
 		}
 		select {
 		case s.events <- func() { s.newClient(conn, l.tls) }:

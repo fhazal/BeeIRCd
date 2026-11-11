@@ -12,6 +12,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/fhazal/beeircd/internal/irc"
@@ -36,7 +37,9 @@ type Client struct {
 	host, ip              string
 	tls                   bool
 	registered            bool
-	capBusy               bool // CAP negotiation not finished
+	unregCounted          bool        // counted in Server.throttle as logging in
+	noLag                 atomic.Bool // opers: readLoop skips flood slowdown
+	capBusy               bool        // CAP negotiation not finished
 	hostDone              bool
 	dnsblBusy             bool         // a DNSBL lookup is running
 	dnsblListed           *dnsblResult // a DNSBL hit, acted on once NICK and USER are in
@@ -106,6 +109,10 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 	if z := s.svc.ZlineFor(ip); z != nil {
 		s.snotice("ZLINE %s stopped a connection from %s", z.Mask, ip)
 		s.quit(c, "Z-lined: "+z.Reason)
+		return
+	}
+	if why := s.admitConn(c, now); why != "" {
+		s.quit(c, why)
 		return
 	}
 	if n, max := s.sessions(ip), s.svc.SessionLimit(ip); n > max {
@@ -301,7 +308,9 @@ func (c *Client) readLoop() {
 				clock = now
 			}
 			clock = clock.Add(gap * time.Duration(max(1, len(lines))))
-			if ahead := clock.Sub(now); ahead > allow {
+			if c.noLag.Load() {
+				clock = now // opers aren't slowed down (UnrealIRCd, InspIRCd)
+			} else if ahead := clock.Sub(now); ahead > allow {
 				time.Sleep(ahead - allow)
 			}
 		}
@@ -400,6 +409,7 @@ func (s *Server) quit(c *Client, reason string) {
 	if s.perIP[c.ip]--; s.perIP[c.ip] <= 0 {
 		delete(s.perIP, c.ip)
 	}
+	s.doneUnregistered(c)
 	if c.registered {
 		s.local--
 	}

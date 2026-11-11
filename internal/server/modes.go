@@ -137,6 +137,7 @@ func (s *Server) setUserModes(c *Client, srcUID, modeStr string) bool {
 	if deopered {
 		c.operFlags, c.operTitle, c.operAccount, c.operSwhois, c.operClass = "", "", 0, nil, ""
 		delete(s.opers, c)
+		c.noLag.Store(false)
 		s.showOperVhost(c, "")
 		s.snotice("%s is no longer an operator", u.Nick)
 	}

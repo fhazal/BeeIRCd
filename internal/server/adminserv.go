@@ -1,7 +1,6 @@
 package server
 
 import (
-	"crypto/tls"
 	"fmt"
 	"net"
 	"os"
@@ -135,6 +134,18 @@ func settings() []setting {
 			get: num(func(c *config.Config) int { return c.Limits.MaxUsers }), apply: limitsApply},
 		{name: "session-limit", table: "limits", key: "session_limit", help: "connections from one IP", kind: 'i', lo: 1, hi: 1000,
 			get: num(func(c *config.Config) int { return c.Limits.SessionLimit }), apply: limitsApply},
+		{name: "connect-rate", table: "limits", key: "connect_rate", help: "connections one IP may open, like 5:60 (OFF for no limit)", kind: 't', hi: 9,
+			get: func(c *config.Config) string { return strings.ToLower(c.Limits.ConnectRate) }, apply: limitsApply,
+			check: func(v string) string {
+				if _, _, ok := config.ParseRate(v); !ok && !strings.EqualFold(v, "off") {
+					return "connect-rate takes connections:seconds like 5:60, or OFF."
+				}
+				return ""
+			}},
+		{name: "max-unregistered", table: "limits", key: "max_unregistered", help: "connections logging in at once", kind: 'i', lo: 10, hi: 100000,
+			get: num(func(c *config.Config) int { return c.Limits.MaxUnregistered }), apply: limitsApply},
+		{name: "max-unregistered-per-ip", table: "limits", key: "max_unregistered_per_ip", help: "connections logging in at once from one IP", kind: 'i', lo: 1, hi: 100,
+			get: num(func(c *config.Config) int { return c.Limits.MaxUnregisteredPerIP }), apply: limitsApply},
 		{name: "max-channels", table: "limits", key: "max_channels", help: "channels one person can join", kind: 'i', lo: 1, hi: 500,
 			get: num(func(c *config.Config) int { return c.Limits.MaxChannels }), apply: limitsApply},
 		{name: "topic-length", table: "limits", key: "topic_length", help: "new connections see it in 005", kind: 'i', lo: 20, hi: 390,
@@ -503,10 +514,7 @@ func asPort(s *Server, c *Client, args []string) {
 			s.as(c, "Not saved, so the port stays closed: %v", err)
 			return
 		}
-		if useTLS {
-			ln = tls.NewListener(ln, s.tlsConf)
-		}
-		l := listener{ln, useTLS, addr}
+		l := listener{Listener: ln, tls: useTLS, addr: addr, tlsConf: s.tlsConf}
 		s.lmu.Lock()
 		s.listeners = append(s.listeners, l)
 		s.lmu.Unlock()

@@ -212,6 +212,15 @@ func (s *Services) DnsblExempt(ip string) bool {
 // store.BanZline, BanAkill or BanShun) on ip, set by "DNSBL", unless one
 // is there already.
 func (s *Services) DnsblBan(kind, ip, reason string, life time.Duration) {
+	s.autoBan(kind, ip, reason, "DNSBL", life)
+}
+
+// ThrottleBan ZLINEs an IP the connect throttle refused again and again.
+func (s *Services) ThrottleBan(ip, reason string, life time.Duration) {
+	s.autoBan(store.BanZline, ip, reason, "Throttle", life)
+}
+
+func (s *Services) autoBan(kind, ip, reason, setBy string, life time.Duration) {
 	mask := ip
 	if kind != store.BanZline {
 		mask = "*@" + ip
@@ -226,7 +235,7 @@ func (s *Services) DnsblBan(kind, ip, reason string, life time.Duration) {
 		}
 	}
 	now := time.Now()
-	b := store.NetBan{Kind: kind, Mask: mask, Reason: irc.Truncate(reason, 200), SetBy: "DNSBL", SetAt: now, Expires: now.Add(life)}
+	b := store.NetBan{Kind: kind, Mask: mask, Reason: irc.Truncate(reason, 200), SetBy: setBy, SetAt: now, Expires: now.Add(life)}
 	if err := s.store.AddNetBan(b); err != nil {
 		s.log.Printf("services database: %v", err)
 		return

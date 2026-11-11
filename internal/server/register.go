@@ -262,6 +262,7 @@ func (s *Server) tryRegister(c *Client) {
 	}
 	c.user = u
 	c.registered = true
+	s.doneUnregistered(c)
 	s.local++
 	if n := s.localUsers(); n > s.maxLocal {
 		s.maxLocal = n

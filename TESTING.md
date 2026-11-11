@@ -101,11 +101,7 @@ irctest, benchmarks, soak tests and long fuzzing stay on the homelab.
 
 ## 6. Known open risks
 
-- **S3, connection floods (deferred to step 7).** There is no limit on
-  unregistered connections and no connect-rate throttle; only 3 per IP and a
-  60 s registration timeout. Until step 7, the test server can be protected
-  outside BeeIRCd, with the owner's OK:
-  - a firewall rule capping new connections per source IP on 26667/26697, for example
-    nftables `ct state new limit rate over 10/minute burst 20 packets drop`
-    per source, or `iptables -m connlimit --connlimit-above 10`;
-  - keep the test server on the LAN only (it is today: 192.168.50.76).
+- **S3, connection floods: fixed in 7a.** Per-IP connect throttle (5 per
+  60 s, ZLINE after repeat refusals) and caps on connections still logging
+  in (3 per IP, 500 in total), checked before any DNS or DNSBL work. LAN
+  IPs skip them, so the LAN-only test server sees no change.

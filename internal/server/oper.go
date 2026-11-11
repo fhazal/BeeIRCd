@@ -86,6 +86,7 @@ func (s *Server) operUp(c *Client, o *store.Oper) {
 	was := c.operFlags
 	c.operFlags, c.operTitle, c.operAccount, c.operSwhois, c.operClass = v.flags, v.title, o.AccountID, v.swhois, v.class
 	s.opers[c] = true
+	c.noLag.Store(true)
 	s.showOperVhost(c, v.vhost)
 	if u.Modes['o'] {
 		if was != v.flags {
@@ -116,6 +117,7 @@ func (s *Server) deoper(c *Client, why string) {
 	}
 	c.operFlags, c.operTitle, c.operAccount, c.operSwhois, c.operClass = "", "", 0, nil, ""
 	delete(s.opers, c)
+	c.noLag.Store(false)
 	s.showOperVhost(c, "")
 	gone := "os"
 	for _, m := range []byte(operOnlyModes) {
