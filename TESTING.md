@@ -62,7 +62,8 @@ scripts/irctest.sh <beeircd linux binary> [pytest args]     # on the homelab
 - Markers: `not implementation-specific and not deprecated` (as for other servers).
 - Results: `/opt/beeircd-irctest/results/` (summary + junit.xml).
 - The baseline and the reason for every known failure are in
-  `AUDIT-TESTING.md` §9.
+  `AUDIT-TESTING.md` §9 and §12 (current: 270 pass / 4 fail / 163 skip /
+  3 xpass, 12 Nov 2026; the 4 fails are known differences or harness limits).
 - **Rule:** a failure is fixed in BeeIRCd only if it is a real protocol
   violation. Where irctest assumes another server's behaviour, BeeIRCd keeps
   its own and the test is listed as an expected difference.

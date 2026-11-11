@@ -1,5 +1,7 @@
 # BeeIRCd spec (draft 2, 11 Nov 2026)
 
+> **Historical.** This is the Stage 1 spec as approved. Stage 1 is done and Stage 1.5 is nearly done; what the server does now is in FEATURES.md, the order of work in HANDOFF/ASSESSMENT (superseded roadmap note).
+
 BeeIRCd is one Go program: the IRC server, the five services, and later the Hive Panel (web admin) and BeeRoom (web chat). This spec covers **Stage 1**: one server with all services working, plus install and start. Everything is built so that Stage 2 (linking BeeIRCd to BeeIRCd) can be added without redoing it.
 
 Mockups this spec follows:

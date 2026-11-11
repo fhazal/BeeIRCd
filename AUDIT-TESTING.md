@@ -484,3 +484,12 @@ None of these was changed, since they're outside the approved scope. They're goo
   - ENGINEERING.md bench path and the "load test in check.sh" claim.
   - ASSESSMENT.md / SPEC.md marked historical.
   - HELPOP numerics (292 vs 704–706) need a decision before 1.5.9b docs.
+
+## 12. Closed in the protocol conformance step (12 Nov 2026)
+
+PLAN-conformance.md: all 12 real gaps from §9 fixed with a regression test each (`server/conformance_test.go`, every test fails on the old code). INFO added (371/374). HELP and HELPOP answer with 704/705/706 (524 for an unknown topic), so the 3 HELPOP "expected differences" are gone. The `ACCOUNTEXTBAN=a` token is advertised. Repeat `/oper` while opered now says why (UnrealIRCd wording, checked before the password). Docs D1-D8 fixed. Still different on purpose: `WHO *` lists the built-in services, and the 2 SASL re-auth tests that register an account for a nick someone else is using.
+
+irctest run 5 (this build, Go 1.27.4): **270 PASS · 4 FAIL · 163 SKIPPED · 3 XPASS** (run 4: 235 / 31 / 171 / 3). The 4 fails:
+- `WHO *`: expected difference (above).
+- The 2 SASL re-auth tests: harness limit (above).
+- `sasl testPlainLarge800`: harness limit, new. The controller registers the account with a 592-character password in one `PRIVMSG NickServ :REGISTER ...` line (619 bytes). BeeIRCd now refuses client lines over 510 bytes with 417 (A4), so no client could send that line. SASL with an 800-byte payload itself works (`testPlainLarge` passes).

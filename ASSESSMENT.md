@@ -19,7 +19,7 @@ in [FEATURES.md](FEATURES.md).
      local delivery and server links both use (done in 1.5.2);
    - channel status is two booleans; switch to ranks, which also gives the
      `@+` / `~&@%+` prefix option.
-3. About 20 of the 34 released IRCv3 specs are implemented. Next and cheap:
+3. About 20 of the 34 released IRCv3 specs were implemented on 11 Nov 2026; MONITOR, SASL EXTERNAL and account-extban (with the ACCOUNTEXTBAN token) have landed since, and irctest runs in TESTING.md. Next and cheap:
    standard-replies, MONITOR, extended-monitor, WHOX, SETNAME, bot mode,
    UTF8ONLY, no-implicit-names, SASL EXTERNAL and SCRAM. Run irctest in CI.
 4. Gaps against UnrealIRCd, InspIRCd, Solanum and Ergo: linking, ban types
@@ -31,6 +31,8 @@ in [FEATURES.md](FEATURES.md).
    AdminServ with their own /oper password.
 
 ## Roadmap
+
+> **Superseded (11 Nov 2026):** the order decided with the owner is Stage 1.5 (services and modes, 1.5.3-1.5.9) -> step 7 (installer, systemd, Let's Encrypt, REHASH) -> Stage 2 linking -> Stage 3 Hive Panel -> Stage 4 BeeRoom. The table below is the original proposal, kept for the record.
 
 | Phase | Contents | Gate |
 | --- | --- | --- |

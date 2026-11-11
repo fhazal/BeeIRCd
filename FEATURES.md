@@ -7,17 +7,18 @@ Status words: **Implemented** (built and tested), **Partial**, **Planned**
 Update this file in the same commit as the code that changes a status. A
 capability is advertised to clients only when it is Implemented.
 
-Last updated: 11 Nov 2026 (Stage 1.5.9a).
+Last updated: 12 Nov 2026 (Stage 1.5.9a + protocol conformance step).
 
 ## Core server
 
 | Feature | Status | Notes |
 | --- | --- | --- |
 | Registration, PING, QUIT, NICK, USER, PASS | Implemented | PASS ignored (no server password) |
-| JOIN, PART, KICK, INVITE, TOPIC, NAMES, LIST | Implemented | |
+| JOIN, PART, KICK, INVITE, TOPIC, NAMES, LIST | Implemented | KICK takes `#a,#b nick1,nick2` pairs (RFC 2812) |
 | PRIVMSG, NOTICE, TAGMSG, STATUSMSG (@#, +#) | Implemented | |
-| WHO, WHOIS, WHOWAS, ISON, USERHOST, AWAY | Implemented | |
-| MOTD, LUSERS, VERSION, TIME | Implemented | |
+| WHO, WHOIS, WHOWAS, ISON, USERHOST, AWAY | Implemented | `WHO exactnick` shows +i users; `WHOWAS nick count`; `WHO *` also lists the built-in services (they are on the server, as with Anope) |
+| MOTD, LUSERS, VERSION, TIME, INFO | Implemented | INFO 371/374 (conformance step) |
+| Input limits | Implemented | lines over 510 bytes or tag sections over 4096 bytes get 417 and are dropped, not cut (IRCv3 message-tags; conformance step) |
 | User modes i w o s r x | Implemented | |
 | Channel modes o v b e I k l i m n p s t R M r | Implemented | |
 | Channel modes c S C T N K V Q z Z D P O | Implemented | 1.5.9a; UnrealIRCd letters and rules; +K matters once KNOCK lands (1.5.9b) |
@@ -25,7 +26,7 @@ Last updated: 11 Nov 2026 (Stage 1.5.9a).
 | +L link channel, +E repeat, +B caps, +J rejoin delay | Implemented | 1.5.9a; +L on +l +i +k +b +R +z like UnrealIRCd (3 hops at most); +E +B +J from InspIRCd |
 | ~f:#chan forward extban | Proposed | not in 1.5.9a |
 | +G censor (server word list) | Planned | later (D4) |
-| HELPOP CHMODES | Implemented | 1.5.9a; channel mode table, 292 lines |
+| HELP and HELPOP (every command + CHMODES) | Implemented | 704/705/706, 524 for an unknown topic (conformance step; was UnrealIRCd's 292 in 1.5.9a) |
 | Prefix option `@+` (default) or `~&@%+` | Implemented | `[server] prefixes`; +q +a +h with UnrealIRCd rules; restart to change |
 | TLS 1.2+ listeners, self-signed or own certificate | Implemented | |
 | Let's Encrypt built in, STS | Planned | step 7 |
@@ -49,7 +50,7 @@ Last updated: 11 Nov 2026 (Stage 1.5.9a).
 | --- | --- |
 | CAP 302, cap-notify | Implemented |
 | message-tags, message-ids, server-time | Implemented |
-| sasl (PLAIN) | Partial (EXTERNAL, SCRAM planned) |
+| sasl (PLAIN, EXTERNAL) | Implemented (EXTERNAL 1.5.6a; SCRAM planned) |
 | account-notify, account-tag, extended-join, away-notify | Implemented |
 | batch, labeled-response, echo-message | Implemented |
 | chghost, invite-notify, multi-prefix, userhost-in-names | Implemented |
@@ -57,7 +58,7 @@ Last updated: 11 Nov 2026 (Stage 1.5.9a).
 | MONITOR (MONITOR=100, numerics 730-734) | Implemented (1.5.6a) |
 | standard-replies, extended-monitor, WHOX, setname | Planned (phase 3) |
 | bot mode, UTF8ONLY, no-implicit-names | Planned (phase 3) |
-| account-extban | Implemented (1.5.5a, EXTBAN=~,amqrt) |
+| account-extban | Implemented (1.5.5a, EXTBAN=~,amqrt; ACCOUNTEXTBAN=a token since the conformance step) |
 | STS | Planned (step 7) |
 | WebSocket, WebIRC | Planned (Stage 4) |
 | netsplit/netjoin batches | Planned (Stage 2) |

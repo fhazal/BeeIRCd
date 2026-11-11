@@ -41,7 +41,7 @@ the connect rush (first 15 s) and steady chat.
 | Gate | Target | BeeIRCd now | InspIRCd 4.12.1 |
 | --- | --- | --- | --- |
 | 1,000 users | all online; lag p99 < 20 ms; memory < 40 MB; CPU < 5% | met except lag p99: 29 MB; 4%; lag 9 ms / 11-45 ms | 16 MB; 4%; lag 2-8 ms / 10-42 ms |
-| 5,000 users | all online in 10 s; lag p50 < 20 ms, p99 < 100 ms; memory < 160 MB; CPU < 50% | met except CPU: 99 MB; lag 5-10 ms / 15-19 ms; chat 54%, connect 47% | 80 MB; chat 57%, connect 23% |
+| 5,000 users | all online in 10 s; lag p50 < 20 ms, p99 < 100 ms; memory < 160 MB; CPU < 50% | met except CPU: 112-116 MB (1.5.7-1.5.9a); lag 3-7 ms / 7-11 ms; chat 53-55%, connect 47% | 80 MB; chat 57%, connect 23% |
 | Loop work | 99% of loop jobs < 5 ms | 99% < 2 ms | – |
 | Big server | 5,000 users in the load test (later: 50,000) | passes | – |
 | Server-to-server | to be set with linking (Stage 2) | – | – |
@@ -63,7 +63,7 @@ When performance work happens (owner's decision, 11 Nov 2026):
 
 | When | What |
 | --- | --- |
-| Every step | Quick alarm only: the load test in `check.sh` and one small-VPS run (`/tmp/bench2.sh bee`, ~2 min). Numbers noted in HANDOFF. A step that is clearly worse (over ~20% slower or bigger than the step before) gets looked at before commit; no tuning otherwise. |
+| Every step | Superseded 12 Nov 2026 (see CLAUDE.md / TESTING.md): `check.sh` + the changed area's tests; the load test (`BEEIRCD_LOAD=1 go test -run TestLoad5000 ./internal/server/`, not part of `check.sh`) and one small-VPS run (`/opt/beeircd-test/bench/bench2.sh bee`, ~2 min) only when a change touches the loop, concurrency or performance. Numbers noted in HANDOFF. A step that is clearly worse (over ~20% slower or bigger than the step before) gets looked at before commit; no tuning otherwise. |
 | End of each stage | One benchmark against InspIRCd, numbers written here. Tuning only if something is badly off. |
 | Final stage before release | Full optimisation: profiling, tuning, every target above. |
 
@@ -88,7 +88,7 @@ harder to remove the more is built on top.
   (from 204), chat CPU 54% (InspIRCd 57%), connect rush 47% (from 99%).
 - Measuring tools: `BEEIRCD_CPUPROFILE=file:seconds` writes a CPU profile,
   `BEEIRCD_MEMSTATS=seconds` logs heap, stacks and goroutines. Both off by
-  default. Benchmark script on the homelab: `/tmp/bench2.sh bee|insp`
+  default. Benchmark script on the homelab: `/opt/beeircd-test/bench/bench2.sh bee|insp`
   (`N=1000` for the small run).
 - Later ideas (only if a gate needs them): no writer goroutine for idle
   connections (stacks are now the biggest share, ~30 MB at 5,000);
