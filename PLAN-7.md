@@ -1,6 +1,6 @@
 # PLAN 7 - install, the `beeircd` command, TLS, and hardening for v1.0
 
-Status: approved 12 Nov 2026 with all ten recommendations (D1-D10). 7a built 12 Nov 2026 (uncommitted).
+Status: approved 12 Nov 2026 with all ten recommendations (D1-D10). 7a committed 8c20ec8; 7b committed 12 Nov 2026.
 
 Step 7 turns BeeIRCd from "a binary we deploy by hand" into something a
 stranger can install on a small VPS with one command, keep running, back up

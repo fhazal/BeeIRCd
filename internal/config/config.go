@@ -52,6 +52,8 @@ type Config struct {
 	HostServ HostServ `toml:"hostserv"`
 	Channels Channels `toml:"channels"`
 	History  History  `toml:"history"`
+	Control  Control  `toml:"control"`
+	Backup   Backup   `toml:"backup"`
 	// OperClasses are the [[operclass]] blocks (see Classes).
 	OperClasses []OperClass `toml:"operclass"`
 
@@ -217,7 +219,7 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("%s: unknown setting %s", path, strings.Join(keys, ", "))
 	}
 	dir := filepath.Dir(path)
-	for _, p := range []*string{&c.TLS.Cert, &c.TLS.Key, &c.MOTD.File, &c.Services.Database, &c.History.File} {
+	for _, p := range []*string{&c.TLS.Cert, &c.TLS.Key, &c.MOTD.File, &c.Services.Database, &c.History.File, &c.Control.Socket, &c.Backup.Dir} {
 		if *p != "" && !filepath.IsAbs(*p) {
 			*p = filepath.Join(dir, *p)
 		}
@@ -276,6 +278,7 @@ func (c *Config) SetDefaults() {
 	c.HostServ.setDefaults()
 	c.Channels.setDefaults()
 	c.History.setDefaults(sv.Database)
+	c.setAdminDefaults()
 	if sv.GuestPrefix == "" {
 		sv.GuestPrefix = "Guest"
 	}

@@ -89,12 +89,15 @@ func (s *Server) throttled(ip string, h *ipHits, n int, per time.Duration, now t
 		}
 	}
 	h.refused = append(keep, now)
+	s.safety().Throttled++
 	if len(h.refused) == 1 {
 		s.snotice("Throttled %s: more than %d connections in %d seconds", ip, n, int(per/time.Second))
 	}
 	if len(h.refused) >= throttleStrikes {
 		h.refused = nil
 		s.svc.ThrottleBan(ip, "Reconnecting too fast", throttleBanTime)
+		s.safety().Zlined++
+		s.svc.LogThrottle(ip, throttleStrikes, throttleStrikeWindow, throttleBanTime)
 		s.snotice("ZLINE %s for %d minutes: throttled %d times in %d minutes", ip, int(throttleBanTime/time.Minute), throttleStrikes, int(throttleStrikeWindow/time.Minute))
 	}
 }

@@ -313,3 +313,12 @@ func (s *Store) Targets(names []string, from, to time.Time, limit int) []Target 
 	}
 	return out
 }
+
+// Channels counts the channels with history.
+func (s *Store) Channels() int { return len(s.logs) }
+
+// SetMax changes the memory cap (REHASH) and trims to it.
+func (s *Store) SetMax(maxBytes int64) {
+	s.maxBytes = maxBytes
+	s.enforceCap()
+}

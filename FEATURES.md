@@ -36,10 +36,11 @@ Last updated: 12 Nov 2026 (Stage 1.5.9b).
 | HELP and HELPOP (every command + CHMODES) | Implemented | 704/705/706, 524 for an unknown topic (conformance step; was UnrealIRCd's 292 in 1.5.9a) |
 | Prefix option `@+` (default) or `~&@%+` | Implemented | `[server] prefixes`; +q +a +h with UnrealIRCd rules; restart to change |
 | TLS 1.2+ listeners, self-signed or own certificate | Implemented | |
-| Let's Encrypt built in, STS | Planned | step 7 |
+| Let's Encrypt built in, STS | Planned | step 7c |
+| Certificate reload without a restart | Implemented | 7b; a changed cert/key file is picked up within a minute (and on REHASH) for new connections; a broken file keeps the old certificate and tells opers |
 | Host cloaking (HMAC) | Implemented | |
 | Flood control (fake lag) | Implemented | opers are not slowed down (7a) |
-| Connect throttle and caps on connections still logging in | Implemented | 7a; per IP `connect_rate` 5:60 (refused with "Throttled", a 10-minute ZLINE after 3 refusals in 10 minutes), `max_unregistered_per_ip` 3, `max_unregistered` 500; before any DNS/DNSBL work; LAN, ELINE and session exceptions skip them; AdminServ SET connect-rate / max-unregistered / max-unregistered-per-ip |
+| Connect throttle and caps on connections still logging in | Implemented | 7a; per IP `connect_rate` 5:60 (refused with "Throttled", a 10-minute ZLINE after 3 refusals in 10 minutes, posted by OperServ in the log channel as THROTTLE), `max_unregistered_per_ip` 3, `max_unregistered` 500; before any DNS/DNSBL work; LAN, ELINE and session exceptions skip them; AdminServ SET connect-rate / max-unregistered / max-unregistered-per-ip |
 | Session limit per IP, max users | Implemented | |
 | Event layer (every network change is one event) | Implemented | 1.5.2; local delivery uses it; server links will (Stage 2) |
 | Services data in memory, write-through SQLite | Implemented | 1.5.2; one BeeIRCd per database (locked) |
@@ -49,7 +50,8 @@ Last updated: 12 Nov 2026 (Stage 1.5.9b).
 | WebSocket | Planned | Stage 4 |
 | PROXY protocol | Implemented | 7a; v1 and v2 on `[[listen]]` ports with `proxy = true`, only from `proxy_from` IPs/CIDRs (anyone else, plain IRC or a bad header: closed without a word); LOCAL/UNKNOWN keep the proxy address; plain and TLS ports |
 | DNS blocklists (`[[dnsbl]]`: DroneBL, EFnetRBL, any list) | Implemented | 1.5.5b: answers per list, reject (default) / zline / akill / shun for ban_time, IPv4 + IPv6, lookups off the loop, registration waits at most 2 s, cache (hit 1 h, clean 10 min), LAN IPs never looked up, ELINE + session exceptions skip it, AdminServ DNSBL LIST/CHECK/ENABLE/DISABLE, hits in OS STATS ALL, Anope M_DNSBL log line |
-| REHASH | Planned | step 7 |
+| REHASH | Implemented | 7b; `/rehash` (opers, flag a, 382), `beeircd rehash` and SIGHUP re-read beeircd.conf; applies what is safe live (limits, MOTD, DNSBL, flood profiles, history caps, oper classes, services settings, certificate) and lists what waits for a restart (ports, server name/SID/network/prefixes, cloak, TLS paths, database, history file/secret); a file that fails the checks is refused |
+| `beeircd status`, `check`, `backup`, `rehash`, `start`/`stop`/`restart` | Implemented | 7b; talk to the running server over a unix control socket (`[control] socket`, mode 0660, no network port); status shows load, data, certificate, last backup and a Safety row only when the guards acted today; check tests config, certificate, database (read-only when stopped), history secret, free ports; restart refuses when check fails; backup = one .tar.gz (config, live copy of services.db, history, certificate; 0600) in `[backup] dir`, 7 dated kept; start/stop/restart via systemd |
 | Module system | Proposed | after Stage 4 |
 
 ## IRCv3

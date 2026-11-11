@@ -11,7 +11,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -21,18 +20,11 @@ import (
 // Load returns a server TLS config for the given files. With selfSigned and
 // either file missing, a new certificate for host is written first.
 func Load(certFile, keyFile string, selfSigned bool, host string) (*tls.Config, error) {
-	if selfSigned && (!exists(certFile) || !exists(keyFile)) {
-		if err := MakeSelfSigned(certFile, keyFile, host); err != nil {
-			return nil, err
-		}
-	}
-	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	r, err := NewReloader(certFile, keyFile, selfSigned, host)
 	if err != nil {
-		return nil, fmt.Errorf("load certificate: %w", err)
+		return nil, err
 	}
-	// Clients may show a certificate (NickServ CERT, SASL EXTERNAL); it is
-	// only fingerprinted, never checked against a CA.
-	return &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12, ClientAuth: tls.RequestClientCert}, nil
+	return r.Config(), nil
 }
 
 // MakeSelfSigned writes a 10-year ECDSA certificate for host.

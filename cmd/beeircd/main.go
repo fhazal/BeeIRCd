@@ -32,7 +32,8 @@ const usage = `Usage: beeircd <command>
   status    show what the server is doing
   check     test config, certificate and database
   update    install the newest release (backup first)
-  backup    save config, database and certificates
+  backup    save config, database and certificates [to file]
+  rehash    read beeircd.conf again, apply what is safe live
   version   show the version
   mkpasswd  read a password on standard input, print its hash
             (for admin_password in beeircd.conf)
@@ -43,8 +44,7 @@ const usage = `Usage: beeircd <command>
 // planned lists the commands from SPEC.md section 3.2 that later Stage 1
 // steps add, so a user gets a clear answer instead of "unknown command".
 var planned = map[string]bool{
-	"start": true, "stop": true, "restart": true, "status": true,
-	"check": true, "update": true, "backup": true,
+	"update": true,
 }
 
 func main() {
@@ -70,6 +70,16 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runServer(args[1:], stderr)
 	case cmd == "mkpasswd":
 		return mkpasswd(os.Stdin, stdout, stderr)
+	case cmd == "status":
+		return cmdStatus(args[1:], stdout, stderr)
+	case cmd == "check":
+		return cmdCheck(args[1:], stdout, stderr)
+	case cmd == "backup":
+		return cmdBackup(args[1:], stdout, stderr)
+	case cmd == "rehash":
+		return cmdRehash(args[1:], stdout, stderr)
+	case cmd == "start" || cmd == "stop" || cmd == "restart":
+		return cmdService(cmd, args[1:], stdout, stderr)
 	case planned[cmd]:
 		fmt.Fprintf(stderr, "beeircd %s isn't built yet in %s.\n", cmd, version.String())
 		return 2
@@ -124,6 +134,8 @@ func runServer(args []string, stderr io.Writer) int {
 	logger.Printf("%s starting as %s", version.String(), cfg.Server.Name)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	stopHUP := onHangup(srv.Rehash) // SIGHUP re-reads beeircd.conf
+	defer stopHUP()
 	err = srv.Serve(ctx)
 	if errors.Is(err, server.ErrRestart) {
 		stop()

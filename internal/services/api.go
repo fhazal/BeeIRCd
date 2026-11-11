@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -243,8 +244,36 @@ func (s *Services) autoBan(kind, ip, reason, setBy string, life time.Duration) {
 	s.reloadOperData()
 }
 
+// LogThrottle posts a connect-throttle ZLINE to the log channel, from
+// OperServ, so it shows next to the DNSBL lines.
+func (s *Services) LogThrottle(ip string, refusals int, window, life time.Duration) {
+	s.logTo(s.operServ, fmt.Sprintf("THROTTLE: Z-lined %s for %d minutes: refused %d times in %d minutes for reconnecting too fast",
+		ip, int(life/time.Minute), refusals, int(window/time.Minute)))
+}
+
 // LogDNSBL posts Anope's m_dnsbl line to the log channel, from OperServ:
 // "M_DNSBL: nick!ident@host (ip) appears in list".
 func (s *Services) LogDNSBL(mask, ip, list string) {
 	s.logTo(s.operServ, "M_DNSBL: "+mask+" ("+ip+") appears in "+list)
+}
+
+// BotNicks lists the service bots in the order people know them.
+func (s *Services) BotNicks() []string {
+	order := []string{"NickServ", "ChanServ", "MemoServ", "OperServ", "HostServ", "AdminServ"}
+	var out []string
+	seen := map[string]bool{}
+	for _, n := range order {
+		if s.services[irc.Fold(n)] != nil {
+			out = append(out, n)
+			seen[irc.Fold(n)] = true
+		}
+	}
+	var rest []string
+	for k, sv := range s.services {
+		if !seen[k] {
+			rest = append(rest, sv.user.Nick)
+		}
+	}
+	sort.Strings(rest)
+	return append(out, rest...)
 }

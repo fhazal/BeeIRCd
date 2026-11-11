@@ -18,7 +18,7 @@ func TestRun(t *testing.T) {
 		{"help", []string{"help"}, 0, "Usage: beeircd", ""},
 		{"version", []string{"version"}, 0, "BeeIRCd ", ""},
 		{"version is case blind", []string{"VERSION"}, 0, "BeeIRCd ", ""},
-		{"planned command says so", []string{"start"}, 2, "", "isn't built yet"},
+		{"planned command says so", []string{"update"}, 2, "", "isn't built yet"},
 		{"unknown command", []string{"fly"}, 2, "", `Unknown command "fly"`},
 	}
 	for _, c := range cases {

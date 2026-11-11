@@ -403,4 +403,17 @@ func TestLogChannel155b(t *testing.T) {
 	c.send("NICK listed")
 	c.send("USER listed 0 * :Listed")
 	b.expect(osl + "M_DNSBL: listed!~listed@127.0.0.1 (127.0.0.1) appears in bad.example")
+
+	// A connect-throttle ZLINE (7a), also from OperServ.
+	s.onLoop(func() {
+		s.cfg.Limits.ConnectRate = "1:60"
+		s.throttleSkip = func(string) bool { return false }
+		s.cfg.DNSBL = nil
+		clear(s.throttle.hits)
+	})
+	addr := s.Addrs()[0].String()
+	for i := 0; i < 4; i++ { // 1 allowed, 3 refused
+		closedWith(t, addr)
+	}
+	b.expect(osl + "THROTTLE: Z-lined 127.0.0.1 for 10 minutes: refused 3 times in 10 minutes for reconnecting too fast")
 }

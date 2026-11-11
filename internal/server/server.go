@@ -65,10 +65,16 @@ type Server struct {
 	// IPs skip them (LAN), replaceable in tests.
 	throttle     connThrottle
 	throttleSkip func(ip string) bool
-	noticeAt     map[string]time.Time        // snoticeEvery
-	watchers     map[string]map[*Client]bool // MONITOR: folded nick -> clients watching it
-	loop         loopStats                   // how long each piece of loop work took
-	wg           sync.WaitGroup
+	noticeAt     map[string]time.Time // snoticeEvery
+	// 7b: control socket, reloadable certificate, today's safety counts.
+	ctl         net.Listener
+	certs       *tlsutil.Reloader
+	certChecked time.Time
+	certErr     string
+	safe        safetyState
+	watchers    map[string]map[*Client]bool // MONITOR: folded nick -> clients watching it
+	loop        loopStats                   // how long each piece of loop work took
+	wg          sync.WaitGroup
 
 	// Services. The store is shared: the server reads oper entries and
 	// SASL accounts from it, services own the rest.
@@ -164,11 +170,13 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	var tlsConf *tls.Config
 	if cfg.NeedsTLS() {
 		var err error
-		tlsConf, err = tlsutil.Load(cfg.TLS.Cert, cfg.TLS.Key, cfg.TLS.SelfSigned, cfg.Server.Name)
+		certs, err := tlsutil.NewReloader(cfg.TLS.Cert, cfg.TLS.Key, cfg.TLS.SelfSigned, cfg.Server.Name)
 		if err != nil {
 			db.Close()
 			return nil, err
 		}
+		s.certs, s.certChecked = certs, time.Now()
+		tlsConf = certs.Config()
 		s.tlsConf = tlsConf
 	}
 	for _, l := range cfg.Listen {
@@ -184,6 +192,11 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 			li.proxyFrom = append(li.proxyFrom, n)
 		}
 		s.listeners = append(s.listeners, li)
+	}
+	// Without the socket the server still runs; only the admin commands
+	// can't reach it.
+	if err := s.openControl(); err != nil {
+		logger.Printf("warning: %v; beeircd status, backup and rehash won't reach this server", err)
 	}
 	return s, nil
 }
@@ -207,6 +220,10 @@ func (s *Server) Serve(ctx context.Context) error {
 		go s.acceptLoop(l)
 	}
 	s.lmu.Unlock()
+	if s.ctl != nil {
+		s.wg.Add(1)
+		go s.controlLoop()
+	}
 	s.log.Printf("%s ready on %d port(s)", s.cfg.Server.Name, len(s.listeners))
 	tick := time.NewTicker(s.tickEvery())
 	defer tick.Stop()
@@ -257,6 +274,7 @@ func (s *Server) Serve(ctx context.Context) error {
 			s.floodTick(now)
 			s.historyTick(now)
 			s.throttleTick(now)
+			s.certTick(now)
 			s.svc.Tick(now)
 			s.reap()
 			s.flushWrites()
@@ -356,6 +374,7 @@ func (s *Server) shutdown(reason string) {
 	snap := s.historySnapshot() // before everyone quits and channels go
 	close(s.done)
 	s.closeListeners()
+	s.closeControl()
 	for _, c := range s.clients {
 		s.quit(c, reason)
 	}

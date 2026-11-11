@@ -75,6 +75,7 @@ func init() {
 		"CHGHOST":      {2, false, (*Server).cmdChghost},
 		"CHGIDENT":     {2, false, (*Server).cmdChgident},
 		"SAJOIN":       {2, false, (*Server).cmdSajoin},
+		"REHASH":       {0, false, (*Server).cmdRehash},
 		"SAPART":       {2, false, (*Server).cmdSapart},
 		"SANICK":       {2, false, (*Server).cmdSanick},
 		"SAMODE":       {2, false, (*Server).cmdSamode},

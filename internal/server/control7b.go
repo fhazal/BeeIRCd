@@ -1,0 +1,393 @@
+package server
+
+// Step 7b: the control socket behind `beeircd status`, `check`, `backup`
+// and `rehash`, plus REHASH itself and the safety counters for status.
+
+import (
+	"bufio"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"time"
+
+	"github.com/fhazal/beeircd/internal/config"
+	"github.com/fhazal/beeircd/internal/control"
+	"github.com/fhazal/beeircd/internal/history"
+	"github.com/fhazal/beeircd/internal/irc"
+	"github.com/fhazal/beeircd/internal/version"
+)
+
+// safetyState counts what the connection guards did today.
+type safetyState struct {
+	day string
+	control.Safety
+}
+
+func (s *Server) safety() *control.Safety {
+	day := time.Now().Format("2006-01-02")
+	if s.safe.day != day {
+		s.safe = safetyState{day: day}
+	}
+	return &s.safe.Safety
+}
+
+// openControl opens the control socket. A socket file left behind by a
+// server that died is removed; one that answers means another BeeIRCd runs.
+func (s *Server) openControl() error {
+	path := s.cfg.Control.Socket
+	if path == "" {
+		return nil
+	}
+	if _, err := os.Stat(path); err == nil {
+		if c, err := net.DialTimeout("unix", path, time.Second); err == nil {
+			c.Close()
+			return fmt.Errorf("control socket %s: another BeeIRCd is answering there", path)
+		}
+		os.Remove(path)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		return err
+	}
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		return fmt.Errorf("control socket %s: %w", path, err)
+	}
+	os.Chmod(path, 0o660) // the beeircd user and its admin group
+	s.ctl = ln
+	return nil
+}
+
+func (s *Server) closeControl() {
+	if s.ctl != nil {
+		s.ctl.Close()
+		os.Remove(s.cfg.Control.Socket)
+	}
+}
+
+func (s *Server) controlLoop() {
+	defer s.wg.Done()
+	for {
+		conn, err := s.ctl.Accept()
+		if err != nil {
+			return
+		}
+		s.wg.Add(1)
+		go s.controlConn(conn)
+	}
+}
+
+// onLoop runs f on the loop and waits for it; false when the server is
+// stopping.
+func (s *Server) onLoop(f func()) bool {
+	done := make(chan struct{})
+	select {
+	case s.events <- func() { f(); close(done) }:
+	case <-s.done:
+		return false
+	}
+	select {
+	case <-done:
+		return true
+	case <-s.done:
+		return false
+	}
+}
+
+func (s *Server) controlConn(conn net.Conn) {
+	defer s.wg.Done()
+	defer conn.Close()
+	conn.SetDeadline(time.Now().Add(5 * time.Second))
+	var req control.Request
+	line, err := bufio.NewReader(io.LimitReader(conn, control.MaxRequest)).ReadBytes('\n')
+	if err != nil || json.Unmarshal(line, &req) != nil {
+		json.NewEncoder(conn).Encode(control.Response{Error: "bad request"})
+		return
+	}
+	var resp control.Response
+	stopping := func() { resp = control.Response{Error: "the server is stopping"} }
+	switch req.Cmd {
+	case control.CmdStatus:
+		if !s.onLoop(func() { resp.Status = s.statusInfo() }) {
+			stopping()
+		}
+	case control.CmdCheck:
+		if !s.onLoop(func() { resp.Check = s.checkInfo() }) {
+			stopping()
+		}
+	case control.CmdRehash:
+		var err error
+		if !s.onLoop(func() { resp.Rehash, err = s.rehash("beeircd rehash") }) {
+			stopping()
+		} else if err != nil {
+			resp.Error = err.Error()
+		}
+	case control.CmdBackup:
+		conn.SetDeadline(time.Now().Add(10 * time.Minute))
+		b, err := s.backup(req.Path)
+		if err != nil {
+			resp.Error = err.Error()
+		}
+		resp.Backup = b
+	default:
+		resp.Error = "unknown command " + req.Cmd
+	}
+	json.NewEncoder(conn).Encode(resp)
+}
+
+// statusInfo is the status screen's numbers (on the loop).
+func (s *Server) statusInfo() *control.Status {
+	var ms runtime.MemStats
+	runtime.ReadMemStats(&ms)
+	total, _, opers := s.net.PeopleCounts()
+	st := &control.Status{
+		Version:         version.Version,
+		Started:         s.created,
+		PID:             os.Getpid(),
+		Server:          s.cfg.Server.Name,
+		Network:         s.cfg.Server.Network,
+		Online:          total,
+		Peak:            s.maxLocal,
+		Channels:        s.net.ChannelCount(),
+		Opers:           opers,
+		Services:        s.svc.BotNicks(),
+		MemoryMB:        float64(ms.Sys-ms.HeapReleased) / (1 << 20),
+		LagAvgMS:        float64(s.loop.average()) / float64(time.Millisecond),
+		Lag99MS:         float64(s.loop.percentile(0.99)) / float64(time.Millisecond),
+		DBBytes:         fileSize(s.cfg.Services.Database) + fileSize(s.cfg.Services.Database+"-wal"),
+		HistoryBytes:    s.hist.store.Bytes(),
+		HistoryChannels: s.hist.store.Channels(),
+		BackupDir:       s.cfg.Backup.Dir,
+		Safety:          *s.safety(),
+	}
+	s.lmu.Lock()
+	for _, l := range s.listeners {
+		st.Ports = append(st.Ports, control.Port{Address: l.addr, TLS: l.tls, Proxy: l.proxy})
+	}
+	s.lmu.Unlock()
+	if s.certs != nil {
+		leaf := s.certs.Leaf()
+		src := "own files"
+		if s.cfg.TLS.SelfSigned {
+			src = "self-signed"
+		}
+		st.Cert = &control.Cert{Source: src, Names: leaf.DNSNames, NotAfter: leaf.NotAfter}
+	}
+	return st
+}
+
+func fileSize(p string) int64 {
+	if fi, err := os.Stat(p); err == nil {
+		return fi.Size()
+	}
+	return 0
+}
+
+// checkInfo checks what only the running server can: its own database.
+func (s *Server) checkInfo() *control.Check {
+	sum := s.store.Summary()
+	ck := &control.Check{Nicks: sum.Nicks, Channels: sum.Channels, Memos: sum.Memos, HistoryChannels: s.hist.store.Channels()}
+	if err := s.store.Check(); err != nil {
+		ck.DBError = err.Error()
+	}
+	return ck
+}
+
+// backup writes one .tar.gz: beeircd.conf, a live copy of services.db,
+// the channel history and the certificate. The database copy and the
+// history snapshot are taken on the loop; packing runs here, off it.
+func (s *Server) backup(dst string) (*control.Backup, error) {
+	var (
+		tmp, conf, cert, key, secret string
+		snap                         history.Snapshot
+		keep                         int
+		dir                          string
+		dbErr                        error
+	)
+	if !s.onLoop(func() {
+		dir, keep = s.cfg.Backup.Dir, s.cfg.Backup.Keep
+		conf, cert, key, secret = s.cfg.Path, s.cfg.TLS.Cert, s.cfg.TLS.Key, s.cfg.History.Secret
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			dbErr = err
+			return
+		}
+		tmp, dbErr = os.MkdirTemp(dir, ".backup-")
+		if dbErr != nil {
+			return
+		}
+		dbErr = s.store.BackupTo(filepath.Join(tmp, "services.db"))
+		snap = s.historySnapshot()
+	}) {
+		return nil, errors.New("the server is stopping")
+	}
+	if tmp != "" {
+		defer os.RemoveAll(tmp)
+	}
+	if dbErr != nil {
+		return nil, fmt.Errorf("copying the services database: %w", dbErr)
+	}
+	files := []control.File{
+		{Name: "beeircd.conf", Path: conf, Part: "config"},
+		{Name: "services.db", Path: filepath.Join(tmp, "services.db"), Part: "services database (live copy)"},
+	}
+	if snap != nil {
+		hp := filepath.Join(tmp, "history.db")
+		if err := history.Save(hp, secret, snap); err != nil {
+			return nil, fmt.Errorf("saving channel history: %w", err)
+		}
+		files = append(files, control.File{Name: "history.db", Path: hp, Part: "channel history"})
+	}
+	if cert != "" {
+		files = append(files,
+			control.File{Name: "tls/" + filepath.Base(cert), Path: cert, Part: "certificate"},
+			control.File{Name: "tls/" + filepath.Base(key), Path: key, Part: "certificate"})
+	}
+	dated := dst == ""
+	if dated {
+		dst = control.FreeBackupName(dir, time.Now())
+	}
+	if _, err := os.Stat(dst); err == nil {
+		return nil, fmt.Errorf("%s exists already", dst)
+	}
+	n, parts, err := control.WriteArchive(dst, files)
+	if err != nil {
+		return nil, err
+	}
+	if dated {
+		control.Prune(dir, keep)
+	}
+	s.post(func() { s.log.Printf("backup written to %s (%d bytes)", dst, n) })
+	return &control.Backup{File: dst, Bytes: n, Parts: parts}, nil
+}
+
+// ---- REHASH ----
+
+// restartOnly says whether a changed setting waits for a restart.
+func restartOnly(ch config.Change) bool {
+	switch ch.Section {
+	case "":
+		return ch.Key == "ports"
+	case "server":
+		return ch.Key != "description" && ch.Key != "resolve_hosts"
+	case "cloak", "tls", "control":
+		return true
+	case "services":
+		return ch.Key == "database"
+	case "history":
+		return ch.Key == "file" || ch.Key == "secret"
+	}
+	return false
+}
+
+// keepRestartOnly copies the settings that need a restart from old into
+// fresh, so applying fresh changes only what is safe live.
+func keepRestartOnly(fresh, old *config.Config) {
+	fresh.Listen = old.Listen
+	desc, resolve := fresh.Server.Description, fresh.Server.ResolveHosts
+	fresh.Server = old.Server
+	fresh.Server.Description, fresh.Server.ResolveHosts = desc, resolve
+	fresh.Cloak, fresh.TLS, fresh.Control = old.Cloak, old.TLS, old.Control
+	fresh.Services.Database = old.Services.Database
+	fresh.History.File, fresh.History.Secret = old.History.File, old.History.Secret
+}
+
+// rehash re-reads beeircd.conf (on the loop). A file that doesn't pass the
+// checks is refused and nothing changes.
+func (s *Server) rehash(by string) (*control.Rehash, error) {
+	if s.cfg.Path == "" {
+		return nil, errors.New("this server wasn't started from a config file")
+	}
+	fresh, err := config.Load(s.cfg.Path)
+	if err != nil {
+		return nil, fmt.Errorf("beeircd.conf not used: %w", err)
+	}
+	old := *s.cfg
+	out := &control.Rehash{}
+	for _, ch := range config.Diff(&old, fresh) {
+		if restartOnly(ch) {
+			out.NeedsRestart = append(out.NeedsRestart, ch.String())
+		} else {
+			out.Applied = append(out.Applied, ch.String())
+		}
+	}
+	keepRestartOnly(fresh, &old)
+	*s.cfg = *fresh // services share this Config
+	if old.Services.LogChannel != fresh.Services.LogChannel {
+		s.svc.SyncLogChannel(old.Services.LogChannel)
+	}
+	clear(s.floodCache)
+	s.hist.store.SetMax(int64(fresh.History.MaxMemoryMB) << 20)
+	s.net.NewChannelParams = nil
+	if d := fresh.History.Default; d != "" {
+		lines, age, _ := config.ParseHistoryMode(d)
+		s.net.NewChannelParams = map[byte]string{'H': s.clampHistory(lines, age, false)}
+	}
+	if s.certs != nil {
+		changed, err := s.certs.ReloadIfChanged()
+		switch {
+		case err != nil:
+			out.NeedsRestart = append(out.NeedsRestart, "certificate: "+err.Error()+" (the old one stays)")
+		case changed:
+			out.Applied = append(out.Applied, "certificate read again")
+		}
+	}
+	s.snotice("%s re-read beeircd.conf: %s", by, rehashSummary(out))
+	return out, nil
+}
+
+func rehashSummary(r *control.Rehash) string {
+	text := "nothing changed"
+	if len(r.Applied) > 0 {
+		text = "applied " + strings.Join(r.Applied, ", ")
+	}
+	if len(r.NeedsRestart) > 0 {
+		text += "; waits for a restart: " + strings.Join(r.NeedsRestart, ", ")
+	}
+	return text
+}
+
+// Rehash re-reads the config from outside the loop (SIGHUP) and logs what
+// happened.
+func (s *Server) Rehash() {
+	s.post(func() {
+		if _, err := s.rehash("SIGHUP"); err != nil {
+			s.snotice("SIGHUP: %v", err)
+		}
+	})
+}
+
+// certTick picks up a renewed certificate file once a minute.
+func (s *Server) certTick(now time.Time) {
+	if s.certs == nil || now.Sub(s.certChecked) < time.Minute {
+		return
+	}
+	s.certChecked = now
+	changed, err := s.certs.ReloadIfChanged()
+	switch {
+	case err != nil && s.certErr != err.Error():
+		s.certErr = err.Error()
+		s.snotice("The certificate file changed but doesn't load (%v); the old one stays", err)
+	case changed:
+		s.certErr = ""
+		s.snotice("New certificate loaded, valid until %s", s.certs.Leaf().NotAfter.Format("2 Jan 2006"))
+	}
+}
+
+// cmdRehash is REHASH for opers with flag a: like `beeircd rehash`.
+func (s *Server) cmdRehash(c *Client, m irc.Message) {
+	if !s.needFlag(c, nil, saFlag) {
+		return
+	}
+	s.reply(c, irc.RplRehashing, filepath.Base(s.cfg.Path), "Rehashing")
+	r, err := s.rehash(c.user.Nick)
+	if err != nil {
+		s.notice(c, "*** "+err.Error())
+		return
+	}
+	s.notice(c, "*** "+rehashSummary(r))
+}

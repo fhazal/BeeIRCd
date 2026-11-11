@@ -203,6 +203,7 @@ func (s *Server) dnsblHit(c *Client, r dnsblResult) bool {
 		return false
 	}
 	s.dnsbl.hits[strings.ToLower(d.Name)]++
+	s.safety().DNSBLHits++
 	reason := dnsblReason(d.Reason, c, r, s.cfg.Server.Network)
 	nick := c.nick
 	if nick == "" {

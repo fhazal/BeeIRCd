@@ -71,6 +71,7 @@ var helpTopics = map[string][]string{
 	"SETIDENT":     {"SETIDENT <ident>", "Changes your displayed username (opers, flag h)."},
 	"CHGHOST":      {"CHGHOST <nick> <host>", "Changes someone's displayed host (opers, flag h)."},
 	"CHGIDENT":     {"CHGIDENT <nick> <ident>", "Changes someone's displayed username (opers, flag h)."},
+	"REHASH":       {"REHASH", "Reads beeircd.conf again and applies what is safe while running; says what waits for a restart (opers, flag a)."},
 	"SAJOIN":       {"SAJOIN <nick> <#channel[,#channel]>", "Makes someone join channels (opers, flag a)."},
 	"SAPART":       {"SAPART <nick> <#channel[,#channel]> [reason]", "Makes someone leave channels (opers, flag a)."},
 	"SANICK":       {"SANICK <nick> <newnick>", "Changes someone's nick (opers, flag a)."},

@@ -128,6 +128,7 @@ const (
 	ErrOperOnly          = "520"
 	ErrInvalidModeParam  = "696"
 	RplYoureOper         = "381"
+	RplRehashing         = "382"
 	ErrUModeUnknownFlag  = "501"
 	ErrUsersDontMatch    = "502"
 )

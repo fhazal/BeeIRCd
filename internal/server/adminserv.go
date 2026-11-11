@@ -493,12 +493,12 @@ func asPort(s *Server, c *Client, args []string) {
 				s.as(c, "A TLS port needs a certificate. Set [tls] cert and key in beeircd.conf first.")
 				return
 			}
-			conf, err := tlsutil.Load(s.cfg.TLS.Cert, s.cfg.TLS.Key, s.cfg.TLS.SelfSigned, s.cfg.Server.Name)
+			certs, err := tlsutil.NewReloader(s.cfg.TLS.Cert, s.cfg.TLS.Key, s.cfg.TLS.SelfSigned, s.cfg.Server.Name)
 			if err != nil {
 				s.as(c, "The certificate didn't load: %v", err)
 				return
 			}
-			s.tlsConf = conf
+			s.certs, s.certChecked, s.tlsConf = certs, time.Now(), certs.Config()
 		}
 		ln, err := net.Listen("tcp", addr)
 		if err != nil {
