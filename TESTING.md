@@ -122,6 +122,16 @@ go run ./tools/livecheck -addr 192.168.50.76:26667 -tls 192.168.50.76:26697 \
   4.12.1. It lives in `/opt/beeircd-test/bench/`. Numbers go in HANDOFF per
   step and in ENGINEERING.md per stage.
 - Not in CI: it needs the homelab and minutes of CPU.
+- `scripts/soak.sh DIR [hours]`: the release soak (default 24 h). A throwaway
+  server on 127.0.0.1:46667 (history, cloak, control socket on) with 2,000
+  steady bots plus 300 that connect, chat and quit every minute; every
+  5 minutes it samples memory, threads, open files and people, makes a backup
+  every hour and rehashes every 3 hours. Pass: alive at the end, memory flat
+  after the first hour, no panics in the journal. Results in DIR/summary.txt
+  and samples.csv. The test server is not touched.
+- TLS: `docker run --rm --network host drwetter/testssl.sh:3.2 -p -s -f -U`
+  against a throwaway TLS port. Pass: TLS 1.2 and 1.3 only, AEAD with forward
+  secrecy only (no CBC), nothing vulnerable.
 
 ## 5. CI (GitHub Actions)
 

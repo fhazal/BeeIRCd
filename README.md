@@ -83,11 +83,21 @@ The full list, with what is planned and what is only an idea, is in [FEATURES.md
 | Stage | What | Status |
 | --- | --- | --- |
 | 1 | One server with all services working | ✅ Done |
-| 1.5 | Anope-style services, HostServ, oper classes, channel and user modes | 🚧 Nearly done |
-| 7 | Installer, `beeircd` command, systemd, Let's Encrypt, REHASH | ⏳ Next |
+| 1.5 | Anope-style services, HostServ, oper classes, channel and user modes | ✅ Done |
+| 7 | Installer, `beeircd` command, systemd, Let's Encrypt, REHASH, signed updates | ✅ Done, v1.0 checks running |
 | 2 | Linking BeeIRCd to BeeIRCd | ⏳ Planned |
 | 3 | **Hive Panel**: web admin | ⏳ Planned |
 | 4 | **BeeRoom**: web chat | ⏳ Planned |
+
+## 📦 Installing
+
+```sh
+curl -fsSL https://beeircd.org/install.sh | sudo sh
+```
+
+Nine questions, then it runs. [INSTALL.md](INSTALL.md) has the details
+(firewall, certificates, proxies); [ADMIN.md](ADMIN.md) covers running it
+(`beeircd status`, AdminServ, backups, updates, every setting).
 
 ## 🛠️ Building
 

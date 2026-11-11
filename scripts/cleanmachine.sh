@@ -53,6 +53,8 @@ y
 	lxc exec "$name" -- sh -c 'ls -ld /etc/beeircd /var/lib/beeircd /run/beeircd; ls -l /etc/beeircd /var/lib/beeircd; grep -F -A6 "[link]" /etc/beeircd/beeircd.conf | grep -v "^#"; id beeircd; systemctl is-enabled beeircd beeircd-backup.timer; systemd-analyze security beeircd 2>/dev/null | tail -1'
 	echo "--- backup timer runs"
 	lxc exec "$name" -- sh -c 'systemctl start beeircd-backup.service && ls /var/lib/beeircd/backups' || fail=1
+	echo "--- backup to a path of your own (the locked-down server can't write /root)"
+	lxc exec "$name" -- sh -c 'beeircd backup /root/mine.tar.gz && tar -tzf /root/mine.tar.gz && ! ls -A /var/lib/beeircd/backups | grep -q named' || { echo "FAIL backup to /root"; fail=1; }
 	echo "--- stop, then start (check runs while stopped)"
 	lxc exec "$name" -- sh -c 'beeircd stop && beeircd start && ls -l /var/lib/beeircd' || fail=1
 	lxc exec "$name" -- /root/installcheck -tls 127.0.0.1:6697 -admin Bee -pass "$pw" -again || { echo "FAIL after stop/start"; fail=1; }
