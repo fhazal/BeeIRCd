@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"slices"
@@ -118,25 +119,40 @@ func (s *Server) dnsblAsk(ctx context.Context, ip string, lists []config.DNSBL) 
 
 // dnsblReply asks one list: the answer N of 127.0.0.N when it counts, else 0.
 func dnsblReply(ctx context.Context, lookup func(context.Context, string) ([]string, error), ip string, d config.DNSBL) int {
+	n, _, _ := dnsblAnswers(ctx, lookup, ip, d)
+	return n
+}
+
+// dnsblAnswers asks one list and returns the answer that counts (0 for
+// none), every 127.0.0.N answer it gave, and whether the lookup itself
+// failed (as opposed to "not listed").
+func dnsblAnswers(ctx context.Context, lookup func(context.Context, string) ([]string, error), ip string, d config.DNSBL) (int, []int, error) {
 	q := dnsblQuery(ip, strings.Trim(d.Name, "."))
 	if q == "" {
-		return 0
+		return 0, nil, nil
 	}
 	addrs, err := lookup(ctx, q)
 	if err != nil {
-		return 0
+		var dnsErr *net.DNSError
+		if errors.As(err, &dnsErr) && dnsErr.IsNotFound {
+			return 0, nil, nil // not listed
+		}
+		return 0, nil, err
 	}
+	var all []int
+	hit := 0
 	for _, a := range addrs {
 		p := net.ParseIP(a).To4()
 		if p == nil || p[0] != 127 {
 			continue
 		}
 		n := int(p[3])
-		if len(d.Replies) == 0 || slices.Contains(d.Replies, n) {
-			return n
+		all = append(all, n)
+		if hit == 0 && (len(d.Replies) == 0 || slices.Contains(d.Replies, n)) {
+			hit = n
 		}
 	}
-	return 0
+	return hit, all, nil
 }
 
 // dnsblStart begins the check for a new connection. c.dnsblBusy holds
@@ -287,7 +303,7 @@ func asDnsbl(s *Server, c *Client, args []string) {
 		}
 	case "CHECK":
 		if net.ParseIP(arg) == nil {
-			s.as(c, "Syntax: DNSBL CHECK <ip>   (127.0.0.2 is listed in most lists, for testing)")
+			s.as(c, "Syntax: DNSBL CHECK <ip>   (127.0.0.2 gets each list's test answer)")
 			return
 		}
 		lists := s.dnsblLists()
@@ -305,9 +321,17 @@ func asDnsbl(s *Server, c *Client, args []string) {
 			defer cancel()
 			for i, d := range lists {
 				go func(i int, d config.DNSBL) {
-					text := "not listed"
-					if n := dnsblReply(ctx, s.lookupA, arg, d); n > 0 {
+					n, all, err := dnsblAnswers(ctx, s.lookupA, arg, d)
+					var text string
+					switch {
+					case err != nil:
+						text = "lookup failed: " + err.Error()
+					case n > 0:
 						text = fmt.Sprintf("LISTED (answer %d): %s", n, d.Action)
+					case len(all) > 0:
+						text = fmt.Sprintf("answers %v, which this list doesn't count (see its replies)", all)
+					default:
+						text = "not listed"
 					}
 					out[i] = line{d.Name, text}
 					done <- struct{}{}

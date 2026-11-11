@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"errors"
+	"net"
 	"strings"
 	"sync"
 	"testing"
@@ -222,7 +222,7 @@ func (f *fakeDNS) lookup(ctx context.Context, name string) ([]string, error) {
 		return nil, ctx.Err()
 	}
 	if a == nil {
-		return nil, errors.New("no such host")
+		return nil, &net.DNSError{Err: "no such host", Name: name, IsNotFound: true}
 	}
 	return a, nil
 }
@@ -297,6 +297,8 @@ func TestDNSBL(t *testing.T) {
 	b.expect(asLine("Boss", "slow.example is off until the server restarts."))
 	b.send("AS DNSBL CHECK 127.0.0.1")
 	b.expect(asLine("Boss", "Looking 127.0.0.1 up in 1 list..."))
+	b.expect(asLine("Boss", "  bad.example              answers [4], which this list doesn't count (see its replies)"))
+	b.send("AS DNSBL CHECK 192.0.2.1")
 	b.expect(asLine("Boss", "  bad.example              not listed"))
 	b.send("OS STATS ALL")
 	b.expect(osLine("Boss", "  DNSBL hits bad.example 2, slow.example 0 (off)"))
