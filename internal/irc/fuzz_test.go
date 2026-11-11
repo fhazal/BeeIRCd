@@ -53,6 +53,19 @@ func FuzzParse(f *testing.F) {
 	})
 }
 
+func FuzzSplitFraming(f *testing.F) {
+	for _, s := range []string{"A", "A\rB", "A\r\nB", "\x00", "A\x00\rB", "\r\r\r", ""} {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, line string) {
+		for _, l := range SplitFraming(line) {
+			if l == "" || strings.ContainsAny(l, "\r\n\x00") {
+				t.Fatalf("SplitFraming(%q) gave %q", line, l)
+			}
+		}
+	})
+}
+
 func FuzzNormalizeBan(f *testing.F) {
 	for _, s := range []string{"nick", "*!*@host", "~a:acct", "~t:10:*!*@h", "~m:~r:x*", "1.2.3.0/24", "*!*@[::1]", "a!b", "~t:x"} {
 		f.Add(s)

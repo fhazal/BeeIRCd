@@ -88,6 +88,17 @@ func (c *tc) check(raw string) {
 	}
 }
 
+// expectNumeric waits for numeric code for this client whose parameters
+// after the target start with params, and returns the line.
+func (c *tc) expectNumeric(code string, params ...string) string {
+	c.t.Helper()
+	want := " " + code + " " + c.nick
+	for _, p := range params {
+		want += " " + p
+	}
+	return c.expect(want)
+}
+
 func TestLineProblem(t *testing.T) {
 	for _, tc := range []struct{ line, want string }{
 		{":srv 001 nick :Welcome\r\n", ""},

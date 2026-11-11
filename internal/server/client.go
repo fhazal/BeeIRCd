@@ -160,6 +160,7 @@ func (c *Client) target() string {
 // send queues one line. The part after the tags is cut to 510 bytes.
 // Called from the loop only.
 func (c *Client) send(line string) {
+	line = irc.CleanFraming(line)
 	if c.capture != nil {
 		*c.capture = append(*c.capture, line)
 		return
@@ -284,6 +285,10 @@ func (c *Client) readLoop() {
 	var clock time.Time
 	for {
 		line, err := readLine(r)
+		var lines []string
+		if err == nil {
+			lines = irc.SplitFraming(line)
+		}
 		// Flood control: every line moves this connection's clock forward.
 		// Once it runs more than the burst ahead, reading pauses, so a
 		// flooder is slowed down instead of filling the server's memory.
@@ -292,7 +297,7 @@ func (c *Client) readLoop() {
 			if clock.Before(now) {
 				clock = now
 			}
-			clock = clock.Add(gap)
+			clock = clock.Add(gap * time.Duration(max(1, len(lines))))
 			if ahead := clock.Sub(now); ahead > allow {
 				time.Sleep(ahead - allow)
 			}
@@ -309,7 +314,9 @@ func (c *Client) readLoop() {
 			c.s.post(func() { c.s.quit(c, reason) })
 			return
 		}
-		c.s.post(func() { c.s.handleLine(c, line) })
+		for _, l := range lines {
+			c.s.post(func() { c.s.handleLine(c, l) })
+		}
 	}
 }
 

@@ -94,14 +94,19 @@ func (m Message) String() string {
 	}
 	if m.Source != "" {
 		b.WriteByte(':')
-		b.WriteString(m.Source)
+		b.WriteString(CleanFraming(m.Source))
 		b.WriteByte(' ')
 	}
-	b.WriteString(m.Command)
+	b.WriteString(CleanFraming(m.Command))
 	for i, p := range m.Params {
+		p = CleanFraming(p) // a CR, LF or NUL would let text start a new line
 		b.WriteByte(' ')
-		if i == len(m.Params)-1 && (m.Trailing || p == "" || strings.IndexByte(p, ' ') >= 0 || p[0] == ':') {
-			b.WriteByte(':')
+		if i == len(m.Params)-1 {
+			if m.Trailing || p == "" || strings.IndexByte(p, ' ') >= 0 || p[0] == ':' {
+				b.WriteByte(':')
+			}
+		} else {
+			p = middleParam(p)
 		}
 		b.WriteString(p)
 	}
@@ -177,4 +182,57 @@ func unescapeTag(v string) string {
 		}
 	}
 	return b.String()
+}
+
+// middleParam makes p safe as a parameter that isn't the last: never
+// empty, no spaces, no leading ':' (any of those would shift the
+// parameters after it, so an echoed argument could forge one).
+func middleParam(p string) string {
+	if p == "" {
+		return "*"
+	}
+	if strings.IndexByte(p, ' ') >= 0 {
+		p = strings.ReplaceAll(p, " ", "_")
+	}
+	if p[0] == ':' {
+		p = "_" + p[1:]
+	}
+	return p
+}
+
+// framing are the bytes that end or break an IRC line.
+const framing = "\r\n\x00"
+
+// SplitFraming cuts one line read up to LF into the IRC lines it holds:
+// CR, LF and CRLF all end a line (a bare CR can't hide a second line in
+// a message), empty lines are dropped, and a line with a NUL byte is
+// dropped whole (NUL is never allowed in IRC).
+func SplitFraming(line string) []string {
+	if strings.IndexByte(line, '\r') < 0 && strings.IndexByte(line, '\n') < 0 {
+		if line == "" || strings.IndexByte(line, 0) >= 0 {
+			return nil
+		}
+		return []string{line}
+	}
+	var out []string
+	for _, l := range strings.FieldsFunc(line, func(r rune) bool { return r == '\r' || r == '\n' }) {
+		if strings.IndexByte(l, 0) < 0 {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+// CleanFraming turns any CR, LF or NUL in s into a space, so text from
+// anywhere (config files, services data) can't break an outgoing line.
+func CleanFraming(s string) string {
+	if !strings.ContainsAny(s, framing) {
+		return s
+	}
+	return strings.Map(func(r rune) rune {
+		if r == '\r' || r == '\n' || r == 0 {
+			return ' '
+		}
+		return r
+	}, s)
 }
