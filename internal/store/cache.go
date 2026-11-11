@@ -43,6 +43,7 @@ type level struct {
 	level   int
 	addedBy string
 	addedAt time.Time
+	note    string
 }
 
 func newCache() *cache {
@@ -122,10 +123,10 @@ func loadCache(db *sql.DB) (*cache, error) {
 			}
 			return err
 		}},
-		{`SELECT channel_id, account_id, level, added_by, added_at FROM chan_access`, func(r *sql.Rows) error {
+		{`SELECT channel_id, account_id, level, added_by, added_at, note FROM chan_access`, func(r *sql.Rows) error {
 			var ch, acct, at int64
 			var l level
-			if err := r.Scan(&ch, &acct, &l.level, &l.addedBy, &at); err != nil {
+			if err := r.Scan(&ch, &acct, &l.level, &l.addedBy, &at, &l.note); err != nil {
 				return err
 			}
 			l.addedAt = time.Unix(at, 0)

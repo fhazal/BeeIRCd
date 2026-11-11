@@ -56,7 +56,7 @@ func TestLoad5000(t *testing.T) {
 				t.Fatal(err)
 			}
 			for j := 0; j < 50; j++ {
-				s.store.SetLevel(ch, accts[(i+j+1)%len(accts)], store.LevelAOP, "test", now)
+				s.store.SetLevel(ch, accts[(i+j+1)%len(accts)], store.LevelAOP, "test", "", now)
 			}
 			for j := 0; j < 10; j++ {
 				s.store.AddAkick(ch, fmt.Sprintf("*!*@nobody%d.example", j), "no", "test", now)

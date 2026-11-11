@@ -22,23 +22,15 @@ func (s *Services) loadOperData() error {
 	if err != nil {
 		return err
 	}
-	fn, err := s.store.Forbids(store.ForbidNick)
-	if err != nil {
-		return err
+	forbids := make(map[string][]store.Forbid)
+	for _, kind := range store.ForbidKinds {
+		list, err := s.store.Forbids(kind)
+		if err != nil {
+			return err
+		}
+		forbids[kind] = list
 	}
-	fc, err := s.store.Forbids(store.ForbidChan)
-	if err != nil {
-		return err
-	}
-	s.akills, s.news, s.sessionExcepts = akills, news, ex
-	s.forbidNicks = make(map[string]store.Forbid)
-	for _, f := range fn {
-		s.forbidNicks[irc.Fold(f.Name)] = f
-	}
-	s.forbidChans = make(map[string]store.Forbid)
-	for _, f := range fc {
-		s.forbidChans[irc.Fold(f.Name)] = f
-	}
+	s.akills, s.news, s.sessionExcepts, s.forbids = akills, news, ex, forbids
 	return nil
 }
 
@@ -91,11 +83,37 @@ func (s *Services) expireAkills(now time.Time) {
 	}
 }
 
+// forbidden returns the first forbid of kind that matches name (names may
+// be patterns with * and ?).
 func (s *Services) forbidden(kind, name string) (store.Forbid, bool) {
-	m := s.forbidNicks
-	if kind == store.ForbidChan {
-		m = s.forbidChans
+	for _, f := range s.forbids[kind] {
+		if irc.Match(f.Name, name) {
+			return f, true
+		}
 	}
-	f, ok := m[irc.Fold(name)]
-	return f, ok
+	return store.Forbid{}, false
+}
+
+// registerForbidden reports why name (a nick or channel) can't be
+// registered, or "".
+func (s *Services) registerForbidden(name string) string {
+	kind := store.ForbidNick
+	if irc.IsChannel(name) {
+		kind = store.ForbidChan
+	}
+	if f, ok := s.forbidden(kind, name); ok {
+		return name + " is forbidden by the network (" + f.Reason + ") and can't be registered."
+	}
+	if f, ok := s.forbidden(store.ForbidRegister, name); ok {
+		return name + " can't be registered here (" + f.Reason + ")."
+	}
+	return ""
+}
+
+// emailForbidden reports why email can't be used, or "".
+func (s *Services) emailForbidden(email string) string {
+	if f, ok := s.forbidden(store.ForbidEmail, email); ok {
+		return "That email can't be used here (" + f.Reason + ")."
+	}
+	return ""
 }

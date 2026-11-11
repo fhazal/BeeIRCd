@@ -2,8 +2,10 @@
 
 Rule (agreed 11 Nov 2026): services follow Anope for commands, syntax and
 behaviour wherever Anope has the feature; ConferenceRoom extras sit on
-top. This list compares what BeeIRCd has today with Anope 2.1 (source
-d2eadd8) and says what changes. Nothing here is built yet.
+top. This list compares what BeeIRCd had with Anope 2.1 (source d2eadd8) and
+says what changes. Status 11 Nov 2026: every item not marked "in 1.5.4",
+"1.5.5" or "1.5.6" is built (Stage 1.5.3), except M1's channel memo boxes
+(see below).
 
 Marks: **Change** = we switch to Anope's way. **Keep** = ours stays (a
 CR extra or a deliberate choice). **Ask** = needs your decision.
@@ -18,7 +20,7 @@ Anope does with GHOST.
 | N2 | `ACCESS ADD/DEL/LIST <mask>`: hosts that identify you automatically | Removed. `ACCESS` is now a hidden alias for `ALIST` (channels you have access in). Certificates (`CERT`) replace host lists | **Change** (decided 11 Nov 2026). Recommended: Anope's way: drop host auto-identify (it is weak, and on a cloaked network a host says little), make ACCESS an alias of ALIST, and bring CERT + SASL EXTERNAL forward to 1.5.6 as the safe auto-identify. |
 | N3 | `DROP`, then `DROP <code>` | `DROP <nickname> [code]` | **Change**: you name what you drop. Your account name drops the whole account; a grouped nick drops only that nick (same as UNGROUP). The code step stays. |
 | N4 | `SET ENFORCE ON\|OFF` | `SET PROTECT {ON \| <delay> \| OFF}` | **Change**: PROTECT, with an optional delay (default 60 s); ENFORCE is a hidden alias. |
-| N5 | `SET HIDE EMAIL\|HOST ON\|OFF` | `SET HIDE {EMAIL \| STATUS \| MASK \| QUIT} {ON \| OFF}` | **Change**: HOST becomes MASK; add STATUS (hide whether you're online) and QUIT (hide last quit message). |
+| N5 | `SET HIDE EMAIL\|HOST ON\|OFF` | `SET HIDE {EMAIL \| STATUS \| MASK \| QUIT} {ON \| OFF}` | **Change**: HOST becomes MASK; add STATUS (hide that you are an IRC operator, Anope's meaning) and QUIT (hide the last quit message). |
 | N6 | `GROUP <nick> <password>` | `GROUP [target] [password]` | Keep (same thing). GLIST comes in 1.5.6 as planned. |
 | N7 | Opers: `/os nick setpass`, `/os nick drop` | `/ns saset password <nick> <pw>`, `/ns drop <nick>` with the oper privilege | **Change**: the Anope forms. OperServ NICK SETPASS/DROP go away (one way to do each thing). |
 | N8 | `IDENTIFY [nick] <password>`, `LOGOUT`, `INFO [nick]`, `LIST <pattern>`, `REGISTER <password> [email]` | same | Keep. LIST options (`NOEXPIRE` and the like) come with SUSPEND in 1.5.6. |
@@ -71,6 +73,17 @@ Anope style: HELP shows the everyday commands with one line each, then the
 rest grouped by topic, and `HELP ALL` lists everything. Commands you can't
 use (oper or founder only) are hidden from people who can't use them.
 Hidden aliases never show up.
+
+## Built differently than planned
+
+- M1: channel memo boxes are not built. A memo to #chan still goes to the
+  own box of everyone on its access list; Anope keeps one box per channel.
+  Open question for the user.
+- O2: forbids have no +expiry yet (the store has no expiry for them).
+- O4: exceptions have no +expiry yet; SESSION LIMIT now points to
+  /as set session-limit.
+- O6: MODE on users and MODE #chan CLEAR come in 1.5.4/1.5.5.
+- O7: STATS ALL adds forbids, exceptions, news, memory and goroutines.
 
 ## Decisions
 

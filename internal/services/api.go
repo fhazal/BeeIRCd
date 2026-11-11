@@ -1,6 +1,7 @@
 package services
 
 import (
+	"sort"
 	"time"
 
 	"github.com/fhazal/beeircd/internal/state"
@@ -31,6 +32,7 @@ func (s *Services) AddBot(nick, alias, realname, intro string, need byte, cmds m
 	}
 	sv := s.addService(nick, alias, realname, intro, inner)
 	sv.need = need
+	sort.Strings(sv.order)
 	return sv.user
 }
 

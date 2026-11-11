@@ -212,11 +212,16 @@ func (s *Store) PurgeAkills(now time.Time) ([]string, error) {
 	return gone, err
 }
 
-// Forbid kinds.
+// Forbid kinds, as in Anope's OperServ FORBID. Names may hold * and ?.
 const (
-	ForbidNick = "nick"
-	ForbidChan = "chan"
+	ForbidNick     = "nick"     // nobody but opers may use or register it
+	ForbidChan     = "chan"     // nobody but opers may join or register it
+	ForbidEmail    = "email"    // no account may use a matching email
+	ForbidRegister = "register" // may be used, but not registered
 )
+
+// ForbidKinds are all kinds, in the order lists show them.
+var ForbidKinds = []string{ForbidNick, ForbidChan, ForbidEmail, ForbidRegister}
 
 // Forbids returns the forbidden nicks or channels.
 func (s *Store) Forbids(kind string) ([]Forbid, error) {

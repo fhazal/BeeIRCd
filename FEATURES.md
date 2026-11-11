@@ -7,7 +7,7 @@ Status words: **Implemented** (built and tested), **Partial**, **Planned**
 Update this file in the same commit as the code that changes a status. A
 capability is advertised to clients only when it is Implemented.
 
-Last updated: 11 Nov 2026 (Stage 1.5.2).
+Last updated: 11 Nov 2026 (Stage 1.5.3).
 
 ## Core server
 
@@ -33,6 +33,7 @@ Last updated: 11 Nov 2026 (Stage 1.5.2).
 | Server linking | Planned | Stage 2 |
 | WebSocket | Planned | Stage 4 |
 | PROXY protocol | Planned | |
+| DNS blacklists (DroneBL, EFnetRBL) | Planned | 1.5.5, with the ban engine: reply codes per list, AKILL or Z-line, ban time |
 | REHASH | Planned | step 7 |
 | Module system | Proposed | after Stage 4 |
 
@@ -61,10 +62,16 @@ Last updated: 11 Nov 2026 (Stage 1.5.2).
 
 | Service | Status |
 | --- | --- |
-| NickServ (register, identify, SASL, ghost, recover, group, access, set, info, drop, list) | Implemented |
-| ChanServ (levels Founder/QOP/SOP/AOP/HOP/VOP/UOP, AKICK, op tools incl. OWNER/PROTECT/HALFOP/UP/DOWN, SET options) | Implemented |
-| MemoServ (nick and channel memos, ignore) | Implemented |
-| OperServ (stats, global, AKILL, kill, mode, kick, nick and chan tools, forbids, sessions, news) | Implemented |
+| Services in their own package, per-user records by UID, hooks from the event layer | Implemented (1.5.3) |
+| Commands and syntax follow Anope 2.1 (see ANOPE-ALIGNMENT.md), hidden aliases for old names | Implemented (1.5.3) |
+| HELP in Anope's layout: groups, HELP ALL, commands you can't use hidden | Implemented (1.5.3) |
+| NickServ (register, identify, SASL, recover, group, ungroup, alist, set, saset, info, drop, list; SET PROTECT/HIDE) | Implemented |
+| NickServ CERT and SASL EXTERNAL (auto-identify by certificate) | Planned (1.5.6) |
+| ChanServ (levels Founder/QOP/SOP/AOP/HOP/VOP/UOP with notes and number lists, AKICK with VIEW/ENFORCE/CLEAR, op tools incl. OWNER/PROTECT/HALFOP/UP/DOWN, SET options) | Implemented |
+| ChanServ MODE LOCK, TOPIC LOCK/APPEND, ENTRYMSG lists, MODE CLEAR, ACCESS/LEVELS | Planned (1.5.4) |
+| MemoServ (nick and channel memos, number lists, ignore) | Implemented |
+| MemoServ channel memo boxes (Anope keeps one box per channel) | Proposed (today a channel memo goes to each member's own box) |
+| OperServ (stats, global, AKILL with expiry and number lists, kill, mode, kick, FORBID nick/chan/email/register, sessions, exceptions, logon news) | Implemented |
 | AdminServ (settings saved to config, MOTD, ports, opers, restart, die) | Implemented |
 | HostServ (vhosts) | Planned (Stage 1.5) |
 | HelpServ | Planned (phase 6) |

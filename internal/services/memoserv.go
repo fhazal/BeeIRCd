@@ -20,12 +20,12 @@ func memoServCommands() map[string]svcCmd {
 	return map[string]svcCmd{
 		"SEND": {"SEND <nick> <text>", "leave a memo for someone",
 			"Stores a message for a registered nick. They get it at once when online,\nor the next time they identify.\nExample: /ms send nova Meeting about the new leaf, Friday 21:00 in #ops", msSend},
-		"LIST": {"LIST", "your memos",
-			"Lists your memos: number, sender, date and whether you read it.", msList},
-		"READ": {"READ <num>|NEW|LAST", "read a memo",
-			"READ 2 reads memo 2, READ NEW all unread ones, READ LAST the newest.", msRead},
-		"DEL": {"DEL <num>|ALL|READ", "delete memos",
-			"DEL 2 deletes memo 2, DEL READ the ones you have read, DEL ALL every memo.", msDel},
+		"LIST": {"LIST [<list> | NEW]", "your memos",
+			"Lists your memos: number, sender, date and whether you read it.\nLIST NEW shows only unread ones; LIST 2-5 only those.", msList},
+		"READ": {"READ {<num> | <list> | LAST | NEW | ALL}", "read memos",
+			"READ 2 reads memo 2, READ 1-3,5 several, READ NEW all unread ones,\nREAD LAST the newest, READ ALL every one.", msRead},
+		"DEL": {"DEL {<num> | <list> | LAST | READ | ALL}", "delete memos",
+			"DEL 2 deletes memo 2, DEL 1-3,5 several, DEL LAST the newest, DEL READ the\nones you have read, DEL ALL every memo.", msDel},
 		"SET": {"SET NOTIFY|LIMIT ...", "memo settings",
 			"SET NOTIFY ON|OFF   be told the moment a memo arrives (on)\nSET LIMIT <n>       keep at most n memos, up to 50", msSet},
 		"IGNORE": {"IGNORE ADD|DEL|LIST [nick]", "drop memos from someone",
@@ -157,19 +157,38 @@ func msList(s *Services, c *Client, args []string) {
 		s.ms(c, "You have no memos.")
 		return
 	}
+	show := make([]int, len(memos))
+	for i := range show {
+		show[i] = i
+	}
+	if arg := argAt(args, 0); arg != "" {
+		var problem string
+		if show, problem = memoPick(memos, arg); problem == "syntax" || strings.EqualFold(arg, "READ") {
+			s.ms(c, "Syntax: LIST [<list> | NEW]")
+			return
+		} else if problem != "" {
+			s.ms(c, "%s", problem)
+			return
+		}
+	}
 	width := 4
 	for _, m := range memos {
 		width = max(width, len(m.From))
 	}
 	s.ms(c, "  %-3s %-*s  %-12s  %s", "#", width, "From", "Sent", "")
-	unread := 0
-	for i, m := range memos {
+	for _, i := range show {
+		m := memos[i]
 		state := "read"
 		if !m.Read {
 			state = "new"
-			unread++
 		}
 		s.ms(c, "  %-3d %-*s  %-12s  %s", i+1, width, m.From, m.Sent.UTC().Format("2 Jan 15:04"), state)
+	}
+	unread := 0
+	for _, m := range memos {
+		if !m.Read {
+			unread++
+		}
 	}
 	if unread == 0 {
 		s.ms(c, "%s, none new. Delete one: /ms del <num>", plural(len(memos), "memo"))
@@ -179,35 +198,46 @@ func msList(s *Services, c *Client, args []string) {
 }
 
 // memoPick turns "2", "NEW", "LAST" into memo positions (0-based).
-func memoPick(memos []store.Memo, arg string) ([]int, string) {
-	switch strings.ToUpper(arg) {
-	case "":
+// memoPick turns "2", "1-3,5", "NEW", "LAST", "ALL" or "READ" into memo
+// positions (0-based). problem is "syntax" or a sentence for the user.
+func memoPick(memos []store.Memo, arg string) (picks []int, problem string) {
+	if arg == "" {
 		return nil, "syntax"
+	}
+	if len(memos) == 0 {
+		return nil, "You have no memos."
+	}
+	switch strings.ToUpper(arg) {
 	case "LAST":
-		if len(memos) == 0 {
-			return nil, "You have no memos."
-		}
 		return []int{len(memos) - 1}, ""
-	case "NEW":
-		var out []int
+	case "ALL":
+		for i := range memos {
+			picks = append(picks, i)
+		}
+		return picks, ""
+	case "NEW", "READ":
+		wantRead := strings.EqualFold(arg, "READ")
 		for i, m := range memos {
-			if !m.Read {
-				out = append(out, i)
+			if m.Read == wantRead {
+				picks = append(picks, i)
 			}
 		}
-		if len(out) == 0 {
+		if len(picks) == 0 && !wantRead {
 			return nil, "You have no new memos."
 		}
-		return out, ""
+		return picks, ""
 	}
-	n, err := strconv.Atoi(arg)
-	if err != nil || n < 1 || n > len(memos) {
-		if len(memos) == 0 {
-			return nil, "You have no memos."
-		}
+	nums, isList := numList(arg, len(memos))
+	if !isList {
+		return nil, "syntax"
+	}
+	if len(nums) == 0 {
 		return nil, fmt.Sprintf("There is no memo %s. You have %s.", arg, plural(len(memos), "memo"))
 	}
-	return []int{n - 1}, ""
+	for _, n := range nums {
+		picks = append(picks, n-1)
+	}
+	return picks, ""
 }
 
 func msRead(s *Services, c *Client, args []string) {
@@ -221,8 +251,8 @@ func msRead(s *Services, c *Client, args []string) {
 		return
 	}
 	picks, problem := memoPick(memos, argAt(args, 0))
-	if problem == "syntax" {
-		s.ms(c, "Syntax: READ <num>|NEW|LAST")
+	if problem == "syntax" || strings.EqualFold(argAt(args, 0), "READ") {
+		s.ms(c, "Syntax: READ {<num> | <list> | LAST | NEW | ALL}")
 		return
 	}
 	if problem != "" {
@@ -253,27 +283,14 @@ func msDel(s *Services, c *Client, args []string) {
 		return
 	}
 	arg := strings.ToUpper(argAt(args, 0))
-	var picks []int
-	switch arg {
-	case "":
-		s.ms(c, "Syntax: DEL <num>|ALL|READ")
+	picks, problem := memoPick(memos, arg)
+	switch {
+	case problem == "syntax" || arg == "NEW":
+		s.ms(c, "Syntax: DEL {<num> | <list> | LAST | READ | ALL}")
 		return
-	case "ALL":
-		for i := range memos {
-			picks = append(picks, i)
-		}
-	case "READ":
-		for i, m := range memos {
-			if m.Read {
-				picks = append(picks, i)
-			}
-		}
-	default:
-		var problem string
-		if picks, problem = memoPick(memos, arg); problem != "" {
-			s.ms(c, "%s", problem)
-			return
-		}
+	case problem != "":
+		s.ms(c, "%s", problem)
+		return
 	}
 	for _, i := range picks {
 		if err := s.store.DeleteMemo(memos[i].ID); err != nil {
@@ -288,8 +305,10 @@ func msDel(s *Services, c *Client, args []string) {
 		s.ms(c, "All %s deleted.", plural(len(picks), "memo"))
 	case arg == "READ":
 		s.ms(c, "%s you had read deleted.", plural(len(picks), "memo"))
+	case len(picks) == 1:
+		s.ms(c, "Memo %d deleted. The ones after it moved up.", picks[0]+1)
 	default:
-		s.ms(c, "Memo %d deleted. The ones after it moved up one number.", picks[0]+1)
+		s.ms(c, "%s deleted. The ones after them moved up.", plural(len(picks), "memo"))
 	}
 }
 

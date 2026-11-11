@@ -24,12 +24,28 @@ type svcCmd struct {
 
 // service is a built-in bot like NickServ.
 type service struct {
-	user  *state.User
-	alias string // "ns"
-	intro string // first line of HELP
-	cmds  map[string]svcCmd
-	order []string // HELP order
-	need  byte     // 'o' = opers only, 'a' = oper flag a, 0 = everyone
+	user    *state.User
+	alias   string // "ns"
+	intro   string // first line of HELP
+	cmds    map[string]svcCmd
+	order   []string          // HELP order
+	need    byte              // 'o' = opers only, 'a' = oper flag a, 0 = everyone
+	aliases map[string]string // hidden old names, like GHOST for RECOVER
+
+	// HELP layout (help.go).
+	groups   []helpGroup
+	cmdNeed  map[string]byte        // oper flag a command needs, 'o' for any oper
+	cmdShown map[string]func() bool // false hides a command on this server
+}
+
+// command finds a command by name or hidden alias.
+func (sv *service) command(name string) (svcCmd, bool) {
+	name = strings.ToUpper(name)
+	if real, ok := sv.aliases[name]; ok {
+		name = real
+	}
+	cmd, ok := sv.cmds[name]
+	return cmd, ok
 }
 
 // reservedNicks can't be used by people even before their service exists.
@@ -48,11 +64,14 @@ func isReserved(nick string) bool {
 func (s *Services) startServices() {
 	s.services = make(map[string]*service)
 	s.nickServ = s.addService("NickServ", "ns", "Nickname Services", "NickServ keeps your nick yours. Commands:", nickServCommands())
+	s.nickServ.aliases = nickServAliases
 	s.chanServ = s.addService("ChanServ", "cs", "Channel Services", "ChanServ keeps a channel yours. Commands:", chanServCommands())
 	s.memoServ = s.addService("MemoServ", "ms", "Memo Services", "MemoServ keeps messages for people who are away. Commands:", memoServCommands())
 	s.operServ = s.addService("OperServ", "os", "Operator Services", "OperServ is the toolbox for IRC operators. Commands:", operServCommands())
 	s.operServ.need = 'o'
+	s.operServ.aliases = operServAliases
 	s.global = s.addService("Global", "", "Network Announcements", "Global sends network notices. It takes no commands.", map[string]svcCmd{})
+	s.helpSetup()
 }
 
 func (s *Services) addService(nick, alias, realname, intro string, cmds map[string]svcCmd, order ...string) *service {
@@ -110,37 +129,12 @@ func (s *Services) toService(c *Client, sv *service, text string) {
 		s.serviceHelp(c, sv, args)
 		return
 	}
-	cmd, ok := sv.cmds[name]
+	cmd, ok := sv.command(name)
 	if !ok {
 		s.svcReply(c, sv, fmt.Sprintf("Unknown command %s. Type /%s help for a list.", fields[0], sv.alias))
 		return
 	}
 	cmd.run(s, c, args)
-}
-
-func (s *Services) serviceHelp(c *Client, sv *service, args []string) {
-	if len(args) > 0 {
-		cmd, ok := sv.cmds[strings.ToUpper(args[0])]
-		if !ok {
-			s.svcReply(c, sv, fmt.Sprintf("No help for %s. Type /%s help for a list.", args[0], sv.alias))
-			return
-		}
-		s.svcReply(c, sv, "Syntax: "+cmd.syntax)
-		for _, l := range strings.Split(cmd.long, "\n") {
-			s.svcReply(c, sv, "  "+l)
-		}
-		return
-	}
-	s.svcReply(c, sv, sv.intro)
-	width := 0
-	for _, name := range sv.order {
-		width = max(width, len(sv.cmds[name].syntax))
-	}
-	for _, name := range sv.order {
-		cmd := sv.cmds[name]
-		s.svcReply(c, sv, fmt.Sprintf("  %-*s  %s", width, cmd.syntax, cmd.short))
-	}
-	s.svcReply(c, sv, fmt.Sprintf("More on one command: /%s help <command>", sv.alias))
 }
 
 // svcReply sends a notice from a service.
@@ -360,6 +354,29 @@ func (s *Services) touchAccount(c *Client) {
 	}
 }
 
+// saveQuit keeps "last seen" and the quit message of someone leaving.
+func (s *Services) saveQuit(c *Client, reason string) {
+	if c.accountID == 0 {
+		return
+	}
+	a, err := s.store.AccountByID(c.accountID)
+	if err != nil || a == nil {
+		return
+	}
+	a.LastSeen, a.LastHost, a.LastQuit = time.Now(), c.user.Ident+"@"+c.user.RealHost, reason
+	if err := s.store.SaveAccount(a); err != nil {
+		s.log.Printf("services database: %v", err)
+	}
+}
+
+// protectDelay is how long someone has to identify to a's nick.
+func (s *Services) protectDelay(a *store.Account) time.Duration {
+	if a.Protect > 0 {
+		return time.Duration(a.Protect) * time.Second
+	}
+	return s.cfg.Services.IdentifyWithin.Duration
+}
+
 // setRegistered sets or clears user mode +r.
 func (s *Services) setRegistered(c *Client, on bool) {
 	u := c.user
@@ -379,12 +396,7 @@ func (s *Services) nickCheck(c *Client) {
 	if a == nil || c.accountID == a.ID {
 		return
 	}
-	if c.accountID == 0 && s.accessMatch(a, u) {
-		s.login(c, a)
-		s.ns(c, "You were identified as %s because your host is on its access list.", a.Name)
-		return
-	}
-	wait := s.cfg.Services.IdentifyWithin.Duration
+	wait := s.protectDelay(a)
 	if a.Enforce {
 		s.ns(c, "%s is a registered nick. Identify within %d seconds: /ns identify <password>", u.Nick, int(wait.Seconds()))
 		c.enforceAt = time.Now().Add(wait)
@@ -392,19 +404,6 @@ func (s *Services) nickCheck(c *Client) {
 		return
 	}
 	s.ns(c, "%s is a registered nick. If it's yours: /ns identify <password>", u.Nick)
-}
-
-func (s *Services) accessMatch(a *store.Account, u *state.User) bool {
-	masks, err := s.store.Access(a)
-	if err != nil {
-		return false
-	}
-	for _, m := range masks {
-		if irc.Match(m, u.Ident+"@"+u.RealHost) || irc.Match(m, u.Ident+"@"+u.IP) {
-			return true
-		}
-	}
-	return false
 }
 
 // enforce renames someone who didn't identify in time.

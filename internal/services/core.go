@@ -88,8 +88,7 @@ type Services struct {
 	akills         []store.Akill
 	news           []store.News
 	sessionExcepts []store.SessionExcept
-	forbidNicks    map[string]store.Forbid
-	forbidChans    map[string]store.Forbid
+	forbids        map[string][]store.Forbid // by kind
 }
 
 // Client is services' record of one person on the network.
@@ -169,7 +168,7 @@ func (s *Services) handle(ev state.Event) {
 		}
 	case *state.UserQuit:
 		if c := s.clients[e.UID]; c != nil {
-			s.touchAccount(c)
+			s.saveQuit(c, e.Reason)
 			delete(s.clients, e.UID)
 		}
 	case *state.NickChange:

@@ -178,7 +178,9 @@ func TestChanServAkickBanUnban(t *testing.T) {
 	x.expect(csSrc + "MODE #bchat +b x!*@*")
 	x.expect(csSrc + "KICK #bchat x :go away")
 	bee.send("CS AKICK #bchat LIST")
-	bee.expect(csLine("Bee", "  1   x!*@*  by Bee · go away"))
+	bee.expect(csLine("Bee", "  1   x!*@*  go away"))
+	bee.send("CS AKICK #bchat VIEW")
+	bee.expect(" x!*@*  added by Bee, ")
 	bee.send("CS AKICK #bchat DEL 1")
 	bee.expect(csLine("Bee", "Removed x!*@* from the AKICK list of #bchat."))
 	bee.send("CS UNBAN #bchat x")
@@ -288,17 +290,17 @@ func TestFounderHandOverAndChannelMemo(t *testing.T) {
 
 	bee.send("CS SET #bchat SUCCESSOR Kestrel")
 	bee.expect("Kestrel gets #bchat")
-	bee.send("NS DROP")
-	l := bee.expect("To go ahead within 2 minutes: /ns drop ")
-	bee.send("NS DROP " + l[strings.LastIndex(l, " ")+1:])
+	bee.send("NS DROP Bee")
+	l := bee.expect("To go ahead within 2 minutes: /ns drop Bee ")
+	bee.send("NS DROP Bee " + l[strings.LastIndex(l, " ")+1:])
 	bee.expect("The account Bee is gone.")
 	kes.send("CS INFO #bchat")
 	kes.expect(csLine("Kestrel", "  Founder       Kestrel"))
 
 	// Kestrel has no successor: dropping that account drops the channel.
-	kes.send("NS DROP")
-	l = kes.expect("To go ahead within 2 minutes: /ns drop ")
-	kes.send("NS DROP " + l[strings.LastIndex(l, " ")+1:])
+	kes.send("NS DROP Kestrel")
+	l = kes.expect("To go ahead within 2 minutes: /ns drop Kestrel ")
+	kes.send("NS DROP Kestrel " + l[strings.LastIndex(l, " ")+1:])
 	bee.expect(csSrc + "MODE #bchat -r")
 	ember.send("CS INFO #bchat")
 	ember.expect(csLine("ember", "#bchat isn't registered."))
@@ -323,4 +325,90 @@ func TestChannelExpiry(t *testing.T) {
 	c.expect(csLine("x", "#dusty isn't registered."))
 	c.send("CS INFO #fresh")
 	c.expect(csLine("x", "#fresh · registered "))
+}
+
+func TestChanServAnopeForms(t *testing.T) {
+	s := testServer(t, nil)
+	bee := founded(t, s, "Bee")
+	for _, n := range []string{"ember", "kes", "wren"} {
+		registered(t, s, n)
+	}
+
+	// xOP: optional description, numbers and ranges, patterns.
+	bee.send("CS AOP #bchat ADD ember helps with the wiki")
+	bee.expect("ember added to the AOP list of #bchat.")
+	bee.send("CS AOP #bchat ADD kes")
+	bee.expect("kes added")
+	bee.send("CS AOP #bchat ADD wren")
+	bee.expect("wren added")
+	bee.send("CS AOP #bchat LIST")
+	bee.expect(csLine("Bee", "AOP list of #bchat:"))
+	l := bee.expect("  1   ember  added by Bee, ")
+	if !strings.HasSuffix(l, " · helps with the wiki") {
+		t.Errorf("entry line %q lacks its description", l)
+	}
+	bee.send("CS AOP #bchat LIST k*")
+	bee.expect("  2   kes ")
+	bee.expect(csLine("Bee", "1 entry."))
+	bee.send("CS AOP #bchat DEL 2-3")
+	bee.expect(csLine("Bee", "kes, wren removed from the AOP list of #bchat."))
+	bee.send("CS AOP #bchat DEL 9")
+	bee.expect(csLine("Bee", "No entry 9 on the AOP list of #bchat."))
+
+	// SET in Anope's order and in the old one; DESCRIPTION and DESC.
+	bee.send("CS SET DESCRIPTION #bchat Anope order")
+	bee.expect(csLine("Bee", "The description of #bchat is now: Anope order"))
+	bee.send("CS SET #bchat DESC old order")
+	bee.expect(csLine("Bee", "The description of #bchat is now: old order"))
+	bee.send("CS SET SECURE #bchat maybe")
+	bee.expect(csLine("Bee", "Syntax: SET SECURE #bchat ON|OFF"))
+
+	// AKICK numbers, ENFORCE and CLEAR.
+	bee.send("CS AKICK #bchat ADD *!*@one.example")
+	bee.expect("Added *!*@one.example")
+	bee.send("CS AKICK #bchat ADD *!*@two.example")
+	bee.expect("Added *!*@two.example")
+	bee.send("CS AKICK #bchat ADD *!*@three.example")
+	bee.expect("Added *!*@three.example")
+	bee.send("CS AKICK #bchat DEL 1,3") // same second: listed by mask, so 3 is two.example
+	bee.expect(csLine("Bee", "Removed *!*@one.example, *!*@two.example from the AKICK list of #bchat."))
+	bee.send("CS AKICK #bchat ADD *!~guest@*")
+	bee.expect("Added")
+	guest := login(t, s, "guest")
+	joinAll("#bchat", guest)
+	guest.expect(csSrc + "KICK #bchat guest")
+	bee.send("CS AKICK #bchat ENFORCE")
+	bee.expect(csLine("Bee", "AKICK enforced on #bchat: 0 people kicked."))
+	bee.send("CS AKICK #bchat CLEAR")
+	bee.expect(csLine("Bee", "The AKICK list of #bchat is now empty (2 removed)."))
+
+	// INVITE someone else (AOP and up), REGISTER without a description.
+	bee.send("MODE #bchat +i")
+	bee.expect("MODE #bchat +i")
+	bee.send("CS INVITE #bchat guest")
+	guest.expect(csSrc + "INVITE guest #bchat")
+	bee.expect(csLine("Bee", "guest is invited to #bchat."))
+	guest.send("JOIN #bchat")
+	guest.expect(" 366 guest #bchat") // an invite gets past the old ban, and the AKICK list is empty now
+	bee.send("JOIN #nodesc")
+	bee.expect(" 366 ")
+	bee.send("CS REGISTER #nodesc")
+	bee.expect("#nodesc is registered to Bee. You are its Founder.")
+}
+
+func TestChanServOperDropAndFounder(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	bee := founded(t, s, "Bee")
+	registered(t, s, "ember")
+	b.send("CS SET FOUNDER #bchat ember")
+	b.expect("Boss used ChanServ: SET FOUNDER #bchat ember (was Bee)")
+	b.expect(csLine("Boss", "The founder of #bchat is now ember."))
+	bee.send("CS SET SUCCESSOR #bchat Boss")
+	bee.expect(csLine("Bee", "Only the founder of #bchat can do that."))
+	b.send("CS DROP #bchat")
+	l := b.expect("To go ahead within 2 minutes: /cs drop #bchat ")
+	b.send("CS DROP #bchat " + l[strings.LastIndex(l, " ")+1:])
+	b.expect("Boss used ChanServ: DROP #bchat (founder ember)")
+	b.expect(csLine("Boss", "#bchat is no longer registered."))
 }

@@ -173,3 +173,38 @@ func TestLevelsMigration(t *testing.T) {
 		t.Fatalf("level after second start = %d", l)
 	}
 }
+
+func TestAccountsMigration(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "old.db")
+	old, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The accounts table as step 4 shipped it, with one account.
+	if _, err := old.Exec(`CREATE TABLE accounts (id INTEGER PRIMARY KEY, name TEXT NOT NULL, pass_hash TEXT NOT NULL,
+		email TEXT NOT NULL DEFAULT '', registered INTEGER NOT NULL, last_seen INTEGER NOT NULL, last_host TEXT NOT NULL DEFAULT '',
+		enforce INTEGER NOT NULL DEFAULT 1, hide_email INTEGER NOT NULL DEFAULT 1, hide_host INTEGER NOT NULL DEFAULT 1,
+		memo_notify INTEGER NOT NULL DEFAULT 1, memo_limit INTEGER NOT NULL DEFAULT 50);
+		INSERT INTO accounts (id, name, pass_hash, registered, last_seen) VALUES (7, 'Bee', 'h', 1, 1);
+		CREATE TABLE nicks (nick_key TEXT PRIMARY KEY, nick TEXT NOT NULL, account_id INTEGER NOT NULL, registered INTEGER NOT NULL);
+		INSERT INTO nicks VALUES ('bee', 'Bee', 7, 1);`); err != nil {
+		t.Fatal(err)
+	}
+	old.Close()
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	a, _ := s.AccountByNick("bee")
+	if a == nil || a.HideStatus || a.HideQuit || a.Protect != 0 || !a.Enforce {
+		t.Fatalf("migrated account = %+v", a)
+	}
+	a.HideStatus, a.LastQuit, a.Protect = true, "Quit: bye", 30
+	if err := s.SaveAccount(a); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.VerifyCache(); err != nil {
+		t.Fatal(err)
+	}
+}

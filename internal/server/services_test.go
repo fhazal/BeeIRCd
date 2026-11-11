@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/base64"
+	"fmt"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -54,7 +55,7 @@ func TestRegisterAndIdentify(t *testing.T) {
 	bee.expect(":irc.test.local 900 Bee Bee!~bee@127.0.0.1 Bee :You are now logged in as Bee")
 	bee.expect(":irc.test.local MODE Bee +r")
 	bee.send("NS REGISTER " + pw)
-	bee.expect(nsLine("Bee", "You're identified as Bee already. To add Bee to it: /ns group Bee <password>"))
+	bee.expect(nsLine("Bee", "You're identified as Bee already. To add Bee to it: /ns group Bee"))
 
 	other := login(t, s, "other")
 	other.send("WHOIS Bee")
@@ -64,7 +65,7 @@ func TestRegisterAndIdentify(t *testing.T) {
 	other.send("NS INFO Bee")
 	other.expect(nsLine("other", "Bee · registered "))
 	other.expect(nsLine("other", "  Last seen     online now"))
-	other.expect(nsLine("other", "  Options       enforce, email hidden, host hidden"))
+	other.expect(nsLine("other", "  Options       protect (60 s), email hidden, mask hidden"))
 	other.quiet("bee@example.org")
 
 	bee.send("QUIT")
@@ -86,10 +87,10 @@ func TestRegisterAndIdentify(t *testing.T) {
 
 	again.send("NS HELP")
 	again.expect(nsLine("Bee", "NickServ keeps your nick yours. Commands:"))
-	again.expect("REGISTER <password> [email]")
+	again.expect(nsLine("Bee", "  REGISTER  register the nick you are using"))
 	again.expect(nsLine("Bee", "More on one command: /ns help <command>"))
-	again.send("NS HELP GHOST")
-	again.expect(nsLine("Bee", "Syntax: GHOST <nick> [password]"))
+	again.send("NS HELP GHOST") // a hidden alias shows the command it stands for
+	again.expect(nsLine("Bee", "Syntax: RECOVER <nick> [password]"))
 	again.send("NS FLY")
 	again.expect(nsLine("Bee", "Unknown command FLY. Type /ns help for a list."))
 }
@@ -127,28 +128,34 @@ func TestGhostRecoverGroupUngroup(t *testing.T) {
 	s := testServer(t, nil)
 	old := registered(t, s, "Bee")
 	me := login(t, s, "Bee_")
+	// GHOST is Anope's hidden alias for RECOVER: it takes the nick too.
 	me.send("NS GHOST Bee")
-	me.expect(nsLine("Bee_", "Give the password of Bee: /ns ghost Bee <password>"))
+	me.expect(nsLine("Bee_", "Give the password of Bee: /ns recover Bee <password>"))
+	me.send("NS HELP")
+	me.quiet("GHOST")
 	me.send("NS GHOST Bee " + pw)
-	old.expect("ERROR :Closing Link: 127.0.0.1 (Killed (NickServ (GHOST command used by Bee_)))")
-	me.expect(nsLine("Bee_", "Bee was disconnected. The nick is free."))
+	old.expect("ERROR :Closing Link: 127.0.0.1 (Killed (NickServ (RECOVER command used by Bee_)))")
+	me.expect(":Bee_!~bee_@127.0.0.1 NICK Bee")
+	me.expect(nsLine("Bee", "You now have Bee."))
+	me.send("NICK Bee_")
+	me.expect("NICK Bee_")
 
-	back := identified(t, s, "Bee")
+	back := login(t, s, "Bee")
+	back.send("NS IDENTIFY " + pw)
+	back.expect(" 900 Bee ")
 	x := login(t, s, "x")
-	x.send("NS RECOVER Bee " + pw)
-	back.expect("Killed (NickServ (GHOST command used by x))")
-	x.expect(" 900 x ")
+	x.send("NS RELEASE Bee " + pw)
+	back.expect("Killed (NickServ (RECOVER command used by x))")
 	x.expect(":x!~x@127.0.0.1 NICK Bee")
 	x.expect(nsLine("Bee", "You now have Bee."))
 
-	me.send("NS GROUP Bee " + pw)
-	me.expect(nsLine("Bee_", "Bee_ is now part of the account Bee."))
-	me.expect(" 900 Bee_ ")
+	me.send("NS GROUP Bee")
+	me.expect(nsLine("Bee_", "Bee_ is now part of the account Bee.")) // identified already, by RECOVER
 	x.send("NS INFO Bee_")
 	x.expect(nsLine("Bee", "  Account       Bee"))
 	x.expect(nsLine("Bee", "  Also uses     Bee"))
 	x.send("NS UNGROUP Bee")
-	x.expect(nsLine("Bee", "Bee is the account's own name and can't be ungrouped. To remove everything: /ns drop"))
+	x.expect(nsLine("Bee", "Bee is the account's own name and can't be ungrouped. To remove everything: /ns drop Bee"))
 	x.send("NS UNGROUP Bee_")
 	x.expect(nsLine("Bee", "Bee_ is no longer part of Bee."))
 	x.send("NS INFO Bee_")
@@ -167,44 +174,83 @@ func TestLockout(t *testing.T) {
 	x.expect(nsLine("x", "Too many wrong passwords for Bee. Try again in 10 minutes."))
 }
 
-func TestAccessSetAndDrop(t *testing.T) {
+func TestSetAndDrop(t *testing.T) {
 	s := testServer(t, nil)
 	bee := registered(t, s, "Bee")
-	bee.send("NS ACCESS ADD nonsense")
-	bee.expect(nsLine("Bee", "Masks look like ~bee@*.example.org."))
-	bee.send("NS ACCESS ADD ~bee@127.0.0.*")
-	bee.expect(nsLine("Bee", "Added ~bee@127.0.0.*. Connections from there are identified automatically."))
-	bee.send("NS ACCESS LIST")
-	bee.expect(nsLine("Bee", "  1  ~bee@127.0.0.*"))
-	bee.send("NS SET ENFORCE OFF")
-	bee.expect(nsLine("Bee", "Enforce is off: people using your nicks are only told they are registered."))
+	// ACCESS is now Anope's alias for ALIST; hosts no longer identify anyone.
+	bee.send("NS ACCESS")
+	bee.expect(nsLine("Bee", "Bee isn't on the access list of any channel."))
+	bee.send("JOIN #hive")
+	bee.expect(" 366 ")
+	bee.send("CS REGISTER #hive bees")
+	bee.expect("You are its Founder")
+	bee.send("NS ALIST")
+	bee.expect(nsLine("Bee", "Channels where Bee has access:"))
+	bee.expect(nsLine("Bee", "  #hive                Founder"))
+	bee.expect(nsLine("Bee", "1 channel."))
+
+	bee.send("NS SET PROTECT 5")
+	bee.expect(nsLine("Bee", "Syntax: SET PROTECT ON|<seconds>|OFF (between 10 and 600 seconds)"))
+	bee.send("NS SET PROTECT 30")
+	bee.expect(nsLine("Bee", "Protect is on: people who don't identify within 30 seconds get renamed."))
+	bee.send("NS SET ENFORCE OFF") // the old name still works
+	bee.expect(nsLine("Bee", "Protect is off: people using your nicks are only told they are registered."))
 	bee.send("NS SET HIDE EMAIL OFF")
 	bee.expect(nsLine("Bee", "Your email is shown to others in INFO."))
+	bee.send("NS SET HIDE HOST OFF")
+	bee.expect(nsLine("Bee", "Your last user@host is shown to others in INFO."))
+	bee.send("NS SET HIDE QUIT ON")
+	bee.expect(nsLine("Bee", "Your last quit message is hidden from others in INFO."))
 	bee.send("NS SET PASSWORD newhoney99")
 	bee.expect(nsLine("Bee", "Your password is changed."))
-	bee.send("QUIT")
+	bee.send("QUIT :off to the meadow")
 	bee.expect("ERROR")
 
-	auto := login(t, s, "Bee")
-	auto.expect(nsLine("Bee", "You were identified as Bee because your host is on its access list."))
-	other := login(t, s, "x") // different ident: not on the list
+	again := login(t, s, "Bee")
+	again.expect(nsLine("Bee", "Bee is a registered nick. If it's yours: /ns identify <password>"))
+	again.quiet("identified as Bee because")
+	other := login(t, s, "x")
+	other.send("NS INFO Bee")
+	other.expect(nsLine("x", "  Last host     ~bee@127.0.0.1"))
+	other.quiet("off to the meadow")
 	other.send("NICK Bee_")
 	other.send("NS IDENTIFY Bee newhoney99")
 	other.expect(nsLine("Bee_", "Password accepted. You are identified as Bee."))
+	other.send("NS INFO Bee")
+	other.expect(nsLine("Bee_", "  Options       quit hidden"))
+	// Shown only while nobody uses the account.
+	other.send("NS SET HIDE QUIT OFF")
+	other.expect("Your last quit message is shown to others in INFO.")
+	other.send("NS LOGOUT")
+	other.expect(" 901 Bee_ ")
+	again.send("NS INFO Bee")
+	again.expect(nsLine("Bee", "  Last quit     Quit: off to the meadow"))
+	other.send("NS IDENTIFY Bee newhoney99")
+	other.expect(" 900 Bee_ ")
 
-	auto.send("NS DROP")
-	auto.expect(nsLine("Bee", "This removes the account Bee with its nicks (Bee) and all its memos, for good."))
-	l := auto.expect(nsLine("Bee", "To go ahead within 2 minutes: /ns drop "))
+	// Dropping a grouped nick keeps the account.
+	other.send("NS GROUP Bee")
+	other.expect("Bee_ is now part of the account Bee.")
+	other.send("NS DROP Bee_")
+	other.expect(nsLine("Bee_", "This removes Bee_ from the account Bee. The account and its other nicks stay."))
+	l := other.expect(nsLine("Bee_", "To go ahead within 2 minutes: /ns drop Bee_ "))
+	other.send("NS DROP Bee_ " + l[strings.LastIndex(l, " ")+1:])
+	other.expect(nsLine("Bee_", "Bee_ is no longer registered."))
+
+	other.send("NS DROP")
+	other.expect(nsLine("Bee_", "Syntax: DROP <nick> [code]   (your account name drops the whole account)"))
+	other.send("NS DROP Bee")
+	other.expect(nsLine("Bee_", "This removes the account Bee with its nicks (Bee) and all its memos, for good."))
+	l = other.expect(nsLine("Bee_", "To go ahead within 2 minutes: /ns drop Bee "))
 	if first := l[strings.LastIndex(l, " ")+1:]; len(first) != 6 {
 		t.Errorf("drop code %q should be 6 characters", first)
 	}
-	auto.send("NS DROP wrongcode")
-	auto.expect(nsLine("Bee", "That code is wrong or too old."))
-	l = auto.expect("To go ahead within 2 minutes: /ns drop ")
-	code := l[strings.LastIndex(l, " ")+1:]
-	auto.send("NS DROP " + code)
-	auto.expect(nsLine("Bee", "The account Bee is gone."))
-	other.expect(" 901 Bee_ ") // the other session was logged out too
+	other.send("NS DROP Bee wrongcode")
+	other.expect(nsLine("Bee_", "That code is wrong or too old."))
+	l = other.expect("To go ahead within 2 minutes: /ns drop Bee ")
+	other.send("NS DROP Bee " + l[strings.LastIndex(l, " ")+1:])
+	other.expect(" 901 Bee_ ")
+	other.expect(nsLine("Bee_", "The account Bee is gone."))
 	other.send("NS INFO Bee")
 	other.expect(nsLine("Bee_", "Bee isn't registered."))
 }
@@ -367,4 +413,80 @@ func TestServicesDataSurvivesRestartAndExpires(t *testing.T) {
 	c := identified(t, s2, "Bee") // still registered after a restart
 	c.send("NS INFO Dusty")
 	c.expect(nsLine("Bee", "Dusty isn't registered.")) // expired at start
+}
+
+func TestMemoRanges(t *testing.T) {
+	s := testServer(t, nil)
+	bee := registered(t, s, "Bee")
+	ember := registered(t, s, "ember")
+	for i := 1; i <= 5; i++ {
+		ember.send(fmt.Sprintf("MS SEND Bee note %d", i))
+		ember.expect("Memo sent to Bee.")
+	}
+	bee.send("MS READ 2-3")
+	bee.expect(msLine("Bee", "Memo 2 from ember"))
+	bee.expect(msLine("Bee", "  note 2"))
+	bee.expect(msLine("Bee", "Memo 3 from ember"))
+	bee.send("MS LIST NEW")
+	bee.expect(msLine("Bee", "  1   ember"))
+	bee.expect(msLine("Bee", "  4   ember"))
+	bee.expect(msLine("Bee", "5 memos, 3 new. Read one: /ms read <num>"))
+	bee.send("MS DEL 1,5")
+	bee.expect(msLine("Bee", "2 memos deleted. The ones after them moved up."))
+	bee.send("MS DEL READ")
+	bee.expect(msLine("Bee", "2 memos you had read deleted."))
+	bee.send("MS READ ALL")
+	bee.expect(msLine("Bee", "  note 4"))
+	bee.send("MS DEL LAST")
+	bee.expect(msLine("Bee", "Memo 1 deleted. The ones after it moved up."))
+	bee.send("MS READ 7")
+	bee.expect(msLine("Bee", "You have no memos."))
+	bee.send("MS DEL NEW")
+	bee.expect(msLine("Bee", "Syntax: DEL {<num> | <list> | LAST | READ | ALL}"))
+}
+
+func TestHelpLayout(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	x := registered(t, s, "x")
+
+	// Everyday commands one line each, the rest by group; @+ hides ~&% ranks.
+	x.send("CS HELP")
+	x.expect(csLine("x", "ChanServ keeps a channel yours. Commands:"))
+	x.expect(csLine("x", "  REGISTER  register a channel you op in"))
+	x.expect(csLine("x", "Access lists"))
+	l := x.expect(csLine("x", "  SOP, AOP"))
+	if strings.Contains(l, "QOP") || strings.Contains(l, "HOP") {
+		t.Errorf("QOP/HOP shown on an @+ server: %q", l)
+	}
+	x.expect(csLine("x", "Channel status"))
+	l = x.expect(csLine("x", "  OP, DEOP"))
+	if strings.Contains(l, "OWNER") || strings.Contains(l, "HALFOP") {
+		t.Errorf("owner/halfop shown on an @+ server: %q", l)
+	}
+	x.expect(csLine("x", "Every command with a line each: /cs help all"))
+	x.send("CS HELP ALL")
+	x.expect(csLine("x", "All commands of ChanServ:"))
+	x.expect(csLine("x", "  AKICK "))
+	x.send("CS HELP OWNER")
+	x.expect(csLine("x", "No help for OWNER. Type /cs help for a list."))
+
+	// Oper-only commands are hidden from people who can't use them.
+	x.send("NS HELP")
+	x.expect(nsLine("x", "  RECOVER "))
+	x.quiet("SASET")
+	b.send("NS HELP")
+	b.expect(nsLine("Boss", "Commands for IRC operators"))
+	b.expect(nsLine("Boss", "  SASET, LIST"))
+
+	b.send("AS OPER x ADD FLAGS g HOST *@127.0.0.1 PASSWORD Xoper-pass-1")
+	b.expect(asLine("Boss", "x is an oper now: g (global)"))
+	x.send("OPER x Xoper-pass-1")
+	x.expect(" 381 x ")
+	x.send("OS HELP")
+	x.expect(osLine("x", "  GLOBAL     a notice to everyone"))
+	x.expect(osLine("x", "  LOGONNEWS  lines shown after the MOTD"))
+	x.quiet("FORBID")
+	x.send("OS HELP AKILL")
+	x.expect(osLine("x", "No help for AKILL. Type /os help for a list."))
 }

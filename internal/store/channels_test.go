@@ -22,13 +22,13 @@ func TestChannelsAndAccess(t *testing.T) {
 	if l, _ := s.Level(c, bee.ID); l != LevelFounder {
 		t.Errorf("founder level = %d", l)
 	}
-	if old, _ := s.SetLevel(c, ember, LevelVOP, "Bee", now); old != LevelNone {
+	if old, _ := s.SetLevel(c, ember, LevelVOP, "Bee", "", now); old != LevelNone {
 		t.Errorf("first SetLevel old = %d", old)
 	}
-	if old, _ := s.SetLevel(c, ember, LevelAOP, "Bee", now); old != LevelVOP {
+	if old, _ := s.SetLevel(c, ember, LevelAOP, "Bee", "", now); old != LevelVOP {
 		t.Errorf("move old = %d", old)
 	}
-	s.SetLevel(c, kes, LevelSOP, "Bee", now)
+	s.SetLevel(c, kes, LevelSOP, "Bee", "", now)
 	list, _ := s.AccessList(c, 0)
 	if len(list) != 2 || list[0].Account != "Kestrel" || list[1].Level != LevelAOP {
 		t.Errorf("AccessList = %+v", list)

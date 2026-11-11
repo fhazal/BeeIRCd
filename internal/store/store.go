@@ -38,9 +38,13 @@ type Account struct {
 	Registered time.Time
 	LastSeen   time.Time
 	LastHost   string
-	Enforce    bool
+	Enforce    bool // PROTECT on
 	HideEmail  bool
-	HideHost   bool
+	HideHost   bool // HIDE MASK
+	HideStatus bool // HIDE STATUS: don't show whether they're online
+	HideQuit   bool // HIDE QUIT: don't show the last quit message
+	LastQuit   string
+	Protect    int // PROTECT delay in seconds, 0 = the server's identify_within
 	MemoNotify bool
 	MemoLimit  int
 }
@@ -74,7 +78,11 @@ CREATE TABLE IF NOT EXISTS accounts (
 	hide_email  INTEGER NOT NULL DEFAULT 1,
 	hide_host   INTEGER NOT NULL DEFAULT 1,
 	memo_notify INTEGER NOT NULL DEFAULT 1,
-	memo_limit  INTEGER NOT NULL DEFAULT 50
+	memo_limit  INTEGER NOT NULL DEFAULT 50,
+	hide_status INTEGER NOT NULL DEFAULT 0,
+	hide_quit   INTEGER NOT NULL DEFAULT 0,
+	last_quit   TEXT NOT NULL DEFAULT '',
+	protect_delay INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS nicks (
 	nick_key   TEXT PRIMARY KEY,
@@ -143,6 +151,9 @@ func Open(path string) (*Store, error) {
 	if err := migrateOpers(db); err != nil {
 		return fail(err)
 	}
+	if err := migrateAccounts(db); err != nil {
+		return fail(err)
+	}
 	c, err := loadCache(db)
 	if err != nil {
 		return fail(err)
@@ -166,13 +177,15 @@ func (s *Store) Check() error {
 }
 
 const accountCols = `a.id, a.name, a.pass_hash, a.email, a.registered, a.last_seen, a.last_host,
-	a.enforce, a.hide_email, a.hide_host, a.memo_notify, a.memo_limit`
+	a.enforce, a.hide_email, a.hide_host, a.memo_notify, a.memo_limit,
+	a.hide_status, a.hide_quit, a.last_quit, a.protect_delay`
 
 func scanAccount(row interface{ Scan(...any) error }) (*Account, error) {
 	var a Account
 	var reg, seen int64
 	err := row.Scan(&a.ID, &a.Name, &a.PassHash, &a.Email, &reg, &seen, &a.LastHost,
-		&a.Enforce, &a.HideEmail, &a.HideHost, &a.MemoNotify, &a.MemoLimit)
+		&a.Enforce, &a.HideEmail, &a.HideHost, &a.MemoNotify, &a.MemoLimit,
+		&a.HideStatus, &a.HideQuit, &a.LastQuit, &a.Protect)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -240,14 +253,16 @@ func (s *Store) SaveAccount(a *Account) error {
 		return nil // dropped meanwhile; the database has nothing to update either
 	}
 	_, err := s.db.Exec(`UPDATE accounts SET pass_hash=?, email=?, last_seen=?, last_host=?, enforce=?, hide_email=?,
-		hide_host=?, memo_notify=?, memo_limit=? WHERE id=?`,
-		a.PassHash, a.Email, a.LastSeen.Unix(), a.LastHost, a.Enforce, a.HideEmail, a.HideHost, a.MemoNotify, a.MemoLimit, a.ID)
+		hide_host=?, memo_notify=?, memo_limit=?, hide_status=?, hide_quit=?, last_quit=?, protect_delay=? WHERE id=?`,
+		a.PassHash, a.Email, a.LastSeen.Unix(), a.LastHost, a.Enforce, a.HideEmail, a.HideHost, a.MemoNotify, a.MemoLimit,
+		a.HideStatus, a.HideQuit, a.LastQuit, a.Protect, a.ID)
 	if err != nil {
 		return err
 	}
 	have.PassHash, have.Email, have.LastSeen, have.LastHost = a.PassHash, a.Email, sec(a.LastSeen), a.LastHost
 	have.Enforce, have.HideEmail, have.HideHost = a.Enforce, a.HideEmail, a.HideHost
 	have.MemoNotify, have.MemoLimit = a.MemoNotify, a.MemoLimit
+	have.HideStatus, have.HideQuit, have.LastQuit, have.Protect = a.HideStatus, a.HideQuit, a.LastQuit, a.Protect
 	return nil
 }
 
@@ -488,4 +503,26 @@ func without[T any](list []T, drop func(T) bool) []T {
 		}
 	}
 	return out
+}
+
+// migrateAccounts adds the columns of Stage 1.5.3 to older databases.
+func migrateAccounts(db *sql.DB) error {
+	for _, col := range []struct{ table, name, def string }{
+		{"accounts", "hide_status", "INTEGER NOT NULL DEFAULT 0"},
+		{"accounts", "hide_quit", "INTEGER NOT NULL DEFAULT 0"},
+		{"accounts", "last_quit", "TEXT NOT NULL DEFAULT ''"},
+		{"accounts", "protect_delay", "INTEGER NOT NULL DEFAULT 0"},
+		{"chan_access", "note", "TEXT NOT NULL DEFAULT ''"},
+	} {
+		var n int
+		if err := db.QueryRow("SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?", col.table, col.name).Scan(&n); err != nil {
+			return err
+		}
+		if n == 0 {
+			if _, err := db.Exec("ALTER TABLE " + col.table + " ADD COLUMN " + col.name + " " + col.def); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

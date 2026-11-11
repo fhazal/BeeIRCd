@@ -102,6 +102,7 @@ type AccessEntry struct {
 	Level     int
 	AddedBy   string
 	AddedAt   time.Time
+	Note      string // the optional description given with ADD
 }
 
 // Akick is one AKICK mask.
@@ -142,6 +143,7 @@ CREATE TABLE IF NOT EXISTS chan_access (
 	level      INTEGER NOT NULL,
 	added_by   TEXT NOT NULL,
 	added_at   INTEGER NOT NULL,
+	note       TEXT NOT NULL DEFAULT '',
 	PRIMARY KEY (channel_id, account_id)
 );
 CREATE TABLE IF NOT EXISTS chan_akick (
@@ -280,20 +282,21 @@ func (s *Store) Level(c *Channel, accountID int64) (int, error) {
 	return LevelNone, nil
 }
 
-// SetLevel puts account on the access list at level and returns the level
-// it had before (LevelNone when new).
-func (s *Store) SetLevel(c *Channel, a *Account, lvl int, by string, now time.Time) (int, error) {
+// SetLevel puts account on the access list at level, with an optional note,
+// and returns the level it had before (LevelNone when new).
+func (s *Store) SetLevel(c *Channel, a *Account, lvl int, by, note string, now time.Time) (int, error) {
 	old, _ := s.Level(c, a.ID)
 	if s.c.channels[c.ID] == nil || s.c.accounts[a.ID] == nil {
 		return old, nil
 	}
-	_, err := s.db.Exec(`INSERT INTO chan_access (channel_id, account_id, level, added_by, added_at) VALUES (?, ?, ?, ?, ?)
-		ON CONFLICT (channel_id, account_id) DO UPDATE SET level = excluded.level, added_by = excluded.added_by, added_at = excluded.added_at`,
-		c.ID, a.ID, lvl, by, now.Unix())
+	_, err := s.db.Exec(`INSERT INTO chan_access (channel_id, account_id, level, added_by, added_at, note) VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT (channel_id, account_id) DO UPDATE SET level = excluded.level, added_by = excluded.added_by,
+		added_at = excluded.added_at, note = excluded.note`,
+		c.ID, a.ID, lvl, by, now.Unix(), note)
 	if err != nil {
 		return old, err
 	}
-	s.c.setLevel(c.ID, a.ID, &level{level: lvl, addedBy: by, addedAt: sec(now)})
+	s.c.setLevel(c.ID, a.ID, &level{level: lvl, addedBy: by, addedAt: sec(now), note: note})
 	return old, nil
 }
 
@@ -330,7 +333,7 @@ func (s *Store) AccessList(c *Channel, lvl int) ([]AccessEntry, error) {
 		if lvl != 0 && l.level != lvl {
 			continue
 		}
-		out = append(out, AccessEntry{AccountID: id, Account: s.c.accountName(id), Level: l.level, AddedBy: l.addedBy, AddedAt: l.addedAt})
+		out = append(out, AccessEntry{AccountID: id, Account: s.c.accountName(id), Level: l.level, AddedBy: l.addedBy, AddedAt: l.addedAt, Note: l.note})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		a, b := out[i], out[j]

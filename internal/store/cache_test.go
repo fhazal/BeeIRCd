@@ -55,13 +55,13 @@ func TestCacheMatchesDatabase(t *testing.T) {
 	ok(err)
 	ch2, err := s.CreateChannel("#nest", b, "", now)
 	ok(err)
-	_, err = s.SetLevel(ch, b, LevelAOP, "Bee", now)
+	_, err = s.SetLevel(ch, b, LevelAOP, "Bee", "", now)
 	ok(err)
-	_, err = s.SetLevel(ch, c, LevelVOP, "Bee", now)
+	_, err = s.SetLevel(ch, c, LevelVOP, "Bee", "", now)
 	ok(err)
-	_, err = s.SetLevel(ch, c, LevelSOP, "Bee", now.Add(time.Minute)) // change
+	_, err = s.SetLevel(ch, c, LevelSOP, "Bee", "trusted", now.Add(time.Minute)) // change
 	ok(err)
-	_, err = s.SetLevel(ch2, a, LevelAOP, "Wasp", now)
+	_, err = s.SetLevel(ch2, a, LevelAOP, "Wasp", "", now)
 	ok(err)
 	_, err = s.AddAkick(ch, "*!*@bad", "go away", "Bee", now.Add(time.Second))
 	ok(err)
