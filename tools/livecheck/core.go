@@ -86,7 +86,7 @@ func (lc *liveCheck) core() {
 	lc.ok("quit seen", a.wait(`:zt9b!.* QUIT :Quit: done here`))
 	b = lc.connect("zt9b", "")
 	b.send("NS IDENTIFY " + PW)
-	lc.ok("b identifies again (data in memory)", b.wait("now logged in|identified", 8*time.Second))
+	lc.ok("b identifies again (data in memory)", b.wait("now logged in|recognized|identified", 8*time.Second))
 	b.send("NS INFO zt9a")
 	lc.ok("NS INFO from cache", b.wait("zt9a"))
 	a.send("CS INFO #zt9test")
@@ -246,7 +246,7 @@ func (lc *liveCheck) core() {
 	lc.ok("STATUS 0 = not registered", d.wait("STATUS zt9d 0"))
 	lc.ok("STATUS 3 = identified", d.wait("STATUS zt9a 3 zt9a"))
 	c.send("NS IDENTIFY " + PW)
-	c.wait("identified", 8*time.Second)
+	c.wait("recognized|identified", 8*time.Second)
 	c.send("NS SET SECURE ON")
 	c.wait("Security is on")
 	c.send("NS ACCESS DEL ~zt@*")
@@ -264,19 +264,19 @@ func (lc *liveCheck) core() {
 	b.send("NICK zt9bb")
 	b.wait("NICK")
 	b.send("NS IDENTIFY zt9b " + PW)
-	b.wait("identified|already", 8*time.Second)
+	b.wait("recognized|identified|already", 8*time.Second)
 	b.send("NS GROUP zt9b")
 	lc.ok("NS GROUP", b.wait("zt9bb is now part of the account zt9b"))
 	b.send("NS UNGROUP zt9bb")
 	lc.ok("NS UNGROUP makes its own account", b.wait("zt9bb has been ungrouped from zt9b"))
 	b.send("NS IDENTIFY zt9bb " + PW)
-	lc.ok("split nick keeps the password", b.wait("identified as zt9bb", 8*time.Second))
+	lc.ok("split nick keeps the password", b.wait(` 900 zt9bb \S+ zt9bb `, 8*time.Second))
 	b.send("NS DROP zt9bb")
 	lc.ok("NS DROP one nick", b.wait("zt9bb has been dropped"))
 	b.send("NICK zt9b")
 	b.wait("NICK")
 	b.send("NS IDENTIFY " + PW) // zt9bb was dropped, so b is not identified any more
-	b.wait("identified|already", 8*time.Second)
+	b.wait("recognized|identified|already", 8*time.Second)
 
 	// ---- 1.5.5b ----
 	d.lines = nil
@@ -353,7 +353,7 @@ func (lc *liveCheck) core() {
 			fp = f[len(f)-1]
 		}
 		t1.send("NS IDENTIFY zt9a " + PW)
-		t1.wait("identified|logged in")
+		t1.wait("recognized|identified|logged in")
 		t1.send("NS CERT ADD")
 		lc.ok("CERT ADD", t1.wait(fp+" added to zt9a's certificate list"))
 		t1.send("NS CERT LIST")
@@ -441,7 +441,7 @@ func (lc *liveCheck) core() {
 	for _, x := range []*client{a, b, c} {
 		x.lines = nil
 		x.send("NS IDENTIFY " + PW)
-		x.wait("identified|already", 3*time.Second)
+		x.wait("recognized|identified|already", 3*time.Second)
 		x.send("NS DROP " + x.nick)
 		lc.ok(x.nick+" dropped", x.wait("has been dropped"))
 	}
