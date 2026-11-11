@@ -10,7 +10,7 @@ import (
 // Oper data kept in memory: checked on every connect, join and nick.
 
 func (s *Services) loadOperData() error {
-	akills, err := s.store.Akills()
+	bans, err := s.store.NetBans("")
 	if err != nil {
 		return err
 	}
@@ -30,7 +30,7 @@ func (s *Services) loadOperData() error {
 		}
 		forbids[kind] = list
 	}
-	s.akills, s.news, s.sessionExcepts, s.forbids = akills, news, ex, forbids
+	s.netbans, s.news, s.sessionExcepts, s.forbids = bans, news, ex, forbids
 	return nil
 }
 
@@ -41,44 +41,28 @@ func (s *Services) reloadOperData() {
 	}
 }
 
-// akillFor returns the AKILL matching ident at host/ip, or nil.
-func (s *Services) akillFor(ident string, hosts ...string) *store.Akill {
-	now := time.Now()
-	for i := range s.akills {
-		k := &s.akills[i]
-		if !k.Expires.IsZero() && now.After(k.Expires) {
-			continue
-		}
-		for _, h := range hosts {
-			if h != "" && irc.Match(k.Mask, ident+"@"+h) {
-				return k
-			}
-		}
-	}
-	return nil
-}
-
 // sessionLimit is how many connections ip may have.
 func (s *Services) sessionLimit(ip string) int {
+	now := time.Now()
 	for _, e := range s.sessionExcepts {
-		if irc.Match(e.Mask, ip) {
+		if (e.Expires.IsZero() || now.Before(e.Expires)) && irc.MatchHost(e.Mask, ip) {
 			return e.Max
 		}
 	}
 	return s.cfg.Limits.SessionLimit
 }
 
-// expireAkills drops AKILLs that ran out.
-func (s *Services) expireAkills(now time.Time) {
-	gone, err := s.store.PurgeAkills(now)
+// expireBans drops network bans, forbids and session exceptions that ran
+// out.
+func (s *Services) expireBans(now time.Time) {
+	gone, err := s.store.PurgeExpired(now)
 	if err != nil {
 		s.log.Printf("services database: %v", err)
-		return
 	}
 	if len(gone) > 0 {
 		s.reloadOperData()
 		for _, m := range gone {
-			s.snotice("AKILL on %s ran out", m)
+			s.snotice("%s ran out", m)
 		}
 	}
 }
@@ -86,8 +70,9 @@ func (s *Services) expireAkills(now time.Time) {
 // forbidden returns the first forbid of kind that matches name (names may
 // be patterns with * and ?).
 func (s *Services) forbidden(kind, name string) (store.Forbid, bool) {
+	now := time.Now()
 	for _, f := range s.forbids[kind] {
-		if irc.Match(f.Name, name) {
+		if (f.Expires.IsZero() || now.Before(f.Expires)) && irc.Match(f.Name, name) {
 			return f, true
 		}
 	}

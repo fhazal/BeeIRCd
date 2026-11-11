@@ -14,6 +14,7 @@ package services
 import (
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"time"
 
@@ -88,7 +89,8 @@ type Services struct {
 	handling bool
 
 	// Oper data, kept in memory.
-	akills         []store.Akill
+	netbans        []store.NetBan
+	banRegexps     map[string]*regexp.Regexp // compiled SNLINE /regex/ masks
 	news           []store.News
 	sessionExcepts []store.SessionExcept
 	forbids        map[string][]store.Forbid // by kind
@@ -125,6 +127,8 @@ func New(host Host, cfg *config.Config, logger *log.Logger, net *state.Network, 
 		clients:  make(map[string]*Client),
 		lockouts: make(map[int64]*lockout),
 		hashSem:  make(chan struct{}, 2),
+
+		banRegexps: make(map[string]*regexp.Regexp),
 	}
 	if err := s.loadOperData(); err != nil {
 		return nil, err
@@ -231,7 +235,7 @@ func (s *Services) Expire(now time.Time) {
 	s.expireAccounts(now)
 	s.expireChannels(now)
 	s.expireSuspends(now)
-	s.expireAkills(now)
+	s.expireBans(now)
 	s.Flush()
 }
 

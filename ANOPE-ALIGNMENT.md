@@ -117,8 +117,24 @@ Where we differ from Anope, on purpose:
   map onto LEVELS and SECUREOPS.
 - With Anope's defaults UOP (1) only has NOKICK and the join pass; INVITE,
   UNBANME and GETKEY start at HOP/AOP. A founder who wants the old CR UOP
-  sets `/cs levels #chan set invite 1` and `set unbanme 1`.
+  sets `/cs levels #chan set invite 1` and `set unbanme 1`. Kept as Anope
+  by the user's decision (11 Nov 2026).
 - ENFORCE has no SSLONLY yet (no +z until 1.5.9). LIMIT kicks people with
   no status and no access first (we don't keep join order).
 - Not built: FLAGS, CLONE, SEEN, SET EMAIL; BotServ's ASSIGN, SAY,
   BADWORDS, FANTASY.
+
+## Stage 1.5.5a (built 11 Nov 2026)
+
+Decided by the user: IRCd-style /GLINE /ZLINE /SHUN /QLINE /RLINE /ELINE
+as short forms of OperServ; SQLINE and FORBID NICK one list; extbans
+~a ~r ~m (~q) ~t; split into 1.5.5a and 1.5.5b.
+
+Built as Anope: AKILL, SNLINE, SQLINE with `+expiry` and the same
+ADD/DEL/LIST/VIEW/CLEAR; FORBID ADD KIND [+expiry]; EXCEPTION ADD
+[+expiry]; CS BAN #chan +expiry.
+
+Ours (Anope leaves these to the IRCd): ZLINE, SHUN, ELINE (as `EXCEPTION
+BAN`), CIDR in every IP mask. An SNLINE mask is one word (spaces as ? or
+`\s` in a /regex/), where Anope uses `mask:reason`. Timed channel bans are
+UnrealIRCd's ~t:minutes:mask, so they work without services too.

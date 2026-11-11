@@ -33,7 +33,7 @@ Last updated: 11 Nov 2026 (Stage 1.5.3).
 | Server linking | Planned | Stage 2 |
 | WebSocket | Planned | Stage 4 |
 | PROXY protocol | Planned | |
-| DNS blacklists (DroneBL, EFnetRBL) | Planned | 1.5.5, with the ban engine: reply codes per list, AKILL or Z-line, ban time |
+| DNS blacklists (DroneBL, EFnetRBL) | Planned | 1.5.5b: reply codes per list, reject/zline/akill/shun, ban time |
 | REHASH | Planned | step 7 |
 | Module system | Proposed | after Stage 4 |
 
@@ -50,7 +50,7 @@ Last updated: 11 Nov 2026 (Stage 1.5.3).
 | client tags typing, reply, react, channel-context | Implemented (relayed) |
 | standard-replies, MONITOR, extended-monitor, WHOX, setname | Planned (phase 3) |
 | bot mode, UTF8ONLY, no-implicit-names | Planned (phase 3) |
-| account-extban | Planned (ban engine) |
+| account-extban | Implemented (1.5.5a, EXTBAN=~,amqrt) |
 | STS | Planned (step 7) |
 | WebSocket, WebIRC | Planned (Stage 4) |
 | netsplit/netjoin batches | Planned (Stage 2) |
@@ -75,7 +75,8 @@ Last updated: 11 Nov 2026 (Stage 1.5.3).
 | ChanServ FLAGS, CLONE, SEEN; BotServ (ASSIGN, SAY, BADWORDS) | Planned |
 | MemoServ (nick memos, number lists, ignore) | Implemented |
 | MemoServ channel memo boxes (one box per channel like Anope, MEMO privilege, own limit and ignore list, notice on join and identify) | Implemented (1.5.4) |
-| OperServ (stats, global, AKILL with expiry and number lists, kill, mode, kick, FORBID nick/chan/email/register, sessions, exceptions, logon news) | Implemented |
+| OperServ (stats, global, AKILL ZLINE SNLINE SHUN SQLINE with expiry and number lists, EXCEPTION BAN (ELINE), kill, mode, kick, FORBID nick/chan/email/register with expiry, sessions, exceptions with expiry and CIDR, logon news) | Implemented (ban engine 1.5.5a) |
+| OperServ CHANKILL SVSNICK SVSJOIN SVSPART UMODE USERLIST CHANLIST INFO IGNORE OPERNEWS RANDOMNEWS, ChanServ SEEN | Planned (1.5.5b) |
 | AdminServ (settings saved to config, MOTD, ports, opers, restart, die) | Implemented |
 | HostServ (vhosts) | Planned (Stage 1.5) |
 | HelpServ | Planned (phase 6) |
@@ -89,6 +90,7 @@ Last updated: 11 Nov 2026 (Stage 1.5.3).
 | /OPER with a separate oper password per oper | Implemented | identifying never opers; admin password hash in beeircd.conf |
 | /KILL, /WALLOPS, server notices (+s) | Implemented | |
 | Oper classes | Planned | phase 4 |
-| AKILL (user@host wildcards) | Implemented | |
-| CIDR, K/G/Z/Q-line, SHUN, extbans | Planned | ban engine, phase 4 |
+| Network ban engine: AKILL/G-line (user@host, CIDR), ZLINE (IP/CIDR, before DNS), SQLINE/Q-line (nicks), SNLINE/R-line (realname glob or regex), SHUN, ELINE exemptions, all with expiry | Implemented | 1.5.5a; one list behind OperServ and /GLINE /ZLINE /QLINE /RLINE /SHUN /ELINE; matches real host and IP, never the cloak |
+| Channel extbans ~a ~r ~m (~q) ~t, timed bans, CS BAN +expiry, AKICK extbans | Implemented | 1.5.5a |
+| K-line (this server only) | Planned | with linking (Stage 2) |
 | DNSBL, content filter | Planned | |

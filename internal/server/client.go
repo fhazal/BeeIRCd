@@ -88,6 +88,11 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 	s.wg.Add(1)
 	go c.writeLoop()
 	go c.readLoop()
+	if z := s.svc.ZlineFor(ip); z != nil {
+		s.snotice("ZLINE %s stopped a connection from %s", z.Mask, ip)
+		s.quit(c, "Z-lined: "+z.Reason)
+		return
+	}
 	if n, max := s.sessions(ip), s.svc.SessionLimit(ip); n > max {
 		s.snotice("Too many connections from %s (%d, the limit is %d)", ip, n, max)
 		s.quit(c, fmt.Sprintf("Too many connections from your IP (the limit is %d)", max))

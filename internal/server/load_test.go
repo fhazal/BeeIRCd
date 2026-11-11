@@ -62,6 +62,26 @@ func TestLoad5000(t *testing.T) {
 				s.store.AddAkick(ch, fmt.Sprintf("*!*@nobody%d.example", j), "no", "test", now)
 			}
 		}
+		// 500 network bans that match nobody (globs, CIDR, a regex), so
+		// connects and the per-command SHUN check have a list to scan.
+		for i := 0; i < 100; i++ {
+			for _, b := range []store.NetBan{
+				{Kind: store.BanAkill, Mask: fmt.Sprintf("*@bad%d.example", i)},
+				{Kind: store.BanAkill, Mask: fmt.Sprintf("*@198.51.%d.0/24", i)},
+				{Kind: store.BanZline, Mask: fmt.Sprintf("203.0.%d.*", i)},
+				{Kind: store.BanShun, Mask: fmt.Sprintf("spam%d@*", i)},
+				{Kind: store.BanSNLine, Mask: fmt.Sprintf("/^botnet%d .*$/", i)},
+			} {
+				b.Reason, b.SetBy, b.SetAt = "load", "test", now
+				if err := s.store.AddNetBan(b); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		s.svc.ReloadBans()
+		if n := s.svc.BanCounts(); n[store.BanAkill] != 200 || n[store.BanShun] != 100 {
+			t.Fatalf("bans not loaded: %v", n)
+		}
 	})
 	addr := s.Addrs()[0].String()
 

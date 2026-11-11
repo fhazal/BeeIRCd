@@ -196,7 +196,11 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 				continue
 			}
 			used++
-			mask := irc.NormalizeMask(arg)
+			mask, valid := irc.NormalizeBan(arg)
+			if !valid {
+				s.reply(c, irc.ErrInvalidModeParam, ch.Name, string(mc), arg, "Invalid ban mask (extbans: ~a:account ~r:realname ~m:mask ~t:minutes:mask)")
+				continue
+			}
 			if add {
 				if len(ch.Lists[mc])+adds[mc] >= maxListEntries {
 					s.reply(c, irc.ErrBanListFull, ch.Name, mask, "Channel list is full")

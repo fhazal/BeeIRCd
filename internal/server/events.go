@@ -21,6 +21,9 @@ func (s *Server) emit(ev state.Event) error {
 	if deliver != nil {
 		deliver()
 	}
+	if cm, ok := ev.(*state.ChannelMode); ok {
+		s.noteTimedBans(cm)
+	}
 	for _, sink := range s.sinks {
 		sink(ev)
 	}

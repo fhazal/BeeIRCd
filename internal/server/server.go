@@ -43,6 +43,7 @@ type Server struct {
 	batchSeq   uint64
 	sinks      []func(state.Event) // get every event after it was applied
 	beforeEmit func(state.Event)   // tests: runs before each event
+	timedBans  []timedBan          // ~t: channel list entries waiting to lift
 	loop       loopStats           // how long each piece of loop work took
 	wg         sync.WaitGroup
 
@@ -183,6 +184,7 @@ func (s *Server) Serve(ctx context.Context) error {
 			}
 		case now := <-tick.C:
 			s.checkTimeouts(now)
+			s.expireTimedBans(now)
 			s.svc.Tick(now)
 			s.reap()
 		case now := <-hourly.C:

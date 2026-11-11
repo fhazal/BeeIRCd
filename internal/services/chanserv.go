@@ -68,7 +68,7 @@ func chanServCommands() map[string]svcCmd {
 		"DOWN":      {"DOWN #chan", "drop all your channel status", "Takes every status mode you have in the channel.", csDown},
 		"SYNC":      {"SYNC #chan", "give everyone the status they earn", "Gives everyone in the channel the modes their level earns and, with SECUREOPS\non, takes status from those not allowed it. Needs ACCESS_CHANGE.", csSyncCmd},
 		"KICK":      {"KICK #chan <nick> [reason]", "kick through ChanServ", "Needs KICK (HOP by default). With PEACE on, nobody can kick someone on the\nsame level or above, except the founder.", csKick},
-		"BAN":       {"BAN #chan <nick|mask> [reason]", "ban and kick", "Needs BAN (HOP by default). A nick bans that person's host, the way BANTYPE\nsays.", csBan},
+		"BAN":       {"BAN #chan [+expiry] <nick|mask> [reason]", "ban and kick", "Needs BAN (HOP by default). A nick bans that person's host, the way BANTYPE\nsays. With +expiry (+30m, +2h, +7d) the ban lifts itself (a ~t: ban).\nExtbans work too: ~a:account, ~r:realname, ~m:mask (mute).", csBan},
 		"UNBAN":     {"UNBAN #chan [nick|mask]", "remove bans", "Without a nick, removes every ban on you (UNBANME, HOP by default). Unbanning\nothers needs UNBAN.", csUnban},
 		"INVITE":    {"INVITE #chan [nick]", "invite yourself or someone", "Needs INVITE (AOP by default). Without a nick it invites you.", csInvite},
 		"GETKEY":    {"GETKEY #chan", "tell you the channel key", "Needs GETKEY (AOP by default).", csGetKey},
@@ -481,7 +481,11 @@ func csAkick(s *Services, c *Client, args []string) {
 			s.cs(c, "The AKICK list of %s is full (%d).", reg.Name, maxAkicks)
 			return
 		}
-		mask := irc.NormalizeMask(arg) // a nick becomes nick!*@*
+		mask, valid := irc.NormalizeBan(arg) // a nick becomes nick!*@*
+		if !valid {
+			s.cs(c, "%s isn't a mask or extban (~a:account, ~r:realname).", arg)
+			return
+		}
 		reason := strings.Join(args[3:], " ")
 		if reason == "" {
 			reason = "You are not welcome in " + reg.Name + "."
@@ -505,7 +509,8 @@ func csAkick(s *Services, c *Client, args []string) {
 				masks = append(masks, list[i-1].Mask)
 			}
 		} else {
-			masks = []string{irc.NormalizeMask(arg)}
+			m, _ := irc.NormalizeBan(arg)
+			masks = []string{m}
 		}
 		var removed []string
 		for _, m := range masks {
@@ -569,13 +574,11 @@ func (s *Services) akickEnforce(reg *store.Channel, kicks []store.Akick) int {
 	return n
 }
 
+// matchesMask reports whether a ban mask (extbans too, see state.MatchBan)
+// covers u.
 func matchesMask(mask string, u *state.User) bool {
-	for _, m := range u.Masks() {
-		if irc.Match(mask, m) {
-			return true
-		}
-	}
-	return false
+	m, _ := state.MatchBan(mask, u)
+	return m
 }
 
 // liveTarget finds the channel as it is now and a member in it.
@@ -738,9 +741,21 @@ func csBan(s *Services, c *Client, args []string) {
 	if !ok {
 		return
 	}
+	// BAN #chan [+expiry] nick|mask [reason] (Anope); the expiry becomes a
+	// ~t: ban that lifts itself.
+	var minutes int
+	if e := argAt(args, 1); strings.HasPrefix(e, "+") {
+		d, ok := parseExpiry(e)
+		if !ok || d == 0 {
+			s.cs(c, "%s isn't a time. Use +30m, +12h, +7d.", e)
+			return
+		}
+		minutes = min(int((d+time.Minute-1)/time.Minute), irc.MaxTimedBan)
+		args = append(args[:1:1], args[2:]...)
+	}
 	arg := argAt(args, 1)
 	if arg == "" {
-		s.cs(c, "Syntax: BAN %s <nick|mask> [reason]", reg.Name)
+		s.cs(c, "Syntax: BAN %s [+expiry] <nick|mask> [reason]", reg.Name)
 		return
 	}
 	live := s.net.Channel(reg.Name)
@@ -748,7 +763,11 @@ func csBan(s *Services, c *Client, args []string) {
 		s.cs(c, "%s is empty right now.", reg.Name)
 		return
 	}
-	mask := irc.NormalizeMask(arg)
+	mask, valid := irc.NormalizeBan(arg)
+	if !valid {
+		s.cs(c, "%s isn't a mask or extban.", arg)
+		return
+	}
 	t := s.net.UserByNick(arg)
 	if t != nil && !t.Service {
 		if reg.Peace && s.userLevel(reg, t) >= lvl && lvl != store.LevelFounder {
@@ -756,6 +775,9 @@ func csBan(s *Services, c *Client, args []string) {
 			return
 		}
 		mask = banMask(reg, t)
+	}
+	if minutes > 0 {
+		mask = "~t:" + strconv.Itoa(minutes) + ":" + mask
 	}
 	reason := "Banned by " + c.user.Nick
 	if len(args) > 2 {
@@ -794,7 +816,7 @@ func csUnban(s *Services, c *Client, args []string) {
 	}
 	var lift []modeChange
 	for _, e := range live.Lists['b'] {
-		if who != nil && matchesMask(e.Mask, who) || who == nil && irc.EqualFold(e.Mask, irc.NormalizeMask(arg)) {
+		if who != nil && matchesMask(e.Mask, who) || who == nil && irc.EqualFold(e.Mask, irc.NormalizeMask(arg)) || irc.EqualFold(e.Mask, arg) {
 			lift = append(lift, modeChange{false, 'b', e.Mask})
 		}
 	}

@@ -345,7 +345,7 @@ func TestAkill(t *testing.T) {
 	done := make(chan struct{})
 	s.post(func() {
 		// Make it run out, then let the hourly clean-up find it.
-		s.store.AddAkill(store.Akill{Mask: "~old@127.0.0.*", Reason: "old", SetBy: "Boss", SetAt: time.Now().Add(-2 * time.Minute), Expires: time.Now().Add(-time.Second)})
+		s.store.AddNetBan(store.NetBan{Kind: store.BanAkill, Mask: "~old@127.0.0.*", Reason: "old", SetBy: "Boss", SetAt: time.Now().Add(-2 * time.Minute), Expires: time.Now().Add(-time.Second)})
 		s.svc.Expire(time.Now())
 		close(done)
 	})

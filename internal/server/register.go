@@ -221,9 +221,9 @@ func (s *Server) tryRegister(c *Client) {
 		s.quit(c, "This server is full. Please try again later.")
 		return
 	}
-	if k := s.svc.AkillFor(c.ident, c.host, c.ip); k != nil {
+	if k := s.svc.ConnectBan(c.ident, c.host, c.ip, c.realname); k != nil {
 		s.reply(c, irc.ErrYoureBannedCreep, "You are banned from this network: "+k.Reason)
-		s.snotice("AKILL %s stopped %s (%s@%s)", k.Mask, c.nick, c.ident, c.host)
+		s.snotice("%s %s stopped %s (%s@%s)", strings.ToUpper(k.Kind), k.Mask, c.nick, c.ident, c.host)
 		s.quit(c, "Banned: "+k.Reason)
 		return
 	}
@@ -332,6 +332,7 @@ func (s *Server) isupport() []string {
 		"CHANMODES=beI,k,l,MRimnprst",
 		"CHANNELLEN=" + strconv.Itoa(l.ChannelLen),
 		"CHANTYPES=#",
+		"EXTBAN=~," + irc.ExtbanLetters,
 		"EXCEPTS=e",
 		"HOSTLEN=63",
 		"INVEX=I",

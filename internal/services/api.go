@@ -124,9 +124,31 @@ func (s *Services) SendNews(uid string) {
 // or store.ForbidChan).
 func (s *Services) Forbidden(kind, name string) (store.Forbid, bool) { return s.forbidden(kind, name) }
 
-// AkillFor returns the AKILL matching ident at any of hosts, or nil.
-func (s *Services) AkillFor(ident string, hosts ...string) *store.Akill {
-	return s.akillFor(ident, hosts...)
+// ConnectBan returns the network ban (ZLINE, AKILL or SNLINE) that
+// refuses someone registering with this ident, real host, IP and
+// realname, or nil. ELINEs exempt.
+func (s *Services) ConnectBan(ident, host, ip, realname string) *store.NetBan {
+	return s.connectBan(ident, host, ip, realname)
+}
+
+// ZlineFor returns the ZLINE refusing a new connection from ip, or nil.
+func (s *Services) ZlineFor(ip string) *store.NetBan {
+	if s.exempt("", "", ip) {
+		return nil
+	}
+	return s.firstBan(store.BanZline, "", "", ip, "")
+}
+
+// Shunned reports whether a SHUN covers uid.
+func (s *Services) Shunned(u *state.User) bool { return len(s.netbans) > 0 && s.shunned(u) }
+
+// BanCounts is how many bans of each kind are in force, for STATS.
+func (s *Services) BanCounts() map[string]int {
+	out := make(map[string]int)
+	for _, kind := range store.BanKinds {
+		out[kind] = len(s.liveBans(kind))
+	}
+	return out
 }
 
 // SessionLimit is how many connections ip may have.
@@ -149,3 +171,7 @@ func RandomCode() string { return randomCode() }
 
 // ClearLockout forgets wrong passwords for key.
 func (s *Services) ClearLockout(key int64) { delete(s.lockouts, key) }
+
+// ReloadBans rereads network bans, forbids, news and session exceptions
+// from the store (after something outside services changed them).
+func (s *Services) ReloadBans() { s.reloadOperData() }

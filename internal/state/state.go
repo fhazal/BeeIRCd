@@ -228,19 +228,29 @@ func (c *Channel) ModeString(showKey bool) (string, []string) {
 }
 
 // Matches reports whether any entry of list matches u.
+// Mute entries (~m, ~q) don't count here.
 func (c *Channel) Matches(list byte, u *User) bool {
 	for _, e := range c.Lists[list] {
-		for _, m := range u.Masks() {
-			if irc.Match(e.Mask, m) {
-				return true
-			}
+		if m, mute := MatchBan(e.Mask, u); m && !mute {
+			return true
 		}
 	}
 	return false
 }
 
-// IsBanned reports whether u is banned and not excepted.
+// IsBanned reports whether u is banned (from joining) and not excepted.
 func (c *Channel) IsBanned(u *User) bool { return c.Matches('b', u) && !c.Matches('e', u) }
+
+// IsMuted reports whether a ban or a mute (~m) stops u talking, and no
+// exception lets them.
+func (c *Channel) IsMuted(u *User) bool {
+	for _, e := range c.Lists['b'] {
+		if m, _ := MatchBan(e.Mask, u); m {
+			return !c.Matches('e', u)
+		}
+	}
+	return false
+}
 
 // addListEntry adds mask to list. It returns false when the mask is already
 // there.

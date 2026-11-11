@@ -124,7 +124,7 @@ func cannotSend(ch *state.Channel, u *state.User) string {
 		return "Cannot send to channel (+m)"
 	case ch.HasMode('M') && u.Account == "":
 		return "You need to identify to a registered nick to talk in that channel"
-	case ch.IsBanned(u):
+	case ch.IsMuted(u):
 		return "Cannot send to channel (you're banned)"
 	}
 	return ""

@@ -225,3 +225,55 @@ func TestAccountsMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestNetBansAndMigration(t *testing.T) {
+	s, path := open(t)
+	now := time.Unix(1_800_000_000, 0)
+	// An AKILL in the old table moves over at the next start.
+	if _, err := s.db.Exec("INSERT INTO akills (mask, reason, set_by, set_at, expires) VALUES ('*@old.example', 'old', 'Boss', 5, 0)"); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	got, _ := s.NetBans(BanAkill)
+	if len(got) != 1 || got[0].Mask != "*@old.example" || got[0].Kind != BanAkill {
+		t.Fatalf("moved AKILLs = %+v", got)
+	}
+	for _, b := range []NetBan{
+		{Kind: BanZline, Mask: "10.0.0.0/8", Reason: "r", SetBy: "B", SetAt: now},
+		{Kind: BanShun, Mask: "*@10.0.0.1", Reason: "r", SetBy: "B", SetAt: now, Expires: now.Add(time.Hour)},
+		{Kind: BanZline, Mask: "10.0.0.0/8", Reason: "changed", SetBy: "B", SetAt: now}, // replaces
+		{Kind: BanAkill, Mask: "10.0.0.0/8", Reason: "same mask, other kind", SetBy: "B", SetAt: now},
+	} {
+		if err := s.AddNetBan(b); err != nil {
+			t.Fatal(err)
+		}
+	}
+	all, _ := s.NetBans("")
+	if len(all) != 4 {
+		t.Fatalf("all bans = %+v", all)
+	}
+	z, _ := s.NetBans(BanZline)
+	if len(z) != 1 || z[0].Reason != "changed" || !z[0].Live(now.Add(100*24*time.Hour)) {
+		t.Errorf("zline = %+v", z)
+	}
+	s.AddForbid(ForbidNick, Forbid{Name: "Spam*", Reason: "r", SetBy: "B", SetAt: now, Expires: now.Add(time.Minute)})
+	s.SaveSessionExcept(SessionExcept{Mask: "10.0.0.0/8", Max: 5, SetBy: "B", SetAt: now, Expires: now.Add(time.Minute)})
+	if f, _ := s.Forbids(ForbidNick); len(f) != 1 || f[0].Expires.Unix() != now.Add(time.Minute).Unix() {
+		t.Errorf("forbid expiry lost: %+v", f)
+	}
+	gone, err := s.PurgeExpired(now.Add(2 * time.Hour))
+	if err != nil || len(gone) != 3 {
+		t.Fatalf("purged %v, %v", gone, err)
+	}
+	if ok, _ := s.DelNetBan(BanZline, "10.0.0.0/8"); !ok {
+		t.Error("DelNetBan")
+	}
+	if left, _ := s.NetBans(""); len(left) != 2 {
+		t.Errorf("left = %+v", left)
+	}
+}

@@ -31,18 +31,26 @@ func operServCommands() map[string]svcCmd {
 		"GLOBAL": {"GLOBAL <text>", "a notice to everyone",
 			"Sends a notice from Global to everyone on the network.\nExample: /os global The server restarts at 22:00 UTC.", osGlobal},
 		"AKILL": {"AKILL ADD|DEL|LIST|VIEW|CLEAR ...", "ban from the whole network",
-			"AKILL ADD [+expiry] <user@host|nick> <reason>   expiry like +30m, +12h, +7d;\n    without it the AKILL stays until removed\nAKILL DEL {<mask> | <num> | <list>}   numbers from LIST, like 2 or 1-3,5\nAKILL LIST [<mask> | <list>]\nAKILL VIEW [<mask> | <list>]   with who set it and when\nAKILL CLEAR\nA nick bans that person's IP. People who match are disconnected at once.\nExample: /os akill add +7d *@203.0.113.* spam bots", osAkill},
+			"AKILL ADD [+expiry] <user@host|nick> <reason>   expiry like +30m, +12h, +7d;\n    without it the AKILL stays until removed\nAKILL DEL {<mask> | <num> | <list>}   numbers from LIST, like 2 or 1-3,5\nAKILL LIST [<mask> | <list>]\nAKILL VIEW [<mask> | <list>]   with who set it and when\nAKILL CLEAR\nThe host may be a CIDR range, like *@203.0.113.0/24. A nick bans that\nperson's IP. People who match are disconnected at once. Opers type /GLINE\nfor the same list.\nExample: /os akill add +7d *@203.0.113.* spam bots", osNetBan(store.BanAkill)},
+		"ZLINE": {"ZLINE ADD|DEL|LIST|VIEW|CLEAR ...", "ban an IP before anything else",
+			"ZLINE ADD [+expiry] <ip|cidr|nick> <reason>\nZLINE DEL|LIST|VIEW|CLEAR like AKILL.\nA ZLINE refuses the connection the moment it opens: no host lookup, no ident,\nno services. For floods and known bad ranges. /ZLINE does the same.\nExample: /os zline add +1d 198.51.100.0/24 flood", osNetBan(store.BanZline)},
+		"SNLINE": {"SNLINE ADD|DEL|LIST|VIEW|CLEAR ...", "ban by realname",
+			"SNLINE ADD [+expiry] <realname-mask|/regex/|nick> <reason>\nSNLINE DEL|LIST|VIEW|CLEAR like AKILL.\nMatches the realname (gecos). Write spaces in a mask as ?, or use a /regex/\n(no case). A nick takes that person's realname. /RLINE does the same.\nExample: /os snline add *free?bitcoin* spam", osNetBan(store.BanSNLine)},
+		"SHUN": {"SHUN ADD|DEL|LIST|VIEW|CLEAR ...", "silence someone without disconnecting",
+			"SHUN ADD [+expiry] <user@host|nick> <reason>\nSHUN DEL|LIST|VIEW|CLEAR like AKILL.\nA shunned person stays connected but can only PART, QUIT and answer PINGs;\nevery other command is quietly dropped. /SHUN does the same.", osNetBan(store.BanShun)},
+		"SQLINE": {"SQLINE ADD|DEL|LIST|CLEAR ...", "nicks nobody may use",
+			"SQLINE ADD [+expiry] <nick-mask> [reason]\nSQLINE DEL <nick-mask>\nSQLINE LIST\nSQLINE CLEAR\nThe same list as FORBID NICK: nobody but opers may use or register a matching\nnick. /QLINE does the same.", osSQLine},
 		"KILL": {"KILL <nick> [reason]", "disconnect someone",
 			"Disconnects someone, with OperServ as the sender.", osKill},
 		"MODE": {"MODE #chan <modes>", "set channel modes as services",
 			"Sets modes on a channel without being an op there.\nExample: /os mode #bchat -i+b *!*@spam.example", osMode},
 		"KICK": {"KICK #chan <nick> <reason>", "kick as services", "Kicks someone with OperServ as the sender.", osKick},
 		"FORBID": {"FORBID ADD|DEL|LIST ...", "names nobody may use",
-			"FORBID ADD {NICK|CHAN|EMAIL|REGISTER} <name> [reason]\nFORBID DEL {NICK|CHAN|EMAIL|REGISTER} <name>\nFORBID LIST [NICK|CHAN|EMAIL|REGISTER]\nNICK: nobody but opers may use or register it. CHAN: nobody but opers may\njoin or register it. EMAIL: no account may use it. REGISTER: may be used, but\nnot registered. Names may hold * and ?, like *@mailinator.com or Guest*.", osForbid},
+			"FORBID ADD {NICK|CHAN|EMAIL|REGISTER} [+expiry] <name> [reason]\nFORBID DEL {NICK|CHAN|EMAIL|REGISTER} <name>\nFORBID LIST [NICK|CHAN|EMAIL|REGISTER]\nNICK: nobody but opers may use or register it. CHAN: nobody but opers may\njoin or register it. EMAIL: no account may use it. REGISTER: may be used, but\nnot registered. Names may hold * and ?, like *@mailinator.com or Guest*.", osForbid},
 		"SESSION": {"SESSION [LIST <threshold> | VIEW <ip>]", "connections per IP",
 			"SESSION                 the limit and the busiest IPs\nSESSION LIST <n>        every IP with at least n connections\nSESSION VIEW <ip>       how many connections an IP has, and its limit\nChange the limit: /as set session-limit <n>. Exceptions: /os exception", osSession},
 		"EXCEPTION": {"EXCEPTION ADD|DEL|LIST|VIEW ...", "IPs allowed more connections",
-			"EXCEPTION ADD <ip-mask> <limit> [reason]\nEXCEPTION DEL {<ip-mask> | <num> | <list>}\nEXCEPTION LIST [<ip-mask> | <list>]\nEXCEPTION VIEW [<ip-mask> | <list>]   with who set it and when\nExample: /os exception add 192.168.50.* 20 home network", osException},
+			"EXCEPTION ADD [+expiry] <ip-mask> <limit> [reason]   the mask may be CIDR\nEXCEPTION DEL {<ip-mask> | <num> | <list>}\nEXCEPTION LIST [<ip-mask> | <list>]\nEXCEPTION VIEW [<ip-mask> | <list>]   with who set it and when\nEXCEPTION BAN ADD|DEL|LIST|VIEW|CLEAR ...   ELINEs: user@host masks no AKILL,\n    ZLINE, SNLINE or SHUN applies to (and no DNSBL). /ELINE does the same.\nExample: /os exception add 192.168.50.0/24 20 home network", osException},
 		"LOGONNEWS": {"LOGONNEWS ADD|DEL|LIST ...", "lines shown after the MOTD",
 			"LOGONNEWS ADD <text>\nLOGONNEWS DEL {<num> | ALL}\nLOGONNEWS LIST\nEveryone sees the news when they connect, from Global.", osNews},
 	}
@@ -97,6 +105,10 @@ func osStats(s *Services, c *Client, args []string) {
 	s.os(c, "  Channels   %d open, %d registered", s.net.ChannelCount(), regChans)
 	s.os(c, "  Accounts   %d (%s), %s", accounts, plural(nicks, "nick"), plural(memos, "memo"))
 	s.os(c, "  AKILLs     %d", len(s.liveAkills()))
+	if n := len(s.liveBans(store.BanZline)) + len(s.liveBans(store.BanSNLine)) + len(s.liveBans(store.BanShun)) + len(s.liveBans(store.BanEline)); n > 0 {
+		s.os(c, "  Other bans ZLINE %d, SNLINE %d, SHUN %d, ELINE %d", len(s.liveBans(store.BanZline)), len(s.liveBans(store.BanSNLine)),
+			len(s.liveBans(store.BanShun)), len(s.liveBans(store.BanEline)))
+	}
 	s.os(c, "  Servers    1")
 	s.os(c, "  Loop       %s", hs.Loop)
 	if !strings.EqualFold(argAt(args, 0), "ALL") {
@@ -135,39 +147,6 @@ func osGlobal(s *Services, c *Client, args []string) {
 	s.os(c, "Sent to everyone online (%s).", plural(n, "person"))
 }
 
-// liveAkills are the AKILLs that haven't run out.
-func (s *Services) liveAkills() []store.Akill {
-	now := time.Now()
-	var out []store.Akill
-	for _, k := range s.akills {
-		if k.Expires.IsZero() || now.Before(k.Expires) {
-			out = append(out, k)
-		}
-	}
-	return out
-}
-
-// akillMask turns a nick, host or user@host into a user@host mask.
-func (s *Services) akillMask(arg string) (string, string) {
-	if !strings.Contains(arg, "@") {
-		if u := s.net.UserByNick(arg); u != nil && !u.Service && u.IP != "" {
-			return "*@" + irc.DisplayIP(u.IP), ""
-		}
-		if irc.ValidNick(arg, s.cfg.Limits.NickLen) && !strings.ContainsAny(arg, ".*?:") {
-			return "", arg + " isn't online. Give a mask like *@203.0.113.5 instead."
-		}
-		arg = "*@" + arg
-	}
-	user, host, _ := strings.Cut(arg, "@")
-	if user == "" || host == "" || strings.ContainsAny(arg, "! ,") || strings.Count(arg, "@") > 1 {
-		return "", "A mask looks like *@203.0.113.* or ~bot@*.example.net."
-	}
-	if strings.Trim(host, "*?.:") == "" {
-		return "", "That mask matches everyone. Give a narrower one."
-	}
-	return strings.ToLower(arg), ""
-}
-
 // parseExpiry reads Anope's "+7d" (and "+0" for until removed).
 func parseExpiry(arg string) (time.Duration, bool) {
 	if !strings.HasPrefix(arg, "+") {
@@ -181,153 +160,6 @@ func parseExpiry(arg string) (time.Duration, bool) {
 		return 0, false
 	}
 	return d, true
-}
-
-func osAkill(s *Services, c *Client, args []string) {
-	if !s.needFlag(c, s.operServ, 'k') {
-		return
-	}
-	sub := strings.ToUpper(argAt(args, 0))
-	live := s.liveAkills()
-	switch sub {
-	case "ADD":
-		rest := args[1:]
-		var life time.Duration
-		if len(rest) > 0 && strings.HasPrefix(rest[0], "+") {
-			d, ok := parseExpiry(rest[0])
-			if !ok {
-				s.os(c, "%s isn't a time. Use +30m, +12h, +7d, or leave it out for until removed.", rest[0])
-				return
-			}
-			life, rest = d, rest[1:]
-		}
-		if len(rest) < 2 {
-			s.os(c, "Syntax: AKILL ADD [+expiry] <user@host|nick> <reason>")
-			return
-		}
-		mask, problem := s.akillMask(rest[0])
-		if problem != "" {
-			s.os(c, "%s", problem)
-			return
-		}
-		u := c.user
-		if irc.Match(mask, u.Ident+"@"+u.RealHost) || irc.Match(mask, u.Ident+"@"+u.IP) || irc.Match(mask, u.Ident+"@"+u.Host) {
-			s.os(c, "%s matches you. Give a narrower one.", mask)
-			return
-		}
-		var hits []*Client
-		people := 0
-		for _, oc := range s.clients {
-			if oc.closed {
-				continue
-			}
-			people++
-			ou := oc.user
-			if irc.Match(mask, ou.Ident+"@"+ou.RealHost) || irc.Match(mask, ou.Ident+"@"+ou.IP) || irc.Match(mask, ou.Ident+"@"+ou.Host) {
-				hits = append(hits, oc)
-			}
-		}
-		if len(hits) > 1 && len(hits) == people {
-			s.os(c, "%s matches everyone online. Give a narrower one.", mask)
-			return
-		}
-		now := time.Now()
-		k := store.Akill{Mask: mask, Reason: irc.Truncate(strings.Join(rest[1:], " "), 200), SetBy: u.Nick, SetAt: now}
-		if life > 0 {
-			k.Expires = now.Add(life)
-		}
-		if err := s.store.AddAkill(k); err != nil {
-			s.dbErr(c, s.operServ, err)
-			return
-		}
-		s.reloadOperData()
-		how := "until removed"
-		if life > 0 {
-			how = "for " + durWords(life)
-		}
-		s.audit(c, s.operServ, "AKILL ADD %s %s (%s)", mask, how, k.Reason)
-		for _, oc := range hits {
-			s.reply(oc, irc.ErrYoureBannedCreep, "You are banned from this network: "+k.Reason)
-			s.quit(oc, "Banned: "+k.Reason)
-		}
-		s.os(c, "AKILL added: %s %s (%s). %s removed.", mask, how, k.Reason, plural(len(hits), "person"))
-	case "DEL":
-		arg := argAt(args, 1)
-		if arg == "" {
-			s.os(c, "Syntax: AKILL DEL {<mask> | <num> | <list>}")
-			return
-		}
-		var masks []string
-		if nums, isList := numList(arg, len(live)); isList {
-			for _, n := range nums {
-				masks = append(masks, live[n-1].Mask)
-			}
-		} else {
-			m := strings.ToLower(arg)
-			if !strings.Contains(m, "@") {
-				m = "*@" + m
-			}
-			masks = []string{m}
-		}
-		var gone []string
-		for _, m := range masks {
-			ok, err := s.store.DelAkill(m)
-			if err != nil {
-				s.dbErr(c, s.operServ, err)
-				return
-			}
-			if ok {
-				gone = append(gone, m)
-			}
-		}
-		if len(gone) == 0 {
-			s.os(c, "No AKILL on %s. See them all: /os akill list", arg)
-			return
-		}
-		s.reloadOperData()
-		s.audit(c, s.operServ, "AKILL DEL %s", strings.Join(gone, " "))
-		if len(gone) == 1 {
-			s.os(c, "AKILL on %s removed.", gone[0])
-		} else {
-			s.os(c, "%s removed: %s.", plural(len(gone), "AKILL"), strings.Join(gone, ", "))
-		}
-	case "LIST", "VIEW":
-		show := pickEntries(argAt(args, 1), len(live), func(i int) string { return live[i].Mask })
-		if len(show) == 0 {
-			s.os(c, "No AKILLs.")
-			return
-		}
-		s.os(c, "AKILLs:")
-		for n, i := range show {
-			if n == maxAkillList {
-				break
-			}
-			k := live[i]
-			left := "until removed"
-			if !k.Expires.IsZero() {
-				left = durWords(time.Until(k.Expires)+30*time.Second) + " left"
-			}
-			if sub == "VIEW" {
-				s.os(c, "  %-3d %s  set by %s, %s · %s · %s", i+1, k.Mask, k.SetBy, showTime(k.SetAt), left, k.Reason)
-			} else {
-				s.os(c, "  %-3d %s  by %s · %s · %s", i+1, k.Mask, k.SetBy, left, k.Reason)
-			}
-		}
-		s.os(c, "%s.", plural(len(show), "AKILL"))
-	case "CLEAR":
-		for _, k := range s.akills {
-			if _, err := s.store.DelAkill(k.Mask); err != nil {
-				s.dbErr(c, s.operServ, err)
-				return
-			}
-		}
-		n := len(live)
-		s.reloadOperData()
-		s.audit(c, s.operServ, "AKILL CLEAR (%d)", n)
-		s.os(c, "Every AKILL is removed (%d).", n)
-	default:
-		s.os(c, "Syntax: AKILL ADD|DEL|LIST|VIEW|CLEAR ... (/os help akill)")
-	}
 }
 
 func osKill(s *Services, c *Client, args []string) {
@@ -424,7 +256,17 @@ func osForbid(s *Services, c *Client, args []string) {
 	case (sub == "ADD" || sub == "DEL") && (!kindOK || name == ""):
 		s.os(c, "Syntax: FORBID %s {NICK|CHAN|EMAIL|REGISTER} <name>%s", sub, map[bool]string{true: " [reason]"}[sub == "ADD"])
 	case sub == "ADD":
-		osForbidAdd(s, c, kind, name, strings.Join(args[3:], " "))
+		rest := args[2:]
+		var life time.Duration
+		if strings.HasPrefix(name, "+") {
+			d, ok := parseExpiry(name)
+			if !ok || len(rest) < 2 {
+				s.os(c, "Syntax: FORBID ADD %s [+expiry] <name> [reason], expiry like +30m, +12h, +7d", strings.ToUpper(kind))
+				return
+			}
+			life, rest = d, rest[1:]
+		}
+		osForbidAdd(s, c, kind, rest[0], strings.Join(rest[1:], " "), life)
 	case sub == "DEL":
 		gone, err := s.store.DelForbid(kind, name)
 		if err != nil {
@@ -443,7 +285,7 @@ func osForbid(s *Services, c *Client, args []string) {
 	}
 }
 
-func osForbidAdd(s *Services, c *Client, kind, name, reason string) {
+func osForbidAdd(s *Services, c *Client, kind, name, reason string, life time.Duration) {
 	wild := strings.ContainsAny(name, "*?")
 	switch kind {
 	case store.ForbidNick, store.ForbidRegister:
@@ -480,7 +322,11 @@ func osForbidAdd(s *Services, c *Client, kind, name, reason string) {
 		reason = "Not allowed here"
 	}
 	reason = irc.Truncate(reason, 200)
-	added, err := s.store.AddForbid(kind, store.Forbid{Name: name, Reason: reason, SetBy: c.user.Nick, SetAt: time.Now()})
+	f := store.Forbid{Name: name, Reason: reason, SetBy: c.user.Nick, SetAt: time.Now()}
+	if life > 0 {
+		f.Expires = f.SetAt.Add(life)
+	}
+	added, err := s.store.AddForbid(kind, f)
 	if err != nil {
 		s.dbErr(c, s.operServ, err)
 		return
@@ -490,7 +336,11 @@ func osForbidAdd(s *Services, c *Client, kind, name, reason string) {
 		return
 	}
 	s.reloadOperData()
-	s.audit(c, s.operServ, "FORBID ADD %s %s (%s)", strings.ToUpper(kind), name, reason)
+	how := ""
+	if life > 0 {
+		how = " for " + durWords(life)
+	}
+	s.audit(c, s.operServ, "FORBID ADD %s %s%s (%s)", strings.ToUpper(kind), name, how, reason)
 	switch kind {
 	case store.ForbidNick:
 		for _, oc := range s.clients {
@@ -551,7 +401,11 @@ func osForbidList(s *Services, c *Client, kindArg string) {
 	sort.SliceStable(all, func(i, j int) bool { return irc.Fold(all[i].f.Name) < irc.Fold(all[j].f.Name) })
 	s.os(c, "Forbidden:")
 	for _, r := range all {
-		s.os(c, "  %-8s %-*s  by %s, %s · %s", strings.ToUpper(r.kind), width, r.f.Name, r.f.SetBy, r.f.SetAt.UTC().Format("2 Jan 2006"), r.f.Reason)
+		left := ""
+		if !r.f.Expires.IsZero() {
+			left = durWords(time.Until(r.f.Expires)+30*time.Second) + " left · "
+		}
+		s.os(c, "  %-8s %-*s  by %s, %s · %s%s", strings.ToUpper(r.kind), width, r.f.Name, r.f.SetBy, r.f.SetAt.UTC().Format("2 Jan 2006"), left, r.f.Reason)
 	}
 	s.os(c, "%s.", plural(len(all), "entry"))
 }
@@ -642,16 +496,33 @@ func osException(s *Services, c *Client, args []string) {
 		return
 	}
 	sub := strings.ToUpper(argAt(args, 0))
+	if sub == "BAN" {
+		s.netBanCommand(c, banKinds[store.BanEline], args[1:])
+		return
+	}
 	list := s.sessionExcepts
 	switch sub {
 	case "ADD":
-		mask := strings.ToLower(argAt(args, 1))
-		n, err := strconv.Atoi(argAt(args, 2))
-		if mask == "" || err != nil || n < 1 || n > 10000 || strings.ContainsAny(mask, "@! ") {
-			s.os(c, "Syntax: EXCEPTION ADD <ip-mask> <limit> [reason], like 192.168.50.* 20")
+		rest := args[1:]
+		var life time.Duration
+		if len(rest) > 0 && strings.HasPrefix(rest[0], "+") {
+			d, ok := parseExpiry(rest[0])
+			if !ok {
+				s.os(c, "%s isn't a time. Use +30m, +12h, +7d, or leave it out for until removed.", rest[0])
+				return
+			}
+			life, rest = d, rest[1:]
+		}
+		mask := strings.ToLower(argAt(rest, 0))
+		n, err := strconv.Atoi(argAt(rest, 1))
+		if mask == "" || err != nil || n < 1 || n > 10000 || strings.ContainsAny(mask, "@! ") || strings.Contains(mask, "/") && !irc.IsCIDR(mask) {
+			s.os(c, "Syntax: EXCEPTION ADD [+expiry] <ip-mask> <limit> [reason], like 192.168.50.* 20")
 			return
 		}
-		e := store.SessionExcept{Mask: mask, Max: n, Reason: irc.Truncate(strings.Join(args[3:], " "), 200), SetBy: c.user.Nick, SetAt: time.Now()}
+		e := store.SessionExcept{Mask: mask, Max: n, Reason: irc.Truncate(strings.Join(rest[2:], " "), 200), SetBy: c.user.Nick, SetAt: time.Now()}
+		if life > 0 {
+			e.Expires = e.SetAt.Add(life)
+		}
 		if err := s.store.SaveSessionExcept(e); err != nil {
 			s.dbErr(c, s.operServ, err)
 			return
