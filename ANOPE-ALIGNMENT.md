@@ -338,3 +338,9 @@ Services Root); [[operclass]] blocks add or replace them (AS CLASS).
 Anope's OS OPER LIST/INFO/ADD/DEL work on the same list (ADD/DEL need flag
 a and answer from AdminServ). Not built: Anope OS LOGIN/LOGOUT (our /oper
 already asks for the oper password), Unreal snomasks.
+
+## Stage 1.5.9b NickServ wording (12 Nov 2026)
+
+- Nick protection now sends Anope 2.0.20's own lines (language.h, nickserv.cpp Validate): NICK_IS_SECURE (three lines) or NICK_IS_REGISTERED (two lines), then "If you do not change within <duration>, I will change your nick." (kill / kill quick), or FORCENICKCHANGE_NOW "This nickname has been registered; you may not use it." for KILL IMMED. Bold and underline as Anope sends them.
+- IDENTIFY success: "Password accepted - you are now recognized." (ns_identify.cpp).
+- **Deliberate difference (owner, 12 Nov 2026):** IDENTIFY when already identified keeps BeeIRCd's "You're already identified as <account>." instead of Anope's "You are already identified.".

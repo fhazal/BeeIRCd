@@ -516,21 +516,37 @@ func (s *Services) nickCheck(c *Client) {
 		}
 		return
 	}
+	immed := a.Enforce && !onAccess && s.killMode(a) == store.KillImmed
+	if !immed {
+		s.nickIsRegistered(c, a)
+	}
 	if !a.Enforce || onAccess {
-		s.ns(c, "%s is a registered nick. If it's yours: /ns identify <password>", u.Nick)
 		return
 	}
-	if s.killMode(a) == store.KillImmed {
-		s.ns(c, "%s is a registered nick, and you may not use it.", u.Nick)
+	if immed {
+		s.ns(c, "This nickname has been registered; you may not use it.")
 		guest := s.guestNick()
 		s.forceNick(c, guest)
 		s.ns(c, "Your nick was changed to %s.", guest)
 		return
 	}
 	wait := s.killDelay(a)
-	s.ns(c, "%s is a registered nick. Identify within %d seconds: /ns identify <password>", u.Nick, int(wait.Seconds()))
+	s.ns(c, "If you do not change within %s, I will change your nick.", anopeDuration(wait))
 	c.enforceAt = time.Now().Add(wait)
 	c.enforceNick = u.Nick
+}
+
+// nickIsRegistered is Anope 2.0.20's NICK_IS_SECURE / NICK_IS_REGISTERED
+// (language.h), one notice per line as Anope sends them.
+func (s *Services) nickIsRegistered(c *Client, a *store.Account) {
+	if a.Secure {
+		s.ns(c, "This nickname is registered and protected.  If it is your")
+		s.ns(c, "nick, type \x02/msg NickServ IDENTIFY \x1fpassword\x1f\x02.  Otherwise,")
+		s.ns(c, "please choose a different nick.")
+		return
+	}
+	s.ns(c, "This nick is owned by someone else.  Please choose another.")
+	s.ns(c, "(If this is your nick, type \x02/msg NickServ IDENTIFY \x1fpassword\x1f\x02.)")
 }
 
 // enforce renames someone who didn't identify in time.

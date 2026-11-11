@@ -225,7 +225,7 @@ func nsIdentify(s *Services, c *Client, args []string) {
 			return
 		}
 		s.nsLogCmd(c, "and identified for account %s", fresh.Name) // before login: Anope's line shows the account the user had when asking
-		s.ns(c, "Password accepted. You are identified as %s.", fresh.Name)
+		s.ns(c, "Password accepted - you are now recognized.")     // Anope 2.0.20 ns_identify
 		s.login(c, fresh)
 	})
 }

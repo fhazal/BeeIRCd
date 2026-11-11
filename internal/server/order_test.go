@@ -37,7 +37,7 @@ func TestIdentifyThenJoinKeepsOrder(t *testing.T) {
 	other.expect("PONG irc.test.local :other")
 	// expect() skips lines it doesn't want, so each step below fails if
 	// its line came before the one in the step above.
-	bee.expect(nsLine("Bee", "Password accepted. You are identified as Bee."))
+	bee.expect(nsLine("Bee", "Password accepted - you are now recognized."))
 	bee.expect(" 366 Bee #reg ") // +R: only possible after IDENTIFY
 	bee.expect("PONG irc.test.local :after-identify")
 }

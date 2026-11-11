@@ -38,7 +38,7 @@ func identified(t *testing.T, s *Server, nick string) *tc {
 	t.Helper()
 	c := login(t, s, nick)
 	c.send("NS IDENTIFY " + pw)
-	c.expect(nsLine(nick, "Password accepted. You are identified as "+nick+"."))
+	c.expect(nsLine(nick, "Password accepted - you are now recognized."))
 	c.expect(" 900 " + nick + " ")
 	return c
 }
@@ -72,11 +72,11 @@ func TestRegisterAndIdentify(t *testing.T) {
 	bee.expect("ERROR")
 
 	again := login(t, s, "Bee")
-	again.expect(nsLine("Bee", "Bee is a registered nick. Identify within 60 seconds: /ns identify <password>"))
+	again.expect(nsLine("Bee", "If you do not change within 1 minute, I will change your nick."))
 	again.send("NS IDENTIFY wrongpass")
 	again.expect(nsLine("Bee", "Wrong password for Bee."))
 	again.send("NICKSERV IDENTIFY " + pw)
-	again.expect(nsLine("Bee", "Password accepted. You are identified as Bee."))
+	again.expect(nsLine("Bee", "Password accepted - you are now recognized."))
 	again.expect(" 900 Bee ")
 	again.send("NS INFO")
 	again.expect(nsLine("Bee", "  Email         bee@example.org")) // the owner sees it
@@ -104,7 +104,7 @@ func TestEnforce(t *testing.T) {
 	friend := login(t, s, "friend")
 	joinAll("#a", friend)
 	impostor := login(t, s, "Bee")
-	impostor.expect(nsLine("Bee", "Bee is a registered nick. Identify within 0 seconds"))
+	impostor.expect(nsLine("Bee", "If you do not change within 0 seconds, I will change your nick."))
 	joinAll("#a", impostor)
 	l := impostor.expect(" NICK Guest")
 	guest := l[strings.LastIndex(l, " ")+1:]
@@ -116,7 +116,7 @@ func TestEnforce(t *testing.T) {
 
 	// Changing to a registered nick later is enforced too; identifying stops it.
 	impostor.send("NICK Bee")
-	impostor.expect("Identify within")
+	impostor.expect("If you do not change within")
 	impostor.send("NS IDENTIFY " + pw)
 	impostor.expect(" 900 Bee ")
 	time.Sleep(time.Second)
@@ -164,7 +164,7 @@ func TestGhostRecoverGroupUngroup(t *testing.T) {
 	x.send("NS UNGROUP")
 	x.expect(nsLine("Bee", "Your nick isn't grouped with any other, so you can't ungroup it."))
 	me.send("NS IDENTIFY Bee_ " + pw)
-	me.expect(nsLine("Bee_", "Password accepted. You are identified as Bee_."))
+	me.expect(nsLine("Bee_", "Password accepted - you are now recognized."))
 	// Ungrouping the account's name: the account takes its next nick's name.
 	me.send("NICK Bee_two")
 	me.expect("NICK Bee_two")
@@ -221,7 +221,7 @@ func TestSetAndDrop(t *testing.T) {
 	bee.expect("ERROR")
 
 	again := login(t, s, "Bee")
-	again.expect(nsLine("Bee", "Bee is a registered nick. If it's yours: /ns identify <password>"))
+	again.expect(nsLine("Bee", "This nickname is registered and protected.  If it is your"))
 	again.quiet("identified as Bee because")
 	other := login(t, s, "x")
 	other.send("NS INFO Bee")
@@ -229,7 +229,7 @@ func TestSetAndDrop(t *testing.T) {
 	other.quiet("off to the meadow")
 	other.send("NICK Bee_")
 	other.send("NS IDENTIFY Bee newhoney99")
-	other.expect(nsLine("Bee_", "Password accepted. You are identified as Bee."))
+	other.expect(nsLine("Bee_", "Password accepted - you are now recognized."))
 	other.send("NS INFO Bee")
 	other.expect(nsLine("Bee_", "  Options       security, private, auto-op, quit hidden"))
 	// Shown only while nobody uses the account.
@@ -326,7 +326,7 @@ func TestSASL(t *testing.T) {
 	if l := k.expect(" 900 Cee "); !strings.Contains(l, "@beenet-") {
 		t.Errorf("900 shows the real host: %s", l)
 	}
-	c.quiet("is a registered nick") // no nag: already identified
+	c.quiet("registered and protected") // no nag: already identified
 	c.send("WHOIS Bee")
 	c.expect(" 330 Bee Bee Bee :is logged in as")
 }

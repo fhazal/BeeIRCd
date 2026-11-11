@@ -117,7 +117,13 @@ func (s *Server) deoper(c *Client, why string) {
 	c.operFlags, c.operTitle, c.operAccount, c.operSwhois, c.operClass = "", "", 0, nil, ""
 	delete(s.opers, c)
 	s.showOperVhost(c, "")
-	s.emit(&state.UserMode{UID: u.UID, Changes: umodes(false, "os")})
+	gone := "os"
+	for _, m := range []byte(operOnlyModes) {
+		if u.Modes[m] {
+			gone += string(m)
+		}
+	}
+	s.emit(&state.UserMode{UID: u.UID, Changes: umodes(false, gone)})
 	if why != "" {
 		s.notice(c, "*** "+why)
 	}

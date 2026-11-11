@@ -144,7 +144,7 @@ func TestServicesForUsersOnAnotherServer(t *testing.T) {
 	other := &state.User{UID: "1LFAAAAAB", Nick: "Bee", Ident: "~x", Host: "x", Server: "leaf.test", Modes: map[byte]bool{}}
 	h.Emit(&state.UserAdd{User: other})
 	svc.Flush()
-	h.waitFor("Bee", "is a registered nick")
+	h.waitFor("Bee", "registered and protected")
 	svc.Tick(time.Now().Add(2 * time.Minute)) // past the identify deadline
 	if other.Nick == "Bee" {
 		t.Errorf("unidentified user kept the registered nick")

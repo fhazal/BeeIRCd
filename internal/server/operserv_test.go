@@ -466,7 +466,7 @@ func TestOperServNickAndChanTools(t *testing.T) {
 	b.expect(nsLine("Boss", "founder's password is changed."))
 	f.send("NS LOGOUT")
 	f.send("NS IDENTIFY newpass99")
-	f.expect("Password accepted.")
+	f.expect("Password accepted - you are now recognized.")
 	b.send("NS SASET HIDE founder STATUS ON")
 	b.expect(nsLine("Boss", "founder's oper status is hidden from others in INFO."))
 	b.expect("Boss used NickServ: SASET HIDE founder")

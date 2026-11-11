@@ -61,6 +61,20 @@ var helpTopics = map[string][]string{
 	"AUTHENTICATE": {"AUTHENTICATE <mechanism|data>", "SASL login (PLAIN or EXTERNAL); your client does this for you."},
 	"CAP":          {"CAP LS|REQ|END [...]", "Asks for IRCv3 capabilities; your client does this for you."},
 	"CHMODES":      chmodesHelp,
+	"UMODES":       umodesHelp,
+	"KNOCK":        {"KNOCK <#channel> [reason]", "Asks the ops of a +i, +k or full +l channel to let you in. Not on +K channels."},
+	"SILENCE":      {"SILENCE [+|-]<nick|mask>", "Ignores private messages, notices and invites from someone, on the server.", "SILENCE alone lists your entries (at most 32)."},
+	"SETNAME":      {"SETNAME <new real name>", "Changes your real name (at most 50 characters)."},
+	"CHGNAME":      {"CHGNAME <nick> <real name>", "Changes someone's real name (opers, flag h)."},
+	"SETHOST":      {"SETHOST <host>", "Changes your displayed host (opers, flag h)."},
+	"SETIDENT":     {"SETIDENT <ident>", "Changes your displayed username (opers, flag h)."},
+	"CHGHOST":      {"CHGHOST <nick> <host>", "Changes someone's displayed host (opers, flag h)."},
+	"CHGIDENT":     {"CHGIDENT <nick> <ident>", "Changes someone's displayed username (opers, flag h)."},
+	"SAJOIN":       {"SAJOIN <nick> <#channel[,#channel]>", "Makes someone join channels (opers, flag a)."},
+	"SAPART":       {"SAPART <nick> <#channel[,#channel]> [reason]", "Makes someone leave channels (opers, flag a)."},
+	"SANICK":       {"SANICK <nick> <newnick>", "Changes someone's nick (opers, flag a)."},
+	"SAMODE":       {"SAMODE <#channel|nick> <modes> [params]", "Changes modes without needing channel status (opers, flag a)."},
+	"SATOPIC":      {"SATOPIC <#channel> <topic>", "Sets a topic without needing channel status (opers, flag a)."},
 	"INFO":         {"INFO", "Shows what this server is, its version and licence."},
 	"INVITE":       {"INVITE <nick> <#channel>", "Invites someone to a channel."},
 	"ISON":         {"ISON <nick> [nick ...]", "Shows which of these nicks are online."},
@@ -116,11 +130,28 @@ func (s *Server) cmdHelp(c *Client, m irc.Message) {
 	s.reply(c, irc.RplEndOfHelp, subject, "End of /HELP")
 }
 
+// umodesHelp is HELP UMODES.
+var umodesHelp = []string{
+	"***** User modes *****",
+	"Anyone:",
+	" i invisible         w wallops            x cloaked host",
+	" B bot (WHOIS shows it)                   d deaf: no channel messages",
+	" D no private messages (opers still can)  R private messages only from",
+	"                                            identified users",
+	" T no CTCPs          p hide my channels in WHOIS",
+	" Z private messages only with TLS users",
+	"Opers:",
+	" H hide that I'm an oper                  W see who WHOISes me",
+	" q can't be kicked (flag a)               s server notices",
+	"Set by the server:",
+	" o oper    r identified    z connected with TLS",
+}
+
 // helpIndex is the HELP page without a topic.
 func helpIndex() []string {
 	var names []string
 	for n := range helpTopics {
-		if n != "CHMODES" {
+		if n != "CHMODES" && n != "UMODES" {
 			names = append(names, n)
 		}
 	}
@@ -132,7 +163,7 @@ func helpIndex() []string {
 		names = names[n:]
 	}
 	return append(lines,
-		"Other topics: CHMODES (channel modes).",
+		"Other topics: CHMODES (channel modes), UMODES (user modes).",
 		"Services: /ns help, /cs help, /ms help, /hs help, /os help, /as help")
 }
 

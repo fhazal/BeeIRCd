@@ -7,7 +7,7 @@ Status words: **Implemented** (built and tested), **Partial**, **Planned**
 Update this file in the same commit as the code that changes a status. A
 capability is advertised to clients only when it is Implemented.
 
-Last updated: 12 Nov 2026 (Stage 1.5.9a + protocol conformance step).
+Last updated: 12 Nov 2026 (Stage 1.5.9b).
 
 ## Core server
 
@@ -20,8 +20,14 @@ Last updated: 12 Nov 2026 (Stage 1.5.9a + protocol conformance step).
 | MOTD, LUSERS, VERSION, TIME, INFO | Implemented | INFO 371/374 (conformance step) |
 | Input limits | Implemented | lines over 510 bytes or tag sections over 4096 bytes get 417 and are dropped, not cut (IRCv3 message-tags; conformance step) |
 | User modes i w o s r x | Implemented | |
+| User modes B d D R T p Z (anyone), H W (opers), q (opers, flag a), z (TLS, set by the server) | Implemented | 1.5.9b; UnrealIRCd letters and rules: +B WHOIS 335 and B in WHO, 005 BOT=B; +d no channel messages; +D/+R/+T/+Z refuse PMs with 531 (opers get past +D +R +T); +p hides channels in WHOIS; +H hides oper status from non-opers; +W shows who WHOISes you; +q unkickable (972); -o drops H W q; HELP UMODES |
+| KNOCK | Implemented | 1.5.9b; +i, +k or full +l channels; refused on +K, when banned, or after 3 knocks a minute; ops get Unreal's `[Knock] by ...` notice; counts toward +f k |
+| SILENCE | Implemented | 1.5.9b; 005 SILENCE=32, UnrealIRCd 271/272/511; drops PMs, notices and invites quietly |
+| SETNAME, CHGNAME | Implemented | 1.5.9b; IRCv3 `setname` cap, FAIL SETNAME INVALID_REALNAME over 50; CHGNAME for opers with flag h |
+| SETHOST, SETIDENT, CHGHOST, CHGIDENT | Implemented | 1.5.9b; opers with flag h, UnrealIRCd character rules; chghost cap and 396 |
+| SAJOIN, SAPART, SANICK, SAMODE, SATOPIC | Implemented | 1.5.9b; opers with flag a; server notices like UnrealIRCd/InspIRCd (not in the Anope log channel: Anope never sees these) |
 | Channel modes o v b e I k l i m n p s t R M r | Implemented | |
-| Channel modes c S C T N K V Q z Z D P O | Implemented | 1.5.9a; UnrealIRCd letters and rules; +K matters once KNOCK lands (1.5.9b) |
+| Channel modes c S C T N K V Q z Z D P O | Implemented | 1.5.9a; UnrealIRCd letters and rules; +K blocks KNOCK (1.5.9b) |
 | Flood guard +f `[10j#R10,40m#M10,...]:15` and +F profiles | Implemented | 1.5.9a; UnrealIRCd syntax, types c j k m n t r; server default profile `[channels] flood_profile` (normal), AS SET flood-profile; no p (paste) type |
 | +L link channel, +E repeat, +B caps, +J rejoin delay | Implemented | 1.5.9a; +L on +l +i +k +b +R +z like UnrealIRCd (3 hops at most); +E +B +J from InspIRCd |
 | ~f:#chan forward extban | Proposed | not in 1.5.9a |
@@ -56,7 +62,8 @@ Last updated: 12 Nov 2026 (Stage 1.5.9a + protocol conformance step).
 | chghost, invite-notify, multi-prefix, userhost-in-names | Implemented |
 | client tags typing, reply, react, channel-context | Implemented (relayed) |
 | MONITOR (MONITOR=100, numerics 730-734) | Implemented (1.5.6a) |
-| standard-replies, extended-monitor, WHOX, setname | Planned (phase 3) |
+| setname | Implemented (1.5.9b) |
+| standard-replies, extended-monitor, WHOX | Planned (phase 3) |
 | bot mode, UTF8ONLY, no-implicit-names | Planned (phase 3) |
 | account-extban | Implemented (1.5.5a, EXTBAN=~,amqrt; ACCOUNTEXTBAN=a token since the conformance step) |
 | STS | Planned (step 7) |

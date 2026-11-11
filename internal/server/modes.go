@@ -94,11 +94,29 @@ func (s *Server) setUserModes(c *Client, srcUID, modeStr string) bool {
 		case 'o':
 			if !add && cur['o'] { // anyone may drop oper, nobody may take it here
 				flip('o', false)
-				if cur['s'] {
-					flip('s', false)
+				for _, m := range []byte("s" + operOnlyModes) {
+					if cur[m] {
+						flip(m, false)
+					}
 				}
 				deopered = true
 			}
+		case 'B', 'd', 'D', 'R', 'T', 'p', 'Z':
+			if cur[mc] != add {
+				flip(mc, add)
+			}
+		case 'H', 'W':
+			// Opers only (UnrealIRCd): hide oper status, see who WHOISes you.
+			if cur[mc] != add && (!add || c.isOper() && !deopered) {
+				flip(mc, add)
+			}
+		case 'q':
+			// Unkickable: opers with flag a only (UnrealIRCd self:unkickablemode).
+			if cur[mc] != add && (!add || c.can('a') && !deopered) {
+				flip(mc, add)
+			}
+		case 'z':
+			// Set by the server for TLS connections; nobody changes it.
 		case 's':
 			if c.isOper() && !deopered && cur['s'] != add {
 				flip('s', add)

@@ -285,6 +285,10 @@ func (s *Server) kick(c *Client, name string, nicks []string, reason string) {
 			s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You can't kick "+t.Nick+": it is a network service")
 			continue
 		}
+		if t.HasMode('q') && t != u && !c.can('a') {
+			s.reply(c, irc.ErrCannotDoCommand, "KICK", "user is unkickable (user mode +q)")
+			continue
+		}
 		if t != u && !canKick(mem, tm) {
 			s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You can't kick "+t.Nick+": their channel status protects them")
 			continue
@@ -325,6 +329,9 @@ func (s *Server) cmdInvite(c *Client, m irc.Message) {
 	s.replyBare(c, irc.RplInviting, t.Nick, name)
 	if t.Away != "" {
 		s.reply(c, irc.RplAway, t.Nick, t.Away)
+	}
+	if s.silenced(t, u) {
+		return // SILENCE: the invite is dropped quietly
 	}
 	s.emit(&state.Invite{Source: u.UID, UID: t.UID, Channel: name})
 }

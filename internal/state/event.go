@@ -129,6 +129,12 @@ type HostChange struct {
 	Ident string
 }
 
+// RealnameChange sets a user's real name (SETNAME, CHGNAME).
+type RealnameChange struct {
+	UID      string
+	Realname string
+}
+
 // Invite lets UID past +i, +k and +l of a channel once. Source invited.
 // The channel need not exist.
 type Invite struct {
@@ -137,20 +143,21 @@ type Invite struct {
 	Channel string
 }
 
-func (*UserAdd) event()     {}
-func (*UserQuit) event()    {}
-func (*NickChange) event()  {}
-func (*Join) event()        {}
-func (*Part) event()        {}
-func (*Kick) event()        {}
-func (*Topic) event()       {}
-func (*ChannelMode) event() {}
-func (*UserMode) event()    {}
-func (*Away) event()        {}
-func (*Login) event()       {}
-func (*HostChange) event()  {}
-func (*Invite) event()      {}
-func (*Reveal) event()      {}
+func (*UserAdd) event()        {}
+func (*UserQuit) event()       {}
+func (*NickChange) event()     {}
+func (*Join) event()           {}
+func (*Part) event()           {}
+func (*Kick) event()           {}
+func (*Topic) event()          {}
+func (*ChannelMode) event()    {}
+func (*UserMode) event()       {}
+func (*Away) event()           {}
+func (*Login) event()          {}
+func (*HostChange) event()     {}
+func (*RealnameChange) event() {}
+func (*Invite) event()         {}
+func (*Reveal) event()         {}
 
 // Errors from Apply.
 var (
@@ -265,6 +272,12 @@ func (n *Network) Apply(ev Event) error {
 				u.RealIdent = ""
 			}
 		}
+	case *RealnameChange:
+		u := n.users[e.UID]
+		if u == nil {
+			return ErrNoSuchUser
+		}
+		u.Realname = e.Realname
 	case *Invite:
 		if n.users[e.UID] == nil {
 			return ErrNoSuchUser
@@ -536,6 +549,9 @@ func CopyEvent(ev Event) Event {
 		cp := *e
 		return &cp
 	case *HostChange:
+		cp := *e
+		return &cp
+	case *RealnameChange:
 		cp := *e
 		return &cp
 	case *Invite:

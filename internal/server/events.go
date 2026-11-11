@@ -196,6 +196,16 @@ func (s *Server) prepare(ev state.Event) func() {
 		o := s.out(u, "CHGHOST", ident, e.Host)
 		o.needCap = "chghost"
 		return func() { s.toNeighbours(u, o, true) }
+	case *state.RealnameChange:
+		u := s.net.UserByUID(e.UID)
+		if u == nil || u.Realname == e.Realname {
+			return nil
+		}
+		return func() {
+			o := s.out(u, "SETNAME", e.Realname).text()
+			o.needCap = "setname"
+			s.toNeighbours(u, o, true)
+		}
 	case *state.Invite:
 		return func() {
 			t := s.net.UserByUID(e.UID)

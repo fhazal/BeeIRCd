@@ -66,8 +66,11 @@ func (s *Server) whoLine(c *Client, channel string, u *state.User, prefix string
 	if u.Away != "" {
 		flags = "G"
 	}
-	if u.HasMode('o') {
+	if u.HasMode('o') && (!u.HasMode('H') || u == c.user || c.isOper()) {
 		flags += "*"
+	}
+	if u.HasMode('B') {
+		flags += "B"
 	}
 	flags += prefix
 	s.reply(c, irc.RplWhoReply, channel, u.Ident, u.Host, u.Server, u.Nick, flags, "0 "+u.Realname)
@@ -94,9 +97,12 @@ func (s *Server) cmdWhois(c *Client, m irc.Message) {
 		if u.Away != "" {
 			s.reply(c, irc.RplAway, u.Nick, u.Away)
 		}
+		if u.HasMode('B') {
+			s.reply(c, irc.RplWhoisBot, u.Nick, "is a Bot on "+s.cfg.Server.Network)
+		}
 		if u.Service {
 			s.reply(c, irc.RplWhoisOperator, u.Nick, "is a Network Service")
-		} else if tc := s.clientOf(u); tc != nil && tc.isOper() {
+		} else if tc := s.clientOf(u); tc != nil && tc.isOper() && (!u.HasMode('H') || u == c.user || c.isOper()) {
 			s.reply(c, irc.RplWhoisOperator, u.Nick, whoisOperText(tc.operTitle))
 			for _, line := range tc.operSwhois {
 				s.reply(c, irc.RplWhoisSpecial, u.Nick, line)
@@ -116,12 +122,21 @@ func (s *Server) cmdWhois(c *Client, m irc.Message) {
 			s.reply(c, irc.RplWhoisIdle, u.Nick, strconv.FormatInt(idle, 10), strconv.FormatInt(u.SignOn.Unix(), 10), "seconds idle, signon time")
 		}
 		s.reply(c, irc.RplEndOfWhois, u.Nick, "End of /WHOIS list.")
+		if u.HasMode('W') && u != c.user { // +W: opers see who looks them up
+			if tc := s.clientOf(u); tc != nil {
+				me := c.user
+				s.notice(tc, "*** "+me.Nick+" ("+me.TrueIdent()+"@"+me.RealHost+") did a /whois on you.")
+			}
+		}
 	}
 }
 
 // whoisChannels lists u's channels that c may see.
 func (s *Server) whoisChannels(c *Client, u *state.User) string {
 	asker := c.user
+	if u.HasMode('p') && asker != u && !c.isOper() {
+		return "" // +p: channels stay private (UnrealIRCd)
+	}
 	var out []string
 	for _, ch := range s.net.Channels() {
 		mem := ch.Member(u)

@@ -32,7 +32,7 @@ func TestNickServAccessSecureStatus(t *testing.T) {
 	x := login(t, s, "x")
 	joinAll("#bchat", x) // keeps #bchat open for the joins below
 	imp := login(t, s, "Bee")
-	imp.expect(nsLine("Bee", "Bee is a registered nick. If it's yours: /ns identify <password>"))
+	imp.expect(nsLine("Bee", "This nickname is registered and protected.  If it is your"))
 	time.Sleep(900 * time.Millisecond)
 	imp.quiet(" NICK Guest")
 	x.send("NS STATUS Bee x nobody")
@@ -96,7 +96,7 @@ func TestKillModes(t *testing.T) {
 	bee.send("NICK Bee_")
 	bee.expect(" NICK Bee_")
 	imp := login(t, s, "Bee")
-	imp.expect(nsLine("Bee", "Bee is a registered nick. Identify within 0 seconds"))
+	imp.expect(nsLine("Bee", "If you do not change within 0 seconds, I will change your nick."))
 	imp.expect(" NICK Guest")
 
 	bee.send("NICK Bee")
@@ -106,7 +106,7 @@ func TestKillModes(t *testing.T) {
 	bee.send("NICK Bee__")
 	bee.expect(" NICK Bee__")
 	imp2 := login(t, s, "Bee")
-	imp2.expect(nsLine("Bee", "Bee is a registered nick, and you may not use it."))
+	imp2.expect(nsLine("Bee", "This nickname has been registered; you may not use it."))
 	imp2.expect(" NICK Guest")
 }
 

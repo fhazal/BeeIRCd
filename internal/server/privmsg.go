@@ -94,7 +94,7 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 			}
 			o := build(status + ch.Name)
 			for _, mem := range ch.Members {
-				if mem.User == u {
+				if mem.User == u || mem.User.HasMode('d') { // +d: deaf to channel messages
 					continue
 				}
 				if status != "" && !mem.AtLeast(state.RankForPrefix(status[0])) {
@@ -112,9 +112,18 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 			fail(irc.ErrNoSuchNick, name, "No such nick/channel")
 			continue
 		}
+		if why := s.refusesMessage(c, t, verb, text); why != "" {
+			if !tagOnly {
+				fail(irc.ErrCantSendToUser, t.Nick, why)
+			}
+			continue
+		}
 		o := build(t.Nick)
 		if c.caps["echo-message"] {
 			c.deliver(o)
+		}
+		if s.silenced(t, u) {
+			continue // SILENCE: dropped without a word, like UnrealIRCd
 		}
 		if s.svc.IsBot(t) {
 			if verb == "PRIVMSG" {

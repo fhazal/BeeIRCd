@@ -65,6 +65,19 @@ func init() {
 		"HELP":         {0, false, (*Server).cmdHelp},
 		"INFO":         {0, false, (*Server).cmdInfo},
 		"WALLOPS":      {1, false, (*Server).cmdWallops},
+		"SILENCE":      {0, false, (*Server).cmdSilence},
+		"KNOCK":        {1, false, (*Server).cmdKnock},
+		"SETNAME":      {1, false, (*Server).cmdSetname},
+		"CHGNAME":      {2, false, (*Server).cmdChgname},
+		"SETHOST":      {1, false, (*Server).cmdSethost},
+		"SETIDENT":     {1, false, (*Server).cmdSetident},
+		"CHGHOST":      {2, false, (*Server).cmdChghost},
+		"CHGIDENT":     {2, false, (*Server).cmdChgident},
+		"SAJOIN":       {2, false, (*Server).cmdSajoin},
+		"SAPART":       {2, false, (*Server).cmdSapart},
+		"SANICK":       {2, false, (*Server).cmdSanick},
+		"SAMODE":       {2, false, (*Server).cmdSamode},
+		"SATOPIC":      {2, false, (*Server).cmdSatopic},
 	}
 }
 

@@ -316,5 +316,5 @@ func TestSuspendListGetEmailUpdate(t *testing.T) {
 	b.send("NS UNSUSPEND Bee")
 	b.expect(nsLine("Boss", "Nick Bee is not suspended."))
 	x.send("NS IDENTIFY " + pw)
-	x.expect("You are identified as Bee.")
+	x.expect("Password accepted - you are now recognized.")
 }

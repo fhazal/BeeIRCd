@@ -53,6 +53,8 @@ type Client struct {
 	saslAccount *store.Account    // SASL done before registration finished
 	certfp      string            // SHA-256 of the TLS client certificate, "" = none
 	monitor     map[string]string // MONITOR list: folded nick -> nick as given
+	silence     []string          // SILENCE masks (nick!ident@host)
+	knocks      []time.Time       // recent KNOCKs, for the knock flood limit
 	operFlags   string            // oper flags like "acghks", "" when not an oper
 	operTitle   string
 	operClass   string    // oper class in use ("" = flags only)

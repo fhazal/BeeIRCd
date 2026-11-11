@@ -20,7 +20,7 @@ var capabilities = []string{
 	"account-notify", "account-tag", "away-notify", "batch", "cap-notify",
 	"chghost", "echo-message", "extended-join", "invite-notify",
 	"labeled-response", "message-tags", "multi-prefix", "sasl", "server-time",
-	"userhost-in-names",
+	"setname", "userhost-in-names",
 }
 
 // capLS is the CAP LS list; CAP 302 clients also see values.
@@ -236,6 +236,9 @@ func (s *Server) tryRegister(c *Client) {
 		u.Modes['x'] = true
 		u.Host = s.cloakFor(u)
 	}
+	if c.tls {
+		u.Modes['z'] = true // connected with TLS (UnrealIRCd +z)
+	}
 	a := c.saslAccount
 	c.saslAccount = nil
 	if a != nil {
@@ -304,7 +307,10 @@ func (s *Server) setHost(c *Client, host string) {
 	s.reply(c, irc.RplHostHidden, host, "is now your displayed host")
 }
 
-const userModes = "iorswx"
+const userModes = "BDHRTWZdiopqrswxz"
+
+// operOnlyModes go when someone stops being an oper.
+const operOnlyModes = "HWq"
 
 // rankEnabled reports whether this server uses rank r (owner, admin and
 // halfop exist only with prefixes "~&@%+").
@@ -365,6 +371,7 @@ func (s *Server) isupport() []string {
 	return []string{
 		"ACCOUNTEXTBAN=a",
 		"AWAYLEN=" + strconv.Itoa(l.AwayLen),
+		"BOT=B",
 		"CASEMAPPING=rfc1459",
 		"CHANLIMIT=#:" + strconv.Itoa(l.MaxChannels),
 		"CHANMODES=" + chanModesList + "," + chanModesKey + "," + chanModesParam + "," + chanModesFlags,
@@ -382,6 +389,7 @@ func (s *Server) isupport() []string {
 		"NETWORK=" + s.cfg.Server.Network,
 		"NICKLEN=" + strconv.Itoa(l.NickLen),
 		"PREFIX=(" + s.rankModes() + ")" + s.rankPrefixes(),
+		"SILENCE=" + strconv.Itoa(maxSilence),
 		"STATUSMSG=" + s.rankPrefixes(),
 		"TARGMAX=JOIN:,KICK:4,NAMES:1,NOTICE:4,PART:,PRIVMSG:4,WHOIS:1",
 		"TOPICLEN=" + strconv.Itoa(l.TopicLen),
