@@ -60,6 +60,10 @@ func csModeCommand(s *Services, c *Client, args []string) {
 			s.cs(c, "%s is empty right now.", reg.Name)
 			return
 		}
+		modes = s.statusAllowed(c, reg, modes)
+		if len(modes) == 0 {
+			return
+		}
 		s.csUsed(c, reg)
 		s.csLog(c, reg.Name, false, "to set %s", strings.Join(modes, " "))
 		s.host.ApplyChannelModes(c.user.UID, s.chanServ.user.UID, live.Name, modes[0], modes[1:])
@@ -860,4 +864,76 @@ func (s *Services) csOverflow(c *Client, reg *store.Channel, val string) {
 	if live = s.net.Channel(reg.Name); live != nil {
 		s.csMode(live, mlockChanges(reg, live))
 	}
+}
+
+// statusPrivs are the privileges a status mode needs in MODE SET, as in
+// Anope's cs_mode: OP to op others, OPME to op yourself, and so on.
+var statusPrivs = map[byte]string{'q': "OWNER", 'a': "PROTECT", 'o': "OP", 'h': "HALFOP", 'v': "VOICE"}
+
+// statusAllowed drops the status changes in a MODE SET that c's access
+// doesn't allow (Anope answers "Access denied." for each), and returns
+// the mode string and arguments left ("" modes = nothing left). Opers
+// with flag s may do all of them, like Anope's chanserv/administration.
+func (s *Services) statusAllowed(c *Client, reg *store.Channel, modes []string) []string {
+	if strings.IndexByte(s.host.OperFlags(c.user.UID), 's') >= 0 {
+		return modes
+	}
+	args := modes[1:]
+	var outModes []byte
+	var outArgs []string
+	add, sign := true, byte(0)
+	for i := 0; i < len(modes[0]); i++ {
+		m := modes[0][i]
+		if m == '+' || m == '-' {
+			add = m == '+'
+			continue
+		}
+		takesArg := strings.IndexByte("qaohvbeIk", m) >= 0 || (add && (m == 'l' || state.IsParamMode(m)))
+		arg := ""
+		if takesArg {
+			if len(args) == 0 {
+				continue
+			}
+			arg, args = args[0], args[1:]
+		}
+		if priv, ok := statusPrivs[m]; ok {
+			target := s.net.UserByNick(arg)
+			if target == nil {
+				s.cs(c, "Nick %s isn't currently in use.", arg)
+				continue
+			}
+			if target == c.user {
+				priv += "ME"
+			}
+			if !s.userHas(reg, c.user, priv) {
+				s.cs(c, "You do not have access to set mode %c.", m)
+				continue
+			}
+			if target != c.user {
+				switch {
+				case reg.Peace && s.userLevel(reg, target) >= s.userLevel(reg, c.user):
+					s.cs(c, "You do not have the access to change %s's modes.", target.Nick)
+					continue
+				case target.Service:
+					s.cs(c, "Access denied.")
+					continue
+				}
+			}
+		}
+		want := byte('-')
+		if add {
+			want = '+'
+		}
+		if sign != want {
+			outModes, sign = append(outModes, want), want
+		}
+		outModes = append(outModes, m)
+		if takesArg {
+			outArgs = append(outArgs, arg)
+		}
+	}
+	if len(strings.Trim(string(outModes), "+-")) == 0 {
+		return nil
+	}
+	return append([]string{string(outModes)}, outArgs...)
 }

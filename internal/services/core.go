@@ -67,6 +67,10 @@ type Host interface {
 	Stats() HostStats
 	// ResetPeak makes the people peak the number online now (STATS RESET).
 	ResetPeak()
+	// JoinBlocked says why uid may not join channel with key the normal
+	// way: the numeric ("" = it may) and whether an invite would get it in
+	// (bans, +i, +k, +l, +R), as JOIN itself decides.
+	JoinBlocked(uid, channel, key string) (code string, invitable bool)
 	// ForceJoin joins uid to channel past every mode and ban (SVSJOIN),
 	// as if they had typed JOIN.
 	ForceJoin(uid, channel string)

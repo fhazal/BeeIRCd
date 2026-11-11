@@ -159,6 +159,20 @@ func (s *Server) lockedFor(key int64) time.Duration { return s.svc.LockedFor(key
 
 func (h host) ResetPeak() { h.s.maxLocal = h.s.localUsers() }
 
+func (h host) JoinBlocked(uid, channel, key string) (string, bool) {
+	s := h.s
+	c, ch := s.clients[uid], s.net.Channel(channel)
+	if c == nil || c.user == nil || ch == nil {
+		return "", false
+	}
+	code, _, _ := s.joinRefusal(c, ch, key, false)
+	switch code {
+	case irc.ErrBannedFromChan, irc.ErrInviteOnlyChan, irc.ErrBadChannelKey, irc.ErrChannelIsFull, irc.ErrNeedReggedNick:
+		return code, true
+	}
+	return code, false
+}
+
 func (h host) ForceJoin(uid, channel string) {
 	s := h.s
 	c := s.clients[uid]

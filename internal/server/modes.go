@@ -323,8 +323,10 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 			out = append(out, state.ModeChange{Add: add, Mode: mc})
 		case mc == 'O' || mc == 'P':
 			// Oper-only (+O) and permanent (+P) channels, like UnrealIRCd:
-			// only opers and services set or remove them.
-			if !src.Service && (c == nil || !c.isOper()) {
+			// only opers set or remove them. When a service acts for
+			// someone (ChanServ MODE SET), that person must be an oper too;
+			// a service on its own (no asker) may.
+			if c != nil && !c.isOper() || c == nil && !src.Service {
 				if c != nil {
 					s.reply(c, irc.ErrNoPrivileges, "Permission Denied - only IRC operators may set +"+string(mc))
 				}

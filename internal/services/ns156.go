@@ -330,18 +330,13 @@ func (s *Services) autoJoin(c *Client, a *store.Account) {
 			if live.HasMode('k') && reg != nil && s.userHas(reg, u, "GETKEY") {
 				key = live.Key
 			}
-			switch {
-			case live.HasMode('O') && !u.HasMode('o'):
-				continue
-			case live.IsBanned(u):
-				needInvite = true
-			case live.HasMode('i') && !live.Matches('I', u):
-				needInvite = true
-			case live.HasMode('k') && key != live.Key:
-				needInvite = true
-			case live.HasMode('l') && len(live.Members) >= live.Limit:
-				needInvite = true
-			case live.HasMode('R') && u.Account == "":
+			// The server's own JOIN rules decide (+O, +z, +J and every
+			// later mode included); an invite only helps where it would
+			// for a normal JOIN.
+			if code, invitable := s.host.JoinBlocked(u.UID, live.Name, key); code != "" {
+				if !invitable {
+					continue
+				}
 				needInvite = true
 			}
 		}
