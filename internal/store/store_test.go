@@ -407,3 +407,54 @@ func TestOper155bTables(t *testing.T) {
 		t.Errorf("channel notes outlived the channel: %+v", n)
 	}
 }
+
+// HostServ vhosts belong to a nick and go with it (and with the account).
+func TestVHostsFollowNicks(t *testing.T) {
+	s, _ := open(t)
+	now := time.Now()
+	a, err := s.CreateAccount("bee", "x", "", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddNick(a, "bee2", now); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetVHost("nobody", "", "x.org", "Boss", now); err != ErrNotFound {
+		t.Fatalf("vhost for an unregistered nick: %v", err)
+	}
+	for _, n := range []string{"bee", "bee2"} {
+		if err := s.SetVHost(n, "", n+".example.org", "Boss", now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.RequestVHost("bee2", "id", "req.example.org", now); err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := s.VHostOf("BEE2"); !ok || v.Mask() != "bee2.example.org" || v.Nick != "bee2" {
+		t.Fatalf("VHostOf = %+v %v", v, ok)
+	}
+	if r, ok := s.VHostRequest("bee2"); !ok || r.Mask() != "id@req.example.org" {
+		t.Fatalf("request = %+v %v", r, ok)
+	}
+	if err := s.RemoveNick("bee2"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := s.VHostOf("bee2"); ok {
+		t.Error("vhost stayed after its nick went")
+	}
+	if len(s.VHostRequests()) != 0 {
+		t.Error("request stayed after its nick went")
+	}
+	if err := s.VerifyCache(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.DeleteAccount(a.ID); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.VHosts()) != 0 {
+		t.Error("vhosts stayed after the account went")
+	}
+	if err := s.VerifyCache(); err != nil {
+		t.Fatal(err)
+	}
+}

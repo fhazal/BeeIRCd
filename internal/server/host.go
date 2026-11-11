@@ -133,6 +133,18 @@ func (s *Server) cmdCS(c *Client, m irc.Message) { s.toAlias(c, "cs", m) }
 func (s *Server) cmdMS(c *Client, m irc.Message) { s.toAlias(c, "ms", m) }
 func (s *Server) cmdOS(c *Client, m irc.Message) { s.toAlias(c, "os", m) }
 func (s *Server) cmdAS(c *Client, m irc.Message) { s.toAlias(c, "as", m) }
+func (s *Server) cmdHS(c *Client, m irc.Message) { s.toAlias(c, "hs", m) }
+
+func (h host) DefaultHost(uid string) string {
+	u := h.s.net.UserByUID(uid)
+	if u == nil {
+		return ""
+	}
+	if h.s.cfg.CloakEnabled() && u.Modes['x'] {
+		return h.s.cloakFor(u)
+	}
+	return u.RealHost
+}
 
 func (s *Server) toAlias(c *Client, alias string, m irc.Message) {
 	s.svc.MessageAlias(c.uid, alias, strings.Join(m.Params, " "))

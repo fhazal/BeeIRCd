@@ -128,7 +128,7 @@ func (s *Services) connectBan(ident, host, ip, realname string) *store.NetBan {
 
 // shunned reports whether a SHUN covers u.
 func (s *Services) shunned(u *state.User) bool {
-	return s.firstBan(store.BanShun, u.Ident, u.RealHost, u.IP, u.Realname) != nil && !s.exempt(u.Ident, u.RealHost, u.IP)
+	return s.firstBan(store.BanShun, u.TrueIdent(), u.RealHost, u.IP, u.Realname) != nil && !s.exempt(u.TrueIdent(), u.RealHost, u.IP)
 }
 
 // banMask turns what an oper typed into the stored mask for kind, or says
@@ -210,7 +210,7 @@ func (s *Services) banHits(b *store.NetBan) []*Client {
 			continue
 		}
 		u := oc.user
-		if s.banMatches(b, u.Ident, u.RealHost, u.IP, u.Realname) {
+		if s.banMatches(b, u.TrueIdent(), u.RealHost, u.IP, u.Realname) {
 			hits = append(hits, oc)
 		}
 	}
@@ -279,7 +279,7 @@ func (s *Services) netBanCommand(c *Client, k banKind, args []string) {
 			b.Expires = now.Add(life)
 		}
 		u := c.user
-		if k.kind != store.BanEline && s.banMatches(&b, u.Ident, u.RealHost, u.IP, u.Realname) {
+		if k.kind != store.BanEline && s.banMatches(&b, u.TrueIdent(), u.RealHost, u.IP, u.Realname) {
 			s.os(c, "%s matches you. Give a narrower one.", mask)
 			return
 		}
@@ -307,7 +307,7 @@ func (s *Services) netBanCommand(c *Client, k banKind, args []string) {
 		n := 0
 		for _, oc := range hits {
 			ou := oc.user
-			if k.kind != store.BanEline && s.exempt(ou.Ident, ou.RealHost, ou.IP) {
+			if k.kind != store.BanEline && s.exempt(ou.TrueIdent(), ou.RealHost, ou.IP) {
 				continue
 			}
 			n++

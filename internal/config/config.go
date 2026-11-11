@@ -48,6 +48,7 @@ type Config struct {
 	Limits   Limits   `toml:"limits"`
 	DNSBL    []DNSBL  `toml:"dnsbl"`
 	Mail     Mail     `toml:"mail"`
+	HostServ HostServ `toml:"hostserv"`
 
 	// Path is the file this was read from; AdminServ writes changes there.
 	Path string `toml:"-"`
@@ -230,6 +231,7 @@ func (c *Config) SetDefaults() {
 	setInt(&sv.ListMax, 50)
 	setInt(&sv.MaxMemos, 20)
 	c.Mail.setDefaults()
+	c.HostServ.setDefaults()
 	if sv.GuestPrefix == "" {
 		sv.GuestPrefix = "Guest"
 	}

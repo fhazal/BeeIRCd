@@ -901,6 +901,7 @@ func nsDrop(s *Services, c *Client, args []string) {
 		s.dbErr(c, s.nickServ, err)
 		return
 	}
+	s.vhostGone(nick) // Anope's OnNickDrop: its vhost goes too
 	if irc.EqualFold(nick, owner.Name) {
 		next := nicks[1] // the oldest other nick, as Anope moves the display
 		if err := s.renameAccount(owner.ID, next); err != nil {
@@ -1074,6 +1075,12 @@ func nsStatus(s *Services, c *Client, args []string) {
 // using it. founderWhy and by go to the log.
 func (s *Services) dropAccount(a *store.Account, founderWhy, by string) error {
 	id, name := a.ID, a.Name
+	nicks, _ := s.store.Nicks(a)
+	defer func() {
+		for _, n := range nicks {
+			s.vhostGone(n) // their vhosts went with the account
+		}
+	}()
 	changes, err := s.store.DeleteAccount(id)
 	if err != nil {
 		return err

@@ -104,7 +104,7 @@ func osChanKill(s *Services, c *Client, args []string) {
 	s.reloadOperData()
 	n := 0
 	for _, t := range targets {
-		if s.exempt(t.user.Ident, t.user.RealHost, t.user.IP) {
+		if s.exempt(t.user.TrueIdent(), t.user.RealHost, t.user.IP) {
 			continue
 		}
 		n++

@@ -114,10 +114,13 @@ type Login struct {
 	Account string
 }
 
-// HostChange changes the host others see.
+// HostChange changes the host (and with Ident, the ident) others see.
+// Ident "" keeps the shown ident; Ident equal to the real one drops a
+// vident.
 type HostChange struct {
-	UID  string
-	Host string
+	UID   string
+	Host  string
+	Ident string
 }
 
 // Invite lets UID past +i, +k and +l of a channel once. Source invited.
@@ -234,6 +237,15 @@ func (n *Network) Apply(ev Event) error {
 			return ErrNoSuchUser
 		}
 		u.Host = e.Host
+		if e.Ident != "" && e.Ident != u.Ident {
+			if u.RealIdent == "" {
+				u.RealIdent = u.Ident
+			}
+			u.Ident = e.Ident
+			if u.Ident == u.RealIdent {
+				u.RealIdent = ""
+			}
+		}
 	case *Invite:
 		if n.users[e.UID] == nil {
 			return ErrNoSuchUser
@@ -350,7 +362,7 @@ func Equal(a, b *Network) (bool, string) {
 		if v == nil {
 			return false, "user " + u.Nick + " missing"
 		}
-		if u.Nick != v.Nick || u.Ident != v.Ident || u.Host != v.Host || u.RealHost != v.RealHost || u.IP != v.IP ||
+		if u.Nick != v.Nick || u.Ident != v.Ident || u.RealIdent != v.RealIdent || u.Host != v.Host || u.RealHost != v.RealHost || u.IP != v.IP ||
 			u.Realname != v.Realname || u.Account != v.Account || u.Away != v.Away || u.NickTS != v.NickTS ||
 			u.Service != v.Service || u.ModeString() != v.ModeString() || len(u.Channels) != len(v.Channels) {
 			return false, "user " + u.Nick

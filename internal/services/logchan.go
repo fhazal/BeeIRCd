@@ -128,7 +128,7 @@ func (s *Services) logTo(sv *service, text string) {
 }
 
 // anopeMask is Anope's User::GetMask(): nick!ident@realhost.
-func anopeMask(u *state.User) string { return u.Nick + "!" + u.Ident + "@" + u.RealHost }
+func anopeMask(u *state.User) string { return u.Nick + "!" + u.TrueIdent() + "@" + u.RealHost }
 
 // logUsersOn reports whether USERS lines go to the log channel.
 func (s *Services) logUsersOn() bool {
@@ -169,7 +169,7 @@ func (s *Services) logNick(e *state.NickChange) {
 		return
 	}
 	old, _, _ := strings.Cut(e.Old, "!") // Old is the full old mask
-	s.logTo(s.global, "USERS: "+old+"!"+u.Ident+"@"+u.RealHost+" ("+u.Realname+") changed nick to "+e.Nick)
+	s.logTo(s.global, "USERS: "+old+"!"+u.TrueIdent()+"@"+u.RealHost+" ("+u.Realname+") changed nick to "+e.Nick)
 }
 
 // LogSASLExternal posts m_sasl's line for a certificate login (Anope

@@ -36,6 +36,7 @@ func (h *fakeHost) Notice(from, to, text string) {
 	}
 }
 func (h *fakeHost) Numeric(uid, code string, params ...string)                                  {}
+func (h *fakeHost) DefaultHost(uid string) string                                               { return "" }
 func (h *fakeHost) ChannelMessage(from, channel string, status byte, privmsg bool, text string) {}
 func (h *fakeHost) ServerNotice(uid, text string)                                               {}
 func (h *fakeHost) Snotice(text string)                                                         {}

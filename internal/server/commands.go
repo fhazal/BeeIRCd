@@ -56,6 +56,8 @@ func init() {
 		"OS":           {1, false, (*Server).cmdOS},
 		"OPERSERV":     {1, false, (*Server).cmdOS},
 		"AS":           {1, false, (*Server).cmdAS},
+		"HS":           {1, false, (*Server).cmdHS},
+		"HOSTSERV":     {1, false, (*Server).cmdHS},
 		"ADMINSERV":    {1, false, (*Server).cmdAS},
 		"OPER":         {2, false, (*Server).cmdOper},
 		"KILL":         {1, false, (*Server).cmdKill},

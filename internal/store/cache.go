@@ -41,6 +41,9 @@ type cache struct {
 	certOwner map[string]int64       // fingerprint -> account
 	ajoins    map[int64][]AjoinEntry // account -> AJOIN list, by ID
 	buddies   map[int64][]ignoreRow  // account -> BUDDY nicks, by key
+
+	vhosts map[string]*vhostRow // folded nick -> HostServ vhost
+	vreqs  map[string]*vhostRow // folded nick -> pending HostServ request
 }
 
 type nickRow struct {
@@ -84,6 +87,9 @@ func newCache() *cache {
 		certOwner: make(map[string]int64),
 		ajoins:    make(map[int64][]AjoinEntry),
 		buddies:   make(map[int64][]ignoreRow),
+
+		vhosts: make(map[string]*vhostRow),
+		vreqs:  make(map[string]*vhostRow),
 	}
 }
 
@@ -191,6 +197,9 @@ func loadCache(db *sql.DB) (*cache, error) {
 	if err := loadNS156(db, c); err != nil {
 		return nil, err
 	}
+	if err := loadHostServ(db, c); err != nil {
+		return nil, err
+	}
 	if err := loadMS156(db, c); err != nil {
 		return nil, err
 	}
@@ -228,6 +237,8 @@ func (c *cache) removeNick(key string) {
 	}
 	delete(c.nicks, key)
 	delete(c.acctNicks[n.account], key)
+	delete(c.vhosts, key)
+	delete(c.vreqs, key)
 }
 
 func (c *cache) setLevel(ch, acct int64, l *level) {
@@ -304,6 +315,8 @@ func (c *cache) dropChannel(id int64) {
 func (c *cache) dropAccount(id int64) {
 	for key := range c.acctNicks[id] {
 		delete(c.nicks, key)
+		delete(c.vhosts, key)
+		delete(c.vreqs, key)
 	}
 	delete(c.acctNicks, id)
 	delete(c.access, id)
@@ -365,6 +378,7 @@ func (s *Store) VerifyCache() error {
 		{"channel logs", have.chanLogs, want.chanLogs}, {"channel memos", have.chanMemos, want.chanMemos},
 		{"channel memo owners", have.chanMemoOwner, want.chanMemoOwner}, {"channel memo ignores", have.chanIgnores, want.chanIgnores},
 		{"certs", have.certs, want.certs}, {"cert owners", have.certOwner, want.certOwner}, {"ajoins", have.ajoins, want.ajoins}, {"buddies", have.buddies, want.buddies},
+		{"vhosts", have.vhosts, want.vhosts}, {"vhost requests", have.vreqs, want.vreqs},
 	}
 	for _, p := range parts {
 		if !reflect.DeepEqual(p.have, p.want) {

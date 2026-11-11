@@ -310,3 +310,20 @@ Where we differ, on purpose:
 - BUDDY is ConferenceRoom's, not Anope's: up to 32 nicks, NickServ tells
   you when one identifies or their last connection goes, and who is
   online when you identify.
+
+## Stage 1.5.7 HostServ (built 11 Nov 2026)
+
+As Anope 2.0.20 (hs_on, hs_off, hs_group, hs_request, hs_set, hs_del,
+hs_list, pseudoclients/hostserv.cpp) and the owner's live hostserv.conf:
+every command, Anope's replies and log lines, vhost per nick, shown at
+identify and NS UPDATE (OnUserLogin/OnNickUpdate), removed from whoever
+shows it on DEL, DELALL and when its nick or account is dropped
+(OnDeleteVhost/OnNickDrop). activate_on_set off, memouser/memooper off by
+default (options in [hostserv]). Validation = networkinfo vhost_chars,
+allow_undotted_vhosts false, disallow_start_or_end ".-", hostlen 64,
+userlen 10.
+
+Ours: hostserv/set, /del, /list are oper flag h. A vident changes the
+shown ident; network bans and the log keep matching the real ident
+(User.RealIdent), channel bans match both. The vhost stays when user mode
++x is changed. Oper vhosts at /oper come in 1.5.8.

@@ -545,6 +545,7 @@ func nsUpdate(s *Services, c *Client, args []string) {
 	}
 	s.csOnIdentify(c)
 	s.memoSummary(c, a)
+	s.hsLogin(c)
 	s.ns(c, "Status updated (memos, vhost, chmodes, flags).")
 }
 

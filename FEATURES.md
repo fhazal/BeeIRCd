@@ -83,7 +83,7 @@ Last updated: 11 Nov 2026 (Stage 1.5.3).
 | OperServ (STATS AKILL/HASH/UPLINK/UPTIME/ALL/RESET, global, AKILL ZLINE SNLINE SHUN SQLINE with expiry (30 days by default, `ban_expiry`; +0 for good) and number lists, SNLINE mask:reason, EXCEPTION BAN (ELINE), kill, MODE incl. CLEAR [ALL], kick, FORBID nick/chan/email/register with expiry, sessions, exceptions with expiry and CIDR, logon news) | Implemented (ban engine 1.5.5a, 2.0.20 shape 11 Nov 2026) |
 | OperServ CHANKILL SVSNICK SVSJOIN SVSPART UMODE USERLIST CHANLIST INFO IGNORE OPERNEWS RANDOMNEWS SEEN, ChanServ SEEN (Anope 2.0.20) | Implemented (1.5.5b) |
 | AdminServ (settings saved to config, MOTD, ports, opers, restart, die) | Implemented |
-| HostServ (vhosts) | Planned (Stage 1.5) |
+| HostServ as Anope 2.0.20: ON, OFF, GROUP, REQUEST; opers (flag h) SET, SETALL, DEL, DELALL, LIST, WAITING, ACTIVATE, REJECT; ident@host vhosts; vhost per nick, shown at identify; [hostserv] rules (vhost_chars, dots, lengths, activate_on_set, request memos) | Implemented (1.5.7) |
 | HelpServ | Planned (phase 6) |
 | Switch off built-in services, link Anope | Planned (after Stage 4) |
 

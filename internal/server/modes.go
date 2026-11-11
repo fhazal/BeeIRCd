@@ -121,7 +121,7 @@ func (s *Server) setUserModes(c *Client, srcUID, modeStr string) bool {
 		delete(s.opers, c)
 		s.snotice("%s is no longer an operator", u.Nick)
 	}
-	if s.cfg.CloakEnabled() {
+	if s.cfg.CloakEnabled() && !s.svc.VHostOn(c.uid) { // a HostServ vhost stays over +x/-x
 		host := u.RealHost
 		if u.Modes['x'] {
 			host = s.cloakFor(u)

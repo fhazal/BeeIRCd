@@ -57,6 +57,9 @@ type Host interface {
 	ApplySetting(uid, bot, key, value string)
 	// Post runs f on the loop later (from another goroutine).
 	Post(f func())
+	// DefaultHost is the host uid shows without a vhost: the cloak with +x,
+	// else the real host.
+	DefaultHost(uid string) string
 	// Stats is what OperServ STATS shows about the server itself.
 	Stats() HostStats
 	// ResetPeak makes the people peak the number online now (STATS RESET).
@@ -91,6 +94,7 @@ type Services struct {
 	chanServ *service
 	operServ *service
 	global   *service
+	hostServ *service
 	clients  map[string]*Client // by UID: every person on the network
 	lockouts map[int64]*lockout // wrong passwords per account
 	hashSem  chan struct{}      // limits password hashing running at once
@@ -130,6 +134,7 @@ type Client struct {
 	lastMail     time.Time // when services last mailed for this person (mail delay)
 	lastMemoSend time.Time // MemoServ SEND (senddelay)
 	cmdName      string    // the command as typed, for log lines (Anope's source.command)
+	vhostOn      bool      // a HostServ vhost is shown
 }
 
 func (c *Client) isOper() bool    { return c.s.host.OperFlags(c.user.UID) != "" }

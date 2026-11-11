@@ -49,7 +49,7 @@ func (sv *service) command(name string) (svcCmd, bool) {
 }
 
 // reservedNicks can't be used by people even before their service exists.
-var reservedNicks = []string{"NickServ", "ChanServ", "MemoServ", "OperServ", "AdminServ", "Global"}
+var reservedNicks = []string{"NickServ", "ChanServ", "MemoServ", "OperServ", "HostServ", "AdminServ", "Global"}
 
 func isReserved(nick string) bool {
 	for _, r := range reservedNicks {
@@ -88,6 +88,7 @@ func (s *Services) startServices() {
 	s.operServ = s.addService("OperServ", "os", "Operator Services", "OperServ is the toolbox for IRC operators. Commands:", osCmds)
 	s.operServ.need = 'o'
 	s.operServ.aliases = operServAliases
+	s.hostServ = s.addService("HostServ", "hs", "vHost Service", "HostServ gives nicks a vHost, a host shown instead of yours. Commands:", hostServCommands())
 	s.global = s.addService("Global", "", "Network Announcements", "Global sends network notices. It takes no commands.", map[string]svcCmd{})
 	s.helpSetup()
 }
@@ -347,7 +348,7 @@ func (s *Services) login(c *Client, a *store.Account) {
 	s.emit(&state.Login{UID: u.UID, Account: a.Name})
 	c.accountID = a.ID
 	c.enforceAt = time.Time{}
-	a.LastSeen, a.LastHost = now, u.Ident+"@"+u.RealHost
+	a.LastSeen, a.LastHost = now, u.TrueIdent()+"@"+u.RealHost
 	if err := s.store.SaveAccount(a); err != nil {
 		s.log.Printf("services database: %v", err)
 	}
@@ -357,6 +358,7 @@ func (s *Services) login(c *Client, a *store.Account) {
 	s.memoSummary(c, a)
 	s.afterLogin(c, a)
 	s.buddyOnline(c, a)
+	s.hsLogin(c)
 }
 
 // logout ends c's identification.
@@ -438,7 +440,7 @@ func (s *Services) onAccess(c *Client, a *store.Account) bool {
 		return false
 	}
 	u := c.user
-	real, shown := u.Ident+"@"+u.RealHost, u.Ident+"@"+u.Host
+	real, shown := u.TrueIdent()+"@"+u.RealHost, u.Ident+"@"+u.Host
 	for _, m := range masks {
 		if irc.Match(m, real) || irc.Match(m, shown) {
 			return true
@@ -484,7 +486,7 @@ func (s *Services) nickCheck(c *Client) {
 	}
 	onAccess := s.onAccess(c, a)
 	if onAccess && !a.Secure {
-		a.LastSeen, a.LastHost = time.Now(), u.Ident+"@"+u.RealHost
+		a.LastSeen, a.LastHost = time.Now(), u.TrueIdent()+"@"+u.RealHost
 		if err := s.store.SaveAccount(a); err != nil {
 			s.log.Printf("services database: %v", err)
 		}

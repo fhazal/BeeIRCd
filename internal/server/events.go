@@ -142,10 +142,17 @@ func (s *Server) prepare(ev state.Event) func() {
 		}
 	case *state.HostChange:
 		u := s.net.UserByUID(e.UID)
-		if u == nil || u.Host == e.Host {
+		if u == nil {
 			return nil
 		}
-		o := s.out(u, "CHGHOST", u.Ident, e.Host)
+		ident := u.Ident
+		if e.Ident != "" {
+			ident = e.Ident
+		}
+		if u.Host == e.Host && ident == u.Ident {
+			return nil
+		}
+		o := s.out(u, "CHGHOST", ident, e.Host)
 		o.needCap = "chghost"
 		return func() { s.toNeighbours(u, o, true) }
 	case *state.Invite:

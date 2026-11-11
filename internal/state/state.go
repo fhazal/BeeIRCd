@@ -22,21 +22,32 @@ var ErrNickInUse = errors.New("nickname is already in use")
 type User struct {
 	UID      string
 	Nick     string
-	Ident    string
+	Ident    string // the ident others see (a HostServ vident can change it)
 	Host     string // the host others see
 	RealHost string
-	IP       string
-	Realname string
-	Server   string
-	Account  string // services account, "" when not identified
-	Away     string
-	TLS      bool
-	CertFP   string // SHA-256 of the TLS client certificate, lower case hex ("" = none)
-	Service  bool   // NickServ and the other built-in services
-	SignOn   time.Time
-	NickTS   int64
-	Modes    map[byte]bool
-	Channels map[string]*Channel // by folded name
+	// RealIdent is the ident the user connected with, when a vident
+	// shows another one ("" = same as Ident). Network bans match it.
+	RealIdent string
+	IP        string
+	Realname  string
+	Server    string
+	Account   string // services account, "" when not identified
+	Away      string
+	TLS       bool
+	CertFP    string // SHA-256 of the TLS client certificate, lower case hex ("" = none)
+	Service   bool   // NickServ and the other built-in services
+	SignOn    time.Time
+	NickTS    int64
+	Modes     map[byte]bool
+	Channels  map[string]*Channel // by folded name
+}
+
+// TrueIdent is the ident the user connected with.
+func (u *User) TrueIdent() string {
+	if u.RealIdent != "" {
+		return u.RealIdent
+	}
+	return u.Ident
 }
 
 // Prefix is nick!ident@host.
@@ -55,11 +66,15 @@ func (u *User) ModeString() string {
 func (u *User) Masks() []string {
 	base := u.Nick + "!" + u.Ident + "@"
 	out := []string{base + u.Host}
+	real := u.Nick + "!" + u.TrueIdent() + "@" // a vident: the real host goes with the real ident
+	if real != base {
+		out = append(out, real+u.Host)
+	}
 	if u.RealHost != "" && u.RealHost != u.Host {
-		out = append(out, base+u.RealHost)
+		out = append(out, real+u.RealHost)
 	}
 	if u.IP != "" && u.IP != u.Host && u.IP != u.RealHost {
-		out = append(out, base+u.IP)
+		out = append(out, real+u.IP)
 	}
 	return out
 }
