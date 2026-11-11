@@ -1,17 +1,17 @@
 {
-  "updated": "2026-11-12T05:43:00+08:00",
+  "updated": "2026-11-12T06:13:00+08:00",
   "gauges": [
     {
       "id": "g-v1",
       "label": "v1.0",
-      "pct": 97,
+      "pct": 99,
       "title": "Version 1.0",
       "text": "Everything one server needs, ready to install."
     },
     {
       "id": "g-vision",
       "label": "full vision",
-      "pct": 48,
+      "pct": 51,
       "title": "Full vision",
       "text": "Linking, Hive Panel and BeeRoom too."
     }
@@ -22,8 +22,23 @@
     "start": "2026-11-12T04:18:00+08:00",
     "end": "2026-11-13T04:18:00+08:00"
   },
-  "next": "Release candidate 1 for version 1.0, then server linking.",
+  "next": "Release candidate 1 for version 1.0, and the rest of server linking.",
   "done": [
+    [
+      "2026-11-12T06:13",
+      "Server links start: TLS transport and the UnrealIRCd 6 handshake",
+      "Tested both ways against a real UnrealIRCd 6.2.7."
+    ],
+    [
+      "2026-11-12T06:30",
+      "Servers link up",
+      "BeeIRCd linked with a real UnrealIRCd 6, both ways, over TLS with pinned keys."
+    ],
+    [
+      "2026-11-12T06:00",
+      "One hour of fuzzing passed",
+      "Eight parsers, hundreds of millions of random inputs, no failures."
+    ],
     [
       "2026-11-12T05:43",
       "Plan for server linking",

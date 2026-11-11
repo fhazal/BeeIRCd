@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="BeeIRCd is an IRC server with NickServ, ChanServ, MemoServ, OperServ and AdminServ built in. Inspired by ConferenceRoom, built for today's clients.">
+<meta name="description" content="BeeIRCd is an IRC server with NickServ, ChanServ, MemoServ, OperServ, HostServ and AdminServ built in. Inspired by ConferenceRoom, built for today's clients.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f2b33d' stroke-width='2' stroke-linejoin='round'%3E%3Cpath d='M12 2.8 20 7.4v9.2l-8 4.6-8-4.6V7.4z'/%3E%3Cpath d='M12 8.2 15.3 10v4L12 15.8 8.7 14v-4z'/%3E%3C/svg%3E">
 <style>html{-webkit-text-size-adjust:100%}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>BeeIRCd, IRC with the services built in</title>
@@ -202,6 +202,7 @@ footer { padding-block: 36px 48px; color: var(--muted); font-size: 14px; display
     <symbol id="i-hash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M9.5 3.5 7.5 20.5M16.5 3.5l-2 17M4 9h16.5M3.5 15H20"/></symbol>
     <symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="3.2" y="5.5" width="17.6" height="13" rx="2"/><path d="m4 7 8 6 8-6"/></symbol>
     <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3 19.5 6v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6z"/></symbol>
+    <symbol id="i-tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1 1 0 0 1 0 1.4l-7.3 7.3a1 1 0 0 1-1.4 0z"/><circle cx="8" cy="8" r="1.5"/></symbol>
     <symbol id="i-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 4v16M12 4v16M19 4v16"/><circle cx="5" cy="9" r="2" fill="var(--ground)"/><circle cx="12" cy="15" r="2" fill="var(--ground)"/><circle cx="19" cy="7" r="2" fill="var(--ground)"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
     <symbol id="i-dot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="5"/></symbol>
@@ -223,7 +224,7 @@ footer { padding-block: 36px 48px; color: var(--muted); font-size: 14px; display
   <div class="hero">
     <div>
       <h1>Your own IRC network, with the services built in.</h1>
-      <p class="lead">BeeIRCd is one program that runs the chat server and NickServ, ChanServ, MemoServ, OperServ and AdminServ. Set it up with a few questions, change it from IRC while it runs, and keep the IRC you already know.</p>
+      <p class="lead">BeeIRCd is one program that runs the chat server and NickServ, ChanServ, MemoServ, OperServ, HostServ and AdminServ. Set it up with a few questions, change it from IRC while it runs, and keep the IRC you already know.</p>
       <span class="state"><i></i>In development. Not ready for public networks yet.</span>
       <div class="actions">
         <a class="btn main" href="#status"><svg aria-hidden="true"><use href="#i-arrow"/></svg>See where it stands</a>
@@ -254,13 +255,14 @@ footer { padding-block: 36px 48px; color: var(--muted); font-size: 14px; display
 
 <div class="band" id="services">
   <section class="wrap">
-    <h2>Five services, one program</h2>
+    <h2>Six services, one program</h2>
     <p class="intro">No separate services package to link and keep in sync. The services answer the way they always have, with a short notice and the next step to take.</p>
     <div class="svcs">
       <div class="svc-row"><svg aria-hidden="true"><use href="#i-user"/></svg><b>NickServ</b><span>Keeps your nick yours. Identify with a password or SASL, group nicks, recover a ghost.</span><code>/ns register &lt;password&gt;</code></div>
       <div class="svc-row"><svg aria-hidden="true"><use href="#i-hash"/></svg><b>ChanServ</b><span>Keeps a channel yours. Founder, SOP, AOP, VOP and UOP levels, AKICK, mode and topic lock.</span><code>/cs register #channel &lt;description&gt;</code></div>
       <div class="svc-row"><svg aria-hidden="true"><use href="#i-mail"/></svg><b>MemoServ</b><span>Messages for people who are away, and memos to a channel's founder and SOPs.</span><code>/ms send ember see you at nine</code></div>
       <div class="svc-row"><svg aria-hidden="true"><use href="#i-shield"/></svg><b>OperServ</b><span>The oper toolbox. Network bans, kills, global notices, forbidden nicks and channels, session limits.</span><code>/os akill add *@203.0.113.* 7d spam</code></div>
+      <div class="svc-row"><svg aria-hidden="true"><use href="#i-tag"/></svg><b>HostServ</b><span>Gives a nick a vHost, a host shown instead of the real one. Users ask for one, opers approve it.</span><code>/hs request bee.beeircd.org</code></div>
       <div class="svc-row"><svg aria-hidden="true"><use href="#i-sliders"/></svg><b>AdminServ</b><span>Change the server while it runs. Every change is saved to the config file, with your comments kept.</span><code>/as port add 6697 tls</code></div>
     </div>
   </section>
