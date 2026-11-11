@@ -372,21 +372,9 @@ func (s *Server) localUsers() int {
 }
 
 func (s *Server) lusers(c *Client) {
-	total, invisible, opers := 0, 0, 0
-	for _, u := range s.net.Users() {
-		if u.Service {
-			continue // services aren't people
-		}
-		total++
-		if u.HasMode('i') {
-			invisible++
-		}
-		if u.HasMode('o') {
-			opers++
-		}
-	}
-	unknown := len(s.clients) - s.localUsers()
+	total, invisible, opers := s.net.PeopleCounts() // services aren't people
 	local := s.localUsers()
+	unknown := len(s.clients) - local
 	s.reply(c, irc.RplLuserClient, fmt.Sprintf("There are %d users and %d invisible on 1 servers", total-invisible, invisible))
 	if opers > 0 {
 		s.reply(c, irc.RplLuserOp, strconv.Itoa(opers), "operator(s) online")

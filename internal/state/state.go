@@ -367,6 +367,25 @@ func (n *Network) Users() []*User {
 	return out
 }
 
+// PeopleCounts counts users who aren't services, and how many of them
+// are invisible (+i) and opers (+o), without building a list (LUSERS runs
+// at every connect).
+func (n *Network) PeopleCounts() (total, invisible, opers int) {
+	for _, u := range n.users {
+		if u.Service {
+			continue
+		}
+		total++
+		if u.HasMode('i') {
+			invisible++
+		}
+		if u.HasMode('o') {
+			opers++
+		}
+	}
+	return
+}
+
 // UserCount is the number of users.
 func (n *Network) UserCount() int { return len(n.users) }
 

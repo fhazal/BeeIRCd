@@ -39,6 +39,8 @@ type Server struct {
 	whowas     []whowasEntry
 	maxLocal   int
 	toKill     []*Client
+	dirty      []*Client // clients with output to wake their writer for
+	sinceFlush int       // loop jobs since the last flushWrites
 	msgSeq     uint64
 	batchSeq   uint64
 	sinks      []func(state.Event) // get every event after it was applied
@@ -169,6 +171,11 @@ func (s *Server) Serve(ctx context.Context) error {
 			s.svc.Flush()
 			s.loop.add(time.Since(start))
 			s.reap()
+			// Wake writers when the batch is done, or every 64 jobs so a
+			// busy server never holds output back for long.
+			if s.sinceFlush++; len(s.events) == 0 || s.sinceFlush >= 64 {
+				s.flushWrites()
+			}
 			if s.stopAfter != 0 {
 				reason := "Server shutting down"
 				if s.stopAfter == stopRestart {
@@ -188,11 +195,27 @@ func (s *Server) Serve(ctx context.Context) error {
 			s.expireTimedBans(now)
 			s.svc.Tick(now)
 			s.reap()
+			s.flushWrites()
 		case now := <-hourly.C:
 			s.svc.Expire(now)
 			s.reap()
+			s.flushWrites()
 		}
 	}
+}
+
+// flushWrites wakes the writer of every client that has new output.
+func (s *Server) flushWrites() {
+	for _, c := range s.dirty {
+		c.dirty = false
+		select {
+		case c.notify <- struct{}{}:
+		default:
+		}
+	}
+	clear(s.dirty)
+	s.dirty = s.dirty[:0]
+	s.sinceFlush = 0
 }
 
 // tickEvery checks timeouts often enough for the shortest one.
@@ -224,6 +247,13 @@ func (s *Server) acceptLoop(l listener) {
 			case <-s.done:
 				return
 			}
+		}
+		// Nagle on, like InspIRCd and UnrealIRCd: the kernel merges the many
+		// small lines a busy channel sends into fewer packets. Go turns it
+		// off by default, which costs a packet (and a trip through the
+		// firewall) per line.
+		if tc, ok := conn.(*net.TCPConn); ok {
+			tc.SetNoDelay(false)
 		}
 		select {
 		case s.events <- func() { s.newClient(conn, l.tls) }:

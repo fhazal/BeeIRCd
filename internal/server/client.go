@@ -23,10 +23,11 @@ var errTooLong = errors.New("line too long")
 
 // Client is one connection. Fields without a comment belong to the loop.
 type Client struct {
-	s    *Server
-	conn net.Conn
-	uid  string
-	user *state.User // set once registered
+	s     *Server
+	conn  net.Conn
+	uid   string
+	dirty bool        // has queued lines its writer hasn't been woken for (see Server.flushWrites)
+	user  *state.User // set once registered
 
 	nick, ident, realname string // before registration
 	host, ip              string
@@ -148,7 +149,18 @@ func (c *Client) send(line string) {
 		*c.capture = append(*c.capture, line)
 		return
 	}
-	line = clip(line) + "\r\n"
+	c.queueLine(clip(line) + crlf)
+}
+
+// crlf ends every line sent.
+const crlf = "\r\n"
+
+// queueLine queues a line that is already clipped and ends in CRLF.
+func (c *Client) queueLine(line string) {
+	if c.capture != nil {
+		*c.capture = append(*c.capture, strings.TrimSuffix(line, crlf))
+		return
+	}
 	c.mu.Lock()
 	if c.closing || c.over {
 		c.mu.Unlock()
@@ -163,9 +175,12 @@ func (c *Client) send(line string) {
 	c.queue = append(c.queue, line)
 	c.queued += len(line)
 	c.mu.Unlock()
-	select {
-	case c.notify <- struct{}{}:
-	default:
+	// The writer is woken once the loop finishes its batch of work, so
+	// many lines go out in one write (InspIRCd's model) instead of one
+	// write per line.
+	if !c.dirty {
+		c.dirty = true
+		c.s.dirty = append(c.s.dirty, c)
 	}
 }
 

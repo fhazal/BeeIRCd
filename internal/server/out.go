@@ -25,6 +25,29 @@ type outMsg struct {
 	account   string
 	at        time.Time
 	needCap   string // only clients with this capability get it
+
+	// Built lines by capability set (see capKey): a channel message is
+	// built once per kind of client, not once per member.
+	lines [16]string
+	built uint16
+}
+
+// capKey is which of the capabilities that change a message's text c has.
+func (c *Client) capKey() uint8 {
+	var k uint8
+	if c.caps["extended-join"] {
+		k |= 1
+	}
+	if c.caps["server-time"] {
+		k |= 2
+	}
+	if c.caps["account-tag"] {
+		k |= 4
+	}
+	if c.caps["message-tags"] {
+		k |= 8
+	}
+	return k
 }
 
 // out starts a message from u.
@@ -42,11 +65,23 @@ func (o *outMsg) text() *outMsg {
 	return o
 }
 
-// format builds the line for c; false means c must not get it.
+// format builds the line for c, ready to queue (clipped, with CRLF);
+// false means c must not get it.
 func (c *Client) format(o *outMsg) (string, bool) {
 	if o.needCap != "" && !c.caps[o.needCap] {
 		return "", false
 	}
+	k := c.capKey()
+	if o.built&(1<<k) != 0 {
+		return o.lines[k], true
+	}
+	line := clip(c.build(o)) + crlf
+	o.lines[k], o.built = line, o.built|1<<k
+	return line, true
+}
+
+// build writes o out for c's capabilities.
+func (c *Client) build(o *outMsg) string {
 	m := o.msg
 	if o.extParams != nil && c.caps["extended-join"] {
 		m.Params = o.extParams
@@ -74,13 +109,13 @@ func (c *Client) format(o *outMsg) (string, bool) {
 		}
 	}
 	m.Tags = tags
-	return m.String(), true
+	return m.String()
 }
 
 // deliver sends o to c when c may have it.
 func (c *Client) deliver(o *outMsg) {
 	if line, ok := c.format(o); ok {
-		c.send(line)
+		c.queueLine(line)
 	}
 }
 
