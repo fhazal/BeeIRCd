@@ -46,7 +46,7 @@ Last updated: 12 Nov 2026 (Stage 1.5.9b).
 | Services data in memory, write-through SQLite | Implemented | 1.5.2; one BeeIRCd per database (locked) |
 | Loop timing in OperServ STATS | Implemented | 1.5.2 |
 | 5,000-client load test | Implemented | 1.5.2; `BEEIRCD_LOAD=1`, gate 99% of loop work < 5 ms |
-| Server linking | Planned | Stage 2 (v1.1): UnrealIRCd 6 server protocol, BeeIRCd-to-BeeIRCd collisions rename instead of kill; PLAN-2.md |
+| Server linking | In progress (Stage 2, v1.1) | 2a built (branch stage2): TLS link port + autoconnect with backoff, own link certificate (never renewed) pinned by fingerprint (= UnrealIRCd spkifp), optional password, UnrealIRCd 6 handshake (tested both directions with a real UnrealIRCd 6.2.7, replay test from its recorded lines), server tree (SID/SQUIT/EOS, loops refused), PING/lag, sendq limit, notices for every link event, `beeircd link-info`, Links row in `status`, link lines in `check`, link cert in backups. Users/channels over links: 2b/2c. PLAN-2.md |
 | WebSocket | Planned | Stage 4 |
 | PROXY protocol | Implemented | 7a; v1 and v2 on `[[listen]]` ports with `proxy = true`, only from `proxy_from` IPs/CIDRs (anyone else, plain IRC or a bad header: closed without a word); LOCAL/UNKNOWN keep the proxy address; plain and TLS ports |
 | DNS blocklists (`[[dnsbl]]`: DroneBL, EFnetRBL, any list) | Implemented | 1.5.5b: answers per list, reject (default) / zline / akill / shun for ban_time, IPv4 + IPv6, lookups off the loop, registration waits at most 2 s, cache (hit 1 h, clean 10 min), LAN IPs never looked up, ELINE + session exceptions skip it, AdminServ DNSBL LIST/CHECK/ENABLE/DISABLE, hits in OS STATS ALL, Anope M_DNSBL log line |

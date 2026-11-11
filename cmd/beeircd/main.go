@@ -38,6 +38,8 @@ const usage = `Usage: beeircd <command>
             versions, --yes no questions, --rollback goes back)
   backup    save config, database and certificates [to file]
   rehash    read beeircd.conf again, apply what is safe live
+  link-info show this server's link fingerprint and the blocks
+            another BeeIRCd or UnrealIRCd server needs to link
   version   show the version
   mkpasswd  read a password on standard input, print its hash
             (for admin_password in beeircd.conf)
@@ -74,6 +76,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdCheck(args[1:], stdout, stderr)
 	case cmd == "backup":
 		return cmdBackup(args[1:], stdout, stderr)
+	case cmd == "link-info":
+		return cmdLinkInfo(args[1:], stdout, stderr)
 	case cmd == "rehash":
 		return cmdRehash(args[1:], stdout, stderr)
 	case cmd == "update":

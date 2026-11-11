@@ -51,7 +51,7 @@ renewed certificate.
 
 **What needs `beeircd restart`:** ports in the file (AdminServ `PORT` opens
 and closes ports live), the server name, network, SID and prefixes, the
-cloak, the `[tls]` block, the control socket, the `[link]` block, the
+cloak, the `[tls]` block, the control socket, the `[link]` role, address, port and certificate (not the `[[link.server]]` blocks), the
 services database path, and the history file or secret. Rehash says which of
 your changes these are, and keeps running with the old values for them.
 
@@ -383,9 +383,31 @@ that class.
 
 ### [link]
 
-Server linking arrives in Stage 2; until then these are only stored.
+Server linking is being built (Stage 2, v1.1). Since 2a servers link and
+keep the server tree; users and channels follow in 2b/2c. BeeIRCd speaks
+the UnrealIRCd 6 server protocol, so it links with BeeIRCd and UnrealIRCd 6.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `role` | `"standalone"` | `standalone`, `hub` or `leaf` (restart) |
-| `port` | `7000` for hub/leaf | TLS port for server links |
+| `role` | `"standalone"` | `standalone`, `hub` or `leaf` (restart). A leaf keeps one link |
+| `address` | all addresses | IP the link port listens on, like `127.0.0.1` (restart) |
+| `port` | `7000` for hub/leaf | TLS port for server links (restart) |
+| `cert`, `key` | next to services.db | This server's link certificate, made at the first start as a hub or leaf and never renewed, so its fingerprint stays the same. It is in every backup |
+
+Each server we link with gets a `[[link.server]]` block. These apply on
+`beeircd rehash`; removing one drops that link.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `name` | – | The other server's name |
+| `fingerprint` | – | SHA-256 of its public key, base64: `beeircd link-info` on BeeIRCd, `./unrealircd spkifp` on UnrealIRCd. Required; a link showing another key is refused before anything is sent |
+| `password` | none | Sent with PASS and must come back the same. Optional and best left out: the fingerprint is the lock (the other server must hold its private key), as UnrealIRCd recommends with `{ spkifp; }`. Use one only when the other side needs it (Anope, an UnrealIRCd block with a plain password). It has to be sent, so it is stored as written; `beeircd check` warns when beeircd.conf holding one is readable by every user, or when the link key is readable by others |
+| `host`, `port` | –, `7000` | Where to connect; no host = it connects to us |
+| `autoconnect` | `false` | Keep connecting while the link is down (10 s after a lost link, then 30 s doubling to 5 min) |
+| `sendq_mb` | `20` | How much may wait for the link before it is dropped |
+
+`beeircd link-info` prints this server's fingerprint and the blocks the
+other side needs. Links use TLS 1.2+ only; plain links are never accepted.
+Opers with `+s` see every link event (established, refused and why, sync
+time, split). `BEEIRCD_LINK_DEBUG=1` in the environment logs every line
+sent and received on links.

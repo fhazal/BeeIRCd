@@ -175,6 +175,7 @@ func (s *Server) statusInfo() *control.Status {
 		BackupDir:       s.cfg.Backup.Dir,
 		Safety:          *s.safety(),
 		Update:          s.upd.latest,
+		Links:           s.linkStatus(),
 	}
 	s.lmu.Lock()
 	for _, l := range s.listeners {
@@ -224,6 +225,7 @@ func (s *Server) checkInfo() *control.Check {
 func (s *Server) backup(dst string) (*control.Backup, error) {
 	var (
 		tmp, conf, cert, key, secret string
+		linkCert, linkKey            string
 		snap                         history.Snapshot
 		keep                         int
 		dir                          string
@@ -232,6 +234,9 @@ func (s *Server) backup(dst string) (*control.Backup, error) {
 	if !s.onLoop(func() {
 		dir, keep = s.cfg.Backup.Dir, s.cfg.Backup.Keep
 		conf, cert, key, secret = s.cfg.Path, s.cfg.TLS.Cert, s.cfg.TLS.Key, s.cfg.History.Secret
+		if s.cfg.Link.Linked() {
+			linkCert, linkKey = s.cfg.Link.Cert, s.cfg.Link.Key
+		}
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			dbErr = err
 			return
@@ -267,6 +272,13 @@ func (s *Server) backup(dst string) (*control.Backup, error) {
 			control.File{Name: "tls/" + filepath.Base(cert), Path: cert, Part: "certificate"},
 			control.File{Name: "tls/" + filepath.Base(key), Path: key, Part: "certificate"})
 	}
+	// The link certificate is this server's identity to the others: a new
+	// one means every linked server has to pin the new fingerprint.
+	if linkCert != "" && fileSize(linkCert) > 0 && fileSize(linkKey) > 0 {
+		files = append(files,
+			control.File{Name: "link/" + filepath.Base(linkCert), Path: linkCert, Part: "link certificate"},
+			control.File{Name: "link/" + filepath.Base(linkKey), Path: linkKey, Part: "link certificate"})
+	}
 	dated := dst == ""
 	if dated {
 		dst = control.FreeBackupName(dir, time.Now())
@@ -298,8 +310,10 @@ func restartOnly(ch config.Change) bool {
 		return ch.Key == "ports"
 	case "server":
 		return ch.Key != "description" && ch.Key != "resolve_hosts"
-	case "cloak", "tls", "control", "link":
+	case "cloak", "tls", "control":
 		return true
+	case "link":
+		return ch.Key != "server" // [[link.server]] blocks apply live
 	case "services":
 		return ch.Key == "database"
 	case "history":
@@ -316,6 +330,9 @@ func keepRestartOnly(fresh, old *config.Config) {
 	fresh.Server = old.Server
 	fresh.Server.Description, fresh.Server.ResolveHosts = desc, resolve
 	fresh.Cloak, fresh.TLS, fresh.Control = old.Cloak, old.TLS, old.Control
+	servers := fresh.Link.Servers
+	fresh.Link = old.Link
+	fresh.Link.Servers = servers
 	fresh.Services.Database = old.Services.Database
 	fresh.History.File, fresh.History.Secret = old.History.File, old.History.Secret
 }
@@ -344,6 +361,7 @@ func (s *Server) rehash(by string) (*control.Rehash, error) {
 	if old.Services.LogChannel != fresh.Services.LogChannel {
 		s.svc.SyncLogChannel(old.Services.LogChannel)
 	}
+	s.linkRehash()
 	clear(s.floodCache)
 	s.hist.store.SetMax(int64(fresh.History.MaxMemoryMB) << 20)
 	s.net.NewChannelParams = nil

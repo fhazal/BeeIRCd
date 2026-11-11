@@ -4,6 +4,15 @@ Status: APPROVED 12 Nov 2026 with all recommendations; L1 changed on the
 owner's choice (after advice) from an own protocol to the UnrealIRCd 6
 server protocol, with the InspIRCd-style rename only between BeeIRCd
 servers (L5). Each sub-step still asks "build 2x?" first.
+2a built 12 Nov 2026 on branch stage2 (not merged: main stays the v1.0
+rc line). Changes found while building: channel names must be valid UTF-8
+(UnrealIRCd refuses links whose allowed-channelchars differ; utf8 is its
+default); link password is plain text in the config, optional, because it
+has to be sent (UnrealIRCd's spkifp links send `PASS :*`) - the pinned
+fingerprint is the real lock (owner agreed 12 Nov: fingerprint-only is the
+default `link-info` prints; `beeircd check` warns about a world-readable
+config holding a link password and a link key others can read); `[link]
+address` added.
 
 Stage 2 links BeeIRCd servers into one network: a hub with leaves (and
 later hubs under hubs), one set of services on the hub, splits and rejoins
@@ -126,7 +135,11 @@ the config, the installer opens the link port.
 - Official support for UnrealIRCd links and the "use Anope instead of
   built-in services" option (protocol is ready after 2g; making it a
   supported feature waits until BeeIRCd is finished, Anope first, per the
-  owner's note 11 Nov). InspIRCd links: not planned.
+  owner's note 11 Nov). InspIRCd links: planned later as a second
+  protocol module (owner's vision 12 Nov: BeeIRCd can switch its services
+  off for Anope and link with UnrealIRCd and InspIRCd). So the wire format
+  stays behind one interface in internal/link: the network logic never
+  depends on Unreal's command names.
 - Services on more than one server, history back-fill after splits, mesh
   routing, encrypted DM history (BeeRoom).
 

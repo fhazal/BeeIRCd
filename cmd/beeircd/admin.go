@@ -148,6 +148,13 @@ func statusScreen(st *control.Status, p paint, now time.Time, timerOff bool) str
 	default:
 		row("Backup", ago(last, now)+" "+p.dim(fmt.Sprintf("· %d kept in %s", len(control.Backups(keep)), keep)))
 	}
+	for i, l := range linksRow(st, p, now) {
+		name := "Links"
+		if i > 0 {
+			name = ""
+		}
+		row(name, l)
+	}
 	if u := st.Update; u != nil {
 		b.WriteString(p.warn(fmt.Sprintf("  %-10s %s is out (%s) · beeircd update", "Update", u.Version, shortDate(u.Date))) + "\n")
 	}
@@ -269,6 +276,7 @@ func runChecks(c *checker, path string, now time.Time) *config.Config {
 			c.ok("certificate matches "+host+", valid until "+leaf.NotAfter.Format("2 Jan 2006"), "")
 		}
 	}
+	checkLinks(c, cfg)
 	running := false
 	if resp, err := ask(cfg, control.CmdCheck, "", 30*time.Second); err == nil && resp.Check != nil {
 		running = true

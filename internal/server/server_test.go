@@ -22,6 +22,10 @@ import (
 // skipReplay turns off the event replay check, for the load test.
 var skipReplay bool
 
+// skipLeakCheck turns off the per-server goroutine check (tests with
+// several servers check once for all of them).
+var skipLeakCheck bool
+
 // testServer starts a server on free local ports and stops it at test end.
 // tweak may change the config first.
 func testServer(t *testing.T, tweak func(*config.Config)) *Server {
@@ -33,6 +37,11 @@ func testServer(t *testing.T, tweak func(*config.Config)) *Server {
 func testServerWith(t *testing.T, tweak func(*config.Config), setup func(*Server)) *Server {
 	t.Helper()
 	leakCheck := goroutineBaseline(t)
+	if skipLeakCheck {
+		// Several servers in one test: the count is checked once for all
+		// of them (linkLeakCheck).
+		leakCheck = func() {}
+	}
 	off := false
 	dir := t.TempDir()
 	cfg := &config.Config{

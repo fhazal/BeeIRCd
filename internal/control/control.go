@@ -97,6 +97,22 @@ type Status struct {
 	Safety          Safety `json:"safety"`
 	// Update is a newer release the daily check found (nil: none).
 	Update *UpdateInfo `json:"update,omitempty"`
+	// Links are the server links (hub and leaf only; Stage 2).
+	Links []Link `json:"links,omitempty"`
+}
+
+// Link is one server link for the status screen.
+type Link struct {
+	Name     string    `json:"name"`
+	SID      string    `json:"sid,omitempty"`
+	State    string    `json:"state"` // up, linking, connecting, down
+	Out      bool      `json:"out"`   // we connect (autoconnect) / we connected
+	Since    time.Time `json:"since,omitempty"`
+	LagMS    float64   `json:"lag_ms,omitempty"`
+	Software string    `json:"software,omitempty"`
+	Behind   int       `json:"behind,omitempty"` // servers behind it
+	Error    string    `json:"error,omitempty"`  // last connect error
+	Retry    time.Time `json:"retry,omitempty"`  // next autoconnect try
 }
 
 // Check is what only the running server can check: its own database

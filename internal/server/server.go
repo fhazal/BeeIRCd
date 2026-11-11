@@ -77,6 +77,7 @@ type Server struct {
 	quitReason  string                      // set by `beeircd update` before it restarts the server
 	watchers    map[string]map[*Client]bool // MONITOR: folded nick -> clients watching it
 	loop        loopStats                   // how long each piece of loop work took
+	links       linkState                   // Stage 2 server links
 	wg          sync.WaitGroup
 
 	// Services. The store is shared: the server reads oper entries and
@@ -198,6 +199,11 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 		}
 		s.listeners = append(s.listeners, li)
 	}
+	if err := s.linkSetup(); err != nil {
+		s.closeListeners()
+		db.Close()
+		return nil, err
+	}
 	// Without the socket the server still runs; only the admin commands
 	// can't reach it.
 	if err := s.openControl(); err != nil {
@@ -225,6 +231,10 @@ func (s *Server) Serve(ctx context.Context) error {
 		go s.acceptLoop(l)
 	}
 	s.lmu.Unlock()
+	if s.links.ln != nil {
+		s.wg.Add(1)
+		go s.linkAcceptLoop(s.links.ln)
+	}
 	if s.ctl != nil {
 		s.wg.Add(1)
 		go s.controlLoop()
@@ -239,6 +249,15 @@ func (s *Server) Serve(ctx context.Context) error {
 	defer tick.Stop()
 	hourly := time.NewTicker(time.Hour)
 	defer hourly.Stop()
+	// Links get their own 1 s tick: autoconnect and pings shouldn't wait
+	// for the client tick, which can be 15 s.
+	var linkTick <-chan time.Time
+	if s.links.ln != nil {
+		lt := time.NewTicker(time.Second)
+		defer lt.Stop()
+		linkTick = lt.C
+		s.linkTick(time.Now())
+	}
 	s.svc.Expire(time.Now())
 	for {
 		select {
@@ -290,6 +309,10 @@ func (s *Server) Serve(ctx context.Context) error {
 			s.throttleTick(now)
 			s.certTick(now)
 			s.svc.Tick(now)
+			s.reap()
+			s.flushWrites()
+		case now := <-linkTick:
+			s.linkTick(now)
 			s.reap()
 			s.flushWrites()
 		case now := <-hourly.C:
@@ -389,6 +412,7 @@ func (s *Server) shutdown(reason string) {
 	snap := s.historySnapshot() // before everyone quits and channels go
 	close(s.done)
 	s.closeListeners()
+	s.closeLinks(reason)
 	s.closeControl()
 	for _, c := range s.clients {
 		s.quit(c, reason)
@@ -410,6 +434,7 @@ func (s *Server) shutdown(reason string) {
 
 // reap disconnects clients whose send queue overflowed.
 func (s *Server) reap() {
+	s.reapLinks()
 	for len(s.toKill) > 0 {
 		kill := s.toKill
 		s.toKill = nil

@@ -1,0 +1,166 @@
+package main
+
+// Stage 2a: the CLI side of server links: `beeircd link-info`, the link
+// lines of `beeircd check` and the Links row of `beeircd status`.
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"runtime"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/fhazal/beeircd/internal/config"
+	"github.com/fhazal/beeircd/internal/control"
+	"github.com/fhazal/beeircd/internal/link"
+)
+
+// cmdLinkInfo prints what another server needs to link with this one.
+func cmdLinkInfo(args []string, stdout, stderr io.Writer) int {
+	path, _, ok := adminFlags("link-info", args, stderr)
+	if !ok {
+		return 2
+	}
+	cfg, err := config.Load(path)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	if !cfg.Link.Linked() {
+		fmt.Fprintln(stderr, "This server is standalone. Set [link] role = \"hub\" or \"leaf\" in beeircd.conf, restart, then run beeircd link-info again.")
+		return 1
+	}
+	fp, err := link.FileFingerprint(cfg.Link.Cert)
+	if errors.Is(err, os.ErrNotExist) {
+		fmt.Fprintln(stderr, "No link certificate yet: it is made when the server starts as a hub or leaf. Restart it, then run beeircd link-info again.")
+		return 1
+	}
+	if err != nil {
+		fmt.Fprintln(stderr, "link certificate:", err)
+		return 1
+	}
+	name, port := cfg.Server.Name, strconv.Itoa(cfg.Link.Port)
+	fmt.Fprintf(stdout, `
+  This server   %s (SID %s), %s, link port %s (TLS)
+  Fingerprint   %s
+
+  On another BeeIRCd server, add to beeircd.conf (then: beeircd rehash):
+
+    [[link.server]]
+    name = "%s"
+    host = "<this server's address>"   # leave out on a hub this server connects to
+    port = %s
+    fingerprint = "%s"
+    autoconnect = true
+    # password = "..."   # optional; the fingerprint is what proves who links
+
+  The fingerprint is the lock: the other server must hold this server's
+  private key. A password adds little; leave it out unless the other side
+  needs one (Anope, an UnrealIRCd link block with a plain password).
+
+  On UnrealIRCd 6, add to unrealircd.conf (then: ./unrealircd rehash):
+
+    link %s {
+        incoming { mask *; }
+        outgoing { hostname <this server's address>; port %s; options { tls; autoconnect; } }
+        password "%s" { spkifp; }
+        class servers;
+    }
+
+  And here, a [[link.server]] block for the other server with its
+  fingerprint (beeircd link-info there, or ./unrealircd spkifp).
+
+`, name, cfg.Server.SID, cfg.Link.Role, port, fp, name, port, fp, name, port, fp)
+	return 0
+}
+
+// checkLinks adds the link lines to beeircd check.
+func checkLinks(c *checker, cfg *config.Config) {
+	if !cfg.Link.Linked() {
+		return
+	}
+	_, fp, err := link.Load(cfg.Link.Cert, cfg.Link.Key)
+	switch {
+	case err != nil && errors.Is(err, os.ErrNotExist):
+		c.ok("link certificate: made at the next start")
+	case err != nil:
+		c.bad(err.Error())
+	default:
+		c.ok("link certificate OK", "(fingerprint "+fp+")")
+	}
+	for _, w := range linkFileWarnings(cfg, fileMode) {
+		c.warn(w)
+	}
+	if len(cfg.Link.Servers) == 0 {
+		c.ok("links: none set up yet (beeircd link-info shows how)")
+		return
+	}
+	var names []string
+	for _, s := range cfg.Link.Servers {
+		names = append(names, s.Name)
+	}
+	c.ok("links: " + strings.Join(names, ", "))
+}
+
+// fileMode returns a file's permission bits (ok false when it can't be
+// read, or on Windows, where they mean nothing).
+func fileMode(path string) (os.FileMode, bool) {
+	if runtime.GOOS == "windows" {
+		return 0, false
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		return 0, false
+	}
+	return fi.Mode().Perm(), true
+}
+
+// linkFileWarnings flags link secrets other users on the machine could
+// read: beeircd.conf holding a link password, or the link key.
+func linkFileWarnings(cfg *config.Config, mode func(string) (os.FileMode, bool)) []string {
+	var out []string
+	hasPassword := false
+	for _, s := range cfg.Link.Servers {
+		hasPassword = hasPassword || s.Password != ""
+	}
+	if m, ok := mode(cfg.Path); ok && hasPassword && m&0o004 != 0 {
+		out = append(out, fmt.Sprintf("%s holds a link password and every user on this machine can read it (chmod o-r %s)", cfg.Path, cfg.Path))
+	}
+	if m, ok := mode(cfg.Link.Key); ok && m&0o077 != 0 {
+		out = append(out, fmt.Sprintf("the link key %s can be read by other users; it proves this server's identity (chmod 600 %s)", cfg.Link.Key, cfg.Link.Key))
+	}
+	return out
+}
+
+// linksRow is the Links row of the status screen.
+func linksRow(st *control.Status, p paint, now time.Time) []string {
+	var out []string
+	for _, l := range st.Links {
+		switch l.State {
+		case "up":
+			text := fmt.Sprintf("%s %s for %s · lag %s", l.Name, p.ok("● up"), since(now.Sub(l.Since)), ms(l.LagMS))
+			if l.Behind > 0 {
+				text += fmt.Sprintf(" · %s behind it", plural(l.Behind, "server"))
+			}
+			if l.Software != "" {
+				text += " " + p.dim("("+l.Software+")")
+			}
+			out = append(out, text)
+		case "linking", "connecting":
+			out = append(out, l.Name+" "+p.dim("connecting…"))
+		default:
+			text := l.Name + " " + p.warn("● down")
+			switch {
+			case l.Error != "" && !l.Retry.IsZero():
+				text += p.warn(" · " + l.Error + " · next try in " + since(l.Retry.Sub(now)))
+			case !l.Out:
+				text += p.dim(" · waiting for it to connect")
+			}
+			out = append(out, text)
+		}
+	}
+	return out
+}

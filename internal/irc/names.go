@@ -1,5 +1,7 @@
 package irc
 
+import "unicode/utf8"
+
 import "strings"
 
 // Fold lower-cases s with the rfc1459 casemapping, where []\~ are the upper
@@ -63,7 +65,9 @@ func ValidChannel(name string, maxLen int) bool {
 			return false
 		}
 	}
-	return true
+	// Valid UTF-8 only, like UnrealIRCd's default allowed-channelchars
+	// utf8: linked servers must agree on which names exist (Stage 2).
+	return utf8.ValidString(name)
 }
 
 // Match reports whether s matches the glob pattern (* and ?), ignoring case
