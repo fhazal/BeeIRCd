@@ -95,6 +95,11 @@ type Services struct {
 	net   *state.Network
 	store *store.Store
 
+	// secretDone runs on the loop (as a new job) after every password
+	// check or hash finished, so the server can go on with that client's
+	// held lines in order (audit O1).
+	secretDone func()
+
 	services map[string]*service // by folded nick
 	nickServ *service
 	memoServ *service

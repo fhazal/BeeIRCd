@@ -45,8 +45,9 @@ type Client struct {
 	capture               *[]string       // lines held back for labeled-response
 
 	// SASL and oper state (services keep their own record per user).
-	pwBusy      bool   // a SASL or /oper password check is running
-	saslMech    string // SASL mechanism in progress
+	pwBusy      bool     // a SASL or /oper password check is running
+	heldLines   []string // lines that came in while a password check ran (O1)
+	saslMech    string   // SASL mechanism in progress
 	saslBuf     strings.Builder
 	saslBusy    bool
 	saslAccount *store.Account    // SASL done before registration finished
@@ -363,6 +364,8 @@ func (s *Server) quit(c *Client, reason string) {
 	}
 	c.closed = true
 	c.capture = nil
+	c.heldLines = nil
+	delete(s.held, c)
 	delete(s.clients, c.uid)
 	s.monitorDrop(c)
 	if s.perIP[c.ip]--; s.perIP[c.ip] <= 0 {

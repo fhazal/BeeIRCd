@@ -73,6 +73,51 @@ func (s *Server) handleLine(c *Client, line string) {
 	}
 	c.lastRecv = time.Now()
 	c.pingSent = time.Time{}
+	// A client's commands run in the order it sent them: while one of its
+	// passwords is being checked (off the loop), what follows waits (O1).
+	if len(c.heldLines) > 0 || s.passwordBusy(c) {
+		if len(c.heldLines) >= maxHeldLines {
+			s.quit(c, "Excess flood")
+			return
+		}
+		c.heldLines = append(c.heldLines, line)
+		s.held[c] = struct{}{}
+		return
+	}
+	s.runLine(c, line)
+}
+
+// maxHeldLines is how many lines one client may send while its password is
+// checked; normal flood control slows a sender long before this.
+const maxHeldLines = 512
+
+// passwordBusy reports whether a password check or hash runs for c, here
+// (SASL, /oper) or in services (IDENTIFY, REGISTER, ...).
+func (s *Server) passwordBusy(c *Client) bool {
+	return c.pwBusy || (c.user != nil && s.svc.PasswordBusy(c.uid))
+}
+
+// releaseHeld runs the held lines of every client whose check finished,
+// in order, until one of them starts another check.
+func (s *Server) releaseHeld() {
+	for c := range s.held {
+		for len(c.heldLines) > 0 && !c.closed && !s.passwordBusy(c) {
+			line := c.heldLines[0]
+			c.heldLines = c.heldLines[1:]
+			s.runLine(c, line)
+		}
+		if c.closed || len(c.heldLines) == 0 {
+			c.heldLines = nil
+			delete(s.held, c)
+		}
+	}
+}
+
+// runLine parses and runs one line from c.
+func (s *Server) runLine(c *Client, line string) {
+	if c.closed {
+		return
+	}
 	m, err := irc.Parse(line)
 	if err != nil {
 		return

@@ -58,9 +58,11 @@ type Server struct {
 	floodSwept  time.Time
 	floodBoot   time.Duration // join floods aren't counted this long after start
 	rejoinBlock map[string]time.Time
-	watchers    map[string]map[*Client]bool // MONITOR: folded nick -> clients watching it
-	loop        loopStats                   // how long each piece of loop work took
-	wg          sync.WaitGroup
+	// held are the clients with lines waiting for a password check (O1).
+	held     map[*Client]struct{}
+	watchers map[string]map[*Client]bool // MONITOR: folded nick -> clients watching it
+	loop     loopStats                   // how long each piece of loop work took
+	wg       sync.WaitGroup
 
 	// Services. The store is shared: the server reads oper entries and
 	// SASL accounts from it, services own the rest.
@@ -113,6 +115,7 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 		floodCache:  make(map[string]floodSet),
 		floodBoot:   floodBootDelay,
 		rejoinBlock: make(map[string]time.Time),
+		held:        make(map[*Client]struct{}),
 		resolve:     lookupHost,
 		lookupA:     lookupA,
 		dnsblSkip:   dnsblSkipped,
@@ -135,6 +138,7 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 		return nil, fmt.Errorf("services database: %w", err)
 	}
 	s.svc = svc
+	svc.OnSecretDone(s.releaseHeld)
 	s.sinks = append(s.sinks, svc.Event)
 	svc.Start()
 	s.adminServ = svc.AddBot("AdminServ", "as", "Admin Services",

@@ -262,6 +262,7 @@ func (s *Services) CheckSecret(busy *bool, gone func() bool, key int64, hash, pw
 		<-s.hashSem
 		s.post(func() {
 			*busy = false
+			defer s.afterSecret()
 			if gone() {
 				return
 			}
@@ -283,6 +284,23 @@ func (s *Services) CheckSecret(busy *bool, gone func() bool, key int64, hash, pw
 			result(pwWrong)
 		})
 	}()
+}
+
+// OnSecretDone sets f to run (as a new loop job) after every password
+// check or hash, once its result was handled.
+func (s *Services) OnSecretDone(f func()) { s.secretDone = f }
+
+// PasswordBusy reports whether services are checking or hashing a
+// password for uid right now.
+func (s *Services) PasswordBusy(uid string) bool {
+	c := s.clients[uid]
+	return c != nil && c.pwBusy
+}
+
+func (s *Services) afterSecret() {
+	if s.secretDone != nil {
+		s.host.Post(s.secretDone)
+	}
 }
 
 // hashPassword hashes pw off the loop for c and calls done with the hash.
@@ -310,6 +328,7 @@ func (s *Services) HashSecret(busy *bool, gone func() bool, pw string, done func
 		<-s.hashSem
 		s.post(func() {
 			*busy = false
+			defer s.afterSecret()
 			if !gone() {
 				done(h, err)
 			}
