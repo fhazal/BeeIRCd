@@ -153,9 +153,10 @@ in-process / homelab instance with its own ports and data; **L** live test serve
 | message-tags, server-time, echo-message, labeled-response, batch | Existing | caps_test | irctest; interactions (labeled + batch + echo) | H |
 | account-notify/tag, extended-join, away-notify, chghost, invite-notify, multi-prefix, userhost-in-names | Existing | caps_test | irctest | M |
 | MONITOR | Existing | ns156 | irctest monitor | M |
-| setname, bot | **Not implemented** (1.5.9b) | — | — | H |
-| chathistory | **Not implemented** (1.5.9c) | — | — | H |
-| standard-replies, WHOX, extended-monitor, UTF8ONLY, no-implicit-names, STS, WebSocket | **Not implemented** | — | — | M/L |
+| setname, bot | Existing (1.5.9b; bot tag d97e4a0) | umodes159b_test | irctest setname, bot_mode | H |
+| chathistory | Existing for channels (1.5.9c); **private-message history: not in v1.0 by design** (decided 12 Nov 2026, see "DM history" at the end) | history159c_test | irctest chathistory: 8 DM tests fail as expected | H |
+| STS | Existing (7c) | acme7c_test | — | M |
+| standard-replies, WHOX, extended-monitor, UTF8ONLY, no-implicit-names, WebSocket | **Not implemented** | — | — | M/L |
 
 ### E. Security
 
@@ -493,3 +494,20 @@ irctest run 5 (this build, Go 1.27.4): **270 PASS · 4 FAIL · 163 SKIPPED · 3 
 - `WHO *`: expected difference (above).
 - The 2 SASL re-auth tests: harness limit (above).
 - `sasl testPlainLarge800`: harness limit, new. The controller registers the account with a 592-character password in one `PRIVMSG NickServ :REGISTER ...` line (619 bytes). BeeIRCd now refuses client lines over 510 bytes with 417 (A4), so no client could send that line. SASL with an 800-byte payload itself works (`testPlainLarge` passes).
+
+### DM history: channel-only for v1.0 (decided 12 Nov 2026)
+
+BeeIRCd keeps history for `+H` channels only. Private messages are never
+stored on the server in v1.0: storing them would give the server admin
+everyone's DMs, and UnrealIRCd (`+H`) and InspIRCd (chanhistory) are
+channel-only too.
+
+**Expected irctest failures (8, by design, not bugs)** in
+`chathistory.py`, as recorded in irctest run 6 (1.5.9c, 12 Nov 2026):
+MessagesToSelf ×1, the private-message (DM) tests ×5, and Targets ×2 (TARGETS
+lists DM partners). A CHATHISTORY request for a nick gets `FAIL CHATHISTORY INVALID_TARGET`.
+Any other chathistory failure is a bug.
+
+**Later (Stage 4, with BeeRoom):** opt-in per account (`NickServ SET
+HISTORY ON`), off by default, encrypted on disk, expires on its own, never
+readable by opers.

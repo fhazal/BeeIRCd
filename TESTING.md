@@ -66,6 +66,10 @@ InspIRCd and UnrealIRCd use. It knows nothing about BeeIRCd's code.
 scripts/irctest.sh <beeircd linux binary> [pytest args]     # on the homelab
 ```
 
+- **Expected failures, not bugs:** the 8 private-message tests in
+  `chathistory.py` (MessagesToSelf, the DM tests, Targets ×2). BeeIRCd keeps
+  history for channels only in v1.0 (decided 12 Nov 2026; see
+  AUDIT-TESTING.md "DM history"). Any other failure is a bug.
 - Runs in a disposable container with `--network none`. Each test starts its
   own BeeIRCd in a temp directory, so the test server is never touched.
 - The controller is `tools/irctest/beeircd.py` and the irctest commit is pinned in the script.
