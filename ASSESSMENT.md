@@ -14,9 +14,9 @@ in [FEATURES.md](FEATURES.md).
    and timestamps exist from day one, and tests drive the real protocol.
 2. Three things must change before Stage 2 linking:
    - services data is read from SQLite on the main loop (every JOIN and
-     NICK); cache it in memory and write through;
+     NICK); cache it in memory and write through (done in 1.5.2);
    - state changes are direct edits, not events; add an event layer that
-     local delivery and server links both use;
+     local delivery and server links both use (done in 1.5.2);
    - channel status is two booleans; switch to ranks, which also gives the
      `@+` / `~&@%+` prefix option.
 3. About 20 of the 34 released IRCv3 specs are implemented. Next and cheap:

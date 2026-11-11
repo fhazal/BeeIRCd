@@ -165,23 +165,13 @@ func (s *Server) cmdWhowas(c *Client, m irc.Message) {
 func (s *Server) cmdAway(c *Client, m irc.Message) {
 	u := c.user
 	msg := irc.Truncate(m.Param(0), s.cfg.Limits.AwayLen)
-	changed := msg != u.Away
-	u.Away = msg
+	s.emit(&state.Away{UID: u.UID, Message: msg})
 	if msg != "" {
 		s.reply(c, irc.RplNowAway, "You have been marked as being away")
 	} else {
 		s.reply(c, irc.RplUnAway, "You are no longer marked as being away")
 	}
-	if changed {
-		var o *outMsg
-		if msg != "" {
-			o = s.out(u, "AWAY", msg).text()
-		} else {
-			o = s.out(u, "AWAY")
-		}
-		o.needCap = "away-notify"
-		s.toNeighbours(u, o, false)
-	}
+
 }
 
 func (s *Server) cmdIson(c *Client, m irc.Message) {

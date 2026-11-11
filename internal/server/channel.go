@@ -76,15 +76,12 @@ func (s *Server) joinOne(c *Client, name, key string) {
 			return
 		}
 	}
-	ch, _, created := s.net.Join(u, name, time.Now().Unix())
-	join := s.out(u, "JOIN", ch.Name)
-	join.extParams = []string{ch.Name, accountOrStar(u), u.Realname}
-	s.broadcast(ch, join, nil)
-	if u.Away != "" {
-		away := s.out(u, "AWAY", u.Away).text()
-		away.needCap = "away-notify"
-		s.broadcast(ch, away, u)
+	ev := &state.Join{UID: u.UID, Channel: name, TS: time.Now().Unix()}
+	if s.emit(ev) != nil {
+		return
 	}
+	created := ev.Created
+	ch = s.net.Channel(name)
 	if ch.Topic != "" {
 		s.sendTopic(c, ch)
 	}
@@ -108,14 +105,7 @@ func (s *Server) cmdPart(c *Client, m irc.Message) {
 }
 
 func (s *Server) partOne(u *state.User, ch *state.Channel, reason string) {
-	params := []string{ch.Name}
-	if reason != "" {
-		params = append(params, reason)
-	}
-	o := s.out(u, "PART", params...)
-	o.msg.Trailing = reason != ""
-	s.broadcast(ch, o, nil)
-	s.net.Part(u, ch)
+	s.emit(&state.Part{UID: u.UID, Channel: ch.Name, Reason: reason})
 }
 
 func (s *Server) cmdTopic(c *Client, m irc.Message) {
@@ -153,8 +143,7 @@ func (s *Server) cmdTopic(c *Client, m irc.Message) {
 	if topic == ch.Topic {
 		return
 	}
-	ch.Topic, ch.TopicBy, ch.TopicAt = topic, u.Nick, time.Now()
-	s.broadcast(ch, s.out(u, "TOPIC", ch.Name, topic).text(), nil)
+	s.emit(&state.Topic{Source: u.UID, Channel: ch.Name, Text: topic, By: u.Nick, At: time.Now()})
 	s.csTopicChanged(ch)
 }
 
@@ -276,8 +265,10 @@ func (s *Server) cmdKick(c *Client, m irc.Message) {
 			s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You can't kick "+t.Nick+": their channel status protects them")
 			continue
 		}
-		s.broadcast(ch, s.out(u, "KICK", ch.Name, t.Nick, reason).text(), nil)
-		s.net.Part(t, ch)
+		s.emit(&state.Kick{Source: u.UID, UID: t.UID, Channel: ch.Name, Reason: reason})
+		if s.net.Channel(ch.Name) == nil {
+			return // the last one left: the channel is gone
+		}
 	}
 }
 
@@ -302,21 +293,13 @@ func (s *Server) cmdInvite(c *Client, m irc.Message) {
 			s.reply(c, irc.ErrUserOnChannel, t.Nick, ch.Name, "is already on channel")
 			return
 		}
-		ch.Invited[t.UID] = true
 		name = ch.Name
-		notify := s.out(u, "INVITE", t.Nick, ch.Name)
-		notify.needCap = "invite-notify"
-		for _, other := range ch.Members {
-			if other.AtLeast(state.RankHalfop) && other.User != u {
-				s.deliverTo(other.User, notify)
-			}
-		}
 	}
 	s.replyBare(c, irc.RplInviting, t.Nick, name)
 	if t.Away != "" {
 		s.reply(c, irc.RplAway, t.Nick, t.Away)
 	}
-	s.deliverTo(t, s.out(u, "INVITE", t.Nick, name))
+	s.emit(&state.Invite{Source: u.UID, UID: t.UID, Channel: name})
 }
 
 // canKick follows UnrealIRCd: halfops kick only people below halfop, ops

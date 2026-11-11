@@ -59,8 +59,17 @@ func (s *Server) userMode(c *Client, m irc.Message) {
 		s.replyBare(c, irc.RplUModeIs, u.ModeString())
 		return
 	}
-	add, unknown := true, false
-	var changes []modeChange
+	// cur is the modes as they will be; the event changes the real ones.
+	cur := make(map[byte]bool, len(u.Modes))
+	for k, v := range u.Modes {
+		cur[k] = v
+	}
+	add, unknown, deopered := true, false, false
+	var changes []state.ModeChange
+	flip := func(mc byte, on bool) {
+		setFlag(cur, mc, on)
+		changes = append(changes, state.ModeChange{Add: on, Mode: mc})
+	}
 	for i := 0; i < len(m.Params[1]); i++ {
 		mc := m.Params[1][i]
 		switch mc {
@@ -69,30 +78,24 @@ func (s *Server) userMode(c *Client, m irc.Message) {
 		case '-':
 			add = false
 		case 'i', 'w':
-			if u.Modes[mc] != add {
-				setFlag(u.Modes, mc, add)
-				changes = append(changes, modeChange{add: add, mode: mc})
+			if cur[mc] != add {
+				flip(mc, add)
 			}
 		case 'o':
-			if !add && u.Modes['o'] { // anyone may drop oper, nobody may take it here
-				delete(u.Modes, 'o')
-				changes = append(changes, modeChange{mode: 'o'})
-				c.operFlags, c.operTitle, c.operAccount = "", "", 0
-				if u.Modes['s'] {
-					delete(u.Modes, 's')
-					changes = append(changes, modeChange{mode: 's'})
+			if !add && cur['o'] { // anyone may drop oper, nobody may take it here
+				flip('o', false)
+				if cur['s'] {
+					flip('s', false)
 				}
-				s.snotice("%s is no longer an operator", u.Nick)
+				deopered = true
 			}
 		case 's':
-			if c.isOper() && u.Modes['s'] != add {
-				setFlag(u.Modes, 's', add)
-				changes = append(changes, modeChange{add: add, mode: 's'})
+			if c.isOper() && !deopered && cur['s'] != add {
+				flip('s', add)
 			}
 		case 'x':
-			if s.cfg.CloakEnabled() && u.Modes['x'] != add {
-				setFlag(u.Modes, 'x', add)
-				changes = append(changes, modeChange{add: add, mode: 'x'})
+			if s.cfg.CloakEnabled() && cur['x'] != add {
+				flip('x', add)
 			}
 		case 'r':
 			// Only services set it; ignored when asked for.
@@ -104,7 +107,11 @@ func (s *Server) userMode(c *Client, m irc.Message) {
 		s.reply(c, irc.ErrUModeUnknownFlag, "Unknown MODE flag")
 	}
 	if len(changes) > 0 {
-		c.send(irc.Message{Source: u.Nick, Command: "MODE", Params: []string{u.Nick, formatModes(changes)[0]}}.String())
+		s.emit(&state.UserMode{Source: u.UID, UID: u.UID, Changes: changes})
+	}
+	if deopered {
+		c.operFlags, c.operTitle, c.operAccount = "", "", 0
+		s.snotice("%s is no longer an operator", u.Nick)
 	}
 	if s.cfg.CloakEnabled() {
 		host := u.RealHost
@@ -164,7 +171,8 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 		denied = true
 		return false
 	}
-	var out []modeChange
+	var out []state.ModeChange // checked here, applied by the event
+	adds := map[byte]int{}     // list entries added so far, for the list limit
 	add, used := true, 0
 	now := time.Now()
 	for i := 0; i < len(modes); i++ {
@@ -190,16 +198,13 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 			used++
 			mask := irc.NormalizeMask(arg)
 			if add {
-				if len(ch.Lists[mc]) >= maxListEntries {
+				if len(ch.Lists[mc])+adds[mc] >= maxListEntries {
 					s.reply(c, irc.ErrBanListFull, ch.Name, mask, "Channel list is full")
 					continue
 				}
-				if ch.AddListEntry(mc, mask, src.Nick, now) {
-					out = append(out, modeChange{true, mc, mask})
-				}
-			} else if stored, ok := ch.RemoveListEntry(mc, mask); ok {
-				out = append(out, modeChange{false, mc, stored})
+				adds[mc]++
 			}
+			out = append(out, state.ModeChange{Add: add, Mode: mc, Arg: mask})
 		case state.RankForMode(mc) != 0:
 			arg, ok := next()
 			if !ok {
@@ -234,9 +239,7 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 				denied = true
 				continue
 			}
-			if tm.Set(rank, add) {
-				out = append(out, modeChange{add, mc, t.Nick})
-			}
+			out = append(out, state.ModeChange{Add: add, Mode: mc, Arg: t.Nick, UID: t.UID})
 		case mc == 'k':
 			arg, ok := next()
 			if add && !ok {
@@ -250,13 +253,9 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 				if key == "" || key == ch.Key {
 					continue
 				}
-				ch.Key = key
-				ch.Modes['k'] = true
-				out = append(out, modeChange{true, 'k', key})
-			} else if ch.Modes['k'] {
-				out = append(out, modeChange{false, 'k', ch.Key})
-				delete(ch.Modes, 'k')
-				ch.Key = ""
+				out = append(out, state.ModeChange{Add: true, Mode: 'k', Arg: key})
+			} else {
+				out = append(out, state.ModeChange{Mode: 'k'})
 			}
 		case mc == 'l':
 			var arg string
@@ -274,13 +273,9 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 				if err != nil || n <= 0 || (ch.Modes['l'] && n == ch.Limit) {
 					continue
 				}
-				ch.Limit = n
-				ch.Modes['l'] = true
-				out = append(out, modeChange{true, 'l', strconv.Itoa(n)})
-			} else if ch.Modes['l'] {
-				delete(ch.Modes, 'l')
-				ch.Limit = 0
-				out = append(out, modeChange{false, 'l', ""})
+				out = append(out, state.ModeChange{Add: true, Mode: 'l', Arg: strconv.Itoa(n)})
+			} else {
+				out = append(out, state.ModeChange{Mode: 'l'})
 			}
 		case strings.IndexByte("imnt", mc) >= 0, strings.IndexByte("psRM", mc) >= 0:
 			need := state.RankOp
@@ -290,10 +285,7 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 			if !can(need) {
 				continue
 			}
-			if ch.Modes[mc] != add {
-				setFlag(ch.Modes, mc, add)
-				out = append(out, modeChange{add, mc, ""})
-			}
+			out = append(out, state.ModeChange{Add: add, Mode: mc})
 		case mc == 'r':
 			// Only ChanServ sets +r.
 		default:
@@ -307,10 +299,12 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 			s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You're not channel operator")
 		}
 	}
-	if len(out) > 0 {
-		params := append([]string{ch.Name}, formatModes(out)...)
-		s.broadcast(ch, s.out(src, "MODE", params...), nil)
-		s.csAfterUserModes(ch, out)
+	if len(out) == 0 {
+		return
+	}
+	ev := &state.ChannelMode{Source: src.UID, Channel: ch.Name, By: src.Nick, At: now, Changes: out}
+	if s.emit(ev) == nil && len(ev.Changes) > 0 {
+		s.csAfterUserModes(ch, fromState(ev.Changes))
 	}
 }
 

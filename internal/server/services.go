@@ -69,7 +69,7 @@ func (s *Server) addService(nick, alias, realname, intro string, cmds map[string
 		SignOn:   s.created,
 		Service:  true,
 	}
-	if err := s.net.AddUser(u); err != nil {
+	if err := s.emit(&state.UserAdd{User: u}); err != nil {
 		panic("service nick taken at start: " + nick)
 	}
 	sv := &service{user: u, alias: alias, intro: intro, cmds: cmds}
@@ -303,7 +303,7 @@ func (s *Server) login(c *Client, a *store.Account) {
 		s.logout(c, false)
 	}
 	now := time.Now()
-	u.Account = a.Name
+	s.emit(&state.Login{UID: u.UID, Account: a.Name})
 	c.accountID = a.ID
 	c.enforceAt = time.Time{}
 	a.LastSeen, a.LastHost = now, u.Ident+"@"+u.RealHost
@@ -312,9 +312,6 @@ func (s *Server) login(c *Client, a *store.Account) {
 	}
 	s.reply(c, irc.RplLoggedIn, u.Prefix(), a.Name, "You are now logged in as "+a.Name)
 	s.setRegistered(c, true)
-	o := s.out(u, "ACCOUNT", a.Name)
-	o.needCap = "account-notify"
-	s.toNeighbours(u, o, true)
 	s.csOnIdentify(c)
 	s.memoSummary(c, a)
 }
@@ -326,15 +323,12 @@ func (s *Server) logout(c *Client, tell bool) {
 		return
 	}
 	s.touchAccount(c)
-	u.Account = ""
+	s.emit(&state.Login{UID: u.UID})
 	c.accountID = 0
 	if tell {
 		s.reply(c, irc.RplLoggedOut, u.Prefix(), "You are now logged out")
 	}
 	s.setRegistered(c, false)
-	o := s.out(u, "ACCOUNT", "*")
-	o.needCap = "account-notify"
-	s.toNeighbours(u, o, true)
 }
 
 // touchAccount saves "last seen" for an identified user.
@@ -355,15 +349,7 @@ func (s *Server) touchAccount(c *Client) {
 // setRegistered sets or clears user mode +r.
 func (s *Server) setRegistered(c *Client, on bool) {
 	u := c.user
-	if u.Modes['r'] == on {
-		return
-	}
-	setFlag(u.Modes, 'r', on)
-	sign := "-r"
-	if on {
-		sign = "+r"
-	}
-	c.send(irc.Message{Source: s.cfg.Server.Name, Command: "MODE", Params: []string{u.Nick, sign}}.String())
+	s.emit(&state.UserMode{UID: u.UID, Changes: umodes(on, "r")})
 }
 
 // nickCheck runs after registration and after every nick change: is the
@@ -435,13 +421,9 @@ func (s *Server) guestNick() string {
 // forceNick changes c's nick as the server.
 func (s *Server) forceNick(c *Client, nick string) {
 	u := c.user
-	old := u.Prefix()
-	o := s.out(u, "NICK", nick)
-	if err := s.net.ChangeNick(u, nick, time.Now().Unix()); err != nil {
+	if err := s.emit(&state.NickChange{UID: u.UID, Nick: nick, TS: time.Now().Unix()}); err != nil {
 		return
 	}
-	s.addWhowasNick(old, u)
-	s.toNeighbours(u, o, true)
 	s.nickCheck(c)
 }
 

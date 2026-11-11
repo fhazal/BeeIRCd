@@ -7,7 +7,7 @@ Status words: **Implemented** (built and tested), **Partial**, **Planned**
 Update this file in the same commit as the code that changes a status. A
 capability is advertised to clients only when it is Implemented.
 
-Last updated: 11 Nov 2026 (Stage 1 step 6, not yet committed).
+Last updated: 11 Nov 2026 (Stage 1.5.2).
 
 ## Core server
 
@@ -26,6 +26,10 @@ Last updated: 11 Nov 2026 (Stage 1 step 6, not yet committed).
 | Host cloaking (HMAC) | Implemented | |
 | Flood control (fake lag) | Implemented | |
 | Session limit per IP, max users | Implemented | |
+| Event layer (every network change is one event) | Implemented | 1.5.2; local delivery uses it; server links will (Stage 2) |
+| Services data in memory, write-through SQLite | Implemented | 1.5.2; one BeeIRCd per database (locked) |
+| Loop timing in OperServ STATS | Implemented | 1.5.2 |
+| 5,000-client load test | Implemented | 1.5.2; `BEEIRCD_LOAD=1`, gate 99% of loop work < 5 ms |
 | Server linking | Planned | Stage 2 |
 | WebSocket | Planned | Stage 4 |
 | PROXY protocol | Planned | |

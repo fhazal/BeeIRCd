@@ -95,6 +95,7 @@ func osStats(s *Server, c *Client, args []string) {
 	s.os(c, "  Accounts   %d (%s), %s", accounts, plural(nicks, "nick"), plural(memos, "memo"))
 	s.os(c, "  AKILLs     %d", len(s.liveAkills()))
 	s.os(c, "  Servers    1")
+	s.os(c, "  Loop       %s", s.loop.summary())
 }
 
 func osGlobal(s *Server, c *Client, args []string) {

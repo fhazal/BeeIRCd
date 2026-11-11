@@ -10,11 +10,16 @@ import (
 	"net"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/fhazal/beeircd/internal/config"
+	"github.com/fhazal/beeircd/internal/state"
 )
+
+// skipReplay turns off the event replay check, for the load test.
+var skipReplay bool
 
 // testServer starts a server on free local ports and stops it at test end.
 // tweak may change the config first.
@@ -52,19 +57,69 @@ func testServerWith(t *testing.T, tweak func(*config.Config), setup func(*Server
 	if setup != nil {
 		setup(s)
 	}
+	// A copy of the network fed only with events must end up the same as
+	// the real one: proof that every change went through an event, which
+	// server links will depend on.
+	replica := s.net.Clone()
+	var replayErr error
+	s.beforeEmit = func(ev state.Event) {
+		if replayErr != nil || skipReplay {
+			return
+		}
+		if ok, where := state.Equal(s.net, replica); !ok {
+			replayErr = fmt.Errorf("before %T: network built from events differs from the real one: %s", ev, where)
+		}
+	}
+	s.sinks = append(s.sinks, func(ev state.Event) {
+		if err := replica.Apply(state.CopyEvent(ev)); err != nil && replayErr == nil {
+			replayErr = fmt.Errorf("replaying %T: %v", ev, err)
+		}
+	})
 	ctx, cancel := context.WithCancel(context.Background())
 	stopped := make(chan struct{})
 	go func() { s.Serve(ctx); close(stopped) }()
-	t.Cleanup(func() {
+	stop := func() {
+		checked := make(chan struct{})
+		s.post(func() {
+			defer close(checked)
+			if skipReplay {
+				// The load test skips the comparison: it would cost more than the work measured.
+			} else if replayErr != nil {
+				t.Error(replayErr)
+			} else if ok, where := state.Equal(s.net, replica); !ok {
+				t.Errorf("network built from events differs from the real one: %s", where)
+			}
+			if err := s.store.VerifyCache(); err != nil {
+				t.Error(err)
+			}
+		})
+		select {
+		case <-checked:
+		case <-stopped:
+		case <-time.After(5 * time.Second):
+			t.Error("end-of-test checks did not run")
+		}
 		cancel()
 		select {
 		case <-stopped:
 		case <-time.After(5 * time.Second):
 			t.Error("server did not stop")
 		}
+	}
+	var once sync.Once
+	stopFns[s] = func() { once.Do(stop) }
+	t.Cleanup(func() {
+		stopFns[s]()
+		delete(stopFns, s)
 	})
 	return s
 }
+
+// stopFns stop test servers early; tests run one at a time.
+var stopFns = map[*Server]func(){}
+
+// stopServer runs the end-of-test checks on s and stops it now.
+func stopServer(s *Server) { stopFns[s]() }
 
 type tc struct {
 	t    *testing.T

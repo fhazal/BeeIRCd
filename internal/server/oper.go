@@ -102,9 +102,7 @@ func (s *Server) operUp(c *Client, o *store.Oper) {
 		}
 		return
 	}
-	u.Modes['o'] = true
-	u.Modes['s'] = true
-	c.send(irc.Message{Source: s.cfg.Server.Name, Command: "MODE", Params: []string{u.Nick, "+os"}}.String())
+	s.emit(&state.UserMode{UID: u.UID, Changes: umodes(true, "os")})
 	s.reply(c, irc.RplYoureOper, "You are now an IRC operator")
 	s.notice(c, "*** Oper flags: "+describeFlags(o.Flags))
 	s.snotice("%s (%s@%s) is now an operator as %s: %s", u.Nick, u.Ident, u.RealHost, o.Account, o.Flags)
@@ -117,13 +115,7 @@ func (s *Server) deoper(c *Client, why string) {
 		return
 	}
 	c.operFlags, c.operTitle, c.operAccount = "", "", 0
-	modes := "-o"
-	delete(u.Modes, 'o')
-	if u.Modes['s'] {
-		delete(u.Modes, 's')
-		modes += "s"
-	}
-	c.send(irc.Message{Source: s.cfg.Server.Name, Command: "MODE", Params: []string{u.Nick, modes}}.String())
+	s.emit(&state.UserMode{UID: u.UID, Changes: umodes(false, "os")})
 	if why != "" {
 		s.notice(c, "*** "+why)
 	}

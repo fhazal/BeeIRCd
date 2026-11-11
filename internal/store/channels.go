@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 
@@ -177,51 +178,65 @@ func scanChannel(row interface{ Scan(...any) error }) (*Channel, error) {
 
 // CreateChannel registers name to founder.
 func (s *Store) CreateChannel(name string, founder *Account, desc string, now time.Time) (*Channel, error) {
-	_, err := s.db.Exec(`INSERT INTO channels (name, name_key, founder_id, description, registered, last_used) VALUES (?, ?, ?, ?, ?, ?)`,
-		name, irc.Fold(name), founder.ID, desc, now.Unix(), now.Unix())
+	key := irc.Fold(name)
+	if _, ok := s.c.chanKeys[key]; ok {
+		return nil, ErrExists
+	}
+	res, err := s.db.Exec(`INSERT INTO channels (name, name_key, founder_id, description, registered, last_used) VALUES (?, ?, ?, ?, ?, ?)`,
+		name, key, founder.ID, desc, now.Unix(), now.Unix())
 	if err != nil && strings.Contains(err.Error(), "UNIQUE") {
 		return nil, ErrExists
 	}
 	if err != nil {
 		return nil, err
 	}
-	return s.ChannelByName(name)
+	id, err := res.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+	// The defaults below are the ones in the schema.
+	s.c.channels[id] = &Channel{ID: id, Name: name, FounderID: founder.ID, Description: desc,
+		Registered: sec(now), LastUsed: sec(now), MlockOn: "nt", KeepTopic: true, TopicAt: time.Unix(0, 0)}
+	s.c.chanKeys[key] = id
+	return s.c.channel(id), nil
 }
 
 // ChannelByName finds a registered channel, or nil.
 func (s *Store) ChannelByName(name string) (*Channel, error) {
-	return scanChannel(s.db.QueryRow(`SELECT `+channelCols+channelFrom+` WHERE c.name_key = ?`, irc.Fold(name)))
+	id, ok := s.c.chanKeys[irc.Fold(name)]
+	if !ok {
+		return nil, nil
+	}
+	return s.c.channel(id), nil
 }
 
 // Channels returns every registered channel by name.
 func (s *Store) Channels() ([]*Channel, error) {
-	return s.channels(`SELECT ` + channelCols + channelFrom + ` ORDER BY c.name_key`)
+	return s.channelsWhere(func(*Channel) bool { return true }), nil
 }
 
 // ExpiredChannels returns channels unused since before.
 func (s *Store) ExpiredChannels(before time.Time) ([]*Channel, error) {
-	return s.channels(`SELECT `+channelCols+channelFrom+` WHERE c.last_used < ?`, before.Unix())
+	return s.channelsWhere(func(c *Channel) bool { return c.LastUsed.Unix() < before.Unix() }), nil
 }
 
-func (s *Store) channels(q string, args ...any) ([]*Channel, error) {
-	rows, err := s.db.Query(q, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+func (s *Store) channelsWhere(keep func(*Channel) bool) []*Channel {
 	var out []*Channel
-	for rows.Next() {
-		c, err := scanChannel(rows)
-		if err != nil {
-			return nil, err
+	for id, c := range s.c.channels {
+		if keep(c) {
+			out = append(out, s.c.channel(id))
 		}
-		out = append(out, c)
 	}
-	return out, rows.Err()
+	sort.Slice(out, func(i, j int) bool { return irc.Fold(out[i].Name) < irc.Fold(out[j].Name) })
+	return out
 }
 
 // SaveChannel writes every setting of c back.
 func (s *Store) SaveChannel(c *Channel) error {
+	have := s.c.channels[c.ID]
+	if have == nil {
+		return nil // dropped meanwhile
+	}
 	var succ any
 	if c.SuccessorID != 0 {
 		succ = c.SuccessorID
@@ -231,13 +246,24 @@ func (s *Store) SaveChannel(c *Channel) error {
 		WHERE id=?`,
 		c.FounderID, succ, c.Description, c.LastUsed.Unix(), c.MlockOn, c.MlockOff, c.MlockKey, c.MlockLimit,
 		c.KeepTopic, c.TopicLock, c.Secure, c.Private, c.EntryMsg, c.URL, c.Topic, c.TopicBy, c.TopicAt.Unix(), c.ID)
-	return err
+	if err != nil {
+		return err
+	}
+	cp := *c
+	cp.Name, cp.Registered = have.Name, have.Registered
+	cp.Founder, cp.Successor = "", ""
+	cp.LastUsed, cp.TopicAt = sec(c.LastUsed), sec(c.TopicAt)
+	*have = cp
+	return nil
 }
 
 // DeleteChannel unregisters a channel with its access list and AKICKs.
 func (s *Store) DeleteChannel(id int64) error {
-	_, err := s.db.Exec("DELETE FROM channels WHERE id = ?", id)
-	return err
+	if _, err := s.db.Exec("DELETE FROM channels WHERE id = ?", id); err != nil {
+		return err
+	}
+	s.c.dropChannel(id)
+	return nil
 }
 
 // Level is account's level on channel (Founder included).
@@ -248,114 +274,106 @@ func (s *Store) Level(c *Channel, accountID int64) (int, error) {
 	if accountID == c.FounderID {
 		return LevelFounder, nil
 	}
-	var l int
-	err := s.db.QueryRow("SELECT level FROM chan_access WHERE channel_id = ? AND account_id = ?", c.ID, accountID).Scan(&l)
-	if errors.Is(err, sql.ErrNoRows) {
-		return LevelNone, nil
+	if l := s.c.levels[c.ID][accountID]; l != nil {
+		return l.level, nil
 	}
-	return l, err
+	return LevelNone, nil
 }
 
 // SetLevel puts account on the access list at level and returns the level
 // it had before (LevelNone when new).
-func (s *Store) SetLevel(c *Channel, a *Account, level int, by string, now time.Time) (int, error) {
-	old, err := s.Level(c, a.ID)
-	if err != nil {
-		return 0, err
+func (s *Store) SetLevel(c *Channel, a *Account, lvl int, by string, now time.Time) (int, error) {
+	old, _ := s.Level(c, a.ID)
+	if s.c.channels[c.ID] == nil || s.c.accounts[a.ID] == nil {
+		return old, nil
 	}
-	_, err = s.db.Exec(`INSERT INTO chan_access (channel_id, account_id, level, added_by, added_at) VALUES (?, ?, ?, ?, ?)
+	_, err := s.db.Exec(`INSERT INTO chan_access (channel_id, account_id, level, added_by, added_at) VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT (channel_id, account_id) DO UPDATE SET level = excluded.level, added_by = excluded.added_by, added_at = excluded.added_at`,
-		c.ID, a.ID, level, by, now.Unix())
-	return old, err
+		c.ID, a.ID, lvl, by, now.Unix())
+	if err != nil {
+		return old, err
+	}
+	s.c.setLevel(c.ID, a.ID, &level{level: lvl, addedBy: by, addedAt: sec(now)})
+	return old, nil
 }
 
 // RemoveAccess takes account off the access list; false when it wasn't on it.
 func (s *Store) RemoveAccess(c *Channel, accountID int64) (bool, error) {
-	res, err := s.db.Exec("DELETE FROM chan_access WHERE channel_id = ? AND account_id = ?", c.ID, accountID)
-	if err != nil {
-		return false, err
+	gone, err := s.affected("DELETE FROM chan_access WHERE channel_id = ? AND account_id = ?", c.ID, accountID)
+	if err != nil || !gone {
+		return gone, err
 	}
-	n, _ := res.RowsAffected()
-	return n > 0, nil
+	delete(s.c.levels[c.ID], accountID)
+	return true, nil
 }
 
 // ClearLevel empties one level's list and returns how many were removed.
-func (s *Store) ClearLevel(c *Channel, level int) (int, error) {
-	res, err := s.db.Exec("DELETE FROM chan_access WHERE channel_id = ? AND level = ?", c.ID, level)
-	if err != nil {
+func (s *Store) ClearLevel(c *Channel, lvl int) (int, error) {
+	if _, err := s.db.Exec("DELETE FROM chan_access WHERE channel_id = ? AND level = ?", c.ID, lvl); err != nil {
 		return 0, err
 	}
-	n, _ := res.RowsAffected()
-	return int(n), nil
+	n := 0
+	for id, l := range s.c.levels[c.ID] {
+		if l.level == lvl {
+			delete(s.c.levels[c.ID], id)
+			n++
+		}
+	}
+	return n, nil
 }
 
 // AccessList returns the access list, highest level first. level 0 means
 // every level.
-func (s *Store) AccessList(c *Channel, level int) ([]AccessEntry, error) {
-	q := `SELECT a.id, a.name, x.level, x.added_by, x.added_at FROM chan_access x JOIN accounts a ON a.id = x.account_id
-		WHERE x.channel_id = ?`
-	args := []any{c.ID}
-	if level != 0 {
-		q += " AND x.level = ?"
-		args = append(args, level)
-	}
-	rows, err := s.db.Query(q+" ORDER BY x.level DESC, x.added_at, a.name", args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+func (s *Store) AccessList(c *Channel, lvl int) ([]AccessEntry, error) {
 	var out []AccessEntry
-	for rows.Next() {
-		var e AccessEntry
-		var at int64
-		if err := rows.Scan(&e.AccountID, &e.Account, &e.Level, &e.AddedBy, &at); err != nil {
-			return nil, err
+	for id, l := range s.c.levels[c.ID] {
+		if lvl != 0 && l.level != lvl {
+			continue
 		}
-		e.AddedAt = time.Unix(at, 0)
-		out = append(out, e)
+		out = append(out, AccessEntry{AccountID: id, Account: s.c.accountName(id), Level: l.level, AddedBy: l.addedBy, AddedAt: l.addedAt})
 	}
-	return out, rows.Err()
+	sort.Slice(out, func(i, j int) bool {
+		a, b := out[i], out[j]
+		if a.Level != b.Level {
+			return a.Level > b.Level
+		}
+		if !a.AddedAt.Equal(b.AddedAt) {
+			return a.AddedAt.Before(b.AddedAt)
+		}
+		return a.Account < b.Account
+	})
+	return out, nil
 }
 
 // Akicks returns a channel's AKICK list, oldest first.
 func (s *Store) Akicks(c *Channel) ([]Akick, error) {
-	rows, err := s.db.Query("SELECT mask, reason, added_by, added_at FROM chan_akick WHERE channel_id = ? ORDER BY added_at, mask", c.ID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []Akick
-	for rows.Next() {
-		var k Akick
-		var at int64
-		if err := rows.Scan(&k.Mask, &k.Reason, &k.AddedBy, &at); err != nil {
-			return nil, err
-		}
-		k.AddedAt = time.Unix(at, 0)
-		out = append(out, k)
-	}
-	return out, rows.Err()
+	return append([]Akick(nil), s.c.akicks[c.ID]...), nil
 }
 
 // AddAkick adds mask; false when it was there.
 func (s *Store) AddAkick(c *Channel, mask, reason, by string, now time.Time) (bool, error) {
-	res, err := s.db.Exec("INSERT OR IGNORE INTO chan_akick (channel_id, mask, reason, added_by, added_at) VALUES (?, ?, ?, ?, ?)",
-		c.ID, mask, reason, by, now.Unix())
-	if err != nil {
-		return false, err
+	if s.c.channels[c.ID] == nil {
+		return false, nil
 	}
-	n, _ := res.RowsAffected()
-	return n > 0, nil
+	added, err := s.affected("INSERT OR IGNORE INTO chan_akick (channel_id, mask, reason, added_by, added_at) VALUES (?, ?, ?, ?, ?)",
+		c.ID, mask, reason, by, now.Unix())
+	if err != nil || !added {
+		return added, err
+	}
+	list := append(append([]Akick(nil), s.c.akicks[c.ID]...), Akick{Mask: mask, Reason: reason, AddedBy: by, AddedAt: sec(now)})
+	sortAkicks(list)
+	s.c.akicks[c.ID] = list
+	return true, nil
 }
 
 // DelAkick removes mask; false when it wasn't there.
 func (s *Store) DelAkick(c *Channel, mask string) (bool, error) {
-	res, err := s.db.Exec("DELETE FROM chan_akick WHERE channel_id = ? AND mask = ?", c.ID, mask)
-	if err != nil {
-		return false, err
+	gone, err := s.affected("DELETE FROM chan_akick WHERE channel_id = ? AND mask = ?", c.ID, mask)
+	if err != nil || !gone {
+		return gone, err
 	}
-	n, _ := res.RowsAffected()
-	return n > 0, nil
+	s.c.akicks[c.ID] = without(s.c.akicks[c.ID], func(k Akick) bool { return k.Mask == mask })
+	return true, nil
 }
 
 // FounderChange says what happened to a channel when its founder's account
@@ -368,31 +386,22 @@ type FounderChange struct {
 // DeleteAccount removes an account with its nicks, access lists and memos.
 // Channels it founded go to their successor, or are dropped without one.
 func (s *Store) DeleteAccount(id int64) ([]FounderChange, error) {
+	type owned struct {
+		id, succ int64
+		name     string
+	}
+	var list []owned
+	for cid, c := range s.c.channels {
+		if c.FounderID == id {
+			list = append(list, owned{cid, c.SuccessorID, c.Name})
+		}
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i].id < list[j].id })
 	tx, err := s.db.Begin()
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
-	rows, err := tx.Query(`SELECT c.id, c.name, COALESCE(c.successor_id, 0), COALESCE(a.name, '') FROM channels c
-		LEFT JOIN accounts a ON a.id = c.successor_id WHERE c.founder_id = ?`, id)
-	if err != nil {
-		return nil, err
-	}
-	type owned struct {
-		id, succ int64
-		name     string
-		succName string
-	}
-	var list []owned
-	for rows.Next() {
-		var o owned
-		if err := rows.Scan(&o.id, &o.name, &o.succ, &o.succName); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		list = append(list, o)
-	}
-	rows.Close()
 	var changes []FounderChange
 	for _, o := range list {
 		if o.succ != 0 && o.succ != id {
@@ -402,7 +411,7 @@ func (s *Store) DeleteAccount(id int64) ([]FounderChange, error) {
 			if _, err := tx.Exec("DELETE FROM chan_access WHERE channel_id = ? AND account_id = ?", o.id, o.succ); err != nil {
 				return nil, err
 			}
-			changes = append(changes, FounderChange{Channel: o.name, NewOwner: o.succName})
+			changes = append(changes, FounderChange{Channel: o.name, NewOwner: s.c.accountName(o.succ)})
 			continue
 		}
 		if _, err := tx.Exec("DELETE FROM channels WHERE id = ?", o.id); err != nil {
@@ -413,12 +422,21 @@ func (s *Store) DeleteAccount(id int64) ([]FounderChange, error) {
 	if _, err := tx.Exec("DELETE FROM accounts WHERE id = ?", id); err != nil {
 		return nil, err
 	}
-	return changes, tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	for _, o := range list {
+		if o.succ != 0 && o.succ != id {
+			c := s.c.channels[o.id]
+			c.FounderID, c.SuccessorID = o.succ, 0
+			delete(s.c.levels[o.id], o.succ)
+		} else {
+			s.c.dropChannel(o.id)
+		}
+	}
+	s.c.dropAccount(id)
+	return changes, nil
 }
 
 // ChannelCount is the number of registered channels.
-func (s *Store) ChannelCount() (int, error) {
-	var n int
-	err := s.db.QueryRow("SELECT COUNT(*) FROM channels").Scan(&n)
-	return n, err
-}
+func (s *Store) ChannelCount() (int, error) { return len(s.c.channels), nil }

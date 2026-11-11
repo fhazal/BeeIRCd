@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 
@@ -99,21 +100,12 @@ CREATE TABLE IF NOT EXISTS session_excepts (
 
 // Opers returns every oper entry, by account name.
 func (s *Store) Opers() ([]Oper, error) {
-	rows, err := s.db.Query(`SELECT o.account_id, a.name, o.flags, o.title, o.hosts, o.pass_hash, o.added_by, o.added_at
-		FROM opers o JOIN accounts a ON a.id = o.account_id ORDER BY a.name COLLATE NOCASE`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
 	var out []Oper
-	for rows.Next() {
-		o, err := scanOper(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, *o)
+	for id := range s.c.opers {
+		out = append(out, *s.c.oper(id))
 	}
-	return out, rows.Err()
+	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i].Account) < strings.ToLower(out[j].Account) })
+	return out, nil
 }
 
 func scanOper(row interface{ Scan(...any) error }) (*Oper, error) {
@@ -133,22 +125,41 @@ func scanOper(row interface{ Scan(...any) error }) (*Oper, error) {
 }
 
 // OperByAccount returns the oper entry of an account, or nil.
-func (s *Store) OperByAccount(id int64) (*Oper, error) {
-	return scanOper(s.db.QueryRow(`SELECT o.account_id, a.name, o.flags, o.title, o.hosts, o.pass_hash, o.added_by, o.added_at
-		FROM opers o JOIN accounts a ON a.id = o.account_id WHERE o.account_id = ?`, id))
-}
+func (s *Store) OperByAccount(id int64) (*Oper, error) { return s.c.oper(id), nil }
 
-// SaveOper adds or replaces an oper entry.
+// SaveOper adds or replaces an oper entry. A replaced entry keeps who added
+// it and when.
 func (s *Store) SaveOper(o *Oper) error {
+	if s.c.accounts[o.AccountID] == nil {
+		return errors.New("no such account")
+	}
 	_, err := s.db.Exec(`INSERT INTO opers (account_id, flags, title, hosts, pass_hash, added_by, added_at) VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(account_id) DO UPDATE SET flags = excluded.flags, title = excluded.title, hosts = excluded.hosts, pass_hash = excluded.pass_hash`,
 		o.AccountID, o.Flags, o.Title, strings.Join(o.Hosts, " "), o.PassHash, o.AddedBy, o.AddedAt.Unix())
-	return err
+	if err != nil {
+		return err
+	}
+	cp := *o
+	cp.Account = ""
+	cp.Hosts = strings.Fields(strings.Join(o.Hosts, " "))
+	if len(cp.Hosts) == 0 {
+		cp.Hosts = nil
+	}
+	cp.AddedAt = sec(o.AddedAt)
+	if have := s.c.opers[o.AccountID]; have != nil {
+		cp.AddedBy, cp.AddedAt = have.AddedBy, have.AddedAt
+	}
+	s.c.opers[o.AccountID] = &cp
+	return nil
 }
 
 // DeleteOper removes an oper entry; false when there was none.
 func (s *Store) DeleteOper(id int64) (bool, error) {
-	return s.affected("DELETE FROM opers WHERE account_id = ?", id)
+	gone, err := s.affected("DELETE FROM opers WHERE account_id = ?", id)
+	if err == nil && gone {
+		delete(s.c.opers, id)
+	}
+	return gone, err
 }
 
 // Akills returns every AKILL, oldest first, expired ones included.
@@ -326,6 +337,10 @@ func (s *Store) affected(query string, args ...any) (bool, error) {
 
 // SetFounder hands a channel to a new founder, who leaves the access list.
 func (s *Store) SetFounder(c *Channel, a *Account) error {
+	have := s.c.channels[c.ID]
+	if have == nil || s.c.accounts[a.ID] == nil {
+		return errors.New("no such channel or account")
+	}
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -338,5 +353,13 @@ func (s *Store) SetFounder(c *Channel, a *Account) error {
 		a.ID, a.ID, c.ID); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	delete(s.c.levels[c.ID], a.ID)
+	have.FounderID = a.ID
+	if have.SuccessorID == a.ID {
+		have.SuccessorID = 0
+	}
+	return nil
 }

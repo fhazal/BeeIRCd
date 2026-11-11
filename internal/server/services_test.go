@@ -349,7 +349,10 @@ func TestServicesDataSurvivesRestartAndExpires(t *testing.T) {
 	db := filepath.Join(t.TempDir(), "services.db")
 	useDB := func(c *config.Config) { c.Services.Database = db }
 	s1 := testServer(t, useDB)
-	registered(t, s1, "Bee").send("QUIT")
+	bee := registered(t, s1, "Bee")
+	bee.send("QUIT")
+	bee.expect("ERROR")
+	stopServer(s1) // one server per database
 	// Make an account nobody used for 100 days, before the next start.
 	s2 := testServerWith(t, func(c *config.Config) {
 		c.Services.Database = db

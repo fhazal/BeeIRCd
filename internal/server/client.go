@@ -304,9 +304,7 @@ func (s *Server) quit(c *Client, reason string) {
 	if c.user != nil {
 		u := c.user
 		s.touchAccount(c)
-		s.toNeighbours(u, s.out(u, "QUIT", reason).text(), false)
-		s.addWhowas(u)
-		s.net.RemoveUser(u)
+		s.emit(&state.UserQuit{UID: u.UID, Reason: reason})
 		s.log.Printf("quit %s (%s): %s", u.Nick, c.ip, reason)
 		s.snoticeOnly(fmt.Sprintf("Quit: %s (%s@%s) [%s]", u.Nick, u.Ident, u.RealHost, reason))
 	}

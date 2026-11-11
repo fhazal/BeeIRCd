@@ -1,5 +1,9 @@
-// Package store keeps services data (accounts, nicks, memos) in one SQLite
-// file. It is pure Go, so no C compiler is needed.
+// Package store keeps services data (accounts, nicks, memos, channels,
+// opers) in one SQLite file. It is pure Go, so no C compiler is needed.
+//
+// Everything is also kept in memory (see cache.go): reads never touch the
+// disk, writes go to SQLite first and then to memory. Read methods return
+// copies, so callers may change what they get and pass it to a Save method.
 //
 // Nicks are stored with their rfc1459-folded form as key, so "Bee" and
 // "bee" are the same nick. The server calls the store from its single loop
@@ -10,6 +14,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -20,6 +25,9 @@ import (
 
 // ErrExists means the nick is already registered.
 var ErrExists = errors.New("already registered")
+
+// ErrInUse means another BeeIRCd has the database open.
+var ErrInUse = errors.New("another BeeIRCd is using this database")
 
 // Account is one NickServ account. Name is the nick it was registered with.
 type Account struct {
@@ -46,8 +54,11 @@ type Memo struct {
 	Read bool
 }
 
-// Store is the open database.
-type Store struct{ db *sql.DB }
+// Store is the open database and its in-memory copy.
+type Store struct {
+	db *sql.DB
+	c  *cache
+}
 
 const schema = `
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -95,27 +106,48 @@ CREATE TABLE IF NOT EXISTS memo_ignores (
 INSERT OR IGNORE INTO meta (key, value) VALUES ('schema', '1');
 `
 
-// Open opens (and if needed creates) the database at path.
+// Open opens (and if needed creates) the database at path and loads it
+// into memory.
+//
+// synchronous(NORMAL) with WAL never loses a commit when BeeIRCd itself
+// crashes; only a power cut can drop the last moments of writes. It keeps
+// writes well under a millisecond, which matters because they run on the
+// server loop.
 func Open(path string) (*Store, error) {
-	dsn := "file:" + path + "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=temp_store(MEMORY)"
+	dsn := "file:" + path + "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)" +
+		"&_pragma=busy_timeout(1000)&_pragma=temp_store(MEMORY)"
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
-	if _, err := db.Exec(schema + channelSchema + operSchema); err != nil {
+	fail := func(err error) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("services database %s: %w", path, err)
+	}
+	// One BeeIRCd per database: the data lives in memory, so a second
+	// server on the same file would overwrite the first one's changes.
+	// Exclusive locking holds the lock until Close.
+	if _, err := db.Exec("PRAGMA locking_mode = EXCLUSIVE; BEGIN IMMEDIATE; COMMIT"); err != nil {
+		if strings.Contains(err.Error(), "locked") || strings.Contains(err.Error(), "busy") {
+			return fail(ErrInUse)
+		}
+		return fail(err)
+	}
+	if _, err := db.Exec(schema + channelSchema + operSchema); err != nil {
+		return fail(err)
 	}
 	if err := migrateLevels(db); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("services database %s: %w", path, err)
+		return fail(err)
 	}
 	if err := migrateOpers(db); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("services database %s: %w", path, err)
+		return fail(err)
 	}
-	return &Store{db: db}, nil
+	c, err := loadCache(db)
+	if err != nil {
+		return fail(err)
+	}
+	return &Store{db: db, c: c}, nil
 }
 
 // Close closes the database.
@@ -153,86 +185,119 @@ func scanAccount(row interface{ Scan(...any) error }) (*Account, error) {
 
 // CreateAccount registers nick as a new account.
 func (s *Store) CreateAccount(nick, passHash, email string, now time.Time) (*Account, error) {
+	key := irc.Fold(nick)
+	if s.c.nicks[key] != nil {
+		return nil, ErrExists
+	}
 	tx, err := s.db.Begin()
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
-	var n int
-	if err := tx.QueryRow("SELECT COUNT(*) FROM nicks WHERE nick_key = ?", irc.Fold(nick)).Scan(&n); err != nil {
-		return nil, err
-	}
-	if n > 0 {
-		return nil, ErrExists
-	}
 	res, err := tx.Exec(`INSERT INTO accounts (name, pass_hash, email, registered, last_seen) VALUES (?, ?, ?, ?, ?)`,
 		nick, passHash, email, now.Unix(), now.Unix())
 	if err != nil {
 		return nil, err
 	}
-	id, _ := res.LastInsertId()
+	id, err := res.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
 	if _, err := tx.Exec(`INSERT INTO nicks (nick_key, nick, account_id, registered) VALUES (?, ?, ?, ?)`,
-		irc.Fold(nick), nick, id, now.Unix()); err != nil {
+		key, nick, id, now.Unix()); err != nil {
+		if strings.Contains(err.Error(), "UNIQUE") {
+			return nil, ErrExists
+		}
 		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
-	return s.AccountByID(id)
+	// The defaults below are the ones in the schema.
+	s.c.accounts[id] = &Account{ID: id, Name: nick, PassHash: passHash, Email: email,
+		Registered: sec(now), LastSeen: sec(now), Enforce: true, HideEmail: true, HideHost: true,
+		MemoNotify: true, MemoLimit: 50}
+	s.c.addNick(&nickRow{key: key, nick: nick, account: id, registered: now.Unix()})
+	return s.c.account(id), nil
 }
 
 // AccountByNick finds the account owning nick, or nil.
 func (s *Store) AccountByNick(nick string) (*Account, error) {
-	return scanAccount(s.db.QueryRow(`SELECT `+accountCols+` FROM accounts a JOIN nicks n ON n.account_id = a.id WHERE n.nick_key = ?`, irc.Fold(nick)))
+	n := s.c.nicks[irc.Fold(nick)]
+	if n == nil {
+		return nil, nil
+	}
+	return s.c.account(n.account), nil
 }
 
 // AccountByID finds an account by ID, or nil.
-func (s *Store) AccountByID(id int64) (*Account, error) {
-	return scanAccount(s.db.QueryRow(`SELECT `+accountCols+` FROM accounts a WHERE a.id = ?`, id))
-}
+func (s *Store) AccountByID(id int64) (*Account, error) { return s.c.account(id), nil }
 
-// SaveAccount writes every field of a back.
+// SaveAccount writes every changeable field of a back.
 func (s *Store) SaveAccount(a *Account) error {
+	have := s.c.accounts[a.ID]
+	if have == nil {
+		return nil // dropped meanwhile; the database has nothing to update either
+	}
 	_, err := s.db.Exec(`UPDATE accounts SET pass_hash=?, email=?, last_seen=?, last_host=?, enforce=?, hide_email=?,
 		hide_host=?, memo_notify=?, memo_limit=? WHERE id=?`,
 		a.PassHash, a.Email, a.LastSeen.Unix(), a.LastHost, a.Enforce, a.HideEmail, a.HideHost, a.MemoNotify, a.MemoLimit, a.ID)
-	return err
+	if err != nil {
+		return err
+	}
+	have.PassHash, have.Email, have.LastSeen, have.LastHost = a.PassHash, a.Email, sec(a.LastSeen), a.LastHost
+	have.Enforce, have.HideEmail, have.HideHost = a.Enforce, a.HideEmail, a.HideHost
+	have.MemoNotify, have.MemoLimit = a.MemoNotify, a.MemoLimit
+	return nil
 }
 
 // Nicks returns an account's nicks, the account name first.
 func (s *Store) Nicks(a *Account) ([]string, error) {
-	rows, err := s.db.Query("SELECT nick FROM nicks WHERE account_id = ? ORDER BY registered, nick_key", a.ID)
-	if err != nil {
-		return nil, err
+	var rows []*nickRow
+	for key := range s.c.acctNicks[a.ID] {
+		rows = append(rows, s.c.nicks[key])
 	}
-	defer rows.Close()
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].registered != rows[j].registered {
+			return rows[i].registered < rows[j].registered
+		}
+		return rows[i].key < rows[j].key
+	})
 	out := []string{a.Name}
-	for rows.Next() {
-		var n string
-		if err := rows.Scan(&n); err != nil {
-			return nil, err
-		}
-		if !irc.EqualFold(n, a.Name) {
-			out = append(out, n)
+	for _, n := range rows {
+		if !irc.EqualFold(n.nick, a.Name) {
+			out = append(out, n.nick)
 		}
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 // AddNick groups nick into account a.
 func (s *Store) AddNick(a *Account, nick string, now time.Time) error {
+	key := irc.Fold(nick)
+	if s.c.nicks[key] != nil {
+		return ErrExists
+	}
 	_, err := s.db.Exec("INSERT INTO nicks (nick_key, nick, account_id, registered) VALUES (?, ?, ?, ?)",
-		irc.Fold(nick), nick, a.ID, now.Unix())
+		key, nick, a.ID, now.Unix())
 	if err != nil && strings.Contains(err.Error(), "UNIQUE") {
 		return ErrExists
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	s.c.addNick(&nickRow{key: key, nick: nick, account: a.ID, registered: now.Unix()})
+	return nil
 }
 
 // RemoveNick ungroups nick.
 func (s *Store) RemoveNick(nick string) error {
-	_, err := s.db.Exec("DELETE FROM nicks WHERE nick_key = ?", irc.Fold(nick))
-	return err
+	key := irc.Fold(nick)
+	if _, err := s.db.Exec("DELETE FROM nicks WHERE nick_key = ?", key); err != nil {
+		return err
+	}
+	s.c.removeNick(key)
+	return nil
 }
 
 // NickEntry is one registered nick, for LIST.
@@ -243,141 +308,157 @@ type NickEntry struct {
 
 // AllNicks returns every registered nick.
 func (s *Store) AllNicks() ([]NickEntry, error) {
-	rows, err := s.db.Query("SELECT n.nick, a.name FROM nicks n JOIN accounts a ON a.id = n.account_id ORDER BY n.nick_key")
-	if err != nil {
-		return nil, err
+	keys := make([]string, 0, len(s.c.nicks))
+	for k := range s.c.nicks {
+		keys = append(keys, k)
 	}
-	defer rows.Close()
-	var out []NickEntry
-	for rows.Next() {
-		var e NickEntry
-		if err := rows.Scan(&e.Nick, &e.Account); err != nil {
-			return nil, err
-		}
-		out = append(out, e)
+	sort.Strings(keys)
+	out := make([]NickEntry, 0, len(keys))
+	for _, k := range keys {
+		n := s.c.nicks[k]
+		out = append(out, NickEntry{Nick: n.nick, Account: s.c.accountName(n.account)})
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 // Access returns the host masks that identify a by themselves.
 func (s *Store) Access(a *Account) ([]string, error) {
-	return s.strings("SELECT mask FROM access WHERE account_id = ? ORDER BY mask", a.ID)
+	return append([]string(nil), s.c.access[a.ID]...), nil
 }
 
 // AddAccess adds mask; false when it was there already.
 func (s *Store) AddAccess(a *Account, mask string) (bool, error) {
-	res, err := s.db.Exec("INSERT OR IGNORE INTO access (account_id, mask) VALUES (?, ?)", a.ID, mask)
-	if err != nil {
-		return false, err
+	added, err := s.affected("INSERT OR IGNORE INTO access (account_id, mask) VALUES (?, ?)", a.ID, mask)
+	if err != nil || !added {
+		return added, err
 	}
-	n, _ := res.RowsAffected()
-	return n > 0, nil
+	list := append(s.c.access[a.ID], mask)
+	sort.Strings(list)
+	s.c.access[a.ID] = list
+	return true, nil
 }
 
 // DelAccess removes mask; false when it wasn't there.
 func (s *Store) DelAccess(a *Account, mask string) (bool, error) {
-	res, err := s.db.Exec("DELETE FROM access WHERE account_id = ? AND mask = ?", a.ID, mask)
-	if err != nil {
-		return false, err
+	gone, err := s.affected("DELETE FROM access WHERE account_id = ? AND mask = ?", a.ID, mask)
+	if err != nil || !gone {
+		return gone, err
 	}
-	n, _ := res.RowsAffected()
-	return n > 0, nil
+	s.c.access[a.ID] = without(s.c.access[a.ID], func(m string) bool { return m == mask })
+	return true, nil
 }
 
 // Expired returns accounts not seen since before.
 func (s *Store) Expired(before time.Time) ([]*Account, error) {
-	rows, err := s.db.Query(`SELECT `+accountCols+` FROM accounts a WHERE a.last_seen < ?`, before.Unix())
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
 	var out []*Account
-	for rows.Next() {
-		a, err := scanAccount(rows)
-		if err != nil {
-			return nil, err
+	for id, a := range s.c.accounts {
+		if a.LastSeen.Unix() < before.Unix() {
+			out = append(out, s.c.account(id))
 		}
-		out = append(out, a)
 	}
-	return out, rows.Err()
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
 }
 
 // AddMemo stores a memo for a.
 func (s *Store) AddMemo(a *Account, from, text string, now time.Time) error {
-	_, err := s.db.Exec("INSERT INTO memos (account_id, sender, sent, body) VALUES (?, ?, ?, ?)", a.ID, from, now.Unix(), text)
-	return err
+	if s.c.accounts[a.ID] == nil {
+		return nil
+	}
+	res, err := s.db.Exec("INSERT INTO memos (account_id, sender, sent, body) VALUES (?, ?, ?, ?)", a.ID, from, now.Unix(), text)
+	if err != nil {
+		return err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return err
+	}
+	s.c.memos[a.ID] = append(s.c.memos[a.ID], Memo{ID: id, From: from, Sent: sec(now), Text: text})
+	s.c.memoOwner[id] = a.ID
+	return nil
 }
 
 // Memos returns a's memos, oldest first. Their position (1, 2, ...) is the
 // number people type.
 func (s *Store) Memos(a *Account) ([]Memo, error) {
-	rows, err := s.db.Query("SELECT id, sender, sent, body, seen FROM memos WHERE account_id = ? ORDER BY id", a.ID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []Memo
-	for rows.Next() {
-		var m Memo
-		var sent int64
-		if err := rows.Scan(&m.ID, &m.From, &sent, &m.Text, &m.Read); err != nil {
-			return nil, err
-		}
-		m.Sent = time.Unix(sent, 0)
-		out = append(out, m)
-	}
-	return out, rows.Err()
+	return append([]Memo(nil), s.c.memos[a.ID]...), nil
 }
 
 // MarkRead marks one memo read.
 func (s *Store) MarkRead(id int64) error {
-	_, err := s.db.Exec("UPDATE memos SET seen = 1 WHERE id = ?", id)
-	return err
+	if _, err := s.db.Exec("UPDATE memos SET seen = 1 WHERE id = ?", id); err != nil {
+		return err
+	}
+	list := s.c.memos[s.c.memoOwner[id]]
+	for i := range list {
+		if list[i].ID == id {
+			list[i].Read = true
+		}
+	}
+	return nil
 }
 
 // DeleteMemo deletes one memo.
 func (s *Store) DeleteMemo(id int64) error {
-	_, err := s.db.Exec("DELETE FROM memos WHERE id = ?", id)
-	return err
+	if _, err := s.db.Exec("DELETE FROM memos WHERE id = ?", id); err != nil {
+		return err
+	}
+	owner, ok := s.c.memoOwner[id]
+	if !ok {
+		return nil
+	}
+	delete(s.c.memoOwner, id)
+	s.c.memos[owner] = without(s.c.memos[owner], func(m Memo) bool { return m.ID == id })
+	return nil
 }
 
 // MemoIgnores returns the nicks whose memos a drops.
 func (s *Store) MemoIgnores(a *Account) ([]string, error) {
-	return s.strings("SELECT nick FROM memo_ignores WHERE account_id = ? ORDER BY nick_key", a.ID)
+	var out []string
+	for _, g := range s.c.ignores[a.ID] {
+		out = append(out, g.nick)
+	}
+	return out, nil
 }
 
 // AddMemoIgnore adds nick; false when it was there.
 func (s *Store) AddMemoIgnore(a *Account, nick string) (bool, error) {
-	res, err := s.db.Exec("INSERT OR IGNORE INTO memo_ignores (account_id, nick_key, nick) VALUES (?, ?, ?)", a.ID, irc.Fold(nick), nick)
-	if err != nil {
-		return false, err
+	key := irc.Fold(nick)
+	added, err := s.affected("INSERT OR IGNORE INTO memo_ignores (account_id, nick_key, nick) VALUES (?, ?, ?)", a.ID, key, nick)
+	if err != nil || !added {
+		return added, err
 	}
-	n, _ := res.RowsAffected()
-	return n > 0, nil
+	list := append(s.c.ignores[a.ID], ignoreRow{key: key, nick: nick})
+	sort.Slice(list, func(i, j int) bool { return list[i].key < list[j].key })
+	s.c.ignores[a.ID] = list
+	return true, nil
 }
 
 // DelMemoIgnore removes nick; false when it wasn't there.
 func (s *Store) DelMemoIgnore(a *Account, nick string) (bool, error) {
-	res, err := s.db.Exec("DELETE FROM memo_ignores WHERE account_id = ? AND nick_key = ?", a.ID, irc.Fold(nick))
-	if err != nil {
-		return false, err
+	key := irc.Fold(nick)
+	gone, err := s.affected("DELETE FROM memo_ignores WHERE account_id = ? AND nick_key = ?", a.ID, key)
+	if err != nil || !gone {
+		return gone, err
 	}
-	n, _ := res.RowsAffected()
-	return n > 0, nil
+	s.c.ignores[a.ID] = without(s.c.ignores[a.ID], func(g ignoreRow) bool { return g.key == key })
+	return true, nil
 }
 
 // Ignores reports whether a drops memos from nick.
 func (s *Store) Ignores(a *Account, nick string) (bool, error) {
-	var n int
-	err := s.db.QueryRow("SELECT COUNT(*) FROM memo_ignores WHERE account_id = ? AND nick_key = ?", a.ID, irc.Fold(nick)).Scan(&n)
-	return n > 0, err
+	key := irc.Fold(nick)
+	for _, g := range s.c.ignores[a.ID] {
+		if g.key == key {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // Counts returns the number of accounts, nicks and memos, for status.
 func (s *Store) Counts() (accounts, nicks, memos int, err error) {
-	err = s.db.QueryRow("SELECT (SELECT COUNT(*) FROM accounts), (SELECT COUNT(*) FROM nicks), (SELECT COUNT(*) FROM memos)").
-		Scan(&accounts, &nicks, &memos)
-	return
+	return len(s.c.accounts), len(s.c.nicks), len(s.c.memoOwner), nil
 }
 
 func (s *Store) strings(query string, args ...any) ([]string, error) {
@@ -395,4 +476,16 @@ func (s *Store) strings(query string, args ...any) ([]string, error) {
 		out = append(out, v)
 	}
 	return out, rows.Err()
+}
+
+// without returns list minus the items drop matches, reusing no memory
+// callers might still hold.
+func without[T any](list []T, drop func(T) bool) []T {
+	var out []T
+	for _, v := range list {
+		if !drop(v) {
+			out = append(out, v)
+		}
+	}
+	return out
 }

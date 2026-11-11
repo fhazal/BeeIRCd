@@ -27,20 +27,23 @@ import (
 
 // Server is one running BeeIRCd.
 type Server struct {
-	cfg       *config.Config
-	log       *log.Logger
-	net       *state.Network
-	clients   map[string]*Client // by UID, registered or not
-	events    chan func()
-	done      chan struct{}
-	listeners []listener
-	created   time.Time
-	whowas    []whowasEntry
-	maxLocal  int
-	toKill    []*Client
-	msgSeq    uint64
-	batchSeq  uint64
-	wg        sync.WaitGroup
+	cfg        *config.Config
+	log        *log.Logger
+	net        *state.Network
+	clients    map[string]*Client // by UID, registered or not
+	events     chan func()
+	done       chan struct{}
+	listeners  []listener
+	created    time.Time
+	whowas     []whowasEntry
+	maxLocal   int
+	toKill     []*Client
+	msgSeq     uint64
+	batchSeq   uint64
+	sinks      []func(state.Event) // get every event after it was applied
+	beforeEmit func(state.Event)   // tests: runs before each event
+	loop       loopStats           // how long each piece of loop work took
+	wg         sync.WaitGroup
 
 	// Services.
 	store     *store.Store
@@ -168,7 +171,9 @@ func (s *Server) Serve(ctx context.Context) error {
 			s.shutdown("Server shutting down")
 			return nil
 		case f := <-s.events:
+			start := time.Now()
 			f()
+			s.loop.add(time.Since(start))
 			s.reap()
 			if s.stopAfter != 0 {
 				reason := "Server shutting down"

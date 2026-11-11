@@ -135,14 +135,10 @@ func (s *Server) cmdNick(c *Client, m irc.Message) {
 	if nick == u.Nick {
 		return
 	}
-	old := u.Prefix()
-	o := s.out(u, "NICK", nick) // built now, while the source is the old nick
-	if err := s.net.ChangeNick(u, nick, time.Now().Unix()); err != nil {
+	if err := s.emit(&state.NickChange{UID: u.UID, Nick: nick, TS: time.Now().Unix()}); err != nil {
 		s.reply(c, irc.ErrNicknameInUse, nick, "Nickname is already in use")
 		return
 	}
-	s.addWhowasNick(old, u)
-	s.toNeighbours(u, o, true)
 	s.nickCheck(c)
 }
 
@@ -231,7 +227,7 @@ func (s *Server) tryRegister(c *Client) {
 		s.quit(c, "Banned: "+k.Reason)
 		return
 	}
-	if err := s.net.AddUser(u); err != nil {
+	if err := s.emit(&state.UserAdd{User: u}); err != nil {
 		s.reply(c, irc.ErrNicknameInUse, c.nick, "Nickname is already in use")
 		c.nick = ""
 		return
@@ -283,10 +279,7 @@ func (s *Server) setHost(c *Client, host string) {
 	if host == u.Host {
 		return
 	}
-	o := s.out(u, "CHGHOST", u.Ident, host)
-	o.needCap = "chghost"
-	u.Host = host
-	s.toNeighbours(u, o, true)
+	s.emit(&state.HostChange{UID: u.UID, Host: host})
 	s.reply(c, irc.RplHostHidden, host, "is now your displayed host")
 }
 

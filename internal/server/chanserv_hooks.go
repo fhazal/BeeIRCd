@@ -34,8 +34,7 @@ func (s *Server) csJoin(c *Client, ch *state.Channel, created bool) {
 	lvl, _ := s.store.Level(reg, c.accountID)
 	if created {
 		if reg.KeepTopic && reg.Topic != "" {
-			ch.Topic, ch.TopicBy, ch.TopicAt = reg.Topic, reg.TopicBy, reg.TopicAt
-			s.broadcast(ch, s.out(s.chanServ.user, "TOPIC", ch.Name, ch.Topic).text(), nil)
+			s.emit(&state.Topic{Source: s.chanServ.user.UID, Channel: ch.Name, Text: reg.Topic, By: reg.TopicBy, At: reg.TopicAt})
 		}
 		s.csMode(ch, mlockChanges(reg, ch))
 		if lvl < store.LevelAOP {

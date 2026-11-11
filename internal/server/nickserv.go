@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/fhazal/beeircd/internal/irc"
+	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
 )
 
@@ -609,11 +610,8 @@ func (s *Server) dropAccount(a *store.Account, founderWhy, by string) error {
 	for _, other := range s.clients {
 		if other.accountID == id {
 			other.accountID = 0 // no touchAccount: it's gone
-			other.user.Account = ""
+			s.emit(&state.Login{UID: other.user.UID})
 			s.setRegistered(other, false)
-			o := s.out(other.user, "ACCOUNT", "*")
-			o.needCap = "account-notify"
-			s.toNeighbours(other.user, o, true)
 			s.reply(other, irc.RplLoggedOut, other.user.Prefix(), "You are now logged out")
 		}
 		if other.operAccount == id {

@@ -128,8 +128,8 @@ type Member struct {
 // Has reports whether the member holds rank r.
 func (m *Member) Has(r Rank) bool { return m.Ranks&r != 0 }
 
-// Set gives or takes rank r and reports whether anything changed.
-func (m *Member) Set(r Rank, on bool) bool {
+// set gives or takes rank r and reports whether anything changed.
+func (m *Member) set(r Rank, on bool) bool {
 	if m.Has(r) == on {
 		return false
 	}
@@ -242,9 +242,9 @@ func (c *Channel) Matches(list byte, u *User) bool {
 // IsBanned reports whether u is banned and not excepted.
 func (c *Channel) IsBanned(u *User) bool { return c.Matches('b', u) && !c.Matches('e', u) }
 
-// AddListEntry adds mask to list. It returns false when the mask is already
+// addListEntry adds mask to list. It returns false when the mask is already
 // there.
-func (c *Channel) AddListEntry(list byte, mask, by string, at time.Time) bool {
+func (c *Channel) addListEntry(list byte, mask, by string, at time.Time) bool {
 	for _, e := range c.Lists[list] {
 		if irc.EqualFold(e.Mask, mask) {
 			return false
@@ -254,8 +254,8 @@ func (c *Channel) AddListEntry(list byte, mask, by string, at time.Time) bool {
 	return true
 }
 
-// RemoveListEntry removes mask from list and returns the stored form.
-func (c *Channel) RemoveListEntry(list byte, mask string) (string, bool) {
+// removeListEntry removes mask from list and returns the stored form.
+func (c *Channel) removeListEntry(list byte, mask string) (string, bool) {
 	entries := c.Lists[list]
 	for i, e := range entries {
 		if irc.EqualFold(e.Mask, mask) {
@@ -299,8 +299,8 @@ func (n *Network) NextUID() string {
 	return n.SID + string(id)
 }
 
-// AddUser adds a registered user.
-func (n *Network) AddUser(u *User) error {
+// addUser adds a registered user.
+func (n *Network) addUser(u *User) error {
 	if n.nicks[irc.Fold(u.Nick)] != nil {
 		return ErrNickInUse
 	}
@@ -315,10 +315,10 @@ func (n *Network) AddUser(u *User) error {
 	return nil
 }
 
-// RemoveUser takes u out of every channel and off the network.
-func (n *Network) RemoveUser(u *User) {
+// removeUser takes u out of every channel and off the network.
+func (n *Network) removeUser(u *User) {
 	for _, ch := range u.Channels {
-		n.Part(u, ch)
+		n.part(u, ch)
 	}
 	delete(n.users, u.UID)
 	if n.nicks[irc.Fold(u.Nick)] == u {
@@ -326,8 +326,8 @@ func (n *Network) RemoveUser(u *User) {
 	}
 }
 
-// ChangeNick renames u. Changing only the case of one's own nick is allowed.
-func (n *Network) ChangeNick(u *User, nick string, ts int64) error {
+// changeNick renames u. Changing only the case of one's own nick is allowed.
+func (n *Network) changeNick(u *User, nick string, ts int64) error {
 	if other := n.nicks[irc.Fold(nick)]; other != nil && other != u {
 		return ErrNickInUse
 	}
@@ -376,9 +376,10 @@ func (n *Network) Channels() []*Channel {
 // ChannelCount is the number of channels.
 func (n *Network) ChannelCount() int { return len(n.channels) }
 
-// Join puts u in channel name, creating it (with u as op and +nt) when it
-// doesn't exist. created reports whether it was new.
-func (n *Network) Join(u *User, name string, ts int64) (ch *Channel, m *Member, created bool) {
+// join puts u in channel name, creating it (+nt) when it doesn't exist.
+// u gets ranks, or op when ranks is 0 and the channel is new. created
+// reports whether it was new.
+func (n *Network) join(u *User, name string, ts int64, ranks Rank) (ch *Channel, m *Member, created bool) {
 	key := irc.Fold(name)
 	ch = n.channels[key]
 	if ch == nil {
@@ -396,8 +397,8 @@ func (n *Network) Join(u *User, name string, ts int64) (ch *Channel, m *Member, 
 	if m = ch.Members[u.UID]; m != nil {
 		return ch, m, false
 	}
-	m = &Member{User: u}
-	if created {
+	m = &Member{User: u, Ranks: ranks}
+	if created && ranks == 0 {
 		m.Ranks = RankOp
 	}
 	ch.Members[u.UID] = m
@@ -406,8 +407,8 @@ func (n *Network) Join(u *User, name string, ts int64) (ch *Channel, m *Member, 
 	return ch, m, created
 }
 
-// Part takes u out of ch. An empty channel is removed.
-func (n *Network) Part(u *User, ch *Channel) {
+// part takes u out of ch. An empty channel is removed.
+func (n *Network) part(u *User, ch *Channel) {
 	delete(ch.Members, u.UID)
 	delete(u.Channels, irc.Fold(ch.Name))
 	if len(ch.Members) == 0 {

@@ -604,8 +604,7 @@ func (s *Server) csKickUser(ch *state.Channel, u *state.User, reason string) {
 
 // svcKick kicks u from ch as a service.
 func (s *Server) svcKick(sv *service, ch *state.Channel, u *state.User, reason string) {
-	s.broadcast(ch, s.out(sv.user, "KICK", ch.Name, u.Nick, irc.Truncate(reason, s.cfg.Limits.KickLen)).text(), nil)
-	s.net.Part(u, ch)
+	s.emit(&state.Kick{Source: sv.user.UID, UID: u.UID, Channel: ch.Name, Reason: irc.Truncate(reason, s.cfg.Limits.KickLen)})
 }
 
 func csBan(s *Server, c *Client, args []string) {
@@ -692,8 +691,7 @@ func csInvite(s *Server, c *Client, args []string) {
 	case live.Member(c.user) != nil:
 		s.cs(c, "You are in %s already.", reg.Name)
 	default:
-		live.Invited[c.user.UID] = true
-		c.deliver(s.out(s.chanServ.user, "INVITE", c.user.Nick, live.Name))
+		s.emit(&state.Invite{Source: s.chanServ.user.UID, UID: c.user.UID, Channel: live.Name})
 	}
 }
 
@@ -708,8 +706,7 @@ func csTopic(s *Server, c *Client, args []string) {
 		return
 	}
 	topic := irc.Truncate(strings.Join(args[1:], " "), s.cfg.Limits.TopicLen)
-	live.Topic, live.TopicBy, live.TopicAt = topic, c.user.Nick, time.Now()
-	s.broadcast(live, s.out(s.chanServ.user, "TOPIC", live.Name, topic).text(), nil)
+	s.emit(&state.Topic{Source: s.chanServ.user.UID, Channel: live.Name, Text: topic, By: c.user.Nick, At: time.Now()})
 	s.csSaveTopic(reg, live)
 }
 
@@ -1028,84 +1025,22 @@ func csList(s *Server, c *Client, args []string) {
 }
 
 // csMode sets modes on ch as ChanServ. Changes that change nothing are
-// skipped; the rest go out in lines of at most 4 parameters.
+// dropped when applied; the rest go out in lines of at most 4 parameters.
 func (s *Server) csMode(ch *state.Channel, changes []modeChange) {
-	now := time.Now()
-	var applied []modeChange
+	var list []state.ModeChange
 	for _, m := range changes {
-		switch m.mode {
-		case 'q', 'a', 'o', 'h', 'v':
+		sc := state.ModeChange{Add: m.add, Mode: m.mode, Arg: m.arg}
+		if r := state.RankForMode(m.mode); r != 0 {
 			t := s.net.UserByNick(m.arg)
-			if t == nil || ch.Member(t) == nil || !s.rankEnabled(state.RankForMode(m.mode)) {
+			if t == nil || ch.Member(t) == nil || !s.rankEnabled(r) {
 				continue
 			}
-			if !ch.Member(t).Set(state.RankForMode(m.mode), m.add) {
-				continue
-			}
-			m.arg = t.Nick
-		case 'b':
-			if m.add {
-				if !ch.AddListEntry('b', m.arg, "ChanServ", now) {
-					continue
-				}
-			} else {
-				stored, ok := ch.RemoveListEntry('b', m.arg)
-				if !ok {
-					continue
-				}
-				m.arg = stored
-			}
-		case 'k':
-			if m.add {
-				if ch.Modes['k'] && ch.Key == m.arg {
-					continue
-				}
-				ch.Key, ch.Modes['k'] = m.arg, true
-			} else {
-				if !ch.Modes['k'] {
-					continue
-				}
-				m.arg = ch.Key
-				ch.Key = ""
-				delete(ch.Modes, 'k')
-			}
-		case 'l':
-			if m.add {
-				n, _ := strconv.Atoi(m.arg)
-				if ch.Modes['l'] && ch.Limit == n {
-					continue
-				}
-				ch.Limit, ch.Modes['l'] = n, true
-			} else {
-				if !ch.Modes['l'] {
-					continue
-				}
-				ch.Limit = 0
-				delete(ch.Modes, 'l')
-				m.arg = ""
-			}
-		default:
-			if ch.Modes[m.mode] == m.add {
-				continue
-			}
-			setFlag(ch.Modes, m.mode, m.add)
+			sc.UID = t.UID
 		}
-		applied = append(applied, m)
+		list = append(list, sc)
 	}
-	for len(applied) > 0 {
-		n, params := 0, 0
-		for n < len(applied) {
-			if applied[n].arg != "" {
-				if params == maxModeParams {
-					break
-				}
-				params++
-			}
-			n++
-		}
-		batch := applied[:n]
-		applied = applied[n:]
-		s.broadcast(ch, s.out(s.chanServ.user, "MODE", append([]string{ch.Name}, formatModes(batch)...)...), nil)
+	if len(list) > 0 {
+		s.emit(&state.ChannelMode{Source: s.chanServ.user.UID, Channel: ch.Name, By: "ChanServ", At: time.Now(), Changes: list})
 	}
 }
 

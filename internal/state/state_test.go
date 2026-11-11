@@ -7,7 +7,7 @@ import (
 
 func newUser(n *Network, nick string) *User {
 	u := &User{UID: n.NextUID(), Nick: nick, Ident: "~" + nick, Host: nick + ".example", IP: "192.0.2.1"}
-	if err := n.AddUser(u); err != nil {
+	if err := n.addUser(u); err != nil {
 		panic(err)
 	}
 	return u
@@ -23,20 +23,20 @@ func TestUIDs(t *testing.T) {
 func TestNicks(t *testing.T) {
 	n := NewNetwork("0BE")
 	bee := newUser(n, "Bee")
-	if err := n.AddUser(&User{UID: "x", Nick: "bEE"}); err != ErrNickInUse {
+	if err := n.addUser(&User{UID: "x", Nick: "bEE"}); err != ErrNickInUse {
 		t.Error("same nick in another case was allowed")
 	}
-	if err := n.ChangeNick(bee, "BEE", 1); err != nil {
+	if err := n.changeNick(bee, "BEE", 1); err != nil {
 		t.Error("case change of own nick refused")
 	}
 	newUser(n, "ember")
-	if err := n.ChangeNick(bee, "Ember", 2); err != ErrNickInUse {
+	if err := n.changeNick(bee, "Ember", 2); err != ErrNickInUse {
 		t.Error("taking another's nick was allowed")
 	}
 	if n.UserByNick("bee") != bee || n.UserByNick("Ember") == nil {
 		t.Error("lookup by nick failed")
 	}
-	n.RemoveUser(bee)
+	n.removeUser(bee)
 	if n.NickInUse("Bee") || n.UserCount() != 1 {
 		t.Error("RemoveUser left the nick behind")
 	}
@@ -45,20 +45,20 @@ func TestNicks(t *testing.T) {
 func TestJoinPart(t *testing.T) {
 	n := NewNetwork("0BE")
 	bee, ember := newUser(n, "Bee"), newUser(n, "ember")
-	ch, m, created := n.Join(bee, "#BChat", 100)
+	ch, m, created := n.join(bee, "#BChat", 100, 0)
 	if !created || !m.Has(RankOp) || !ch.HasMode('n') || !ch.HasMode('t') || ch.TS != 100 {
 		t.Fatalf("first join: created=%v op=%v modes=%v", created, m.Has(RankOp), ch.Modes)
 	}
 	ch.Invited[ember.UID] = true
-	ch2, m2, created2 := n.Join(ember, "#bchat", 200)
+	ch2, m2, created2 := n.join(ember, "#bchat", 200, 0)
 	if ch2 != ch || created2 || m2.Has(RankOp) || ch.Invited[ember.UID] {
 		t.Fatal("second join should reuse the channel, not op, and clear the invite")
 	}
 	if len(n.Neighbours(bee)) != 1 || !SharesChannel(bee, ember) {
 		t.Error("neighbours wrong")
 	}
-	n.Part(bee, ch)
-	n.Part(ember, ch)
+	n.part(bee, ch)
+	n.part(ember, ch)
 	if n.Channel("#bchat") != nil || n.ChannelCount() != 0 {
 		t.Error("empty channel not removed")
 	}
@@ -68,19 +68,19 @@ func TestBans(t *testing.T) {
 	n := NewNetwork("0BE")
 	bee := newUser(n, "Bee")
 	bee.RealHost = "real.example"
-	ch, _, _ := n.Join(bee, "#a", 1)
+	ch, _, _ := n.join(bee, "#a", 1, 0)
 	now := time.Now()
-	if !ch.AddListEntry('b', "*!*@real.example", "x", now) || ch.AddListEntry('b', "*!*@REAL.example", "x", now) {
+	if !ch.addListEntry('b', "*!*@real.example", "x", now) || ch.addListEntry('b', "*!*@REAL.example", "x", now) {
 		t.Fatal("AddListEntry duplicate handling wrong")
 	}
 	if !ch.IsBanned(bee) {
 		t.Error("ban on real host missed")
 	}
-	ch.AddListEntry('e', "bee!*@*", "x", now)
+	ch.addListEntry('e', "bee!*@*", "x", now)
 	if ch.IsBanned(bee) {
 		t.Error("exception ignored")
 	}
-	if mask, ok := ch.RemoveListEntry('b', "*!*@real.EXAMPLE"); !ok || mask != "*!*@real.example" {
+	if mask, ok := ch.removeListEntry('b', "*!*@real.EXAMPLE"); !ok || mask != "*!*@real.example" {
 		t.Error("RemoveListEntry failed")
 	}
 }
@@ -88,7 +88,7 @@ func TestBans(t *testing.T) {
 func TestModeStrings(t *testing.T) {
 	n := NewNetwork("0BE")
 	bee := newUser(n, "Bee")
-	ch, _, _ := n.Join(bee, "#a", 1)
+	ch, _, _ := n.join(bee, "#a", 1, 0)
 	ch.Modes['k'], ch.Key = true, "secret"
 	ch.Modes['l'], ch.Limit = true, 25
 	modes, params := ch.ModeString(false)
@@ -106,9 +106,9 @@ func TestRanks(t *testing.T) {
 	if m.Prefix() != "" || m.Top() != 0 {
 		t.Fatal("empty member has a rank")
 	}
-	m.Set(RankVoice, true)
-	m.Set(RankOp, true)
-	if !m.Set(RankOwner, true) || m.Set(RankOwner, true) {
+	m.set(RankVoice, true)
+	m.set(RankOp, true)
+	if !m.set(RankOwner, true) || m.set(RankOwner, true) {
 		t.Fatal("Set should report a change once")
 	}
 	if m.Prefix() != "~" || m.AllPrefixes() != "~@+" || m.Top() != RankOwner {
@@ -117,8 +117,8 @@ func TestRanks(t *testing.T) {
 	if !m.AtLeast(RankHalfop) || !m.AtLeast(RankOwner) {
 		t.Fatal("AtLeast")
 	}
-	m.Set(RankOwner, false)
-	m.Set(RankOp, false)
+	m.set(RankOwner, false)
+	m.set(RankOp, false)
 	if m.AtLeast(RankHalfop) || m.Prefix() != "+" {
 		t.Fatal("voice only")
 	}
