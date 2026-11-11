@@ -161,6 +161,10 @@ func (s *Server) cmdUser(c *Client, m irc.Message) {
 		s.reply(c, irc.ErrAlreadyRegistered, "You may not reregister")
 		return
 	}
+	if m.Params[3] == "" {
+		s.reply(c, irc.ErrNeedMoreParams, "USER", "Not enough parameters")
+		return
+	}
 	c.ident = cleanIdent(m.Params[0])
 	c.realname = irc.Truncate(m.Params[3], 50)
 	s.tryRegister(c)
@@ -359,6 +363,7 @@ func (s *Server) channelModesWithParam() string {
 func (s *Server) isupport() []string {
 	l := s.cfg.Limits
 	return []string{
+		"ACCOUNTEXTBAN=a",
 		"AWAYLEN=" + strconv.Itoa(l.AwayLen),
 		"CASEMAPPING=rfc1459",
 		"CHANLIMIT=#:" + strconv.Itoa(l.MaxChannels),

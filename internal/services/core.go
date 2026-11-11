@@ -142,6 +142,7 @@ type Client struct {
 	enforceAt    time.Time // rename to Guest at this time, unless identified
 	enforceNick  string    // the nick enforceAt is about
 	pwBusy       bool      // a password check is running
+	saslLogin    bool      // login comes from SASL: 903 goes right after 900
 	csUsedOn     string    // channel a ChanServ command passed its access check on (for LOG)
 	lastMail     time.Time // when services last mailed for this person (mail delay)
 	lastMemoSend time.Time // MemoServ SEND (senddelay)

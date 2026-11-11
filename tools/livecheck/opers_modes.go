@@ -138,7 +138,7 @@ func (lc *liveCheck) modes() {
 		println("(no -tls: +z/+Z checks NOT TESTED)")
 	}
 	op.send("HELPOP CHMODES")
-	lc.ok("HELPOP CHMODES", op.wait(` 292 zt7op :\*\*\*\*\* Channel modes`))
+	lc.ok("HELPOP CHMODES", op.wait(` 704 zt7op CHMODES :\*\*\*\*\* Channel modes`))
 	for _, c := range []*client{op, u, w, x} {
 		c.send("QUIT :done")
 	}

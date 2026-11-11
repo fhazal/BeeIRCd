@@ -96,7 +96,9 @@ func TestMonitor(t *testing.T) {
 	for i := 0; i < 101; i++ {
 		many = append(many, "n"+strings.Repeat("x", i%5)+string(rune('a'+i%26))+strings.Repeat("y", i/26))
 	}
-	w.send("MONITOR + " + strings.Join(many, ","))
+	// Two lines: one client line may hold only 510 bytes.
+	w.send("MONITOR + " + strings.Join(many[:60], ","))
+	w.send("MONITOR + " + strings.Join(many[60:], ","))
 	w.expect(" 734 watcher 100 ")
 	w.send("MONITOR X")
 	w.expect(" 421 watcher MONITOR :Unknown MONITOR subcommand")

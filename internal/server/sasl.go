@@ -48,9 +48,16 @@ func (s *Server) cmdAuthenticate(c *Client, m irc.Message) {
 	if arg != "+" {
 		c.saslBuf.WriteString(arg)
 	}
-	if c.saslBuf.Len() > saslMax || len(arg) > saslChunk {
+	// One line over 400 bytes is 905; a whole message over the limit is
+	// a plain failure (904), as irctest, Ergo and InspIRCd have it.
+	if len(arg) > saslChunk {
 		c.resetSASL()
 		s.reply(c, irc.ErrSaslTooLong, "SASL message too long")
+		return
+	}
+	if c.saslBuf.Len() > saslMax {
+		c.resetSASL()
+		s.reply(c, irc.ErrSaslFail, "SASL authentication failed: message too long")
 		return
 	}
 	if len(arg) == saslChunk {
@@ -100,16 +107,16 @@ func (s *Server) saslDone(c *Client, a *store.Account) {
 		return
 	}
 	if c.registered {
-		s.svc.Login(c.uid, fresh)
-	} else {
-		c.saslAccount = fresh
-		host := c.host
-		if s.cfg.CloakEnabled() {
-			host = cloak.Host(s.cfg.Cloak.Secret, s.cfg.Server.Network, c.host, c.ip, c.host == irc.DisplayIP(c.ip))
-		}
-		mask := c.target() + "!" + c.ident + "@" + host
-		s.reply(c, irc.RplLoggedIn, mask, fresh.Name, "You are now logged in as "+fresh.Name)
+		s.svc.LoginSASL(c.uid, fresh) // sends 900 and 903
+		return
 	}
+	c.saslAccount = fresh
+	host := c.host
+	if s.cfg.CloakEnabled() {
+		host = cloak.Host(s.cfg.Cloak.Secret, s.cfg.Server.Network, c.host, c.ip, c.host == irc.DisplayIP(c.ip))
+	}
+	mask := c.target() + "!" + c.ident + "@" + host
+	s.reply(c, irc.RplLoggedIn, mask, fresh.Name, "You are now logged in as "+fresh.Name)
 	s.reply(c, irc.RplSaslSuccess, "SASL authentication successful")
 }
 

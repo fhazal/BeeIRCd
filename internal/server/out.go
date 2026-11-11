@@ -161,13 +161,13 @@ func clientTags(in map[string]string) map[string]string {
 		if !strings.HasPrefix(k, "+") {
 			continue
 		}
-		size += len(k) + len(v) + 2
+		size += len(k) + len(v) + 2 // '=' and ';'
 		if out == nil {
 			out = make(map[string]string)
 		}
 		out[k] = v
 	}
-	if size > maxClientTags {
+	if size-1 > maxClientTags { // the last tag has no ';' after it
 		return nil
 	}
 	return out

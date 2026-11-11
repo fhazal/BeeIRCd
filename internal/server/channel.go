@@ -224,11 +224,37 @@ func (s *Server) cmdList(c *Client, m irc.Message) {
 	s.reply(c, irc.RplListEnd, "End of /LIST")
 }
 
+// cmdKick takes "KICK #chan nick[,nick]" or RFC 2812 pairs
+// "KICK #a,#b nick1,nick2" (one channel per nick).
 func (s *Server) cmdKick(c *Client, m irc.Message) {
+	chans := strings.Split(m.Params[0], ",")
+	nicks := strings.Split(m.Params[1], ",")
+	if len(nicks) > maxTargets {
+		nicks = nicks[:maxTargets]
+	}
+	if len(chans) > 1 && len(chans) != len(nicks) {
+		s.reply(c, irc.ErrNeedMoreParams, "KICK", "Not enough parameters")
+		return
+	}
+	reason := irc.Truncate(m.Param(2), s.cfg.Limits.KickLen)
+	if reason == "" {
+		reason = c.user.Nick
+	}
+	if len(chans) == 1 {
+		s.kick(c, chans[0], nicks, reason)
+		return
+	}
+	for i, name := range chans {
+		s.kick(c, name, nicks[i:i+1], reason)
+	}
+}
+
+// kick removes nicks from the channel name on behalf of c.
+func (s *Server) kick(c *Client, name string, nicks []string, reason string) {
 	u := c.user
-	ch := s.net.Channel(m.Params[0])
+	ch := s.net.Channel(name)
 	if ch == nil {
-		s.reply(c, irc.ErrNoSuchChannel, m.Params[0], "No such channel")
+		s.reply(c, irc.ErrNoSuchChannel, name, "No such channel")
 		return
 	}
 	mem := ch.Member(u)
@@ -244,15 +270,7 @@ func (s *Server) cmdKick(c *Client, m irc.Message) {
 		s.reply(c, irc.ErrCannotDoCommand, "KICK", "channel is +Q")
 		return
 	}
-	reason := irc.Truncate(m.Param(2), s.cfg.Limits.KickLen)
-	if reason == "" {
-		reason = u.Nick
-	}
-	targets := strings.Split(m.Params[1], ",")
-	if len(targets) > maxTargets {
-		targets = targets[:maxTargets]
-	}
-	for _, nick := range targets {
+	for _, nick := range nicks {
 		t := s.net.UserByNick(nick)
 		if t == nil {
 			s.reply(c, irc.ErrNoSuchNick, nick, "No such nick/channel")

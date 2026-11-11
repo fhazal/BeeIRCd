@@ -122,6 +122,15 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 			}
 			continue
 		}
+		if t == u && c.caps["echo-message"] && c.capture != nil {
+			// To yourself with echo-message: the echo carries the label,
+			// the delivered copy goes out on its own, unlabeled.
+			held := c.capture
+			c.capture = nil
+			c.deliver(o)
+			c.capture = held
+			continue
+		}
 		s.deliverTo(t, o)
 		if verb == "PRIVMSG" && t.Away != "" {
 			s.reply(c, irc.RplAway, t.Nick, t.Away)

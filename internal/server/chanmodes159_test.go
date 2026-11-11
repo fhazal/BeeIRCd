@@ -298,8 +298,8 @@ func TestFloodProfileSettingAndHelp(t *testing.T) {
 	b.send("AS SET flood-profile strict")
 	b.expect("flood-profile is now strict (was normal)")
 	b.send("HELPOP CHMODES")
-	b.expect(" 292 Boss :***** Channel modes *****")
-	b.expect(" 292 Boss : F <name>   flood profile:")
+	b.expect(" 704 Boss CHMODES :***** Channel modes *****")
+	b.expect(" 705 Boss CHMODES : F <name>   flood profile:")
 	b.send("HELPOP")
-	b.expect(" 292 Boss :Help topics: CHMODES.")
+	b.expect(" 705 Boss * :Other topics: CHMODES (channel modes).")
 }

@@ -37,6 +37,16 @@ func (s *Server) cmdWho(c *Client, m irc.Message) {
 	if mask == "0" {
 		mask = "*"
 	}
+	// An exact nick always shows that user, +i or not (like WHOIS).
+	if !strings.ContainsAny(mask, "*?") {
+		if u := s.net.UserByNick(mask); u != nil {
+			if !opersOnly || u.HasMode('o') {
+				s.whoLine(c, "*", u, "")
+			}
+			s.reply(c, irc.RplEndOfWho, m.Param(0), "End of /WHO list.")
+			return
+		}
+	}
 	for _, u := range s.net.Users() {
 		if u != c.user && u.HasMode('i') && !state.SharesChannel(u, c.user) && !c.can('h') {
 			continue
@@ -148,8 +158,14 @@ func (s *Server) addWhowasNick(prefix string, u *state.User) {
 
 func (s *Server) cmdWhowas(c *Client, m irc.Message) {
 	nick := m.Params[0]
+	// "WHOWAS nick [count]": count > 0 limits the answer (RFC 2812), at
+	// most 10 entries either way.
+	limit := 10
+	if n, err := strconv.Atoi(m.Param(1)); err == nil && n > 0 && n < limit {
+		limit = n
+	}
 	found := 0
-	for i := len(s.whowas) - 1; i >= 0 && found < 10; i-- {
+	for i := len(s.whowas) - 1; i >= 0 && found < limit; i-- {
 		e := s.whowas[i]
 		if !irc.EqualFold(e.nick, nick) {
 			continue

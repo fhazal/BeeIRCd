@@ -88,6 +88,17 @@ func (s *Services) Login(uid string, a *store.Account) {
 	}
 }
 
+// LoginSASL is Login for SASL after registration: 903 follows 900 straight
+// away, before the +r mode and what login brings (IRCv3 sasl).
+func (s *Services) LoginSASL(uid string, a *store.Account) {
+	if c := s.clients[uid]; c != nil {
+		c.saslLogin = true
+		s.login(c, a)
+		c.saslLogin = false
+		s.Flush()
+	}
+}
+
 // LockedFor reports how long key (see CheckSecret) is still locked.
 func (s *Services) LockedFor(key int64) time.Duration { return s.lockedFor(key) }
 

@@ -374,6 +374,9 @@ func (s *Services) login(c *Client, a *store.Account) {
 		s.log.Printf("services database: %v", err)
 	}
 	s.reply(c, irc.RplLoggedIn, u.Prefix(), a.Name, "You are now logged in as "+a.Name)
+	if c.saslLogin {
+		s.reply(c, irc.RplSaslSuccess, "SASL authentication successful")
+	}
 	s.setRegistered(c, true)
 	s.csOnIdentify(c)
 	s.memoSummary(c, a)

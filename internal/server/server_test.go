@@ -542,12 +542,16 @@ func TestRegistrationTimeout(t *testing.T) {
 func TestLongLines(t *testing.T) {
 	s := testServer(t, nil)
 	bee, ember := login(t, s, "Bee"), login(t, s, "ember")
-	bee.send("PRIVMSG ember :" + strings.Repeat("é", 400))
+	// 509 bytes in is fine, but with Bee's prefix it is too long to relay
+	// whole: it is cut on a character boundary.
+	bee.send("PRIVMSG ember :" + strings.Repeat("é", 247))
 	got := ember.expect("PRIVMSG ember :")
 	if len(got) > 510 || !strings.HasSuffix(got, "é") {
 		t.Errorf("line not cut cleanly: %d bytes, ends %q", len(got), got[len(got)-4:])
 	}
 	bee.send("PRIVMSG ember :" + strings.Repeat("x", 9000))
+	bee.expect(" 417 Bee :Input line was too long")
+	bee.send("PRIVMSG ember :" + strings.Repeat("x", 496)) // 511 bytes: one too many
 	bee.expect(" 417 Bee :Input line was too long")
 	bee.sync()
 }

@@ -189,6 +189,20 @@ func (s *Server) needFlag(c *Client, sv *state.User, f byte) bool {
 func (s *Server) cmdOper(c *Client, m irc.Message) {
 	u := c.user
 	name, pw := m.Params[0], m.Params[1]
+	// Like UnrealIRCd: already opered is answered before any password work,
+	// so it costs nothing and never counts as a failed attempt.
+	if u.Modes['o'] {
+		as := ""
+		if a, _ := s.store.AccountByID(c.operAccount); a != nil {
+			as = "as " + a.Name
+			if c.operClass != "" {
+				as += ", class " + c.operClass
+			}
+			as = " (" + as + ")"
+		}
+		s.notice(c, "*** You are already an IRC operator"+as+". To oper again, de-oper first: /mode "+u.Nick+" -o")
+		return
+	}
 	a, err := s.store.AccountByNick(name)
 	if err != nil {
 		s.log.Printf("services database: %v", err)

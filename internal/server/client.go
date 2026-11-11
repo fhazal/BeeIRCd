@@ -316,9 +316,36 @@ func (c *Client) readLoop() {
 			return
 		}
 		for _, l := range lines {
+			if inputTooLong(l) {
+				c.s.post(func() { c.s.reply(c, irc.ErrInputTooLong, "Input line was too long") })
+				continue
+			}
 			c.s.post(func() { c.s.handleLine(c, l) })
 		}
 	}
+}
+
+// Client input limits (IRCv3 message-tags): the tag section, '@' and the
+// space after it included, holds at most 4096 bytes; the rest of the line
+// at most 510 (512 with CRLF). Longer lines are refused with 417, not cut.
+const (
+	maxInputTags = 4096
+	maxInputBody = irc.MaxLine
+)
+
+// inputTooLong reports whether line (without CRLF) breaks those limits.
+func inputTooLong(line string) bool {
+	if strings.HasPrefix(line, "@") {
+		sp := strings.IndexByte(line, ' ')
+		if sp < 0 {
+			return len(line) > maxInputTags
+		}
+		if sp+1 > maxInputTags {
+			return true
+		}
+		line = line[sp+1:]
+	}
+	return len(line) > maxInputBody
 }
 
 func readLine(r *bufio.Reader) (string, error) {

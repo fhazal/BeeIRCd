@@ -789,23 +789,3 @@ var chmodesHelp = []string{
 	"Halfops and up, and opers with flag g, skip c S C T E B and the message",
 	"parts of +f. Channels without +F use the server's flood profile.",
 }
-
-// cmdHelpop answers /HELPOP CHMODES (other topics point there for now).
-func (s *Server) cmdHelpop(c *Client, m irc.Message) {
-	topic := strings.ToUpper(m.Param(0))
-	if topic != "CHMODES" {
-		s.reply(c, irc.RplHelpTlr, "Help topics: CHMODES. Services: /ns help, /cs help, /ms help, /hs help, /os help, /as help")
-		return
-	}
-	full := s.cfg.FullPrefixes()
-	for _, l := range chmodesHelp {
-		if !full && (strings.HasPrefix(l, "~q ") || strings.HasPrefix(l, "%h ")) {
-			if strings.HasPrefix(l, "%h ") {
-				l = "@o op (@)          +v voice (@)"
-			} else {
-				continue
-			}
-		}
-		s.reply(c, irc.RplHelpTlr, l)
-	}
-}

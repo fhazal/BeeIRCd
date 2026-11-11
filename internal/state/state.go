@@ -278,11 +278,22 @@ func (c *Channel) Matches(list byte, u *User) bool {
 func (c *Channel) IsBanned(u *User) bool { return c.Matches('b', u) && !c.Matches('e', u) }
 
 // IsMuted reports whether a ban or a mute (~m) stops u talking, and no
-// exception lets them.
+// exception lets them. A mute exception (+e ~m:mask) lifts mutes but not
+// bans, like UnrealIRCd and InspIRCd.
 func (c *Channel) IsMuted(u *User) bool {
 	for _, e := range c.Lists['b'] {
 		if m, _ := MatchBan(e.Mask, u); m {
-			return !c.Matches('e', u)
+			return !c.matchesAny('e', u)
+		}
+	}
+	return false
+}
+
+// matchesAny is Matches that also counts mute entries.
+func (c *Channel) matchesAny(list byte, u *User) bool {
+	for _, e := range c.Lists[list] {
+		if m, _ := MatchBan(e.Mask, u); m {
+			return true
 		}
 	}
 	return false
