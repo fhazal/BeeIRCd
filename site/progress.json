@@ -1,0 +1,168 @@
+{
+  "updated": "2026-11-12T05:43:00+08:00",
+  "gauges": [
+    {
+      "id": "g-v1",
+      "label": "v1.0",
+      "pct": 97,
+      "title": "Version 1.0",
+      "text": "Everything one server needs, ready to install."
+    },
+    {
+      "id": "g-vision",
+      "label": "full vision",
+      "pct": 48,
+      "title": "Full vision",
+      "text": "Linking, Hive Panel and BeeRoom too."
+    }
+  ],
+  "now": {
+    "title": "24 hour test, 2,300 users",
+    "text": "Memory flat at 70 MB, replies in 9 ms. Ends 13 Nov, 04:18.",
+    "start": "2026-11-12T04:18:00+08:00",
+    "end": "2026-11-13T04:18:00+08:00"
+  },
+  "next": "Release candidate 1 for version 1.0, then server linking.",
+  "done": [
+    [
+      "2026-11-12T05:43",
+      "Plan for server linking",
+      "Speaks the UnrealIRCd 6 server protocol, so it can join existing networks."
+    ],
+    [
+      "2026-11-12T05:00",
+      "Install and admin guides, release checks",
+      "An hour of fuzzing, a TLS scan, clean installs on Debian 13 and Ubuntu 24.04."
+    ],
+    [
+      "2026-11-12T04:49",
+      "Stricter TLS 1.2",
+      "Only forward secret ciphers."
+    ],
+    [
+      "2026-11-12T03:59",
+      "Signed updates",
+      "beeircd update checks the signature and rolls back if the new version won't start."
+    ],
+    [
+      "2026-11-12T02:58",
+      "One-command installer",
+      "beeircd install asks a few questions, then sets up systemd, the firewall and backups."
+    ],
+    [
+      "2026-11-12T01:57",
+      "Let's Encrypt and STS built in",
+      ""
+    ],
+    [
+      "2026-11-12T01:27",
+      "beeircd status, check, backup and rehash",
+      ""
+    ],
+    [
+      "2026-11-12T00:44",
+      "Connect throttle and PROXY protocol",
+      "Stops reconnect floods, works behind a load balancer."
+    ],
+    [
+      "2026-11-11T23:39",
+      "Channel history and CHATHISTORY",
+      ""
+    ],
+    [
+      "2026-11-11T22:46",
+      "User modes, KNOCK, SILENCE and SETNAME",
+      ""
+    ],
+    [
+      "2026-11-11T21:53",
+      "Protocol checks against irctest",
+      ""
+    ],
+    [
+      "2026-11-11T20:57",
+      "Test foundation",
+      ""
+    ],
+    [
+      "2026-11-11T18:54",
+      "Channel modes",
+      ""
+    ],
+    [
+      "2026-11-11T17:55",
+      "Oper classes",
+      ""
+    ],
+    [
+      "2026-11-11T16:08",
+      "HostServ",
+      ""
+    ],
+    [
+      "2026-11-11T15:44",
+      "MemoServ extras, mail and BUDDY",
+      ""
+    ],
+    [
+      "2026-11-11T15:08",
+      "MONITOR, client certificates and SASL EXTERNAL",
+      ""
+    ],
+    [
+      "2026-11-11T14:02",
+      "OperServ extras, SEEN and DNSBL",
+      ""
+    ],
+    [
+      "2026-11-11T13:09",
+      "Services answer like Anope 2.0.20",
+      ""
+    ],
+    [
+      "2026-11-11T12:03",
+      "Runs well on a 1 CPU VPS",
+      ""
+    ],
+    [
+      "2026-11-11T10:23",
+      "Network bans and extbans",
+      ""
+    ],
+    [
+      "2026-11-11T09:52",
+      "ChanServ permission sets",
+      ""
+    ],
+    [
+      "2026-11-11T06:30",
+      "Opers, OperServ and AdminServ",
+      ""
+    ],
+    [
+      "2026-11-11T05:27",
+      "ChanServ",
+      ""
+    ],
+    [
+      "2026-11-11T04:54",
+      "NickServ, MemoServ and SASL",
+      ""
+    ],
+    [
+      "2026-11-11T04:32",
+      "IRCv3, cloaked hosts and flood control",
+      ""
+    ],
+    [
+      "2026-11-11T03:48",
+      "Core chat server",
+      ""
+    ],
+    [
+      "2026-11-11T03:11",
+      "Project started",
+      ""
+    ]
+  ]
+}
