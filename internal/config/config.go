@@ -50,6 +50,7 @@ type Config struct {
 	Mail     Mail     `toml:"mail"`
 	HostServ HostServ `toml:"hostserv"`
 	Channels Channels `toml:"channels"`
+	History  History  `toml:"history"`
 	// OperClasses are the [[operclass]] blocks (see Classes).
 	OperClasses []OperClass `toml:"operclass"`
 
@@ -183,7 +184,7 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("%s: unknown setting %s", path, strings.Join(keys, ", "))
 	}
 	dir := filepath.Dir(path)
-	for _, p := range []*string{&c.TLS.Cert, &c.TLS.Key, &c.MOTD.File, &c.Services.Database} {
+	for _, p := range []*string{&c.TLS.Cert, &c.TLS.Key, &c.MOTD.File, &c.Services.Database, &c.History.File} {
 		if *p != "" && !filepath.IsAbs(*p) {
 			*p = filepath.Join(dir, *p)
 		}
@@ -236,6 +237,7 @@ func (c *Config) SetDefaults() {
 	c.Mail.setDefaults()
 	c.HostServ.setDefaults()
 	c.Channels.setDefaults()
+	c.History.setDefaults(sv.Database)
 	if sv.GuestPrefix == "" {
 		sv.GuestPrefix = "Guest"
 	}
@@ -359,6 +361,9 @@ var (
 // Check reports the first thing wrong, in words a person can act on.
 func (c *Config) Check() error {
 	if err := c.checkClasses(); err != nil {
+		return err
+	}
+	if err := c.History.check(); err != nil {
 		return err
 	}
 	if err := c.Channels.check(); err != nil {

@@ -208,13 +208,13 @@ type Channel struct {
 	Members map[string]*Member   // by UID
 	Lists   map[byte][]ListEntry // 'b', 'e', 'I'
 	Invited map[string]bool      // UIDs invited since their last join
-	// Params holds the argument of the other parameter modes (f F L E B J).
+	// Params holds the argument of the other parameter modes (f F H L E B J).
 	Params map[byte]string
 }
 
 // ParamModes are the channel modes that take an argument when set and none
 // when unset (besides k and l).
-const ParamModes = "BEFJLf"
+const ParamModes = "BEFHJLf"
 
 // IsParamMode reports whether m is one of ParamModes.
 func IsParamMode(m byte) bool { return strings.IndexByte(ParamModes, m) >= 0 }
@@ -325,11 +325,14 @@ func (c *Channel) removeListEntry(list byte, mask string) (string, bool) {
 
 // Network is every user and channel.
 type Network struct {
-	SID      string
-	users    map[string]*User
-	nicks    map[string]*User
-	channels map[string]*Channel
-	next     uint64
+	SID string
+	// NewChannelParams are parameter modes every new channel starts with,
+	// like UnrealIRCd's modes-on-join (+H from [history] default).
+	NewChannelParams map[byte]string
+	users            map[string]*User
+	nicks            map[string]*User
+	channels         map[string]*Channel
+	next             uint64
 
 	// Running counts for LUSERS (people = users who aren't services).
 	people, invisible, opers int
@@ -473,6 +476,12 @@ func (n *Network) join(u *User, name string, ts int64, ranks Rank) (ch *Channel,
 			Members: make(map[string]*Member),
 			Lists:   make(map[byte][]ListEntry),
 			Invited: make(map[string]bool),
+		}
+		for m, v := range n.NewChannelParams {
+			if ch.Params == nil {
+				ch.Params = make(map[byte]string)
+			}
+			ch.Modes[m], ch.Params[m] = true, v
 		}
 		n.channels[key] = ch
 		created = true

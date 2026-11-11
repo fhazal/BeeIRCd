@@ -17,6 +17,7 @@ func (s *Server) emit(ev state.Event) error {
 	secure := s.beforeModeEvent(ev)
 	deliver := s.prepare(ev)
 	watch := s.monitorPrepare(ev)
+	histGone := s.historyChannels(ev)
 	if err := s.net.Apply(ev); err != nil {
 		return err
 	}
@@ -28,7 +29,9 @@ func (s *Server) emit(ev state.Event) error {
 	}
 	if cm, ok := ev.(*state.ChannelMode); ok {
 		s.noteTimedBans(cm)
+		s.historyModeChanged(cm)
 	}
+	s.dropGoneHistory(histGone)
 	for _, sink := range s.sinks {
 		sink(ev)
 	}

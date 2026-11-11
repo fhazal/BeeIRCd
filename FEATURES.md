@@ -23,6 +23,7 @@ Last updated: 12 Nov 2026 (Stage 1.5.9b).
 | User modes B d D R T p Z (anyone), H W (opers), q (opers, flag a), z (TLS, set by the server) | Implemented | 1.5.9b; UnrealIRCd letters and rules: +B WHOIS 335 and B in WHO, 005 BOT=B; +d no channel messages; +D/+R/+T/+Z refuse PMs with 531 (opers get past +D +R +T); +p hides channels in WHOIS; +H hides oper status from non-opers; +W shows who WHOISes you; +q unkickable (972); -o drops H W q; HELP UMODES |
 | KNOCK | Implemented | 1.5.9b; +i, +k or full +l channels; refused on +K, when banned, or after 3 knocks a minute; ops get Unreal's `[Knock] by ...` notice; counts toward +f k |
 | SILENCE | Implemented | 1.5.9b; 005 SILENCE=32, UnrealIRCd 271/272/511; drops PMs, notices and invites quietly |
+| Channel history +H `lines:time` (like `+H 50:1d`), playback on join, CHATHISTORY | Implemented | 1.5.9c; UnrealIRCd syntax; `[history]` default (+H on every new channel), playback_lines (15, 0 = off) / playback_time (1d) for clients without chathistory, caps 200 lines (5000 on registered channels) and 31d, max_memory_mb 32 (oldest lines go first); with `secret` set it is saved encrypted (AES-256-GCM) to history.db every 5 minutes and at shutdown, so a restart keeps it; history goes with -H or when the channel empties (not +P); @#chan messages and TAGMSG are not kept |
 | SETNAME, CHGNAME | Implemented | 1.5.9b; IRCv3 `setname` cap, FAIL SETNAME INVALID_REALNAME over 50; CHGNAME for opers with flag h |
 | SETHOST, SETIDENT, CHGHOST, CHGIDENT | Implemented | 1.5.9b; opers with flag h, UnrealIRCd character rules; chghost cap and 396 |
 | SAJOIN, SAPART, SANICK, SAMODE, SATOPIC | Implemented | 1.5.9b; opers with flag a; server notices like UnrealIRCd/InspIRCd (not in the Anope log channel: Anope never sees these) |
@@ -69,7 +70,8 @@ Last updated: 12 Nov 2026 (Stage 1.5.9b).
 | STS | Planned (step 7) |
 | WebSocket, WebIRC | Planned (Stage 4) |
 | netsplit/netjoin batches | Planned (Stage 2) |
-| draft/chathistory, draft/account-registration, draft/multiline, draft/read-marker, draft/message-redaction | Planned (Stage 4, behind a switch while draft) |
+| draft/chathistory | Implemented (1.5.9c) for +H channels you are in: LATEST BEFORE AFTER AROUND BETWEEN TARGETS, msgid and timestamp references, 005 CHATHISTORY=100 MSGREFTYPES=msgid,timestamp; no private-message history |
+| draft/account-registration, draft/multiline, draft/read-marker, draft/message-redaction | Planned (Stage 4, behind a switch while draft) |
 | draft/metadata, draft/channel-rename, draft/pre-away, extended-isupport, network-icon, oper-tag | Proposed |
 | STARTTLS | Not supported (deprecated) |
 

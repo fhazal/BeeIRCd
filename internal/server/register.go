@@ -18,7 +18,7 @@ import (
 // capabilities are the IRCv3 features BeeIRCd offers.
 var capabilities = []string{
 	"account-notify", "account-tag", "away-notify", "batch", "cap-notify",
-	"chghost", "echo-message", "extended-join", "invite-notify",
+	"chghost", "draft/chathistory", "echo-message", "extended-join", "invite-notify",
 	"labeled-response", "message-tags", "multi-prefix", "sasl", "server-time",
 	"setname", "userhost-in-names",
 }
@@ -377,6 +377,7 @@ func (s *Server) isupport() []string {
 		"CHANMODES=" + chanModesList + "," + chanModesKey + "," + chanModesParam + "," + chanModesFlags,
 		"CHANNELLEN=" + strconv.Itoa(l.ChannelLen),
 		"CHANTYPES=#",
+		"CHATHISTORY=" + strconv.Itoa(chathistoryMax),
 		"EXTBAN=~," + irc.ExtbanLetters,
 		"EXCEPTS=e",
 		"HOSTLEN=63",
@@ -386,6 +387,7 @@ func (s *Server) isupport() []string {
 		"MAXTARGETS=" + strconv.Itoa(maxTargets),
 		"MONITOR=" + strconv.Itoa(monitorMax),
 		"MODES=" + strconv.Itoa(maxModeParams),
+		"MSGREFTYPES=msgid,timestamp",
 		"NETWORK=" + s.cfg.Server.Network,
 		"NICKLEN=" + strconv.Itoa(l.NickLen),
 		"PREFIX=(" + s.rankModes() + ")" + s.rankPrefixes(),

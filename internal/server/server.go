@@ -60,6 +60,7 @@ type Server struct {
 	rejoinBlock map[string]time.Time
 	// held are the clients with lines waiting for a password check (O1).
 	held     map[*Client]struct{}
+	hist     histState                   // 1.5.9c channel history (+H, CHATHISTORY)
 	watchers map[string]map[*Client]bool // MONITOR: folded nick -> clients watching it
 	loop     loopStats                   // how long each piece of loop work took
 	wg       sync.WaitGroup
@@ -124,6 +125,7 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	if err := os.MkdirAll(filepath.Dir(cfg.Services.Database), 0o750); err != nil {
 		return nil, err
 	}
+	s.setupHistory()
 	db, err := store.Open(cfg.Services.Database)
 	if err != nil {
 		return nil, err
@@ -240,6 +242,7 @@ func (s *Server) Serve(ctx context.Context) error {
 			s.checkTimeouts(now)
 			s.expireTimedBans(now)
 			s.floodTick(now)
+			s.historyTick(now)
 			s.svc.Tick(now)
 			s.reap()
 			s.flushWrites()
@@ -328,6 +331,7 @@ func (s *Server) closeListeners() {
 }
 
 func (s *Server) shutdown(reason string) {
+	snap := s.historySnapshot() // before everyone quits and channels go
 	close(s.done)
 	s.closeListeners()
 	for _, c := range s.clients {
@@ -340,6 +344,7 @@ func (s *Server) shutdown(reason string) {
 	case <-time.After(3 * time.Second):
 		s.log.Printf("some connections did not close in time")
 	}
+	s.saveHistorySnapshot(snap)
 	s.svc.SaveSeen()
 	if err := s.store.Close(); err != nil {
 		s.log.Printf("closing services database: %v", err)

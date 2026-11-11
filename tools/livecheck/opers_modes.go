@@ -53,7 +53,7 @@ func (lc *liveCheck) modes() {
 	}
 	op.send("VERSION")
 	l := op.wait("CHANMODES=")
-	lc.check("005 has the new modes", strings.Contains(l, "CHANMODES=beI,k,BEFJLfl,CDKMNOPQRSTVZcimnprstz"))
+	lc.check("005 has the new modes", strings.Contains(l, "CHANMODES=beI,k,BEFHJLfl,CDKMNOPQRSTVZcimnprstz"))
 	join(op, A)
 	join(u, A)
 	join(w, A)

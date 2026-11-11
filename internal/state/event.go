@@ -476,6 +476,13 @@ func (u *User) Copy() *User {
 func (n *Network) Clone() *Network {
 	c := NewNetwork(n.SID)
 	c.next = n.next
+	// Like +nt, the modes new channels start with are a network rule.
+	if n.NewChannelParams != nil {
+		c.NewChannelParams = make(map[byte]string, len(n.NewChannelParams))
+		for k, v := range n.NewChannelParams {
+			c.NewChannelParams[k] = v
+		}
+	}
 	for uid, u := range n.users {
 		cp := u.Copy()
 		c.users[uid] = cp

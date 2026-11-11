@@ -46,6 +46,7 @@ nick_length = 32
 [channels]
 flood_profile = "off"
 
+{history}
 [services]
 database = "services.db"
 admin = "operuser"
@@ -98,6 +99,7 @@ class BeeIRCdController(BaseServerController, DirectoryBasedController):
                     port=port,
                     tls="true" if ssl else "false",
                     admin_hash=admin_hash,
+                    history=self._history_conf(),
                 )
             )
         self.proc = self.execute(
@@ -108,6 +110,17 @@ class BeeIRCdController(BaseServerController, DirectoryBasedController):
             # irctest opers up as operuser/operpassword: BeeIRCd opers are
             # registered accounts, so register the config admin first.
             self._raw_register("operuser", "irctest-account-pw")
+
+    def _history_conf(self) -> str:
+        # Chathistory tests get +H on every new channel; others keep the
+        # plain modes. Playback on join is off: it isn't in any spec.
+        cfg = getattr(self, "test_config", None)
+        if cfg is None or not getattr(cfg, "chathistory", False):
+            return ""
+        return '[history]
+default = "1000:1d"
+playback_lines = 0
+'
 
     def wait_for_services(self) -> None:
         # Services are built in: they are up when the port is.

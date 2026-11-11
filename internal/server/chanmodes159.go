@@ -25,7 +25,7 @@ const (
 const (
 	chanModesList  = "beI"
 	chanModesKey   = "k"
-	chanModesParam = "BEFJLfl"
+	chanModesParam = "BEFHJLfl"
 	chanModesFlags = "CDKMNOPQRSTVZcimnprstz"
 )
 
@@ -72,6 +72,8 @@ func (s *Server) checkParamMode(name string, m byte, arg string) (string, string
 			return "", "Use +B <min length>:<percent>, like +B 10:70"
 		}
 		return strconv.Itoa(a) + ":" + strconv.Itoa(b), ""
+	case 'H':
+		return s.checkHistoryMode(name, arg)
 	case 'J':
 		n, err := strconv.Atoi(arg)
 		if err != nil || n < 1 || n > 3600 {
@@ -776,6 +778,7 @@ var chmodesHelp = []string{
 	" E <n>:<s>  block the same line sent n times in s seconds",
 	" B <len>:<pct> block lines of len+ letters with pct% capitals",
 	" J <s>      no rejoin for s seconds after a kick",
+	" H <n>:<t>  keep history: the last n lines, up to t old (+H 50:1d)",
 	"On or off (ops; i m n t for halfops too):",
 	" i invite only     m moderated        n no outside messages",
 	" t topic by ops    p private          s secret",

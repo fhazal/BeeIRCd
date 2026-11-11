@@ -85,6 +85,7 @@ func (s *Server) joinVia(c *Client, name, key string, hops int) {
 		s.sendTopic(c, ch)
 	}
 	s.sendNames(c, ch)
+	s.joinPlayback(c, ch)
 }
 
 func (s *Server) cmdPart(c *Client, m irc.Message) {

@@ -203,8 +203,26 @@ func (s *Server) flushLabeled(c *Client, label string, lines []string) {
 		id := strconv.FormatUint(s.batchSeq, 36)
 		c.send(addTag(":"+name+" BATCH +"+id+" labeled-response", "label", label))
 		for _, l := range lines {
+			if hasBatchTag(l) {
+				c.send(l) // inside a nested batch (CHATHISTORY) already
+				continue
+			}
 			c.send(addTag(l, "batch", id))
 		}
 		c.send(":" + name + " BATCH -" + id)
 	}
+}
+
+// hasBatchTag reports whether a built line already carries a batch tag.
+func hasBatchTag(line string) bool {
+	if !strings.HasPrefix(line, "@") {
+		return false
+	}
+	tags, _, _ := strings.Cut(line[1:], " ")
+	for _, t := range strings.Split(tags, ";") {
+		if t == "batch" || strings.HasPrefix(t, "batch=") {
+			return true
+		}
+	}
+	return false
 }

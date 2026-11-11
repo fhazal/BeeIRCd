@@ -53,7 +53,7 @@ func mlockArgs(reg *store.Channel) []string {
 		args = append(args, strconv.Itoa(reg.MlockLimit))
 	}
 	vals := mlockParams(reg)
-	for _, m := range []byte("BEFJLf") {
+	for _, m := range []byte("BEFHJLf") {
 		if v, ok := vals[m]; ok {
 			modes += string(m)
 			args = append(args, v)

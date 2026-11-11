@@ -25,7 +25,7 @@ func TestOperModesThroughServices(t *testing.T) {
 	}
 	// Nor through the mode lock.
 	bee.send("CS MODE #bchat LOCK ADD +P")
-	bee.expect(csLine("Bee", "A mode lock can hold CDKMNQRSTVcimnpstz, k, l and BEFJLf, not P."))
+	bee.expect(csLine("Bee", "A mode lock can hold CDKMNQRSTVcimnpstz, k, l and BEFHJLf, not P."))
 
 	// Positive: an oper may, directly or through OperServ.
 	b.send("OS MODE #bchat +P")

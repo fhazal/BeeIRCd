@@ -60,6 +60,7 @@ var helpTopics = map[string][]string{
 	"AWAY":         {"AWAY [message]", "Marks you away with message; without one you are back."},
 	"AUTHENTICATE": {"AUTHENTICATE <mechanism|data>", "SASL login (PLAIN or EXTERNAL); your client does this for you."},
 	"CAP":          {"CAP LS|REQ|END [...]", "Asks for IRCv3 capabilities; your client does this for you."},
+	"CHATHISTORY":  {"CHATHISTORY LATEST|BEFORE|AFTER|AROUND|BETWEEN|TARGETS ...", "Fetches the history of a +H channel you are in (IRCv3 chathistory); your client does this for you. At most 100 lines per request."},
 	"CHMODES":      chmodesHelp,
 	"UMODES":       umodesHelp,
 	"KNOCK":        {"KNOCK <#channel> [reason]", "Asks the ops of a +i, +k or full +l channel to let you in. Not on +K channels."},

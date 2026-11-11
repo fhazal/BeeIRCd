@@ -129,7 +129,7 @@ func TestChanServModeLockSecureTopicLock(t *testing.T) {
 	x.expect(":Bee!~bee@127.0.0.1 MODE #bchat -m+s")
 	x.expect(csSrc + "MODE #bchat +m-s")
 	bee.send("CS SET #bchat MLOCK +q")
-	bee.expect(csLine("Bee", "A mode lock can hold CDKMNQRSTVcimnpstz, k, l and BEFJLf, not q."))
+	bee.expect(csLine("Bee", "A mode lock can hold CDKMNQRSTVcimnpstz, k, l and BEFHJLf, not q."))
 	bee.send("CS SET #bchat MLOCK +ntk")
 	bee.expect(csLine("Bee", "+k in a mode lock needs a key: +k <key>"))
 	bee.send("CS SET #bchat MLOCK +nt")

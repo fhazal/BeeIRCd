@@ -1,6 +1,6 @@
 # PLAN 1.5.9 - channel modes, user modes and the SA*/SET* commands
 
-Status: 1.5.9a built (b9f2c97), 1.5.9b built 12 Nov 2026; 1.5.9c (+H history, CHATHISTORY) still to do.
+Status: 1.5.9a built (b9f2c97), 1.5.9b built 12 Nov 2026; 1.5.9c (+H history, CHATHISTORY) built 12 Nov 2026 (history.db is one encrypted file, not SQLite).
 
 Sources studied: InspIRCd 4.12.1 modules (mode letters), UnrealIRCd 6.2.7
 chanmodes (letters, +f/+F flood profiles, +L rules), the user's live Unreal

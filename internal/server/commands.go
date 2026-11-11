@@ -46,6 +46,7 @@ func init() {
 		"VERSION":      {0, false, (*Server).cmdVersion},
 		"TIME":         {0, false, (*Server).cmdTime},
 		"TAGMSG":       {1, false, (*Server).cmdTagmsg},
+		"CHATHISTORY":  {1, false, (*Server).cmdChathistory},
 		"AUTHENTICATE": {1, true, (*Server).cmdAuthenticate},
 		"NS":           {1, false, (*Server).cmdNS},
 		"NICKSERV":     {1, false, (*Server).cmdNS},

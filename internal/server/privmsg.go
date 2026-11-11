@@ -105,6 +105,9 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 			if c.caps["echo-message"] {
 				c.deliver(o)
 			}
+			if status == "" {
+				s.recordHistory(ch, o)
+			}
 			continue
 		}
 		t := s.net.UserByNick(name)
