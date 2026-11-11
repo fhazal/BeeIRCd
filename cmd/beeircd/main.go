@@ -1,6 +1,6 @@
 // Command beeircd is the BeeIRCd server and its admin command.
 //
-//	beeircd start | stop | restart | status | check | update | backup | version
+//	beeircd install | uninstall | start | stop | restart | status | check | update | backup | version
 package main
 
 import (
@@ -26,6 +26,8 @@ const defaultConfig = "/etc/beeircd/beeircd.conf"
 
 const usage = `Usage: beeircd <command>
 
+  install   set up BeeIRCd on this machine (asks 9 questions first)
+  uninstall remove the program and service (--purge: data too)
   start     start the server
   stop      stop the server
   restart   check the config, then restart
@@ -78,6 +80,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdBackup(args[1:], stdout, stderr)
 	case cmd == "rehash":
 		return cmdRehash(args[1:], stdout, stderr)
+	case cmd == "install":
+		return cmdInstall(args[1:], stdout, stderr)
+	case cmd == "uninstall":
+		return cmdUninstall(args[1:], stdout, stderr)
 	case cmd == "start" || cmd == "stop" || cmd == "restart":
 		return cmdService(cmd, args[1:], stdout, stderr)
 	case planned[cmd]:

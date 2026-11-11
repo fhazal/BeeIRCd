@@ -56,6 +56,7 @@ type Config struct {
 	History  History  `toml:"history"`
 	Control  Control  `toml:"control"`
 	Backup   Backup   `toml:"backup"`
+	Link     Link     `toml:"link"`
 	// OperClasses are the [[operclass]] blocks (see Classes).
 	OperClasses []OperClass `toml:"operclass"`
 
@@ -325,6 +326,7 @@ func (c *Config) SetDefaults() {
 	c.HostServ.setDefaults()
 	c.Channels.setDefaults()
 	c.History.setDefaults(sv.Database)
+	c.setLinkDefaults()
 	c.setAdminDefaults()
 	if sv.GuestPrefix == "" {
 		sv.GuestPrefix = "Guest"
@@ -497,6 +499,9 @@ func (c *Config) Check() error {
 	if c.NeedsTLS() && (c.TLS.Cert == "" || c.TLS.Key == "") {
 		return fmt.Errorf("a TLS port needs [tls] cert and key (or acme = true)")
 	}
+	if err := c.checkLink(); err != nil {
+		return err
+	}
 	if err := c.checkACME(); err != nil {
 		return err
 	}
@@ -601,4 +606,19 @@ func validHostPort(a string) bool {
 	_, p, err := net.SplitHostPort(a)
 	n, perr := strconv.Atoi(p)
 	return err == nil && perr == nil && n > 0 && n < 65536
+}
+
+// ValidServerName reports whether name may be a server name.
+func ValidServerName(name string) bool { return serverRe.MatchString(name) && len(name) <= 63 }
+
+// ValidNetwork reports whether name may be a network name.
+func ValidNetwork(name string) bool { return networkRe.MatchString(name) }
+
+// portOf is the port number of a listen address like ":6697".
+func portOf(addr string) (int, error) {
+	_, p, err := net.SplitHostPort(addr)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(p)
 }

@@ -285,7 +285,7 @@ func restartOnly(ch config.Change) bool {
 		return ch.Key == "ports"
 	case "server":
 		return ch.Key != "description" && ch.Key != "resolve_hosts"
-	case "cloak", "tls", "control":
+	case "cloak", "tls", "control", "link":
 		return true
 	case "services":
 		return ch.Key == "database"

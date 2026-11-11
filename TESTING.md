@@ -57,6 +57,17 @@ BEEIRCD_LOAD=1 go test -run TestLoad5000 -v ./internal/server/   # 5,000-client 
   `acme_directory = "https://127.0.0.1:14000/dir"`, `acme_http = ":5002"` and
   `SSL_CERT_FILE=test/certs/pebble.minica.pem` (Linux; done 12 Nov 2026 on the homelab).
 
+- **Installer on clean machines** (7d): `scripts/cleanmachine.sh <beeircd
+  linux binary> <installcheck binary> [image ...]` on a host with LXD (the
+  homelab; LXD there has a storage pool and **no network**, so the host is
+  not touched). Per image (default Debian 13 + Ubuntu 24.04; on the homelab
+  use the local aliases `deb13 ubu24`): fresh container, `beeircd install`
+  with scripted answers, status + check, `tools/installcheck` (both ports,
+  NickServ REGISTER after 30 s, wrong /oper 464, admin /oper 381), backup
+  timer, stop/start, reboot (waits up to 3 min: without a network systemd
+  waits 2 min for one), uninstall, `--purge`, container deleted.
+  Build `installcheck` with `GOOS=linux go build ./tools/installcheck`.
+
 ## 2. Independent conformance (irctest)
 
 [irctest](https://github.com/progval/irctest) is the suite Ergo, Solanum,
