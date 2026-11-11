@@ -26,8 +26,11 @@ const (
 // MaxRequest is the most bytes one request may be.
 const MaxRequest = 4096
 
-// Request asks the server for one thing. Path is where backup writes
-// ("" = the backup folder, a new dated file).
+// Request asks the server for one thing. For backup, Path "" makes a
+// dated backup; any other value an undated one in the backup folder that
+// the caller moves where it wants (the server never writes outside its
+// backup folder: it runs locked down, and the socket must not become a
+// way to write files anywhere).
 type Request struct {
 	Cmd  string `json:"cmd"`
 	Path string `json:"path,omitempty"`

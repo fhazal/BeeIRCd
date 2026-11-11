@@ -336,11 +336,29 @@ func cmdBackup(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 	}
+	if dst != "" {
+		if _, err := os.Stat(dst); err == nil {
+			c.bad("backup: " + dst + " exists already")
+			return 1
+		}
+	}
 	var b *control.Backup
-	resp, err := ask(cfg, control.CmdBackup, dst, 10*time.Minute)
+	named := ""
+	if dst != "" {
+		named = "named"
+	}
+	resp, err := ask(cfg, control.CmdBackup, named, 10*time.Minute)
 	switch {
 	case err == nil:
 		b = resp.Backup
+		if dst != "" {
+			// The server writes only inside its backup folder; move it here.
+			if merr := moveFile(b.File, dst); merr != nil {
+				c.bad("backup kept at " + b.File + ": can't move it to " + dst + ": " + merr.Error())
+				return 1
+			}
+			b.File = dst
+		}
 	case errors.Is(err, control.ErrNotRunning):
 		b, err = offlineBackup(cfg, dst, time.Now())
 	}
@@ -649,4 +667,32 @@ func shortDate(d string) string {
 		return d
 	}
 	return t.Format("2 Jan")
+}
+
+// moveFile moves src to dst (a new file, 0600), copying when they are on
+// different file systems.
+func moveFile(src, dst string) error {
+	if err := os.Rename(src, dst); err == nil {
+		return nil
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		os.Remove(dst)
+		return err
+	}
+	if err := out.Close(); err != nil {
+		os.Remove(dst)
+		return err
+	}
+	in.Close()
+	return os.Remove(src)
 }

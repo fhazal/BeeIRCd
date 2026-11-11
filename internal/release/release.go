@@ -176,7 +176,39 @@ func compare(a, b string) int {
 	case bp == "":
 		return -1
 	}
-	return strings.Compare(ap, bp)
+	return comparePre(ap, bp)
+}
+
+// comparePre orders test versions by their words, then by their numbers,
+// so rc10 is newer than rc9 (and beta2 older than rc1).
+func comparePre(a, b string) int {
+	aw, an := cutNumber(a)
+	bw, bn := cutNumber(b)
+	if c := strings.Compare(aw, bw); c != 0 {
+		return c
+	}
+	switch {
+	case an > bn:
+		return 1
+	case an < bn:
+		return -1
+	}
+	return 0
+}
+
+func cutNumber(s string) (string, int) {
+	i := len(s)
+	for i > 0 && s[i-1] >= '0' && s[i-1] <= '9' {
+		i--
+	}
+	n, _ := strconv.Atoi(s[i:])
+	return s[:i], n
+}
+
+// TestVersion reports whether v is a test version like 1.1.0-rc1.
+func TestVersion(v string) bool {
+	_, pre := split(v)
+	return pre != ""
 }
 
 func split(v string) ([3]int, string) {

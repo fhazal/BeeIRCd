@@ -246,6 +246,12 @@ func TestUpdateRefusals(t *testing.T) {
 	if u.update(false, false, false); !strings.Contains(out.String(), "Nothing changed") || progVersion(u.exe) != "1.0.0" {
 		t.Errorf("answered n:\n%s", out)
 	}
+	// A signed test version where releases are: only with --rc.
+	rcSrv := releaseServer(t, "1.1.0-rc1", key)
+	u, out = testUpdater(t, "1.0.0", rcSrv.URL, &fakeSystem{running: "1.0.0"}, "y\n")
+	if code := u.update(false, false, false); code != 1 || !strings.Contains(out.String(), "1.1.0-rc1 is a test version") || progVersion(u.exe) != "1.0.0" {
+		t.Errorf("test version without --rc: exit %d\n%s", code, out)
+	}
 	// No terminal and no --yes: refused instead of hanging.
 	u, out = testUpdater(t, "1.0.0", srv.URL, &fakeSystem{running: "1.0.0"}, "")
 	u.tty = false

@@ -63,7 +63,7 @@ func (s *Server) updateResult(m *release.Manifest, err error) {
 		return
 	}
 	s.upd.lastErr = ""
-	if !release.Newer(m.Version, version.Version) {
+	if release.TestVersion(m.Version) || !release.Newer(m.Version, version.Version) {
 		s.upd.latest = nil
 		return
 	}

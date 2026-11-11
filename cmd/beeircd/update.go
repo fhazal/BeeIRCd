@@ -145,6 +145,11 @@ func (u *updater) update(checkOnly, yes, rc bool) int {
 		fmt.Fprintf(u.out, "  Nothing changed. BeeIRCd %s keeps running.\n", u.current)
 		return 1
 	}
+	if !rc && release.TestVersion(m.Version) {
+		u.c.bad(fmt.Sprintf("%s is a test version and you didn't ask for one (--rc): not installing it", m.Version))
+		fmt.Fprintf(u.out, "  Nothing changed. BeeIRCd %s keeps running.\n", u.current)
+		return 1
+	}
 	if !release.Newer(m.Version, u.current) {
 		u.c.ok(fmt.Sprintf("BeeIRCd %s is the newest release", u.current))
 		return 0

@@ -270,6 +270,10 @@ func (s *Server) backup(dst string) (*control.Backup, error) {
 	dated := dst == ""
 	if dated {
 		dst = control.FreeBackupName(dir, time.Now())
+	} else {
+		// Undated: the caller moves it where it wants. Never a path from
+		// the request; Prune and LastBackup skip this name.
+		dst = filepath.Join(dir, fmt.Sprintf(".named-%d.tar.gz", time.Now().UnixNano()))
 	}
 	if _, err := os.Stat(dst); err == nil {
 		return nil, fmt.Errorf("%s exists already", dst)

@@ -107,9 +107,18 @@ func TestNewer(t *testing.T) {
 		{"1.0.0", "0.0.0-dev", true},
 		{"v1.2.0", "1.1.9", true},
 		{"1.5.9", "1.5.9c-7d", true}, // test builds sort before the plain version
+		{"1.0.0-rc10", "1.0.0-rc9", true},
+		{"1.0.0-rc9", "1.0.0-rc10", false},
+		{"1.0.0-rc1", "1.0.0-beta2", true},
 	} {
 		if got := Newer(c.a, c.b); got != c.want {
 			t.Errorf("Newer(%q, %q) = %v", c.a, c.b, got)
 		}
+	}
+}
+
+func TestTestVersion(t *testing.T) {
+	if !TestVersion("1.1.0-rc1") || TestVersion("1.1.0") || TestVersion("v1.0.0") {
+		t.Error("TestVersion")
 	}
 }

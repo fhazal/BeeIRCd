@@ -96,12 +96,18 @@ func TestControlStatusCheckBackup(t *testing.T) {
 	if fi, _ := os.Stat(bk.File); fi.Mode().Perm()&0o077 != 0 && os.PathSeparator == '/' {
 		t.Errorf("backup readable by others: %v", fi.Mode())
 	}
-	named := filepath.Join(t.TempDir(), "mine.tar.gz")
-	if got := askOK(t, s, control.CmdBackup, named).Backup.File; got != named {
+	// A path in the request is never written: the server stays inside its
+	// backup folder, under a name Prune and LastBackup skip.
+	elsewhere := filepath.Join(t.TempDir(), "mine.tar.gz")
+	got := askOK(t, s, control.CmdBackup, elsewhere).Backup.File
+	if filepath.Dir(got) != s.cfg.Backup.Dir || !strings.HasPrefix(filepath.Base(got), ".named-") {
 		t.Errorf("named backup went to %s", got)
 	}
-	if _, err := control.Ask(s.cfg.Control.Socket, control.Request{Cmd: control.CmdBackup, Path: named}, 5*time.Second); err == nil || !strings.Contains(err.Error(), "exists already") {
-		t.Errorf("overwriting a backup: %v", err)
+	if _, err := os.Stat(elsewhere); err == nil {
+		t.Error("the server wrote the path from the request")
+	}
+	if b := control.Backups(s.cfg.Backup.Dir); len(b) != 1 {
+		t.Errorf("dated backups: %v", b)
 	}
 	if _, err := control.Ask(s.cfg.Control.Socket, control.Request{Cmd: "fly"}, 5*time.Second); err == nil {
 		t.Error("unknown command accepted")

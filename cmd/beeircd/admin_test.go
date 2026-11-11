@@ -83,6 +83,16 @@ func TestAdminCommands(t *testing.T) {
 	if code, out = runCmd("backup", "-config", path); code != 0 || !strings.Contains(out, "✓ beeircd-") || !strings.Contains(out, "services database (live copy)") {
 		t.Errorf("backup (%d):\n%s", code, out)
 	}
+	mine := filepath.Join(t.TempDir(), "mine.tar.gz")
+	if code, out = runCmd("backup", "-config", path, mine); code != 0 || !strings.Contains(out, "mine.tar.gz") {
+		t.Errorf("named backup (%d):\n%s", code, out)
+	}
+	if fi, err := os.Stat(mine); err != nil || fi.Size() == 0 {
+		t.Errorf("named backup not moved there: %v", err)
+	}
+	if code, out = runCmd("backup", "-config", path, mine); code != 1 || !strings.Contains(out, "exists already") {
+		t.Errorf("overwriting a backup (%d):\n%s", code, out)
+	}
 	if code, out = runCmd("rehash", "-config", path); code != 0 || !strings.Contains(out, "nothing changed") {
 		t.Errorf("rehash (%d):\n%s", code, out)
 	}
