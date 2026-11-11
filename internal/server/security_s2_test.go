@@ -80,7 +80,7 @@ func TestModeSetNeedsStatusPrivileges(t *testing.T) {
 	bee.send("CS AOP #bchat ADD nova")
 	bee.expect("nova added to the AOP list of #bchat.")
 	bee.send("CS LEVELS #bchat SET MODE 5")
-	bee.expect("MODE")
+	bee.expect(csLine("Bee", "MODE on #bchat now needs level 5."))
 
 	// Plain modes and opping yourself (OPME at AOP) are fine.
 	nova.send("CS MODE #bchat SET +m")
