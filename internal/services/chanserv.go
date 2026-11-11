@@ -1,4 +1,4 @@
-package server
+package services
 
 import (
 	"fmt"
@@ -75,17 +75,13 @@ func chanServCommands() map[string]svcCmd {
 	}
 }
 
-func (s *Server) cs(c *Client, format string, a ...any) {
+func (s *Services) cs(c *Client, format string, a ...any) {
 	s.svcReply(c, s.chanServ, fmt.Sprintf(format, a...))
-}
-
-func (s *Server) cmdCS(c *Client, m irc.Message) {
-	s.toService(c, s.chanServ, strings.Join(m.Params, " "))
 }
 
 // csChan loads a registered channel and c's level on it. With need above
 // zero, c must be identified and at least that level.
-func (s *Server) csChan(c *Client, name string, need int) (*store.Channel, int, bool) {
+func (s *Services) csChan(c *Client, name string, need int) (*store.Channel, int, bool) {
 	if !irc.IsChannel(name) {
 		s.cs(c, "Give a channel, like #bchat.")
 		return nil, 0, false
@@ -121,7 +117,7 @@ func (s *Server) csChan(c *Client, name string, need int) (*store.Channel, int, 
 }
 
 // levelOf is a connected user's level on reg.
-func (s *Server) levelOf(reg *store.Channel, u *state.User) int {
+func (s *Services) levelOf(reg *store.Channel, u *state.User) int {
 	c := s.clientOf(u)
 	if c == nil || c.accountID == 0 {
 		return store.LevelNone
@@ -133,7 +129,7 @@ func (s *Server) levelOf(reg *store.Channel, u *state.User) int {
 	return lvl
 }
 
-func csRegister(s *Server, c *Client, args []string) {
+func csRegister(s *Services, c *Client, args []string) {
 	u := c.user
 	name := argAt(args, 0)
 	if c.accountID == 0 {
@@ -199,7 +195,7 @@ func csRegister(s *Server, c *Client, args []string) {
 	s.csAutoModes(live, u, store.LevelFounder)
 }
 
-func csDrop(s *Server, c *Client, args []string) {
+func csDrop(s *Services, c *Client, args []string) {
 	reg, _, ok := s.csChan(c, argAt(args, 0), store.LevelFounder)
 	if !ok {
 		return
@@ -228,7 +224,7 @@ func csDrop(s *Server, c *Client, args []string) {
 	s.cs(c, "%s is no longer registered.", reg.Name)
 }
 
-func csInfo(s *Server, c *Client, args []string) {
+func csInfo(s *Services, c *Client, args []string) {
 	reg, lvl, ok := s.csChan(c, argAt(args, 0), 0)
 	if !ok {
 		return
@@ -271,9 +267,9 @@ func csInfo(s *Server, c *Client, args []string) {
 }
 
 // csLevelList handles SOP, AOP, VOP and UOP.
-func csLevelList(level int) func(*Server, *Client, []string) {
+func csLevelList(level int) func(*Services, *Client, []string) {
 	n := store.LevelName(level)
-	return func(s *Server, c *Client, args []string) {
+	return func(s *Services, c *Client, args []string) {
 		name, sub, nick := argAt(args, 0), strings.ToUpper(argAt(args, 1)), argAt(args, 2)
 		if (level == store.LevelQOP || level == store.LevelHOP) && !s.cfg.FullPrefixes() {
 			s.cs(c, "%s lists are only used on servers with ~&@%%+ prefixes; this one uses @+.", n)
@@ -395,7 +391,7 @@ func csLevelList(level int) func(*Server, *Client, []string) {
 	}
 }
 
-func csAccess(s *Server, c *Client, args []string) {
+func csAccess(s *Services, c *Client, args []string) {
 	if sub := strings.ToUpper(argAt(args, 1)); sub != "" && sub != "LIST" {
 		s.cs(c, "Syntax: ACCESS #chan LIST. To change it: /cs aop #chan add <nick> (or sop, vop, uop)")
 		return
@@ -439,7 +435,7 @@ func csAccess(s *Server, c *Client, args []string) {
 	s.cs(c, "%s. Change one: /cs aop %s del <nick>", plural(len(entries)+1, "entry"), reg.Name)
 }
 
-func csAkick(s *Server, c *Client, args []string) {
+func csAkick(s *Services, c *Client, args []string) {
 	reg, _, ok := s.csChan(c, argAt(args, 0), store.LevelSOP)
 	if !ok {
 		return
@@ -522,7 +518,7 @@ func matchesMask(mask string, u *state.User) bool {
 }
 
 // liveTarget finds the channel as it is now and a member in it.
-func (s *Server) liveTarget(c *Client, reg *store.Channel, nick string) (*state.Channel, *state.User, bool) {
+func (s *Services) liveTarget(c *Client, reg *store.Channel, nick string) (*state.Channel, *state.User, bool) {
 	live := s.net.Channel(reg.Name)
 	if live == nil {
 		s.cs(c, "%s is empty right now.", reg.Name)
@@ -536,8 +532,8 @@ func (s *Server) liveTarget(c *Client, reg *store.Channel, nick string) (*state.
 	return live, t, true
 }
 
-func csModeCmd(mode byte, add bool) func(*Server, *Client, []string) {
-	return func(s *Server, c *Client, args []string) {
+func csModeCmd(mode byte, add bool) func(*Services, *Client, []string) {
+	return func(s *Services, c *Client, args []string) {
 		name := argAt(args, 0)
 		nick := argAt(args, 1)
 		if nick == "" {
@@ -573,7 +569,7 @@ func csModeCmd(mode byte, add bool) func(*Server, *Client, []string) {
 	}
 }
 
-func csKick(s *Server, c *Client, args []string) {
+func csKick(s *Services, c *Client, args []string) {
 	reg, lvl, ok := s.csChan(c, argAt(args, 0), store.LevelAOP)
 	if !ok {
 		return
@@ -598,16 +594,16 @@ func csKick(s *Server, c *Client, args []string) {
 }
 
 // csKickUser kicks u from ch as ChanServ.
-func (s *Server) csKickUser(ch *state.Channel, u *state.User, reason string) {
+func (s *Services) csKickUser(ch *state.Channel, u *state.User, reason string) {
 	s.svcKick(s.chanServ, ch, u, reason)
 }
 
 // svcKick kicks u from ch as a service.
-func (s *Server) svcKick(sv *service, ch *state.Channel, u *state.User, reason string) {
+func (s *Services) svcKick(sv *service, ch *state.Channel, u *state.User, reason string) {
 	s.emit(&state.Kick{Source: sv.user.UID, UID: u.UID, Channel: ch.Name, Reason: irc.Truncate(reason, s.cfg.Limits.KickLen)})
 }
 
-func csBan(s *Server, c *Client, args []string) {
+func csBan(s *Services, c *Client, args []string) {
 	reg, lvl, ok := s.csChan(c, argAt(args, 0), store.LevelAOP)
 	if !ok {
 		return
@@ -639,7 +635,7 @@ func csBan(s *Server, c *Client, args []string) {
 	}
 }
 
-func csUnban(s *Server, c *Client, args []string) {
+func csUnban(s *Services, c *Client, args []string) {
 	arg := argAt(args, 1)
 	self := arg == "" || irc.EqualFold(arg, c.user.Nick)
 	need := store.LevelAOP
@@ -679,7 +675,7 @@ func csUnban(s *Server, c *Client, args []string) {
 	s.cs(c, "%s removed in %s.", plural(len(lift), "ban"), reg.Name)
 }
 
-func csInvite(s *Server, c *Client, args []string) {
+func csInvite(s *Services, c *Client, args []string) {
 	reg, _, ok := s.csChan(c, argAt(args, 0), store.LevelUOP)
 	if !ok {
 		return
@@ -695,7 +691,7 @@ func csInvite(s *Server, c *Client, args []string) {
 	}
 }
 
-func csTopic(s *Server, c *Client, args []string) {
+func csTopic(s *Services, c *Client, args []string) {
 	reg, _, ok := s.csChan(c, argAt(args, 0), store.LevelAOP)
 	if !ok {
 		return
@@ -710,7 +706,7 @@ func csTopic(s *Server, c *Client, args []string) {
 	s.csSaveTopic(reg, live)
 }
 
-func csClear(s *Server, c *Client, args []string) {
+func csClear(s *Services, c *Client, args []string) {
 	reg, _, ok := s.csChan(c, argAt(args, 0), store.LevelSOP)
 	if !ok {
 		return
@@ -759,7 +755,7 @@ func csClear(s *Server, c *Client, args []string) {
 	s.cs(c, "Cleared %s in %s (%d).", strings.ToLower(what), reg.Name, len(changes))
 }
 
-func csSet(s *Server, c *Client, args []string) {
+func csSet(s *Services, c *Client, args []string) {
 	what := strings.ToUpper(argAt(args, 1))
 	need := store.LevelSOP
 	if what == "FOUNDER" || what == "SUCCESSOR" {
@@ -894,7 +890,7 @@ func parseMlock(reg *store.Channel, args []string) string {
 		case m == '-':
 			add = false
 		case m == 'k' && add:
-			if key = cleanKey(next()); key == "" {
+			if key = irc.CleanKey(next()); key == "" {
 				return "+k in a mode lock needs a key: SET #chan MLOCK +k <key>"
 			}
 			delete(off, 'k')
@@ -988,7 +984,7 @@ func mlockChanges(reg *store.Channel, ch *state.Channel) []modeChange {
 	return out
 }
 
-func csList(s *Server, c *Client, args []string) {
+func csList(s *Services, c *Client, args []string) {
 	pattern := argAt(args, 0)
 	if pattern == "" {
 		s.cs(c, "Syntax: LIST <pattern>, like #bee*")
@@ -1026,7 +1022,7 @@ func csList(s *Server, c *Client, args []string) {
 
 // csMode sets modes on ch as ChanServ. Changes that change nothing are
 // dropped when applied; the rest go out in lines of at most 4 parameters.
-func (s *Server) csMode(ch *state.Channel, changes []modeChange) {
+func (s *Services) csMode(ch *state.Channel, changes []modeChange) {
 	var list []state.ModeChange
 	for _, m := range changes {
 		sc := state.ModeChange{Add: m.add, Mode: m.mode, Arg: m.arg}
@@ -1046,7 +1042,7 @@ func (s *Server) csMode(ch *state.Channel, changes []modeChange) {
 
 // levelModes are the status modes a level earns, highest first. With @+
 // prefixes, owner and admin levels get @ and HOP gets +.
-func (s *Server) levelModes(lvl int) string {
+func (s *Services) levelModes(lvl int) string {
 	full := s.cfg.FullPrefixes()
 	switch {
 	case lvl >= store.LevelQOP && full:
@@ -1064,7 +1060,7 @@ func (s *Server) levelModes(lvl int) string {
 }
 
 // levelPrefixes is levelModes as prefixes, like "~@".
-func (s *Server) levelPrefixes(lvl int) string {
+func (s *Services) levelPrefixes(lvl int) string {
 	var b []byte
 	for _, m := range []byte(s.levelModes(lvl)) {
 		for _, r := range state.Ranks {
@@ -1077,7 +1073,7 @@ func (s *Server) levelPrefixes(lvl int) string {
 }
 
 // csAutoModes gives the modes a level earns.
-func (s *Server) csAutoModes(ch *state.Channel, u *state.User, lvl int) {
+func (s *Services) csAutoModes(ch *state.Channel, u *state.User, lvl int) {
 	var changes []modeChange
 	for _, m := range []byte(s.levelModes(lvl)) {
 		changes = append(changes, modeChange{true, m, u.Nick})
@@ -1128,7 +1124,7 @@ func csSecureLevel(mode byte) int {
 	return store.LevelAOP
 }
 
-func csUp(s *Server, c *Client, args []string) {
+func csUp(s *Services, c *Client, args []string) {
 	reg, lvl, ok := s.csChan(c, argAt(args, 0), store.LevelUOP)
 	if !ok {
 		return
@@ -1144,7 +1140,7 @@ func csUp(s *Server, c *Client, args []string) {
 	s.csAutoModes(live, c.user, lvl)
 }
 
-func csDown(s *Server, c *Client, args []string) {
+func csDown(s *Services, c *Client, args []string) {
 	reg, _, ok := s.csChan(c, argAt(args, 0), 0)
 	if !ok {
 		return
@@ -1164,7 +1160,7 @@ func csDown(s *Server, c *Client, args []string) {
 }
 
 // csSaveTopic keeps the topic for KEEPTOPIC.
-func (s *Server) csSaveTopic(reg *store.Channel, ch *state.Channel) {
+func (s *Services) csSaveTopic(reg *store.Channel, ch *state.Channel) {
 	if !reg.KeepTopic {
 		return
 	}
@@ -1175,7 +1171,7 @@ func (s *Server) csSaveTopic(reg *store.Channel, ch *state.Channel) {
 }
 
 // channelInUse reports whether someone on reg's access list is in it now.
-func (s *Server) channelInUse(reg *store.Channel) bool {
+func (s *Services) channelInUse(reg *store.Channel) bool {
 	live := s.net.Channel(reg.Name)
 	if live == nil {
 		return false

@@ -249,7 +249,7 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 				continue
 			}
 			if add {
-				key := cleanKey(arg)
+				key := irc.CleanKey(arg)
 				if key == "" || key == ch.Key {
 					continue
 				}
@@ -303,9 +303,7 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 		return
 	}
 	ev := &state.ChannelMode{Source: src.UID, Channel: ch.Name, By: src.Nick, At: now, Changes: out}
-	if s.emit(ev) == nil && len(ev.Changes) > 0 {
-		s.csAfterUserModes(ch, fromState(ev.Changes))
-	}
+	s.emit(ev) // ChanServ looks at the result (MLOCK, SECURE) afterwards
 }
 
 // rankNeeded is the rank needed to give or take rank r from someone else,
@@ -322,17 +320,6 @@ func rankNeeded(r state.Rank) state.Rank {
 
 // servicesRank is what services and OperServ act with: above everyone.
 const servicesRank = state.RankOwner << 1
-
-// cleanKey drops characters a key can't hold and caps it at 23.
-func cleanKey(k string) string {
-	k = strings.Map(func(r rune) rune {
-		if r <= ' ' || r == ',' || r == ':' {
-			return -1
-		}
-		return r
-	}, k)
-	return irc.Truncate(k, 23)
-}
 
 func (s *Server) sendList(c *Client, ch *state.Channel, list byte) {
 	item, end, endText := irc.RplBanList, irc.RplEndOfBanList, "End of Channel Ban List"

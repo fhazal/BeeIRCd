@@ -7,6 +7,7 @@ import (
 
 	"github.com/fhazal/beeircd/internal/cloak"
 	"github.com/fhazal/beeircd/internal/irc"
+	"github.com/fhazal/beeircd/internal/services"
 	"github.com/fhazal/beeircd/internal/store"
 )
 
@@ -22,7 +23,7 @@ func (s *Server) cmdAuthenticate(c *Client, m irc.Message) {
 		s.reply(c, irc.ErrSaslFail, "SASL authentication failed")
 		return
 	}
-	if c.accountID != 0 || c.saslAccount != nil {
+	if s.accountID(c) != 0 || c.saslAccount != nil {
 		s.reply(c, irc.ErrSaslAlready, "You have already authenticated using SASL")
 		return
 	}
@@ -71,12 +72,12 @@ func (s *Server) cmdAuthenticate(c *Client, m irc.Message) {
 		return
 	}
 	c.saslBusy = true
-	s.checkPassword(c, a, pw, func(r pwResult) {
+	s.checkSecret(c, a.ID, a.PassHash, pw, func(r services.PwResult) {
 		c.saslBusy = false
 		switch r {
-		case pwOK:
+		case services.PwOK:
 			s.saslDone(c, a)
-		case pwLocked:
+		case services.PwLocked:
 			s.reply(c, irc.ErrSaslFail, "SASL authentication failed: too many wrong passwords, try again later")
 		default:
 			s.reply(c, irc.ErrSaslFail, "SASL authentication failed")
@@ -92,12 +93,12 @@ func (s *Server) saslDone(c *Client, a *store.Account) {
 		return
 	}
 	if c.registered {
-		s.login(c, fresh)
+		s.svc.Login(c.uid, fresh)
 	} else {
 		c.saslAccount = fresh
 		host := c.host
 		if s.cfg.CloakEnabled() {
-			host = cloak.Host(s.cfg.Cloak.Secret, s.cfg.Server.Network, c.host, c.ip, c.host == displayIP(c.ip))
+			host = cloak.Host(s.cfg.Cloak.Secret, s.cfg.Server.Network, c.host, c.ip, c.host == irc.DisplayIP(c.ip))
 		}
 		mask := c.target() + "!" + c.ident + "@" + host
 		s.reply(c, irc.RplLoggedIn, mask, fresh.Name, "You are now logged in as "+fresh.Name)

@@ -98,9 +98,9 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 		if c.caps["echo-message"] {
 			c.deliver(o)
 		}
-		if sv := s.serviceFor(t); sv != nil {
+		if s.svc.IsBot(t) {
 			if verb == "PRIVMSG" {
-				s.toService(c, sv, m.Params[1])
+				s.svc.Message(c.uid, t, m.Params[1])
 			}
 			continue
 		}

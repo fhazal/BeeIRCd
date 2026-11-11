@@ -43,7 +43,7 @@ func (s *Server) joinOne(c *Client, name, key string) {
 		s.reply(c, irc.ErrBadChanName, name, "Illegal channel name")
 		return
 	}
-	if f, ok := s.forbidden(store.ForbidChan, name); ok && !c.isOper() {
+	if f, ok := s.svc.Forbidden(store.ForbidChan, name); ok && !c.isOper() {
 		s.reply(c, irc.ErrBadChanName, name, "Cannot join channel (forbidden by the network: "+f.Reason+")")
 		return
 	}
@@ -57,7 +57,7 @@ func (s *Server) joinOne(c *Client, name, key string) {
 	}
 	if ch != nil {
 		invited := ch.Invited[u.UID]
-		uop := s.csJoinLevel(c, ch.Name) >= store.LevelUOP // ChanServ UOP and up get past +i and +k
+		uop := s.svc.JoinLevel(c.uid, ch.Name) >= store.LevelUOP // ChanServ UOP and up get past +i and +k
 		switch {
 		case ch.HasMode('i') && !invited && !uop && !ch.Matches('I', u):
 			s.reply(c, irc.ErrInviteOnlyChan, ch.Name, "Cannot join channel (+i)")
@@ -80,13 +80,11 @@ func (s *Server) joinOne(c *Client, name, key string) {
 	if s.emit(ev) != nil {
 		return
 	}
-	created := ev.Created
 	ch = s.net.Channel(name)
 	if ch.Topic != "" {
 		s.sendTopic(c, ch)
 	}
 	s.sendNames(c, ch)
-	s.csJoin(c, ch, created)
 }
 
 func (s *Server) cmdPart(c *Client, m irc.Message) {
@@ -135,7 +133,7 @@ func (s *Server) cmdTopic(c *Client, m irc.Message) {
 	case ch.HasMode('t') && !mem.AtLeast(state.RankHalfop):
 		s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You're not channel operator")
 		return
-	case s.csTopicLocked(c, ch):
+	case s.svc.TopicLocked(c.uid, ch):
 		s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "The topic is locked by ChanServ (AOP and up may change it)")
 		return
 	}
@@ -144,7 +142,6 @@ func (s *Server) cmdTopic(c *Client, m irc.Message) {
 		return
 	}
 	s.emit(&state.Topic{Source: u.UID, Channel: ch.Name, Text: topic, By: u.Nick, At: time.Now()})
-	s.csTopicChanged(ch)
 }
 
 func (s *Server) sendTopic(c *Client, ch *state.Channel) {

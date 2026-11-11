@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/fhazal/beeircd/internal/config"
+	"github.com/fhazal/beeircd/internal/services"
 	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
 	"github.com/fhazal/beeircd/internal/tlsutil"
@@ -45,24 +46,11 @@ type Server struct {
 	loop       loopStats           // how long each piece of loop work took
 	wg         sync.WaitGroup
 
-	// Services.
+	// Services. The store is shared: the server reads oper entries and
+	// SASL accounts from it, services own the rest.
 	store     *store.Store
-	services  map[string]*service // by folded nick
-	nickServ  *service
-	memoServ  *service
-	chanServ  *service
-	operServ  *service
-	adminServ *service
-	global    *service
-	lockouts  map[int64]*lockout // wrong passwords per account
-	hashSem   chan struct{}      // limits password hashing running at once
-
-	// Oper data from the services database, kept in memory.
-	akills         []store.Akill
-	news           []store.News
-	sessionExcepts []store.SessionExcept
-	forbidNicks    map[string]store.Forbid
-	forbidChans    map[string]store.Forbid
+	svc       *services.Services
+	adminServ *state.User // AdminServ is the server's own bot
 
 	tlsConf    *tls.Config
 	lmu        sync.Mutex // guards listeners against Addrs from other goroutines
@@ -90,16 +78,14 @@ var ErrRestart = errors.New("restart requested")
 // New opens the configured ports. Call Serve to start answering.
 func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	s := &Server{
-		cfg:      cfg,
-		log:      logger,
-		net:      state.NewNetwork(cfg.Server.SID),
-		clients:  make(map[string]*Client),
-		events:   make(chan func(), 1024),
-		done:     make(chan struct{}),
-		created:  time.Now(),
-		resolve:  lookupHost,
-		lockouts: make(map[int64]*lockout),
-		hashSem:  make(chan struct{}, 2),
+		cfg:     cfg,
+		log:     logger,
+		net:     state.NewNetwork(cfg.Server.SID),
+		clients: make(map[string]*Client),
+		events:  make(chan func(), 1024),
+		done:    make(chan struct{}),
+		created: time.Now(),
+		resolve: lookupHost,
 	}
 	if err := os.MkdirAll(filepath.Dir(cfg.Services.Database), 0o750); err != nil {
 		return nil, err
@@ -109,11 +95,17 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 		return nil, err
 	}
 	s.store = db
-	s.startServices()
-	if err := s.loadOperData(); err != nil {
+	svc, err := services.New(host{s}, cfg, logger, s.net, db)
+	if err != nil {
 		db.Close()
 		return nil, fmt.Errorf("services database: %w", err)
 	}
+	s.svc = svc
+	s.sinks = append(s.sinks, svc.Event)
+	svc.Start()
+	s.adminServ = svc.AddBot("AdminServ", "as", "Admin Services",
+		"AdminServ changes the server while it runs; changes are saved to beeircd.conf. Commands:", 'a', s.adminServCommands())
+	svc.Flush()
 	var tlsConf *tls.Config
 	if cfg.NeedsTLS() {
 		var err error
@@ -163,8 +155,7 @@ func (s *Server) Serve(ctx context.Context) error {
 	defer tick.Stop()
 	hourly := time.NewTicker(time.Hour)
 	defer hourly.Stop()
-	s.expireAccounts(time.Now())
-	s.expireChannels(time.Now())
+	s.svc.Expire(time.Now())
 	for {
 		select {
 		case <-ctx.Done():
@@ -173,6 +164,7 @@ func (s *Server) Serve(ctx context.Context) error {
 		case f := <-s.events:
 			start := time.Now()
 			f()
+			s.svc.Flush()
 			s.loop.add(time.Since(start))
 			s.reap()
 			if s.stopAfter != 0 {
@@ -191,11 +183,11 @@ func (s *Server) Serve(ctx context.Context) error {
 			}
 		case now := <-tick.C:
 			s.checkTimeouts(now)
+			s.svc.Tick(now)
 			s.reap()
 		case now := <-hourly.C:
-			s.expireAccounts(now)
-			s.expireChannels(now)
-			s.expireAkills(now)
+			s.svc.Expire(now)
+			s.reap()
 		}
 	}
 }
@@ -296,9 +288,6 @@ func (s *Server) checkTimeouts(now time.Time) {
 				s.quit(c, "Registration timed out")
 			}
 			continue
-		}
-		if !c.enforceAt.IsZero() && now.After(c.enforceAt) {
-			s.enforce(c)
 		}
 		if c.pingSent.IsZero() {
 			if now.Sub(c.lastRecv) > lim.PingInterval.Duration {

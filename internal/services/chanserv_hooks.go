@@ -1,4 +1,4 @@
-package server
+package services
 
 import (
 	"time"
@@ -12,7 +12,7 @@ import (
 
 // csJoinLevel is u's level on channel name, before joining (0 when the
 // channel isn't registered). UOP and up get past +i and +k.
-func (s *Server) csJoinLevel(c *Client, name string) int {
+func (s *Services) csJoinLevel(c *Client, name string) int {
 	if c.accountID == 0 {
 		return store.LevelNone
 	}
@@ -25,7 +25,7 @@ func (s *Server) csJoinLevel(c *Client, name string) int {
 }
 
 // csJoin runs after u joined ch. created means u opened the channel.
-func (s *Server) csJoin(c *Client, ch *state.Channel, created bool) {
+func (s *Services) csJoin(c *Client, ch *state.Channel, created bool) {
 	reg, err := s.store.ChannelByName(ch.Name)
 	if err != nil || reg == nil {
 		return
@@ -66,7 +66,7 @@ func (s *Server) csJoin(c *Client, ch *state.Channel, created bool) {
 
 // csOnIdentify gives a user who just identified the modes they earn in the
 // channels they are already in.
-func (s *Server) csOnIdentify(c *Client) {
+func (s *Services) csOnIdentify(c *Client) {
 	for _, ch := range c.user.Channels {
 		reg, err := s.store.ChannelByName(ch.Name)
 		if err != nil || reg == nil {
@@ -83,7 +83,7 @@ func (s *Server) csOnIdentify(c *Client) {
 
 // csAfterUserModes puts the mode lock back and, with SECURE, takes ops
 // from people below AOP.
-func (s *Server) csAfterUserModes(ch *state.Channel, changes []modeChange) {
+func (s *Services) csAfterUserModes(ch *state.Channel, changes []modeChange) {
 	reg, err := s.store.ChannelByName(ch.Name)
 	if err != nil || reg == nil {
 		return
@@ -102,7 +102,7 @@ func (s *Server) csAfterUserModes(ch *state.Channel, changes []modeChange) {
 }
 
 // csTopicLocked reports whether TOPICLOCK stops c changing ch's topic.
-func (s *Server) csTopicLocked(c *Client, ch *state.Channel) bool {
+func (s *Services) csTopicLocked(c *Client, ch *state.Channel) bool {
 	reg, err := s.store.ChannelByName(ch.Name)
 	if err != nil || reg == nil || !reg.TopicLock {
 		return false
@@ -112,14 +112,14 @@ func (s *Server) csTopicLocked(c *Client, ch *state.Channel) bool {
 }
 
 // csTopicChanged keeps a new topic for KEEPTOPIC.
-func (s *Server) csTopicChanged(ch *state.Channel) {
+func (s *Services) csTopicChanged(ch *state.Channel) {
 	if reg, err := s.store.ChannelByName(ch.Name); err == nil && reg != nil {
 		s.csSaveTopic(reg, ch)
 	}
 }
 
 // applyFounderChanges updates live channels after an account went away.
-func (s *Server) applyFounderChanges(changes []store.FounderChange, why string) {
+func (s *Services) applyFounderChanges(changes []store.FounderChange, why string) {
 	for _, fc := range changes {
 		if fc.NewOwner != "" {
 			s.log.Printf("channel %s now belongs to %s (%s)", fc.Channel, fc.NewOwner, why)
@@ -134,7 +134,7 @@ func (s *Server) applyFounderChanges(changes []store.FounderChange, why string) 
 
 // expireChannels drops channels nobody on their access list joined for
 // chan_expire, except those in use right now.
-func (s *Server) expireChannels(now time.Time) {
+func (s *Services) expireChannels(now time.Time) {
 	old, err := s.store.ExpiredChannels(now.Add(-s.cfg.Services.ChanExpire.Duration))
 	if err != nil {
 		s.log.Printf("services database: %v", err)
@@ -158,7 +158,7 @@ func (s *Server) expireChannels(now time.Time) {
 }
 
 // memoToChannel sends a memo to a channel's founder and SOPs.
-func (s *Server) memoToChannel(c *Client, from *store.Account, name, text string) {
+func (s *Services) memoToChannel(c *Client, from *store.Account, name, text string) {
 	reg, err := s.store.ChannelByName(name)
 	if err != nil {
 		s.dbErr(c, s.memoServ, err)

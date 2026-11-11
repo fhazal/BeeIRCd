@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"github.com/fhazal/beeircd/internal/store"
 	"io"
 	"log"
 	"net"
@@ -325,7 +326,15 @@ func TestAkill(t *testing.T) {
 	// Expired AKILLs stop working and get cleaned up.
 	b.send("OS AKILL ADD ~old@127.0.0.* 1m old")
 	b.expect("AKILL added")
-	s.post(func() { s.akills[0].Expires = time.Now().Add(-time.Second) })
+	done := make(chan struct{})
+	s.post(func() {
+		// Make it run out, then let the hourly clean-up find it.
+		s.store.AddAkill(store.Akill{Mask: "~old@127.0.0.*", Reason: "old", SetBy: "Boss", SetAt: time.Now().Add(-2 * time.Minute), Expires: time.Now().Add(-time.Second)})
+		s.svc.Expire(time.Now())
+		close(done)
+	})
+	<-done
+	b.expect("AKILL on ~old@127.0.0.* ran out")
 	login(t, s, "old")
 }
 

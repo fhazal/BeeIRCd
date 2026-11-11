@@ -3,10 +3,10 @@ package server
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/irc"
+	"github.com/fhazal/beeircd/internal/services"
 	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
 )
@@ -164,7 +164,7 @@ func (s *Server) snoticeOnly(text string) {
 
 // needFlag checks that c is an oper with flag f, answering as sv (or with a
 // numeric when sv is nil).
-func (s *Server) needFlag(c *Client, sv *service, f byte) bool {
+func (s *Server) needFlag(c *Client, sv *state.User, f byte) bool {
 	if c.can(f) {
 		return true
 	}
@@ -176,7 +176,7 @@ func (s *Server) needFlag(c *Client, sv *service, f byte) bool {
 		}
 		return false
 	}
-	s.svcReply(c, sv, fmt.Sprintf("You need oper flag %c (%s) for that.", f, flagNames[f]))
+	s.botReply(c, sv, fmt.Sprintf("You need oper flag %c (%s) for that.", f, flagNames[f]))
 	return false
 }
 
@@ -206,13 +206,13 @@ func (s *Server) cmdOper(c *Client, m irc.Message) {
 		s.firstOperPassword(c, a, o, pw)
 		return
 	}
-	s.checkSecret(c, operLockKey(a.ID), o.PassHash, pw, func(r pwResult) {
+	s.checkSecret(c, operLockKey(a.ID), o.PassHash, pw, func(r services.PwResult) {
 		switch r {
-		case pwOK:
+		case services.PwOK:
 			s.operUp(c, o)
-		case pwLocked:
-			s.reply(c, irc.ErrPasswdMismatch, "Too many wrong passwords. Try again in "+roundUp(s.lockedFor(operLockKey(a.ID))))
-		case pwBusy:
+		case services.PwLocked:
+			s.reply(c, irc.ErrPasswdMismatch, "Too many wrong passwords. Try again in "+services.RoundUp(s.lockedFor(operLockKey(a.ID))))
+		case services.PwBusy:
 			s.notice(c, "*** Still checking your last password. Try again in a moment.")
 		default:
 			s.reply(c, irc.ErrPasswdMismatch, "Password incorrect")
@@ -230,7 +230,7 @@ func (s *Server) firstOperPassword(c *Client, a *store.Account, o *store.Oper, p
 		s.notice(c, "*** An admin sets it: /as oper "+o.Account+" set password <password>")
 		return
 	}
-	if c.accountID != a.ID {
+	if s.accountID(c) != a.ID {
 		s.reply(c, irc.ErrNoOperHost, "No oper password is set for "+o.Account+" yet")
 		s.notice(c, "*** Identify to "+a.Name+" first; your first /oper then sets the admin oper password.")
 		return
@@ -315,75 +315,6 @@ func (s *Server) cmdWallops(c *Client, m irc.Message) {
 	}
 }
 
-// Oper data kept in memory: checked on every connect, join and nick.
-
-func (s *Server) loadOperData() error {
-	akills, err := s.store.Akills()
-	if err != nil {
-		return err
-	}
-	news, err := s.store.AllNews()
-	if err != nil {
-		return err
-	}
-	ex, err := s.store.SessionExcepts()
-	if err != nil {
-		return err
-	}
-	fn, err := s.store.Forbids(store.ForbidNick)
-	if err != nil {
-		return err
-	}
-	fc, err := s.store.Forbids(store.ForbidChan)
-	if err != nil {
-		return err
-	}
-	s.akills, s.news, s.sessionExcepts = akills, news, ex
-	s.forbidNicks = make(map[string]store.Forbid)
-	for _, f := range fn {
-		s.forbidNicks[irc.Fold(f.Name)] = f
-	}
-	s.forbidChans = make(map[string]store.Forbid)
-	for _, f := range fc {
-		s.forbidChans[irc.Fold(f.Name)] = f
-	}
-	return nil
-}
-
-// reloadOperData reloads after a change; failures go to the log.
-func (s *Server) reloadOperData() {
-	if err := s.loadOperData(); err != nil {
-		s.log.Printf("services database: %v", err)
-	}
-}
-
-// akillFor returns the AKILL matching ident at host/ip, or nil.
-func (s *Server) akillFor(ident string, hosts ...string) *store.Akill {
-	now := time.Now()
-	for i := range s.akills {
-		k := &s.akills[i]
-		if !k.Expires.IsZero() && now.After(k.Expires) {
-			continue
-		}
-		for _, h := range hosts {
-			if h != "" && irc.Match(k.Mask, ident+"@"+h) {
-				return k
-			}
-		}
-	}
-	return nil
-}
-
-// sessionLimit is how many connections ip may have.
-func (s *Server) sessionLimit(ip string) int {
-	for _, e := range s.sessionExcepts {
-		if irc.Match(e.Mask, ip) {
-			return e.Max
-		}
-	}
-	return s.cfg.Limits.SessionLimit
-}
-
 // sessions counts the connections from ip.
 func (s *Server) sessions(ip string) int {
 	n := 0
@@ -395,33 +326,23 @@ func (s *Server) sessions(ip string) int {
 	return n
 }
 
-// expireAkills drops AKILLs that ran out.
-func (s *Server) expireAkills(now time.Time) {
-	gone, err := s.store.PurgeAkills(now)
-	if err != nil {
-		s.log.Printf("services database: %v", err)
+// checkSecret checks an oper or SASL password off the loop for c.
+func (s *Server) checkSecret(c *Client, key int64, hash, pw string, result func(services.PwResult)) {
+	s.svc.CheckSecret(&c.pwBusy, func() bool { return c.closed }, key, hash, pw, result)
+}
+
+// hashPassword hashes pw off the loop for c and calls done with the hash.
+func (s *Server) hashPassword(c *Client, pw string, done func(hash string)) {
+	if c.pwBusy {
+		s.notice(c, "*** Still busy with your last password. Try again in a moment.")
 		return
 	}
-	if len(gone) > 0 {
-		s.reloadOperData()
-		for _, m := range gone {
-			s.snotice("AKILL on %s ran out", m)
+	s.svc.HashSecret(&c.pwBusy, func() bool { return c.closed }, pw, func(h string, err error) {
+		if err != nil {
+			s.log.Printf("hashing a password: %v", err)
+			s.notice(c, "*** Something went wrong on the server. Please try again in a moment.")
+			return
 		}
-	}
-}
-
-// sendNews shows the news lines after the MOTD.
-func (s *Server) sendNews(c *Client) {
-	for _, n := range s.news {
-		s.svcReply(c, s.global, "[News "+n.SetAt.UTC().Format("2 Jan")+"] "+n.Text)
-	}
-}
-
-func (s *Server) forbidden(kind, name string) (store.Forbid, bool) {
-	m := s.forbidNicks
-	if kind == store.ForbidChan {
-		m = s.forbidChans
-	}
-	f, ok := m[irc.Fold(name)]
-	return f, ok
+		done(h)
+	})
 }

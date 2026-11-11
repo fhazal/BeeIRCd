@@ -38,14 +38,9 @@ type Client struct {
 	caps                  map[string]bool // IRCv3 capabilities this client asked for
 	capture               *[]string       // lines held back for labeled-response
 
-	// Services state.
-	accountID   int64     // NickServ account, 0 when not identified
-	enforceAt   time.Time // rename to Guest at this time, unless identified
-	enforceNick string    // the nick enforceAt is about
-	pwBusy      bool      // a password check is running
-	dropCode    string    // confirms /ns drop
-	dropUntil   time.Time // dropCode is valid until then
-	saslMech    string    // SASL mechanism in progress
+	// SASL and oper state (services keep their own record per user).
+	pwBusy      bool   // a SASL or /oper password check is running
+	saslMech    string // SASL mechanism in progress
 	saslBuf     strings.Builder
 	saslBusy    bool
 	saslAccount *store.Account // SASL done before registration finished
@@ -79,7 +74,7 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 		conn:        conn,
 		uid:         s.net.NextUID(),
 		ip:          ip,
-		host:        displayIP(ip),
+		host:        irc.DisplayIP(ip),
 		tls:         isTLS,
 		connectedAt: now,
 		lastRecv:    now,
@@ -93,7 +88,7 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 	s.wg.Add(1)
 	go c.writeLoop()
 	go c.readLoop()
-	if n, max := s.sessions(ip), s.sessionLimit(ip); n > max {
+	if n, max := s.sessions(ip), s.svc.SessionLimit(ip); n > max {
 		s.snotice("Too many connections from %s (%d, the limit is %d)", ip, n, max)
 		s.quit(c, fmt.Sprintf("Too many connections from your IP (the limit is %d)", max))
 		return
@@ -128,15 +123,6 @@ func remoteIP(conn net.Conn) string {
 		return conn.RemoteAddr().String()
 	}
 	return host
-}
-
-// displayIP makes an IP safe to show as a host: an IPv6 address starting
-// with ':' would break the IRC line format.
-func displayIP(ip string) string {
-	if strings.HasPrefix(ip, ":") {
-		return "0" + ip
-	}
-	return ip
 }
 
 // target is the nick to address replies to, "*" before one is chosen.
@@ -303,7 +289,6 @@ func (s *Server) quit(c *Client, reason string) {
 	delete(s.clients, c.uid)
 	if c.user != nil {
 		u := c.user
-		s.touchAccount(c)
 		s.emit(&state.UserQuit{UID: u.UID, Reason: reason})
 		s.log.Printf("quit %s (%s): %s", u.Nick, c.ip, reason)
 		s.snoticeOnly(fmt.Sprintf("Quit: %s (%s@%s) [%s]", u.Nick, u.Ident, u.RealHost, reason))

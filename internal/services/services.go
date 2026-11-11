@@ -1,4 +1,4 @@
-package server
+package services
 
 import (
 	"fmt"
@@ -19,7 +19,7 @@ type svcCmd struct {
 	syntax string // shown in HELP, e.g. "REGISTER <password> [email]"
 	short  string // one line in the HELP list
 	long   string // HELP <command> text; lines split on \n
-	run    func(s *Server, c *Client, args []string)
+	run    func(s *Services, c *Client, args []string)
 }
 
 // service is a built-in bot like NickServ.
@@ -45,19 +45,17 @@ func isReserved(nick string) bool {
 }
 
 // startServices creates the service bots.
-func (s *Server) startServices() {
+func (s *Services) startServices() {
 	s.services = make(map[string]*service)
 	s.nickServ = s.addService("NickServ", "ns", "Nickname Services", "NickServ keeps your nick yours. Commands:", nickServCommands())
 	s.chanServ = s.addService("ChanServ", "cs", "Channel Services", "ChanServ keeps a channel yours. Commands:", chanServCommands())
 	s.memoServ = s.addService("MemoServ", "ms", "Memo Services", "MemoServ keeps messages for people who are away. Commands:", memoServCommands())
 	s.operServ = s.addService("OperServ", "os", "Operator Services", "OperServ is the toolbox for IRC operators. Commands:", operServCommands())
 	s.operServ.need = 'o'
-	s.adminServ = s.addService("AdminServ", "as", "Admin Services", "AdminServ changes the server while it runs; changes are saved to beeircd.conf. Commands:", adminServCommands())
-	s.adminServ.need = 'a'
 	s.global = s.addService("Global", "", "Network Announcements", "Global sends network notices. It takes no commands.", map[string]svcCmd{})
 }
 
-func (s *Server) addService(nick, alias, realname, intro string, cmds map[string]svcCmd, order ...string) *service {
+func (s *Services) addService(nick, alias, realname, intro string, cmds map[string]svcCmd, order ...string) *service {
 	u := &state.User{
 		UID:      s.net.NextUID(),
 		Nick:     nick,
@@ -66,7 +64,7 @@ func (s *Server) addService(nick, alias, realname, intro string, cmds map[string
 		RealHost: s.cfg.Server.Name,
 		Realname: realname,
 		Server:   s.cfg.Server.Name,
-		SignOn:   s.created,
+		SignOn:   s.host.Stats().Started,
 		Service:  true,
 	}
 	if err := s.emit(&state.UserAdd{User: u}); err != nil {
@@ -82,24 +80,15 @@ func (s *Server) addService(nick, alias, realname, intro string, cmds map[string
 }
 
 // serviceFor returns the service behind a user, or nil.
-func (s *Server) serviceFor(u *state.User) *service {
+func (s *Services) serviceFor(u *state.User) *service {
 	if !u.Service {
 		return nil
 	}
 	return s.services[irc.Fold(u.Nick)]
 }
 
-// cmdNS and friends are /ns, /nickserv and so on: the rest of the line goes
-// to the service as if sent with /msg.
-func (s *Server) cmdNS(c *Client, m irc.Message) {
-	s.toService(c, s.nickServ, strings.Join(m.Params, " "))
-}
-func (s *Server) cmdMS(c *Client, m irc.Message) {
-	s.toService(c, s.memoServ, strings.Join(m.Params, " "))
-}
-
 // toService runs one line sent to a service.
-func (s *Server) toService(c *Client, sv *service, text string) {
+func (s *Services) toService(c *Client, sv *service, text string) {
 	fields := strings.Fields(text)
 	if len(fields) == 0 {
 		return
@@ -129,7 +118,7 @@ func (s *Server) toService(c *Client, sv *service, text string) {
 	cmd.run(s, c, args)
 }
 
-func (s *Server) serviceHelp(c *Client, sv *service, args []string) {
+func (s *Services) serviceHelp(c *Client, sv *service, args []string) {
 	if len(args) > 0 {
 		cmd, ok := sv.cmds[strings.ToUpper(args[0])]
 		if !ok {
@@ -155,32 +144,43 @@ func (s *Server) serviceHelp(c *Client, sv *service, args []string) {
 }
 
 // svcReply sends a notice from a service.
-func (s *Server) svcReply(c *Client, sv *service, text string) {
-	c.deliver(s.out(sv.user, "NOTICE", c.target(), text).text())
+func (s *Services) svcReply(c *Client, sv *service, text string) {
+	s.host.Notice(sv.user.UID, c.user.UID, text)
 }
 
-func (s *Server) ns(c *Client, format string, a ...any) {
+func (s *Services) ns(c *Client, format string, a ...any) {
 	s.svcReply(c, s.nickServ, fmt.Sprintf(format, a...))
 }
-func (s *Server) ms(c *Client, format string, a ...any) {
+func (s *Services) ms(c *Client, format string, a ...any) {
 	s.svcReply(c, s.memoServ, fmt.Sprintf(format, a...))
 }
 
 // dbErr reports a database failure without details to the user.
-func (s *Server) dbErr(c *Client, sv *service, err error) {
+func (s *Services) dbErr(c *Client, sv *service, err error) {
 	s.log.Printf("services database: %v", err)
 	s.svcReply(c, sv, "Something went wrong on the server. Please try again in a moment.")
 }
 
 // Passwords are checked off the loop, so a slow hash never stalls chat.
 
-type pwResult int
+// PwResult is how a password check went.
+type PwResult int
+
+type pwResult = PwResult
+
+// Password check results.
+const (
+	PwOK PwResult = iota
+	PwWrong
+	PwLocked
+	PwBusy
+)
 
 const (
-	pwOK pwResult = iota
-	pwWrong
-	pwLocked
-	pwBusy
+	pwOK     = PwOK
+	pwWrong  = PwWrong
+	pwLocked = PwLocked
+	pwBusy   = PwBusy
 )
 
 type lockout struct {
@@ -194,7 +194,7 @@ const (
 )
 
 // lockedFor reports how long the account is still locked.
-func (s *Server) lockedFor(id int64) time.Duration {
+func (s *Services) lockedFor(id int64) time.Duration {
 	if l := s.lockouts[id]; l != nil && time.Now().Before(l.until) {
 		return time.Until(l.until)
 	}
@@ -202,30 +202,37 @@ func (s *Server) lockedFor(id int64) time.Duration {
 }
 
 // checkPassword checks pw against a's hash and calls result on the loop.
-func (s *Server) checkPassword(c *Client, a *store.Account, pw string, result func(pwResult)) {
+func (s *Services) checkPassword(c *Client, a *store.Account, pw string, result func(pwResult)) {
 	s.checkSecret(c, a.ID, a.PassHash, pw, result)
 }
 
-// checkSecret checks pw against hash off the loop. Wrong tries count
-// against key (an account ID, or operLockKey for oper passwords).
-func (s *Server) checkSecret(c *Client, key int64, hash, pw string, result func(pwResult)) {
+// checkSecret checks pw against hash off the loop for c.
+func (s *Services) checkSecret(c *Client, key int64, hash, pw string, result func(pwResult)) {
+	s.CheckSecret(&c.pwBusy, func() bool { return c.closed }, key, hash, pw, result)
+}
+
+// CheckSecret checks pw against hash off the loop and calls result on the
+// loop, unless gone() says the asker left meanwhile. busy is the asker's
+// one-check-at-a-time flag. Wrong tries count against key (an account ID,
+// or a negative ID for oper passwords); 5 wrong ones lock it for 10 minutes.
+func (s *Services) CheckSecret(busy *bool, gone func() bool, key int64, hash, pw string, result func(PwResult)) {
 	if s.lockedFor(key) > 0 {
 		result(pwLocked)
 		return
 	}
-	if c.pwBusy {
+	if *busy {
 		result(pwBusy)
 		return
 	}
-	c.pwBusy = true
+	*busy = true
 	id := key
 	go func() {
 		s.hashSem <- struct{}{}
 		ok := passwd.Check(pw, hash)
 		<-s.hashSem
 		s.post(func() {
-			c.pwBusy = false
-			if c.closed {
+			*busy = false
+			if gone() {
 				return
 			}
 			if ok {
@@ -248,33 +255,40 @@ func (s *Server) checkSecret(c *Client, key int64, hash, pw string, result func(
 	}()
 }
 
-// hashPassword hashes pw off the loop and calls done with the hash.
-func (s *Server) hashPassword(c *Client, pw string, done func(hash string)) {
+// hashPassword hashes pw off the loop for c and calls done with the hash.
+func (s *Services) hashPassword(c *Client, pw string, done func(hash string)) {
 	if c.pwBusy {
 		s.ns(c, "Still busy with your last password. Try again in a moment.")
 		return
 	}
-	c.pwBusy = true
+	s.HashSecret(&c.pwBusy, func() bool { return c.closed }, pw, func(h string, err error) {
+		if err != nil {
+			s.dbErr(c, s.nickServ, err)
+			return
+		}
+		done(h)
+	})
+}
+
+// HashSecret hashes pw off the loop and calls done on the loop, unless
+// gone() says the asker left. The caller checks *busy first.
+func (s *Services) HashSecret(busy *bool, gone func() bool, pw string, done func(hash string, err error)) {
+	*busy = true
 	go func() {
 		s.hashSem <- struct{}{}
 		h, err := passwd.Hash(pw)
 		<-s.hashSem
 		s.post(func() {
-			c.pwBusy = false
-			if c.closed {
-				return
+			*busy = false
+			if !gone() {
+				done(h, err)
 			}
-			if err != nil {
-				s.dbErr(c, s.nickServ, err)
-				return
-			}
-			done(h)
 		})
 	}()
 }
 
 // pwProblem says what was wrong with a password check, for NickServ.
-func (s *Server) pwProblem(c *Client, a *store.Account, r pwResult) {
+func (s *Services) pwProblem(c *Client, a *store.Account, r pwResult) {
 	switch r {
 	case pwWrong:
 		s.ns(c, "Wrong password for %s.", a.Name)
@@ -294,7 +308,7 @@ func roundUp(d time.Duration) string {
 }
 
 // login identifies c's user to account a and tells everyone who should know.
-func (s *Server) login(c *Client, a *store.Account) {
+func (s *Services) login(c *Client, a *store.Account) {
 	u := c.user
 	if c.accountID == a.ID {
 		return
@@ -317,7 +331,7 @@ func (s *Server) login(c *Client, a *store.Account) {
 }
 
 // logout ends c's identification.
-func (s *Server) logout(c *Client, tell bool) {
+func (s *Services) logout(c *Client, tell bool) {
 	u := c.user
 	if c.accountID == 0 {
 		return
@@ -332,7 +346,7 @@ func (s *Server) logout(c *Client, tell bool) {
 }
 
 // touchAccount saves "last seen" for an identified user.
-func (s *Server) touchAccount(c *Client) {
+func (s *Services) touchAccount(c *Client) {
 	if c.accountID == 0 || c.user == nil {
 		return
 	}
@@ -347,14 +361,14 @@ func (s *Server) touchAccount(c *Client) {
 }
 
 // setRegistered sets or clears user mode +r.
-func (s *Server) setRegistered(c *Client, on bool) {
+func (s *Services) setRegistered(c *Client, on bool) {
 	u := c.user
 	s.emit(&state.UserMode{UID: u.UID, Changes: umodes(on, "r")})
 }
 
 // nickCheck runs after registration and after every nick change: is the
 // nick registered to someone else?
-func (s *Server) nickCheck(c *Client) {
+func (s *Services) nickCheck(c *Client) {
 	u := c.user
 	c.enforceAt = time.Time{}
 	a, err := s.store.AccountByNick(u.Nick)
@@ -380,7 +394,7 @@ func (s *Server) nickCheck(c *Client) {
 	s.ns(c, "%s is a registered nick. If it's yours: /ns identify <password>", u.Nick)
 }
 
-func (s *Server) accessMatch(a *store.Account, u *state.User) bool {
+func (s *Services) accessMatch(a *store.Account, u *state.User) bool {
 	masks, err := s.store.Access(a)
 	if err != nil {
 		return false
@@ -394,7 +408,7 @@ func (s *Server) accessMatch(a *store.Account, u *state.User) bool {
 }
 
 // enforce renames someone who didn't identify in time.
-func (s *Server) enforce(c *Client) {
+func (s *Services) enforce(c *Client) {
 	c.enforceAt = time.Time{}
 	u := c.user
 	if u == nil || !irc.EqualFold(u.Nick, c.enforceNick) {
@@ -409,7 +423,7 @@ func (s *Server) enforce(c *Client) {
 	s.ns(c, "You didn't identify, so your nick was changed to %s.", guest)
 }
 
-func (s *Server) guestNick() string {
+func (s *Services) guestNick() string {
 	for {
 		n := fmt.Sprintf("%s%05d", s.cfg.Services.GuestPrefix, rand.IntN(100000))
 		if !s.net.NickInUse(n) {
@@ -419,7 +433,7 @@ func (s *Server) guestNick() string {
 }
 
 // forceNick changes c's nick as the server.
-func (s *Server) forceNick(c *Client, nick string) {
+func (s *Services) forceNick(c *Client, nick string) {
 	u := c.user
 	if err := s.emit(&state.NickChange{UID: u.UID, Nick: nick, TS: time.Now().Unix()}); err != nil {
 		return
@@ -429,7 +443,7 @@ func (s *Server) forceNick(c *Client, nick string) {
 
 // expireAccounts drops accounts nobody used for nick_expire, except those
 // in use right now.
-func (s *Server) expireAccounts(now time.Time) {
+func (s *Services) expireAccounts(now time.Time) {
 	old, err := s.store.Expired(now.Add(-s.cfg.Services.NickExpire.Duration))
 	if err != nil {
 		s.log.Printf("services database: %v", err)

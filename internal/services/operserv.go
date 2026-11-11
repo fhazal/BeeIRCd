@@ -1,4 +1,4 @@
-package server
+package services
 
 import (
 	"fmt"
@@ -42,16 +42,12 @@ func operServCommands() map[string]svcCmd {
 	}
 }
 
-func (s *Server) os(c *Client, format string, a ...any) {
+func (s *Services) os(c *Client, format string, a ...any) {
 	s.svcReply(c, s.operServ, fmt.Sprintf(format, a...))
 }
 
-func (s *Server) cmdOS(c *Client, m irc.Message) {
-	s.toService(c, s.operServ, strings.Join(m.Params, " "))
-}
-
 // audit notes who changed what, for the log and opers with +s.
-func (s *Server) audit(c *Client, sv *service, format string, a ...any) {
+func (s *Services) audit(c *Client, sv *service, format string, a ...any) {
 	s.snotice("%s used %s: %s", c.user.Nick, sv.user.Nick, fmt.Sprintf(format, a...))
 }
 
@@ -67,7 +63,7 @@ func durWords(d time.Duration) string {
 	return plural(int(d/time.Second), "second")
 }
 
-func osStats(s *Server, c *Client, args []string) {
+func osStats(s *Services, c *Client, args []string) {
 	people, opers := 0, 0
 	for _, u := range s.net.Users() {
 		if u.Service {
@@ -88,17 +84,18 @@ func osStats(s *Server, c *Client, args []string) {
 		s.dbErr(c, s.operServ, err)
 		return
 	}
-	s.os(c, "%s · %s · up %s", s.cfg.Server.Network, s.cfg.Server.Name, durWords(time.Since(s.created)))
-	s.os(c, "  People     %d now, peak %d", people, s.maxLocal)
+	hs := s.host.Stats()
+	s.os(c, "%s · %s · up %s", s.cfg.Server.Network, s.cfg.Server.Name, durWords(time.Since(hs.Started)))
+	s.os(c, "  People     %d now, peak %d", people, hs.PeakUsers)
 	s.os(c, "  Opers      %d online", opers)
 	s.os(c, "  Channels   %d open, %d registered", s.net.ChannelCount(), regChans)
 	s.os(c, "  Accounts   %d (%s), %s", accounts, plural(nicks, "nick"), plural(memos, "memo"))
 	s.os(c, "  AKILLs     %d", len(s.liveAkills()))
 	s.os(c, "  Servers    1")
-	s.os(c, "  Loop       %s", s.loop.summary())
+	s.os(c, "  Loop       %s", hs.Loop)
 }
 
-func osGlobal(s *Server, c *Client, args []string) {
+func osGlobal(s *Services, c *Client, args []string) {
 	if !s.needFlag(c, s.operServ, 'g') {
 		return
 	}
@@ -109,8 +106,8 @@ func osGlobal(s *Server, c *Client, args []string) {
 	}
 	n := 0
 	for _, oc := range s.clients {
-		if oc.user != nil && !oc.closed {
-			oc.deliver(s.out(s.global.user, "NOTICE", oc.user.Nick, text).text())
+		if !oc.closed {
+			s.host.Notice(s.global.user.UID, oc.user.UID, text)
 			n++
 		}
 	}
@@ -119,7 +116,7 @@ func osGlobal(s *Server, c *Client, args []string) {
 }
 
 // liveAkills are the AKILLs that haven't run out.
-func (s *Server) liveAkills() []store.Akill {
+func (s *Services) liveAkills() []store.Akill {
 	now := time.Now()
 	var out []store.Akill
 	for _, k := range s.akills {
@@ -131,10 +128,10 @@ func (s *Server) liveAkills() []store.Akill {
 }
 
 // akillMask turns a nick, host or user@host into a user@host mask.
-func (s *Server) akillMask(arg string) (string, string) {
+func (s *Services) akillMask(arg string) (string, string) {
 	if !strings.Contains(arg, "@") {
 		if u := s.net.UserByNick(arg); u != nil && !u.Service && u.IP != "" {
-			return "*@" + displayIP(u.IP), ""
+			return "*@" + irc.DisplayIP(u.IP), ""
 		}
 		if irc.ValidNick(arg, s.cfg.Limits.NickLen) && !strings.ContainsAny(arg, ".*?:") {
 			return "", arg + " isn't online. Give a mask like *@203.0.113.5 instead."
@@ -151,7 +148,7 @@ func (s *Server) akillMask(arg string) (string, string) {
 	return strings.ToLower(arg), ""
 }
 
-func osAkill(s *Server, c *Client, args []string) {
+func osAkill(s *Services, c *Client, args []string) {
 	if !s.needFlag(c, s.operServ, 'k') {
 		return
 	}
@@ -272,7 +269,7 @@ func osAkill(s *Server, c *Client, args []string) {
 	}
 }
 
-func osKill(s *Server, c *Client, args []string) {
+func osKill(s *Services, c *Client, args []string) {
 	if !s.needFlag(c, s.operServ, 'k') {
 		return
 	}
@@ -292,7 +289,7 @@ func osKill(s *Server, c *Client, args []string) {
 	}
 }
 
-func osMode(s *Server, c *Client, args []string) {
+func osMode(s *Services, c *Client, args []string) {
 	if !s.needFlag(c, s.operServ, 's') {
 		return
 	}
@@ -305,13 +302,13 @@ func osMode(s *Server, c *Client, args []string) {
 		s.os(c, "%s is empty right now.", args[0])
 		return
 	}
-	s.applyChannelModes(c, s.operServ.user, ch, servicesRank, args[1], args[2:])
+	s.host.ApplyChannelModes(c.user.UID, s.operServ.user.UID, ch.Name, args[1], args[2:])
 	modes, params := ch.ModeString(true)
 	s.audit(c, s.operServ, "MODE %s %s", ch.Name, strings.Join(args[1:], " "))
 	s.os(c, "%s is now %s.", ch.Name, strings.TrimSpace(modes+" "+strings.Join(params, " ")))
 }
 
-func osKick(s *Server, c *Client, args []string) {
+func osKick(s *Services, c *Client, args []string) {
 	if !s.needFlag(c, s.operServ, 's') {
 		return
 	}
@@ -334,7 +331,7 @@ func osKick(s *Server, c *Client, args []string) {
 	s.os(c, "%s is kicked from %s.", t.Nick, ch.Name)
 }
 
-func osNick(s *Server, c *Client, args []string) {
+func osNick(s *Services, c *Client, args []string) {
 	if !s.needFlag(c, s.operServ, 's') {
 		return
 	}
@@ -431,7 +428,7 @@ func osNick(s *Server, c *Client, args []string) {
 	}
 }
 
-func (s *Server) unforbid(c *Client, kind, name string) {
+func (s *Services) unforbid(c *Client, kind, name string) {
 	gone, err := s.store.DelForbid(kind, name)
 	if err != nil {
 		s.dbErr(c, s.operServ, err)
@@ -446,7 +443,7 @@ func (s *Server) unforbid(c *Client, kind, name string) {
 	s.os(c, "%s can be used again.", name)
 }
 
-func osChan(s *Server, c *Client, args []string) {
+func osChan(s *Services, c *Client, args []string) {
 	if !s.needFlag(c, s.operServ, 's') {
 		return
 	}
@@ -541,7 +538,7 @@ func osChan(s *Server, c *Client, args []string) {
 	}
 }
 
-func osForbids(s *Server, c *Client, args []string) {
+func osForbids(s *Services, c *Client, args []string) {
 	if !s.needFlag(c, s.operServ, 's') {
 		return
 	}
@@ -568,7 +565,7 @@ func osForbids(s *Server, c *Client, args []string) {
 	s.os(c, "%s.", plural(len(all), "entry"))
 }
 
-func osSession(s *Server, c *Client, args []string) {
+func osSession(s *Services, c *Client, args []string) {
 	if !s.needFlag(c, s.operServ, 'k') {
 		return
 	}
@@ -608,7 +605,7 @@ func osSession(s *Server, c *Client, args []string) {
 			s.os(c, "Syntax: SESSION LIMIT <n>")
 			return
 		}
-		s.applySetting(c, s.operServ, "session-limit", args[1])
+		s.host.ApplySetting(c.user.UID, s.operServ.user.UID, "session-limit", args[1])
 	case "EXCEPT":
 		osSessionExcept(s, c, args[1:])
 	default:
@@ -616,7 +613,7 @@ func osSession(s *Server, c *Client, args []string) {
 	}
 }
 
-func osSessionExcept(s *Server, c *Client, args []string) {
+func osSessionExcept(s *Services, c *Client, args []string) {
 	sub, mask := strings.ToUpper(argAt(args, 0)), strings.ToLower(argAt(args, 1))
 	switch sub {
 	case "ADD":
@@ -661,7 +658,7 @@ func osSessionExcept(s *Server, c *Client, args []string) {
 	}
 }
 
-func osNews(s *Server, c *Client, args []string) {
+func osNews(s *Services, c *Client, args []string) {
 	if !s.needFlag(c, s.operServ, 'g') {
 		return
 	}

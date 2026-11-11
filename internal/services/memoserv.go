@@ -1,4 +1,4 @@
-package server
+package services
 
 import (
 	"fmt"
@@ -34,7 +34,7 @@ func memoServCommands() map[string]svcCmd {
 }
 
 // msIdentified is identified() with MemoServ's voice.
-func (s *Server) msIdentified(c *Client) (*store.Account, bool) {
+func (s *Services) msIdentified(c *Client) (*store.Account, bool) {
 	if c.accountID == 0 {
 		s.ms(c, "Identify first: /ns identify <password>")
 		return nil, false
@@ -47,7 +47,7 @@ func (s *Server) msIdentified(c *Client) (*store.Account, bool) {
 	return a, true
 }
 
-func msSend(s *Server, c *Client, args []string) {
+func msSend(s *Services, c *Client, args []string) {
 	from, ok := s.msIdentified(c)
 	if !ok {
 		return
@@ -112,7 +112,7 @@ func msSend(s *Server, c *Client, args []string) {
 }
 
 // onlineClients returns the connections identified to account id.
-func (s *Server) onlineClients(id int64) []*Client {
+func (s *Services) onlineClients(id int64) []*Client {
 	var out []*Client
 	for _, c := range s.clients {
 		if c.accountID == id {
@@ -123,7 +123,7 @@ func (s *Server) onlineClients(id int64) []*Client {
 }
 
 // memoSummary tells someone who just identified about unread memos.
-func (s *Server) memoSummary(c *Client, a *store.Account) {
+func (s *Services) memoSummary(c *Client, a *store.Account) {
 	memos, err := s.store.Memos(a)
 	if err != nil {
 		return
@@ -143,7 +143,7 @@ func (s *Server) memoSummary(c *Client, a *store.Account) {
 	}
 }
 
-func msList(s *Server, c *Client, args []string) {
+func msList(s *Services, c *Client, args []string) {
 	a, ok := s.msIdentified(c)
 	if !ok {
 		return
@@ -210,7 +210,7 @@ func memoPick(memos []store.Memo, arg string) ([]int, string) {
 	return []int{n - 1}, ""
 }
 
-func msRead(s *Server, c *Client, args []string) {
+func msRead(s *Services, c *Client, args []string) {
 	a, ok := s.msIdentified(c)
 	if !ok {
 		return
@@ -242,7 +242,7 @@ func msRead(s *Server, c *Client, args []string) {
 	}
 }
 
-func msDel(s *Server, c *Client, args []string) {
+func msDel(s *Services, c *Client, args []string) {
 	a, ok := s.msIdentified(c)
 	if !ok {
 		return
@@ -293,7 +293,7 @@ func msDel(s *Server, c *Client, args []string) {
 	}
 }
 
-func msSet(s *Server, c *Client, args []string) {
+func msSet(s *Services, c *Client, args []string) {
 	a, ok := s.msIdentified(c)
 	if !ok {
 		return
@@ -336,7 +336,7 @@ func msSet(s *Server, c *Client, args []string) {
 	}
 }
 
-func msIgnore(s *Server, c *Client, args []string) {
+func msIgnore(s *Services, c *Client, args []string) {
 	a, ok := s.msIdentified(c)
 	if !ok {
 		return

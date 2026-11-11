@@ -13,12 +13,20 @@ import (
 
 	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/irc"
+	"github.com/fhazal/beeircd/internal/services"
+	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
 	"github.com/fhazal/beeircd/internal/tlsutil"
 )
 
-func adminServCommands() map[string]svcCmd {
-	return map[string]svcCmd{
+// adminCmd is one AdminServ command.
+type adminCmd struct {
+	syntax, short, long string
+	run                 func(*Server, *Client, []string)
+}
+
+func adminCommands() map[string]adminCmd {
+	return map[string]adminCmd{
 		"SHOW": {"SHOW [setting]", "the settings you can change", "Shows every setting AdminServ can change, or one.", asShow},
 		"SET": {"SET <setting> <value>", "change a setting now",
 			"Changes a setting at once and saves it to beeircd.conf (comments stay).\nExample: /as set max-users 500   /as set cloak off   /as set nick-expire 120d\nSee them all: /as show", asSet},
@@ -36,13 +44,45 @@ func adminServCommands() map[string]svcCmd {
 	}
 }
 
-func (s *Server) as(c *Client, format string, a ...any) {
-	s.svcReply(c, s.adminServ, fmt.Sprintf(format, a...))
+// adminServCommands are the AdminServ commands for the services bot
+// framework; each runs on the connection of whoever sent it.
+func (s *Server) adminServCommands() map[string]services.BotCommand {
+	out := make(map[string]services.BotCommand)
+	for name, cmd := range adminCommands() {
+		run := cmd.run
+		out[name] = services.BotCommand{Syntax: cmd.syntax, Short: cmd.short, Long: cmd.long, Run: func(uid string, args []string) {
+			if c := s.clients[uid]; c != nil && c.user != nil {
+				run(s, c, args)
+			}
+		}}
+	}
+	return out
 }
 
-func (s *Server) cmdAS(c *Client, m irc.Message) {
-	s.toService(c, s.adminServ, strings.Join(m.Params, " "))
+func (s *Server) as(c *Client, format string, a ...any) {
+	s.botReply(c, s.adminServ, fmt.Sprintf(format, a...))
 }
+
+// audit notes who changed what through bot, for the log and opers with +s.
+func (s *Server) audit(c *Client, bot *state.User, format string, a ...any) {
+	s.svc.Audit(c.uid, bot, fmt.Sprintf(format, a...))
+}
+
+// dbErr reports a database failure without details to the user.
+func (s *Server) dbErr(c *Client, bot *state.User, err error) {
+	s.log.Printf("services database: %v", err)
+	s.botReply(c, bot, "Something went wrong on the server. Please try again in a moment.")
+}
+
+var (
+	argAt      = services.ArgAt
+	onOff      = services.OnOff
+	plural     = services.Plural
+	randomCode = services.RandomCode
+)
+
+// confirmFor is how long a RESTART or DIE code stays valid.
+const confirmFor = 2 * time.Minute
 
 // A setting AdminServ can change.
 type setting struct {
@@ -166,20 +206,20 @@ func (st setting) tomlValue(value string) (string, string) {
 }
 
 // applySetting changes one setting, saves it and tells c (as sv).
-func (s *Server) applySetting(c *Client, sv *service, name, value string) {
+func (s *Server) applySetting(c *Client, sv *state.User, name, value string) {
 	st, ok := findSetting(name)
 	if !ok {
-		s.svcReply(c, sv, fmt.Sprintf("There is no setting %s. See them all: /as show", name))
+		s.botReply(c, sv, fmt.Sprintf("There is no setting %s. See them all: /as show", name))
 		return
 	}
 	lit, problem := st.tomlValue(value)
 	if problem != "" {
-		s.svcReply(c, sv, problem)
+		s.botReply(c, sv, problem)
 		return
 	}
 	old := st.get(s.cfg)
 	if s.cfg.Path == "" {
-		s.svcReply(c, sv, "This server wasn't started from a config file, so settings can't be saved.")
+		s.botReply(c, sv, "This server wasn't started from a config file, so settings can't be saved.")
 		return
 	}
 	fresh, err := config.Edit(s.cfg.Path, func(d *config.Doc) error {
@@ -188,13 +228,13 @@ func (s *Server) applySetting(c *Client, sv *service, name, value string) {
 	})
 	if err != nil {
 		s.log.Printf("AdminServ: %v", err)
-		s.svcReply(c, sv, "Not saved: "+err.Error())
+		s.botReply(c, sv, "Not saved: "+err.Error())
 		return
 	}
 	st.apply(s.cfg, fresh)
 	now := st.get(s.cfg)
 	s.audit(c, sv, "SET %s %s (was %s)", st.name, now, old)
-	s.svcReply(c, sv, fmt.Sprintf("%s is now %s (was %s). Saved to %s.", st.name, now, old, filepath.Base(s.cfg.Path)))
+	s.botReply(c, sv, fmt.Sprintf("%s is now %s (was %s). Saved to %s.", st.name, now, old, filepath.Base(s.cfg.Path)))
 }
 
 func asShow(s *Server, c *Client, args []string) {
@@ -661,7 +701,7 @@ func asOper(s *Server, c *Client, args []string) {
 					s.dbErr(c, s.adminServ, err)
 					return
 				}
-				delete(s.lockouts, operLockKey(a.ID))
+				s.svc.ClearLockout(operLockKey(a.ID))
 				s.audit(c, s.adminServ, "OPER %s SET PASSWORD", a.Name)
 				s.as(c, "%s has a new oper password.", a.Name)
 			})
@@ -792,7 +832,7 @@ func asStop(action int) func(*Server, *Client, []string) {
 		}
 		if code == "" {
 			fresh := randomCode()
-			c.confirm, c.confirmTill = key+fresh, time.Now().Add(dropCodeFor)
+			c.confirm, c.confirmTill = key+fresh, time.Now().Add(confirmFor)
 			people := s.localUsers()
 			what := "restarts the server"
 			if action == stopDie {

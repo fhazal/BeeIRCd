@@ -1,4 +1,4 @@
-package server
+package services
 
 import (
 	"errors"
@@ -48,7 +48,7 @@ func nickServCommands() map[string]svcCmd {
 }
 
 // identified returns c's account, or tells them to identify first.
-func (s *Server) identified(c *Client) (*store.Account, bool) {
+func (s *Services) identified(c *Client) (*store.Account, bool) {
 	if c.accountID == 0 {
 		s.ns(c, "Identify first: /ns identify <password>")
 		return nil, false
@@ -67,7 +67,7 @@ func (s *Server) identified(c *Client) (*store.Account, bool) {
 }
 
 // accountOf looks up the account that owns nick, reporting problems.
-func (s *Server) accountOf(c *Client, nick string) (*store.Account, bool) {
+func (s *Services) accountOf(c *Client, nick string) (*store.Account, bool) {
 	a, err := s.store.AccountByNick(nick)
 	if err != nil {
 		s.dbErr(c, s.nickServ, err)
@@ -85,7 +85,7 @@ func validEmail(e string) bool {
 	return at > 0 && at < len(e)-3 && strings.Contains(e[at:], ".") && !strings.ContainsAny(e, " ,;:<>")
 }
 
-func nsRegister(s *Server, c *Client, args []string) {
+func nsRegister(s *Services, c *Client, args []string) {
 	u := c.user
 	if len(args) == 0 {
 		s.ns(c, "Syntax: REGISTER <password> [email]")
@@ -140,7 +140,7 @@ func nsRegister(s *Server, c *Client, args []string) {
 	})
 }
 
-func nsIdentify(s *Server, c *Client, args []string) {
+func nsIdentify(s *Services, c *Client, args []string) {
 	if len(args) == 0 {
 		s.ns(c, "Syntax: IDENTIFY [nick] <password>")
 		return
@@ -177,7 +177,7 @@ func nsIdentify(s *Server, c *Client, args []string) {
 	})
 }
 
-func nsLogout(s *Server, c *Client, args []string) {
+func nsLogout(s *Services, c *Client, args []string) {
 	if c.accountID == 0 {
 		s.ns(c, "You aren't identified.")
 		return
@@ -189,7 +189,7 @@ func nsLogout(s *Server, c *Client, args []string) {
 }
 
 // ghostTarget finds whom GHOST or RECOVER is about.
-func (s *Server) ghostTarget(c *Client, args []string, cmd string) (string, *store.Account, bool) {
+func (s *Services) ghostTarget(c *Client, args []string, cmd string) (string, *store.Account, bool) {
 	if len(args) == 0 {
 		s.ns(c, "Syntax: %s <nick> [password]", cmd)
 		return "", nil, false
@@ -208,7 +208,7 @@ func (s *Server) ghostTarget(c *Client, args []string, cmd string) (string, *sto
 
 // withOwnership runs then after proving c owns a: by being identified to it
 // or by the password.
-func (s *Server) withOwnership(c *Client, a *store.Account, pw string, then func()) {
+func (s *Services) withOwnership(c *Client, a *store.Account, pw string, then func()) {
 	if c.accountID == a.ID {
 		then()
 		return
@@ -223,7 +223,7 @@ func (s *Server) withOwnership(c *Client, a *store.Account, pw string, then func
 }
 
 // ghost disconnects whoever uses nick; false when nobody does.
-func (s *Server) ghost(c *Client, nick string) bool {
+func (s *Services) ghost(c *Client, nick string) bool {
 	t := s.net.UserByNick(nick)
 	if t == nil || t.Service || t == c.user {
 		return false
@@ -235,7 +235,7 @@ func (s *Server) ghost(c *Client, nick string) bool {
 	return false
 }
 
-func nsGhost(s *Server, c *Client, args []string) {
+func nsGhost(s *Services, c *Client, args []string) {
 	nick, a, ok := s.ghostTarget(c, args, "GHOST")
 	if !ok {
 		return
@@ -253,7 +253,7 @@ func nsGhost(s *Server, c *Client, args []string) {
 	})
 }
 
-func nsRecover(s *Server, c *Client, args []string) {
+func nsRecover(s *Services, c *Client, args []string) {
 	nick, a, ok := s.ghostTarget(c, args, "RECOVER")
 	if !ok {
 		return
@@ -278,7 +278,7 @@ func nsRecover(s *Server, c *Client, args []string) {
 	})
 }
 
-func nsGroup(s *Server, c *Client, args []string) {
+func nsGroup(s *Services, c *Client, args []string) {
 	u := c.user
 	if len(args) < 1 {
 		s.ns(c, "Syntax: GROUP <nick> <password>")
@@ -331,7 +331,7 @@ func nsGroup(s *Server, c *Client, args []string) {
 	})
 }
 
-func nsUngroup(s *Server, c *Client, args []string) {
+func nsUngroup(s *Services, c *Client, args []string) {
 	a, ok := s.identified(c)
 	if !ok {
 		return
@@ -359,7 +359,7 @@ func nsUngroup(s *Server, c *Client, args []string) {
 	}
 }
 
-func nsAccess(s *Server, c *Client, args []string) {
+func nsAccess(s *Services, c *Client, args []string) {
 	a, ok := s.identified(c)
 	if !ok {
 		return
@@ -417,7 +417,7 @@ func nsAccess(s *Server, c *Client, args []string) {
 	}
 }
 
-func nsSet(s *Server, c *Client, args []string) {
+func nsSet(s *Services, c *Client, args []string) {
 	a, ok := s.identified(c)
 	if !ok {
 		return
@@ -495,7 +495,7 @@ func nsSet(s *Server, c *Client, args []string) {
 	}
 }
 
-func nsInfo(s *Server, c *Client, args []string) {
+func nsInfo(s *Services, c *Client, args []string) {
 	nick := c.user.Nick
 	if len(args) > 0 {
 		nick = args[0]
@@ -567,7 +567,7 @@ func nsInfo(s *Server, c *Client, args []string) {
 	s.ns(c, "  Options       %s", strings.Join(opts, ", "))
 }
 
-func nsDrop(s *Server, c *Client, args []string) {
+func nsDrop(s *Services, c *Client, args []string) {
 	a, ok := s.identified(c)
 	if !ok {
 		return
@@ -598,7 +598,7 @@ func nsDrop(s *Server, c *Client, args []string) {
 
 // dropAccount removes a with its nicks and memos and logs out everyone
 // using it. founderWhy and by go to the log.
-func (s *Server) dropAccount(a *store.Account, founderWhy, by string) error {
+func (s *Services) dropAccount(a *store.Account, founderWhy, by string) error {
 	id, name := a.ID, a.Name
 	changes, err := s.store.DeleteAccount(id)
 	if err != nil {
@@ -614,14 +614,12 @@ func (s *Server) dropAccount(a *store.Account, founderWhy, by string) error {
 			s.setRegistered(other, false)
 			s.reply(other, irc.RplLoggedOut, other.user.Prefix(), "You are now logged out")
 		}
-		if other.operAccount == id {
-			s.deoper(other, "Your account is gone, so you are no longer an operator.")
-		}
 	}
+	s.host.AccountGone(id)
 	return nil
 }
 
-func nsList(s *Server, c *Client, args []string) {
+func nsList(s *Services, c *Client, args []string) {
 	if !c.user.HasMode('o') {
 		s.ns(c, "LIST is for opers.")
 		return
