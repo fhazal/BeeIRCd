@@ -72,6 +72,7 @@ type Server struct {
 	certChecked time.Time
 	certErr     string
 	safe        safetyState
+	acme        acmeState                   // 7c Let's Encrypt renewal
 	watchers    map[string]map[*Client]bool // MONITOR: folded nick -> clients watching it
 	loop        loopStats                   // how long each piece of loop work took
 	wg          sync.WaitGroup
@@ -170,7 +171,9 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	var tlsConf *tls.Config
 	if cfg.NeedsTLS() {
 		var err error
-		certs, err := tlsutil.NewReloader(cfg.TLS.Cert, cfg.TLS.Key, cfg.TLS.SelfSigned, cfg.Server.Name)
+		// With Let's Encrypt a stand-in self-signed pair lets the TLS
+		// ports open at once; the real one replaces it in the background.
+		certs, err := tlsutil.NewReloader(cfg.TLS.Cert, cfg.TLS.Key, cfg.TLS.SelfSigned || cfg.TLS.ACME, cfg.TLS.Domains(cfg.Server.Name)[0])
 		if err != nil {
 			db.Close()
 			return nil, err
@@ -223,6 +226,10 @@ func (s *Server) Serve(ctx context.Context) error {
 	if s.ctl != nil {
 		s.wg.Add(1)
 		go s.controlLoop()
+	}
+	if s.cfg.TLS.ACME && s.certs != nil {
+		s.wg.Add(1)
+		go s.acmeLoop(s.acmeConfig())
 	}
 	s.log.Printf("%s ready on %d port(s)", s.cfg.Server.Name, len(s.listeners))
 	tick := time.NewTicker(s.tickEvery())

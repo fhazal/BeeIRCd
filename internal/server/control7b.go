@@ -4,6 +4,8 @@ package server
 // and `rehash`, plus REHASH itself and the safety counters for status.
 
 import (
+	"github.com/fhazal/beeircd/internal/acmecert"
+
 	"bufio"
 	"encoding/json"
 	"errors"
@@ -177,6 +179,15 @@ func (s *Server) statusInfo() *control.Status {
 			src = "self-signed"
 		}
 		st.Cert = &control.Cert{Source: src, Names: leaf.DNSNames, NotAfter: leaf.NotAfter}
+		if s.cfg.TLS.ACME {
+			st.Cert.Source = "Let's Encrypt"
+			if s.realCert() {
+				st.Cert.RenewAt = acmecert.RenewAt(leaf)
+			} else {
+				st.Cert.Source = "Let's Encrypt (waiting; self-signed stand-in)"
+			}
+			st.Cert.RenewFailures, st.Cert.RenewError = s.acme.fails, s.acme.lastErr
+		}
 	}
 	return st
 }

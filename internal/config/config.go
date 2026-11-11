@@ -2,6 +2,8 @@
 package config
 
 import (
+	"github.com/fhazal/beeircd/internal/acmecert"
+
 	"fmt"
 	"net"
 	"os"
@@ -122,10 +124,52 @@ type Listen struct {
 }
 
 // TLS points at the certificate. With SelfSigned, missing files are made.
+// With ACME the server gets and renews a Let's Encrypt certificate into
+// Cert and Key itself (7c).
 type TLS struct {
 	Cert       string `toml:"cert"`
 	Key        string `toml:"key"`
 	SelfSigned bool   `toml:"self_signed"`
+	ACME       bool   `toml:"acme"`
+	ACMEEmail  string `toml:"acme_email"`
+	// ACMEDomains are the names on the certificate; the server name when
+	// empty. Use it when clients connect by another name.
+	ACMEDomains []string `toml:"acme_domains"`
+	// ACMEDirectory is another ACME CA (Let's Encrypt staging, a private
+	// CA); Let's Encrypt when empty.
+	ACMEDirectory string `toml:"acme_directory"`
+	// ACMEHTTP is where the Let's Encrypt check is answered while a
+	// certificate is asked for: ":80" when empty. Set another port when a
+	// tunnel or firewall forwards the outside port 80 there.
+	ACMEHTTP string `toml:"acme_http"`
+	// STS tells clients to use TLS from now on (IRCv3 sts). On by default
+	// with a real certificate; never offered with a self-signed one.
+	STS *bool `toml:"sts"`
+	// STSPort is the TLS port clients are sent to; the first TLS port when
+	// 0 (set it when a tunnel shows another port to the outside).
+	STSPort int `toml:"sts_port"`
+}
+
+// Domains is what a Let's Encrypt certificate is asked for.
+func (t TLS) Domains(serverName string) []string {
+	if len(t.ACMEDomains) > 0 {
+		return t.ACMEDomains
+	}
+	return []string{serverName}
+}
+
+// AccountKey is the ACME account key file, next to the certificate.
+func (t TLS) AccountKey() string {
+	return filepath.Join(filepath.Dir(t.Cert), "acme-account.key")
+}
+
+// STSOn says whether the sts capability may be offered (the certificate
+// itself must also be a real one; the server checks that).
+func (c *Config) STSOn() bool {
+	if !c.NeedsTLS() || (c.TLS.SelfSigned && !c.TLS.ACME) {
+		return false
+	}
+	return c.TLS.STS == nil || *c.TLS.STS
 }
 
 // MOTD is read from File; Text is used when there is no file.
@@ -219,6 +263,9 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("%s: unknown setting %s", path, strings.Join(keys, ", "))
 	}
 	dir := filepath.Dir(path)
+	if c.TLS.ACME && c.TLS.Cert == "" && c.TLS.Key == "" {
+		c.TLS.Cert, c.TLS.Key = filepath.Join("tls", "cert.pem"), filepath.Join("tls", "key.pem")
+	}
 	for _, p := range []*string{&c.TLS.Cert, &c.TLS.Key, &c.MOTD.File, &c.Services.Database, &c.History.File, &c.Control.Socket, &c.Backup.Dir} {
 		if *p != "" && !filepath.IsAbs(*p) {
 			*p = filepath.Join(dir, *p)
@@ -448,7 +495,10 @@ func (c *Config) Check() error {
 		}
 	}
 	if c.NeedsTLS() && (c.TLS.Cert == "" || c.TLS.Key == "") {
-		return fmt.Errorf("a TLS port needs [tls] cert and key")
+		return fmt.Errorf("a TLS port needs [tls] cert and key (or acme = true)")
+	}
+	if err := c.checkACME(); err != nil {
+		return err
 	}
 	if c.CloakEnabled() && len(c.Cloak.Secret) < 16 {
 		return fmt.Errorf("[cloak] secret must be at least 16 characters of random text (or set enabled = false)")
@@ -511,4 +561,44 @@ func ParseCIDR(v string) (*net.IPNet, error) {
 	}
 	_, n, err := net.ParseCIDR(v)
 	return n, err
+}
+
+func (c *Config) checkACME() error {
+	t := c.TLS
+	if !t.ACME {
+		if t.ACMEEmail != "" || len(t.ACMEDomains) > 0 || t.ACMEDirectory != "" || t.ACMEHTTP != "" {
+			return fmt.Errorf("[tls] acme_email, acme_domains, acme_directory and acme_http need acme = true")
+		}
+	} else {
+		switch {
+		case t.SelfSigned:
+			return fmt.Errorf("[tls] pick acme or self_signed, not both")
+		case !c.NeedsTLS():
+			return fmt.Errorf("[tls] acme = true, but no [[listen]] port has tls = true")
+		case t.ACMEEmail != "" && (!strings.Contains(t.ACMEEmail, "@") || strings.ContainsAny(t.ACMEEmail, " ,<>")):
+			return fmt.Errorf("[tls] acme_email %q isn't an email address", t.ACMEEmail)
+		case t.ACMEHTTP != "" && !validHostPort(t.ACMEHTTP):
+			return fmt.Errorf("[tls] acme_http %q must look like \":80\" or \"10.0.0.2:8080\"", t.ACMEHTTP)
+		case t.ACMEDirectory != "" && !strings.HasPrefix(t.ACMEDirectory, "https://"):
+			return fmt.Errorf("[tls] acme_directory must be an https:// URL")
+		}
+		for _, d := range t.Domains(c.Server.Name) {
+			if why := acmecert.ValidDomain(d); why != "" {
+				if len(t.ACMEDomains) == 0 {
+					return fmt.Errorf("[tls] acme: the server name %s %s, so Let's Encrypt can't check it; set acme_domains = [\"irc.example.org\"] to the name clients connect to", d, why)
+				}
+				return fmt.Errorf("[tls] acme_domains: %s %s", d, why)
+			}
+		}
+	}
+	if t.STSPort < 0 || t.STSPort > 65535 {
+		return fmt.Errorf("[tls] sts_port must be a port number")
+	}
+	return nil
+}
+
+func validHostPort(a string) bool {
+	_, p, err := net.SplitHostPort(a)
+	n, perr := strconv.Atoi(p)
+	return err == nil && perr == nil && n > 0 && n < 65536
 }

@@ -46,6 +46,16 @@ BEEIRCD_LOAD=1 go test -run TestLoad5000 -v ./internal/server/   # 5,000-client 
   regression seed: commit it with the fix.
 - **Race detector**: `go test -race` needs cgo. It runs in CI (Linux) and on the
   homelab (`docker run --rm -v <tree>:/src -w /src golang:1.27 go test -race -count=3 ./...`).
+- **Let's Encrypt against Pebble** (7c): `TestPebble` in `internal/acmecert` is
+  skipped unless a Pebble test CA runs. Build Pebble from
+  github.com/letsencrypt/pebble, start it with `PEBBLE_VA_NOSLEEP=1 pebble
+  -config test/config/pebble-config.json`, then
+  `BEEIRCD_PEBBLE=https://127.0.0.1:14000/dir BEEIRCD_PEBBLE_HTTP=:5002 go test ./internal/acmecert -run Pebble`.
+  For the whole server: add `pebble-challtestsrv -dnsserver 127.0.0.1:8053`
+  (answers every name with 127.0.0.1), start Pebble with `-dnsserver
+  127.0.0.1:8053`, and run beeircd with `[tls] acme = true`,
+  `acme_directory = "https://127.0.0.1:14000/dir"`, `acme_http = ":5002"` and
+  `SSL_CERT_FILE=test/certs/pebble.minica.pem` (Linux; done 12 Nov 2026 on the homelab).
 
 ## 2. Independent conformance (irctest)
 

@@ -23,14 +23,19 @@ var capabilities = []string{
 	"setname", "userhost-in-names",
 }
 
-// capLS is the CAP LS list; CAP 302 clients also see values.
-func capLS(v302 bool) string {
-	out := make([]string, len(capabilities))
-	for i, c := range capabilities {
+// capLS is the CAP LS list; CAP 302 clients also see values. sts is the
+// sts value ("" when not offered); it is never in capabilities, so a REQ
+// for it gets NAK as the spec wants.
+func capLS(v302 bool, sts string) string {
+	out := make([]string, 0, len(capabilities)+1)
+	for _, c := range capabilities {
 		if c == "sasl" && v302 {
 			c = "sasl=PLAIN,EXTERNAL"
 		}
-		out[i] = c
+		out = append(out, c)
+	}
+	if sts != "" {
+		out = append(out, "sts="+sts)
 	}
 	return strings.Join(out, " ")
 }
@@ -54,7 +59,7 @@ func (s *Server) cmdCap(c *Client, m irc.Message) {
 		if v >= 302 {
 			c.caps["cap-notify"] = true // implied by CAP LS 302
 		}
-		s.capReply(c, "LS", capLS(v >= 302))
+		s.capReply(c, "LS", capLS(v >= 302, s.stsValue(c, v >= 302)))
 	case "LIST":
 		var on []string
 		for _, name := range capabilities {

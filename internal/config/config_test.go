@@ -82,3 +82,44 @@ func TestLoadErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestACMEConfig(t *testing.T) {
+	acme := strings.Replace(good, "cert = \"tls/cert.pem\"\nkey = \"tls/key.pem\"\nself_signed = true", "acme = true\nacme_email = \"admin@beenet.org\"", 1)
+	c, err := Load(write(t, acme))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(c.TLS.Cert) != "cert.pem" || !filepath.IsAbs(c.TLS.Cert) || filepath.Base(c.TLS.AccountKey()) != "acme-account.key" {
+		t.Errorf("paths %q %q", c.TLS.Cert, c.TLS.AccountKey())
+	}
+	if d := c.TLS.Domains(c.Server.Name); len(d) != 1 || d[0] != "irc.beenet.org" || !c.STSOn() {
+		t.Errorf("domains %v sts %v", d, c.STSOn())
+	}
+	if self, _ := Load(write(t, good)); self.STSOn() {
+		t.Error("sts on with a self-signed certificate")
+	}
+	local := strings.Replace(acme, `"irc.beenet.org"`, `"test.beenet.local"`, 1)
+	if _, err := Load(write(t, local)); err == nil || !strings.Contains(err.Error(), "set acme_domains") {
+		t.Errorf("private server name: %v", err)
+	}
+	if _, err := Load(write(t, local+"\n[tls]\n")); err == nil {
+		t.Error("duplicate table accepted")
+	}
+	withDomain := strings.Replace(local, "acme = true", "acme = true\nacme_domains = [\"test.beeircd.org\"]", 1)
+	if c, err := Load(write(t, withDomain)); err != nil || c.TLS.Domains(c.Server.Name)[0] != "test.beeircd.org" {
+		t.Errorf("acme_domains: %v", err)
+	}
+	for want, body := range map[string]string{
+		"not both":              strings.Replace(acme, "acme = true", "acme = true\nself_signed = true", 1),
+		"isn't an email":        strings.Replace(acme, "admin@beenet.org", "admin", 1),
+		"need acme = true":      strings.Replace(good, "self_signed = true", "self_signed = true\nacme_email = \"a@b.org\"", 1),
+		"acme_http \"80\" must": strings.Replace(acme, "acme = true", "acme = true\nacme_http = \"80\"", 1),
+		"https:// URL":          strings.Replace(acme, "acme = true", "acme = true\nacme_directory = \"http://ca\"", 1),
+		"no [[listen]] port":    strings.Replace(acme, "tls = true", "", 1),
+		"acme_domains: 10.0.":   strings.Replace(acme, "acme = true", "acme = true\nacme_domains = [\"10.0.0.1\"]", 1),
+	} {
+		if _, err := Load(write(t, body)); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("want %q, got %v", want, err)
+		}
+	}
+}

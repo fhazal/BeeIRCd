@@ -36,7 +36,7 @@ Last updated: 12 Nov 2026 (Stage 1.5.9b).
 | HELP and HELPOP (every command + CHMODES) | Implemented | 704/705/706, 524 for an unknown topic (conformance step; was UnrealIRCd's 292 in 1.5.9a) |
 | Prefix option `@+` (default) or `~&@%+` | Implemented | `[server] prefixes`; +q +a +h with UnrealIRCd rules; restart to change |
 | TLS 1.2+ listeners, self-signed or own certificate | Implemented | |
-| Let's Encrypt built in, STS | Planned | step 7c |
+| Let's Encrypt built in, STS | Implemented | 7c; `[tls] acme = true` (+ `acme_email`, `acme_domains` when clients use another name than the server name, `acme_directory` for staging/other CAs, `acme_http` when a tunnel forwards port 80 elsewhere); HTTP-01, port 80 open only while asking; TLS ports start at once on a self-signed stand-in, the real certificate is loaded live without a restart; checked twice a day, renewed in the last third of its life (30 days of 90); a failure keeps the current certificate, tells opers and retries after 1 h / 3 h / 12 h; status/check show source, renew date and failures; config refuses private names (.local, IPs) for ACME. STS: see the IRCv3 table |
 | Certificate reload without a restart | Implemented | 7b; a changed cert/key file is picked up within a minute (and on REHASH) for new connections; a broken file keeps the old certificate and tells opers |
 | Host cloaking (HMAC) | Implemented | |
 | Flood control (fake lag) | Implemented | opers are not slowed down (7a) |
@@ -70,7 +70,7 @@ Last updated: 12 Nov 2026 (Stage 1.5.9b).
 | standard-replies, extended-monitor, WHOX | Planned (phase 3) |
 | bot mode, UTF8ONLY, no-implicit-names | Planned (phase 3) |
 | account-extban | Implemented (1.5.5a, EXTBAN=~,amqrt; ACCOUNTEXTBAN=a token since the conformance step) |
-| STS | Planned (step 7) |
+| STS | Implemented (7c): `sts=port=<tls port>,duration=2592000` on plain and `sts=duration=2592000` on TLS, to CAP 302 clients, only with a CA certificate (never self-signed or the stand-in); `[tls] sts = false` turns it off, `sts_port` when a tunnel shows another port; REQ sts is NAKed |
 | WebSocket, WebIRC | Planned (Stage 4) |
 | netsplit/netjoin batches | Planned (Stage 2) |
 | draft/chathistory | Implemented (1.5.9c) for +H channels you are in: LATEST BEFORE AFTER AROUND BETWEEN TARGETS, msgid and timestamp references, 005 CHATHISTORY=100 MSGREFTYPES=msgid,timestamp; no private-message history |

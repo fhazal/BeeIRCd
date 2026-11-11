@@ -5,6 +5,8 @@ package main
 // to the running server through it.
 
 import (
+	"github.com/fhazal/beeircd/internal/acmecert"
+
 	"errors"
 	"flag"
 	"fmt"
@@ -118,9 +120,13 @@ func statusScreen(st *control.Status, p paint, now time.Time, timerOff bool) str
 		left := c.NotAfter.Sub(now)
 		text := c.Source + ", valid until " + c.NotAfter.Format("2 Jan 2006")
 		switch {
+		case strings.Contains(c.Source, "stand-in") && c.RenewFailures > 0:
+			b.WriteString(p.warn(fmt.Sprintf("  %-10s Let's Encrypt has no certificate yet (self-signed stand-in) · failed %s: %s", "Cert", times(c.RenewFailures), c.RenewError)) + "\n")
+		case strings.Contains(c.Source, "stand-in"):
+			b.WriteString(p.warn(fmt.Sprintf("  %-10s Let's Encrypt: asking for the first certificate (self-signed stand-in until then)", "Cert")) + "\n")
 		case c.RenewFailures > 0:
 			b.WriteString(p.warn(fmt.Sprintf("  %-10s valid until %s · renewal failed %s: %s", "Cert", c.NotAfter.Format("2 Jan 2006"), times(c.RenewFailures), c.RenewError)) + "\n")
-		case left < 14*24*time.Hour:
+		case (c.RenewAt.IsZero() && left < 14*24*time.Hour) || (!c.RenewAt.IsZero() && now.After(c.RenewAt.Add(24*time.Hour))):
 			b.WriteString(p.warn(fmt.Sprintf("  %-10s %s · %s left", "Cert", text, since(left))) + "\n")
 		case !c.RenewAt.IsZero():
 			row("Cert", text+" "+p.dim("(renews "+c.RenewAt.Format("2 Jan")+")"))
@@ -238,19 +244,26 @@ func runChecks(c *checker, path string, now time.Time) *config.Config {
 	}
 	c.ok("config reads cleanly")
 	if cfg.NeedsTLS() {
-		leaf, err := tlsutil.Describe(cfg.TLS.Cert, cfg.TLS.Key, cfg.Server.Name, now)
+		host := cfg.TLS.Domains(cfg.Server.Name)[0]
+		leaf, err := tlsutil.Describe(cfg.TLS.Cert, cfg.TLS.Key, host, now)
 		switch {
+		case err != nil && cfg.TLS.ACME && errors.Is(err, os.ErrNotExist):
+			c.ok("certificate: asked from Let's Encrypt at start (port 80 of " + host + " must reach this server" + acmeVia(cfg.TLS.ACMEHTTP) + ")")
 		case err != nil && cfg.TLS.SelfSigned && errors.Is(err, os.ErrNotExist):
 			c.ok("certificate: a self-signed one is made at start")
+		case err == nil && cfg.TLS.ACME && acmecert.SelfSigned(leaf):
+			c.warn("certificate: still the self-signed stand-in; Let's Encrypt hasn't given one yet (see beeircd status)")
+		case err == nil && cfg.TLS.ACME && !now.After(acmecert.RenewAt(leaf).Add(24*time.Hour)):
+			c.ok("certificate matches "+host+", valid until "+leaf.NotAfter.Format("2 Jan 2006"), "(Let's Encrypt, renews "+acmecert.RenewAt(leaf).Format("2 Jan")+")")
 		case errors.Is(err, tlsutil.ErrOtherName):
 			c.warn("certificate is for " + strings.Join(leaf.DNSNames, ", ") + ", not the server name " + cfg.Server.Name +
 				" (fine when clients connect by that name), valid until " + leaf.NotAfter.Format("2 Jan 2006"))
 		case err != nil:
 			c.bad(err.Error())
 		case leaf.NotAfter.Sub(now) < 14*24*time.Hour:
-			c.warn("certificate for " + cfg.Server.Name + " runs out on " + leaf.NotAfter.Format("2 Jan 2006"))
+			c.warn("certificate for " + host + " runs out on " + leaf.NotAfter.Format("2 Jan 2006"))
 		default:
-			c.ok("certificate matches "+cfg.Server.Name+", valid until "+leaf.NotAfter.Format("2 Jan 2006"), "")
+			c.ok("certificate matches "+host+", valid until "+leaf.NotAfter.Format("2 Jan 2006"), "")
 		}
 	}
 	running := false
@@ -616,4 +629,12 @@ func size(n int64) string {
 		return fmt.Sprintf("%.0f KB", float64(n)/(1<<10))
 	}
 	return fmt.Sprintf("%d bytes", n)
+}
+
+// acmeVia names the acme_http address when it isn't plain port 80.
+func acmeVia(addr string) string {
+	if addr == "" || addr == ":80" {
+		return ""
+	}
+	return " on " + addr
 }
