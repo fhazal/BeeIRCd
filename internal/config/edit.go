@@ -272,3 +272,76 @@ func ParseDuration(s string) (time.Duration, error) {
 	err := d.UnmarshalText([]byte(s))
 	return d.Duration, err
 }
+
+// KV is one key = value line of a block (Value is TOML: use Quote).
+type KV struct{ Key, Value string }
+
+// blocks returns the header line of every [[name]] block.
+func (d *Doc) blocks(name string) []int {
+	var out []int
+	for i, l := range d.lines {
+		if header(l) == "["+name+"]" {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// findBlock returns the [[name]] block whose keyName equals keyValue
+// (case doesn't matter), as its line range.
+func (d *Doc) findBlock(name, keyName, keyValue string) (int, int, bool) {
+	for _, h := range d.blocks(name) {
+		start, end := d.section(h)
+		if v, ok := d.value(start, end, keyName); ok && strings.EqualFold(unquote(v), keyValue) {
+			return start, end, true
+		}
+	}
+	return 0, 0, false
+}
+
+// SetBlock writes a [[name]] block with these lines, replacing the one
+// whose kv[0] value matches (kv[0] is the block's name key), or adding it
+// after the last [[name]] block (or at the end).
+func (d *Doc) SetBlock(name string, kv []KV) {
+	block := []string{"[[" + name + "]]"}
+	for _, p := range kv {
+		block = append(block, p.Key+" = "+p.Value)
+	}
+	if start, end, ok := d.findBlock(name, kv[0].Key, unquote(kv[0].Value)); ok {
+		cut := d.lastContent(start, end)
+		d.lines = append(d.lines[:start], append(block, d.lines[cut:]...)...)
+		return
+	}
+	if all := d.blocks(name); len(all) > 0 {
+		start, end := d.section(all[len(all)-1])
+		d.insert(d.lastContent(start, end), append([]string{""}, block...)...)
+		return
+	}
+	if len(d.lines) > 0 && strings.TrimSpace(d.lines[len(d.lines)-1]) != "" {
+		d.lines = append(d.lines, "")
+	}
+	d.lines = append(d.lines, block...)
+}
+
+// DelBlock removes the [[name]] block whose keyName equals keyValue.
+func (d *Doc) DelBlock(name, keyName, keyValue string) bool {
+	start, end, ok := d.findBlock(name, keyName, keyValue)
+	if !ok {
+		return false
+	}
+	cut := d.lastContent(start, end)
+	if start > 0 && strings.TrimSpace(d.lines[start-1]) == "" {
+		start--
+	}
+	d.lines = append(d.lines[:start], d.lines[cut:]...)
+	return true
+}
+
+// QuoteList makes a TOML list of strings.
+func QuoteList(items []string) string {
+	q := make([]string, len(items))
+	for i, s := range items {
+		q[i] = Quote(s)
+	}
+	return "[" + strings.Join(q, ", ") + "]"
+}

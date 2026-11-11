@@ -15,12 +15,19 @@ import (
 type Oper struct {
 	AccountID int64
 	Account   string
-	Flags     string
-	Title     string
+	Class     string // oper class (1.5.8), "" = none: only Flags
+	Flags     string // flags on top of the class
+	Title     string // "" = the class's
+	Vhost     string // "" = the class's
+	Swhois    []string
 	Hosts     []string
 	PassHash  string // the oper password (argon2id), "" = not set yet
 	AddedBy   string
 	AddedAt   time.Time
+	// Disabled is why the entry may not /oper now ("" = it may); DisabledBy
+	// who did it.
+	Disabled   string
+	DisabledBy string
 }
 
 // Forbid stops a nick or channel from being used or registered.
@@ -106,7 +113,12 @@ func scanOper(row interface{ Scan(...any) error }) (*Oper, error) {
 	var o Oper
 	var hosts string
 	var at int64
-	err := row.Scan(&o.AccountID, &o.Account, &o.Flags, &o.Title, &hosts, &o.PassHash, &o.AddedBy, &at)
+	var swhois string
+	err := row.Scan(&o.AccountID, &o.Account, &o.Flags, &o.Title, &hosts, &o.PassHash, &o.AddedBy, &at,
+		&o.Class, &o.Vhost, &swhois, &o.Disabled, &o.DisabledBy)
+	if swhois != "" {
+		o.Swhois = strings.Split(swhois, "\n")
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -127,9 +139,12 @@ func (s *Store) SaveOper(o *Oper) error {
 	if s.c.accounts[o.AccountID] == nil {
 		return errors.New("no such account")
 	}
-	_, err := s.db.Exec(`INSERT INTO opers (account_id, flags, title, hosts, pass_hash, added_by, added_at) VALUES (?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(account_id) DO UPDATE SET flags = excluded.flags, title = excluded.title, hosts = excluded.hosts, pass_hash = excluded.pass_hash`,
-		o.AccountID, o.Flags, o.Title, strings.Join(o.Hosts, " "), o.PassHash, o.AddedBy, o.AddedAt.Unix())
+	_, err := s.db.Exec(`INSERT INTO opers (account_id, flags, title, hosts, pass_hash, added_by, added_at, class, vhost, swhois, disabled, disabled_by)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(account_id) DO UPDATE SET flags = excluded.flags, title = excluded.title, hosts = excluded.hosts, pass_hash = excluded.pass_hash,
+		class = excluded.class, vhost = excluded.vhost, swhois = excluded.swhois, disabled = excluded.disabled, disabled_by = excluded.disabled_by`,
+		o.AccountID, o.Flags, o.Title, strings.Join(o.Hosts, " "), o.PassHash, o.AddedBy, o.AddedAt.Unix(),
+		o.Class, o.Vhost, strings.Join(o.Swhois, "\n"), o.Disabled, o.DisabledBy)
 	if err != nil {
 		return err
 	}
@@ -140,6 +155,10 @@ func (s *Store) SaveOper(o *Oper) error {
 		cp.Hosts = nil
 	}
 	cp.AddedAt = sec(o.AddedAt)
+	cp.Swhois = append([]string(nil), o.Swhois...)
+	if len(cp.Swhois) == 0 {
+		cp.Swhois = nil
+	}
 	if have := s.c.opers[o.AccountID]; have != nil {
 		cp.AddedBy, cp.AddedAt = have.AddedBy, have.AddedAt
 	}
@@ -265,13 +284,16 @@ func (s *Store) DelSessionExcept(mask string) (bool, error) {
 
 // migrateOpers adds columns that older databases lack.
 func migrateOpers(db *sql.DB) error {
-	var n int
-	if err := db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('opers') WHERE name = 'pass_hash'").Scan(&n); err != nil {
-		return err
-	}
-	if n == 0 {
-		_, err := db.Exec("ALTER TABLE opers ADD COLUMN pass_hash TEXT NOT NULL DEFAULT ''")
-		return err
+	for _, col := range []string{"pass_hash", "class", "vhost", "swhois", "disabled", "disabled_by"} {
+		var n int
+		if err := db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('opers') WHERE name = ?", col).Scan(&n); err != nil {
+			return err
+		}
+		if n == 0 {
+			if _, err := db.Exec("ALTER TABLE opers ADD COLUMN " + col + " TEXT NOT NULL DEFAULT ''"); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

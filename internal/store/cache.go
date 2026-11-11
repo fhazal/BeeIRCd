@@ -173,7 +173,8 @@ func loadCache(db *sql.DB) (*cache, error) {
 			c.akicks[ch] = append(c.akicks[ch], k)
 			return nil
 		}},
-		{`SELECT o.account_id, a.name, o.flags, o.title, o.hosts, o.pass_hash, o.added_by, o.added_at
+		{`SELECT o.account_id, a.name, o.flags, o.title, o.hosts, o.pass_hash, o.added_by, o.added_at,
+			o.class, o.vhost, o.swhois, o.disabled, o.disabled_by
 			FROM opers o JOIN accounts a ON a.id = o.account_id`, func(r *sql.Rows) error {
 			o, err := scanOper(r)
 			if err == nil {

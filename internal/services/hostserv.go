@@ -186,6 +186,22 @@ func (s *Services) hsLogin(c *Client) {
 	s.activated(c, v)
 }
 
+// RestoreHost gives uid back the host they show without an oper vhost:
+// their HostServ vhost when it is on, else the cloak or real host.
+func (s *Services) RestoreHost(uid string) {
+	c := s.clients[uid]
+	if c == nil || c.closed {
+		return
+	}
+	if c.vhostOn && s.ownNick(c) {
+		if v, ok := s.store.VHostOf(c.user.Nick); ok {
+			s.showVHost(c, v)
+			return
+		}
+	}
+	s.hideVHost(c)
+}
+
 // VHostOn reports whether uid shows a HostServ vhost (the server keeps it
 // when user mode +x changes).
 func (s *Services) VHostOn(uid string) bool {

@@ -52,6 +52,7 @@ const (
 	RplEndOfMotd     = "376"
 	RplTime          = "391"
 	RplHostHidden    = "396"
+	RplWhoisSpecial  = "320"
 	RplWhoisHost     = "378"
 	RplWhoisSecure   = "671"
 	RplWhoisCertFP   = "276"

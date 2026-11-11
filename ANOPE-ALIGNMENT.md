@@ -327,3 +327,14 @@ Ours: hostserv/set, /del, /list are oper flag h. A vident changes the
 shown ident; network bans and the log keep matching the real ident
 (User.RealIdent), channel bans match both. The vhost stays when user mode
 +x is changed. Oper vhosts at /oper come in 1.5.8.
+
+## Stage 1.5.8 oper classes (built 11 Nov 2026)
+
+One oper list for IRCd and services. Classes combine UnrealIRCd's operclass
+(names, vhost, swhois) and Anope's opertype (what services commands an oper
+gets): built-in helper (h = Anope Helper), globop (hk = Services
+Operator), admin (ghks = Services Administrator), netadmin (acghks =
+Services Root); [[operclass]] blocks add or replace them (AS CLASS).
+Anope's OS OPER LIST/INFO/ADD/DEL work on the same list (ADD/DEL need flag
+a and answer from AdminServ). Not built: Anope OS LOGIN/LOGOUT (our /oper
+already asks for the oper password), Unreal snomasks.

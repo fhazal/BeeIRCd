@@ -117,7 +117,7 @@ func boss(t *testing.T, s *Server) *tc {
 	b.expect("Your oper password is set and saved to beeircd.conf.")
 	b.expect(":irc.test.local MODE Boss +os")
 	b.expect(" 381 Boss :You are now an IRC operator")
-	b.expect("Oper flags: acghks (admin, links, global, hosts, kill, services)")
+	b.expect("Oper class netadmin: acghks (admin, links, global, hosts, kill, services)")
 	return b
 }
 
@@ -140,7 +140,7 @@ func TestOperUpAndWhois(t *testing.T) {
 		t.Errorf("admin oper password not saved:\n%s", raw)
 	}
 	ember.send("WHOIS Boss")
-	ember.expect(" 313 ember Boss :is an IRC Operator (Server Admin)")
+	ember.expect(" 313 ember Boss :is a Network Administrator")
 	ember.send("OS STATS")
 	ember.expect(osLine("ember", "OperServ is for IRC operators."))
 	ember.send("AS SHOW")
@@ -233,9 +233,9 @@ func TestOperEntries(t *testing.T) {
 	ember.expect(osLine("ember", "OperServ is the toolbox for IRC operators. Commands:"))
 
 	b.send("AS OPER LIST")
-	b.expect(asLine("Boss", "  Nick    Flags   Online  Password  Hosts"))
-	b.expect(asLine("Boss", "  Boss    acghks  yes     yes       any (server admin from beeircd.conf)"))
-	b.expect(asLine("Boss", "  ember   gk      yes     yes       *@127.0.0.1"))
+	b.expect(asLine("Boss", "  Nick    Class       Flags   Online  Password  Hosts"))
+	b.expect(asLine("Boss", "  Boss    netadmin    acghks  yes     yes       any (server admin from beeircd.conf)"))
+	b.expect(asLine("Boss", "  ember   -           gk      yes     yes       *@127.0.0.1"))
 	b.expect(asLine("Boss", "2 opers."))
 
 	// Changes reach an oper at once; a host that no longer matches ends it.

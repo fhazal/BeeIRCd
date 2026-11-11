@@ -54,6 +54,9 @@ type Client struct {
 	monitor     map[string]string // MONITOR list: folded nick -> nick as given
 	operFlags   string            // oper flags like "acghks", "" when not an oper
 	operTitle   string
+	operClass   string    // oper class in use ("" = flags only)
+	operSwhois  []string  // extra WHOIS lines (320) while opered
+	operVhost   string    // host shown because of the oper entry
 	operAccount int64     // the oper entry (account ID) c opered with
 	confirm     string    // confirms AdminServ RESTART and DIE
 	confirmTill time.Time // confirm is valid until then

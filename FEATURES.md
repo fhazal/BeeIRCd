@@ -96,7 +96,7 @@ Last updated: 11 Nov 2026 (Stage 1.5.3).
 | /KILL, /WALLOPS, server notices (+s) | Implemented | |
 | Services log channel (`log_channel`, AdminServ `log-channel` / `log-connects`): every bot sits there with op; lines exactly as Anope 2.0.20 (COMMAND/ADMIN/OVERRIDE, USERS connect/disconnect/nick on by default, access denied, expiry), from the service they belong to | Implemented | 1.5.5a-log, Anope-exact 11 Nov 2026 |
 | Channel mode +O (opers only; only opers set it, 520 for others) | Implemented | 1.5.5a-log; UnrealIRCd/InspIRCd; the log channel keeps it set |
-| Oper classes | Planned | phase 4 |
+| Oper classes ([[operclass]] + built-in helper/globop/admin/netadmin, AS CLASS), oper vhost and swhois at /oper, admin_hosts/admin_vhost, CIDR oper hosts, OPER DISABLE/ENABLE, AdminServ HISTORY/DIFF/UNDO, OS OPER (Anope names) | Implemented | 1.5.8 |
 | Network ban engine: AKILL/G-line (user@host, CIDR), ZLINE (IP/CIDR, before DNS), SQLINE/Q-line (nicks), SNLINE/R-line (realname glob or regex), SHUN, ELINE exemptions, all with expiry | Implemented | 1.5.5a; one list behind OperServ and /GLINE /ZLINE /QLINE /RLINE /SHUN /ELINE; matches real host and IP, never the cloak |
 | Channel extbans ~a ~r ~m (~q) ~t, timed bans, CS BAN +expiry, AKICK extbans | Implemented | 1.5.5a |
 | K-line (this server only) | Planned | with linking (Stage 2) |

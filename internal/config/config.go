@@ -49,6 +49,8 @@ type Config struct {
 	DNSBL    []DNSBL  `toml:"dnsbl"`
 	Mail     Mail     `toml:"mail"`
 	HostServ HostServ `toml:"hostserv"`
+	// OperClasses are the [[operclass]] blocks (see Classes).
+	OperClasses []OperClass `toml:"operclass"`
 
 	// Path is the file this was read from; AdminServ writes changes there.
 	Path string `toml:"-"`
@@ -275,6 +277,11 @@ type Services struct {
 	// (beeircd mkpasswd makes one). Empty: the admin sets it with their
 	// first /oper while identified.
 	AdminPassword string `toml:"admin_password"`
+	// AdminHosts are the user@host masks (globs or CIDR) the admin may
+	// /oper from. Empty: anywhere (a warning goes to the log at start).
+	AdminHosts []string `toml:"admin_hosts"`
+	// AdminVhost is the host the admin shows once opered ("" = none).
+	AdminVhost string `toml:"admin_vhost"`
 	// LogChannel is where the service bots log every command they run and
 	// oper events (like Anope's log { target = "#services" }). The bots sit
 	// in it with op and keep it +O (opers only). Empty: no log channel.
@@ -349,6 +356,9 @@ var (
 
 // Check reports the first thing wrong, in words a person can act on.
 func (c *Config) Check() error {
+	if err := c.checkClasses(); err != nil {
+		return err
+	}
 	switch {
 	case !serverRe.MatchString(c.Server.Name) || len(c.Server.Name) > 63:
 		return fmt.Errorf("server name %q must look like irc.example.org", c.Server.Name)

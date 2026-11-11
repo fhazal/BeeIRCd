@@ -124,3 +124,47 @@ func TestQuoteAndDurations(t *testing.T) {
 		}
 	}
 }
+
+func TestEditOperClassBlocks(t *testing.T) {
+	path := writeSample(t)
+	cfg, err := Edit(path, func(d *Doc) error {
+		d.SetBlock("operclass", []KV{{"name", Quote("staff")}, {"flags", Quote("hk")}, {"vhost", Quote("staff.example.org")}, {"swhois", QuoteList([]string{"looks very helpful"})}})
+		d.SetBlock("operclass", []KV{{"name", Quote("helper")}, {"flags", Quote("h")}})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if oc, ok := cfg.Class("STAFF"); !ok || oc.Flags != "hk" || oc.Vhost != "staff.example.org" || len(oc.Swhois) != 1 {
+		t.Fatalf("staff = %+v %v", oc, ok)
+	}
+	cfg, err = Edit(path, func(d *Doc) error {
+		d.SetBlock("operclass", []KV{{"name", Quote("staff")}, {"flags", Quote("ghk")}})
+		if !d.DelBlock("operclass", "name", "helper") {
+			t.Error("helper block not found")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if oc, _ := cfg.Class("staff"); oc.Flags != "ghk" || oc.Vhost != "" {
+		t.Fatalf("staff after SET = %+v", oc)
+	}
+	if len(cfg.OperClasses) != 1 {
+		t.Fatalf("blocks = %+v", cfg.OperClasses)
+	}
+	if oc, ok := cfg.Class("helper"); !ok || oc.Flags != "h" {
+		t.Fatalf("built-in helper lost: %+v", oc)
+	}
+	raw, _ := os.ReadFile(path)
+	if !strings.Contains(string(raw), "# the admin") && !strings.Contains(string(raw), "#") {
+		t.Fatal("comments lost")
+	}
+	if _, err := Edit(path, func(d *Doc) error {
+		d.SetBlock("operclass", []KV{{"name", Quote("bad one")}, {"flags", Quote("hz")}})
+		return nil
+	}); err == nil {
+		t.Fatal("a broken class was saved")
+	}
+}

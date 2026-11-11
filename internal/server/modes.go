@@ -117,11 +117,12 @@ func (s *Server) setUserModes(c *Client, srcUID, modeStr string) bool {
 		s.emit(&state.UserMode{Source: srcUID, UID: u.UID, Changes: changes})
 	}
 	if deopered {
-		c.operFlags, c.operTitle, c.operAccount = "", "", 0
+		c.operFlags, c.operTitle, c.operAccount, c.operSwhois, c.operClass = "", "", 0, nil, ""
 		delete(s.opers, c)
+		s.showOperVhost(c, "")
 		s.snotice("%s is no longer an operator", u.Nick)
 	}
-	if s.cfg.CloakEnabled() && !s.svc.VHostOn(c.uid) { // a HostServ vhost stays over +x/-x
+	if s.cfg.CloakEnabled() && !s.svc.VHostOn(c.uid) && c.operVhost == "" { // a HostServ or oper vhost stays over +x/-x
 		host := u.RealHost
 		if u.Modes['x'] {
 			host = s.cloakFor(u)

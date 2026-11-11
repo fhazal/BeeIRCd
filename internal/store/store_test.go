@@ -458,3 +458,27 @@ func TestVHostsFollowNicks(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// AdminServ history keeps the last HistoryKeep changes.
+func TestAdminHistory(t *testing.T) {
+	s, _ := open(t)
+	now := time.Now()
+	var last int64
+	for i := 0; i < HistoryKeep+5; i++ {
+		id, err := s.AddChange(Change{At: now, By: "Boss", Kind: "set", Key: "max-users", Old: "1", New: "2"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		last = id
+	}
+	all, err := s.Changes(1000)
+	if err != nil || len(all) != HistoryKeep || all[0].ID != last {
+		t.Fatalf("kept %d, newest %d (want %d), %v", len(all), all[0].ID, last, err)
+	}
+	if _, ok, _ := s.ChangeByID(1); ok {
+		t.Error("oldest change still kept")
+	}
+	if c, ok, err := s.ChangeByID(last); !ok || err != nil || c.Key != "max-users" || c.Old != "1" {
+		t.Fatalf("ChangeByID = %+v %v %v", c, ok, err)
+	}
+}

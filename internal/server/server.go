@@ -128,6 +128,9 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	s.adminServ = svc.AddBot("AdminServ", "as", "Admin Services",
 		"AdminServ changes the server while it runs; changes are saved to beeircd.conf. Commands:", 'a', s.adminServCommands())
 	svc.SyncLogChannel("")
+	if cfg.Services.Admin != "" && len(cfg.Services.AdminHosts) == 0 {
+		logger.Printf("warning: [services] admin_hosts is empty, so the admin %s may /oper from any host (with the oper password)", cfg.Services.Admin)
+	}
 	svc.Flush()
 	var tlsConf *tls.Config
 	if cfg.NeedsTLS() {

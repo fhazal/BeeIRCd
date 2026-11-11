@@ -71,22 +71,10 @@ func (s *Server) isAdminAccount(a *store.Account) bool {
 // every flag, from any host, with the password from beeircd.conf.
 func (s *Server) operEntry(a *store.Account) (*store.Oper, error) {
 	if s.isAdminAccount(a) {
-		return &store.Oper{AccountID: a.ID, Account: a.Name, Flags: allFlags, Title: "Server Admin",
-			Hosts: []string{"*@*"}, PassHash: s.cfg.Services.AdminPassword}, nil
+		return &store.Oper{AccountID: a.ID, Account: a.Name, Class: "netadmin", Flags: allFlags,
+			Vhost: s.cfg.Services.AdminVhost, Hosts: s.adminHosts(), PassHash: s.cfg.Services.AdminPassword}, nil
 	}
 	return s.store.OperByAccount(a.ID)
-}
-
-// operHostOK reports whether u connects from a host on the oper entry.
-func operHostOK(o *store.Oper, u *state.User) bool {
-	for _, m := range o.Hosts {
-		for _, h := range []string{u.RealHost, u.IP, u.Host} {
-			if h != "" && irc.Match(m, u.Ident+"@"+h) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // operLockKey keeps wrong oper passwords apart from wrong NickServ ones.
@@ -94,19 +82,29 @@ func operLockKey(id int64) int64 { return -id }
 
 func (s *Server) operUp(c *Client, o *store.Oper) {
 	u := c.user
+	v := s.viewOf(o)
 	was := c.operFlags
-	c.operFlags, c.operTitle, c.operAccount = o.Flags, o.Title, o.AccountID
+	c.operFlags, c.operTitle, c.operAccount, c.operSwhois, c.operClass = v.flags, v.title, o.AccountID, v.swhois, v.class
 	s.opers[c] = true
+	s.showOperVhost(c, v.vhost)
 	if u.Modes['o'] {
-		if was != o.Flags {
-			s.notice(c, "*** Your oper flags are now "+describeFlags(o.Flags))
+		if was != v.flags {
+			s.notice(c, "*** Your oper flags are now "+describeFlags(v.flags))
 		}
 		return
 	}
 	s.emit(&state.UserMode{UID: u.UID, Changes: umodes(true, "os")})
 	s.reply(c, irc.RplYoureOper, "You are now an IRC operator")
-	s.notice(c, "*** Oper flags: "+describeFlags(o.Flags))
-	s.snotice("%s (%s@%s) is now an operator as %s: %s", u.Nick, u.Ident, u.RealHost, o.Account, o.Flags)
+	if v.class != "" {
+		s.notice(c, "*** Oper class "+v.class+": "+describeFlags(v.flags))
+	} else {
+		s.notice(c, "*** Oper flags: "+describeFlags(v.flags))
+	}
+	if v.class != "" {
+		s.snotice("%s (%s@%s) is now an operator as %s (class %s): %s", u.Nick, u.TrueIdent(), u.RealHost, o.Account, v.class, v.flags)
+	} else {
+		s.snotice("%s (%s@%s) is now an operator as %s: %s", u.Nick, u.TrueIdent(), u.RealHost, o.Account, v.flags)
+	}
 	s.svc.SendOperNews(c.uid)
 }
 
@@ -116,8 +114,9 @@ func (s *Server) deoper(c *Client, why string) {
 	if u == nil || !c.isOper() && !u.Modes['o'] {
 		return
 	}
-	c.operFlags, c.operTitle, c.operAccount = "", "", 0
+	c.operFlags, c.operTitle, c.operAccount, c.operSwhois, c.operClass = "", "", 0, nil, ""
 	delete(s.opers, c)
+	s.showOperVhost(c, "")
 	s.emit(&state.UserMode{UID: u.UID, Changes: umodes(false, "os")})
 	if why != "" {
 		s.notice(c, "*** "+why)
@@ -140,6 +139,8 @@ func (s *Server) recheckOpers(id int64) {
 		switch {
 		case o == nil:
 			s.deoper(c, "Your oper entry was removed, so you are no longer an operator.")
+		case o.Disabled != "":
+			s.deoper(c, "Your oper entry was disabled ("+o.Disabled+"), so you are no longer an operator.")
 		case !operHostOK(o, c.user):
 			s.deoper(c, "Your oper entry no longer covers your host, so you are no longer an operator.")
 		default:
@@ -203,6 +204,11 @@ func (s *Server) cmdOper(c *Client, m irc.Message) {
 	if o == nil || !operHostOK(o, u) {
 		s.reply(c, irc.ErrNoOperHost, "No oper entry for you from this host")
 		s.snotice("Failed /oper as %s from %s (%s@%s): no matching oper entry", name, u.Nick, u.Ident, u.RealHost)
+		return
+	}
+	if o.Disabled != "" {
+		s.reply(c, irc.ErrNoOperHost, "Your oper entry is disabled: "+o.Disabled)
+		s.snotice("Failed /oper as %s from %s (%s@%s): entry disabled", o.Account, u.Nick, u.TrueIdent(), u.RealHost)
 		return
 	}
 	if o.PassHash == "" {

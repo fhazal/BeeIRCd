@@ -87,11 +87,10 @@ func (s *Server) cmdWhois(c *Client, m irc.Message) {
 		if u.Service {
 			s.reply(c, irc.RplWhoisOperator, u.Nick, "is a Network Service")
 		} else if tc := s.clientOf(u); tc != nil && tc.isOper() {
-			text := "is an IRC Operator"
-			if tc.operTitle != "" {
-				text += " (" + tc.operTitle + ")"
+			s.reply(c, irc.RplWhoisOperator, u.Nick, whoisOperText(tc.operTitle))
+			for _, line := range tc.operSwhois {
+				s.reply(c, irc.RplWhoisSpecial, u.Nick, line)
 			}
-			s.reply(c, irc.RplWhoisOperator, u.Nick, text)
 		}
 		if u.Account != "" {
 			s.reply(c, irc.RplWhoisAccount, u.Nick, u.Account, "is logged in as")

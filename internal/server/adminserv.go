@@ -34,8 +34,15 @@ func adminCommands() map[string]adminCmd {
 			"MOTD SHOW            the MOTD with line numbers\nMOTD SET <text>      replace it with one line\nMOTD ADD <text>      add a line at the end\nMOTD DEL <number>    remove a line\nMOTD CLEAR           empty it", asMotd},
 		"PORT": {"PORT ADD|DEL|LIST [port] [TLS]", "open or close a port",
 			"PORT LIST\nPORT ADD <port> [TLS]   opens it now, on the same address as the first port\nPORT ADD <address:port> [TLS]\nPORT DEL <port|address:port>\nPeople already connected through a closed port stay connected.", asPort},
-		"OPER": {"OPER LIST | OPER <nick> ADD|SET|DEL ...", "who is an IRC operator",
-			"OPER LIST\nOPER <nick> ADD FLAGS <letters> HOST <mask> [PASSWORD <password>] [TITLE <text>]\nOPER <nick> SET FLAGS <letters>\nOPER <nick> SET HOST <mask> [mask ...]\nOPER <nick> SET PASSWORD <password>\nOPER <nick> SET TITLE <text>|OFF\nOPER <nick> DEL\nFlags: a admin, c links, g global, h hosts, k kill, s services.\nThe nick must be registered. Opers oper up with /oper <nick> <oper password>\nfrom a matching host; the oper password is their own, not the NickServ one.\nYou can only give flags you have.\nExample: /as oper ember add flags ghks host *@192.168.50.* password Hive-2026", asOper},
+		"OPER": {"OPER LIST | OPER <nick> ADD|SET|DEL|DISABLE|ENABLE ...", "who is an IRC operator",
+			"OPER LIST\nOPER <nick> ADD CLASS <class>|FLAGS <letters> HOST <mask> [PASSWORD <password>] [TITLE <text>]\nOPER <nick> SET CLASS <class>|OFF\nOPER <nick> SET FLAGS <letters>|OFF   flags on top of the class\nOPER <nick> SET HOST <mask> [mask ...]   globs or CIDR, like *@192.168.50.0/24\nOPER <nick> SET PASSWORD <password>\nOPER <nick> SET TITLE|VHOST <text>|OFF   instead of the class's\nOPER <nick> SET SWHOIS <line> [| <line> ...]|OFF\nOPER <nick> DISABLE [reason]   keep the entry, refuse /oper\nOPER <nick> ENABLE\nOPER <nick> DEL\nClasses: /as class list (helper, globop, admin, netadmin are built in).\nFlags: a admin, c links, g global, h hosts, k kill, s services.\nThe nick must be registered. Opers oper up with /oper <nick> <oper password>\nfrom a matching host; the oper password is their own, not the NickServ one.\nYou can only give flags (and classes) you have.\nExample: /as oper ember add class globop host *@192.168.50.* password Hive-2026", asOper},
+		"CLASS": {"CLASS LIST | CLASS <name> ADD|SET|DEL ...", "oper classes",
+			"CLASS LIST\nCLASS <name> ADD FLAGS <letters>\nCLASS <name> SET FLAGS <letters>\nCLASS <name> SET TITLE <text>|OFF   WHOIS line, like: is a Network Administrator\nCLASS <name> SET VHOST <host>|OFF   shown host at /oper, like staff.example.org\nCLASS <name> SET SWHOIS <line> [| <line> ...]|OFF\nCLASS <name> DEL   a built-in class goes back to its defaults\nClasses are saved as [[operclass]] blocks in beeircd.conf.", asClass},
+		"HISTORY": {"HISTORY [count]", "the changes AdminServ made",
+			"Lists the latest changes made with AdminServ (settings, MOTD, ports, opers,\nclasses), newest first. The last 200 are kept.", asHistory},
+		"DIFF": {"DIFF <number>", "one change, before and after", "Shows what change <number> (from HISTORY) was before and after.", asDiff},
+		"UNDO": {"UNDO <number>", "put a change back",
+			"Puts back how things were before change <number> (from HISTORY): settings,\nthe MOTD, classes and oper entries. Ports are changed back with PORT ADD/DEL,\npasswords with a new one. The undo is itself a change in the history.", asUndo},
 		"DNSBL": {"DNSBL LIST | CHECK <ip> | ENABLE|DISABLE <name>", "the DNS blocklists",
 			"DNSBL LIST              the [[dnsbl]] lists of beeircd.conf, with their hits\nDNSBL CHECK <ip>        look an IP up in every list now, with its answers\nDNSBL DISABLE <name>    stop using a list until the server restarts\nDNSBL ENABLE <name>     use it again\nNew connections are looked up when they connect; LAN IPs, ELINEs and session\nexceptions are skipped. Each list says what a hit does: reject (refuse the\nconnection), or a zline, akill or shun for its ban_time.", asDnsbl},
 		"SERVER": {"SERVER ...", "linked servers (Stage 2)", "Linking BeeIRCd servers comes in Stage 2.", asServer},
@@ -270,6 +277,7 @@ func (s *Server) applySetting(c *Client, sv *state.User, name, value string) {
 		st.after(s, old)
 	}
 	now := st.get(s.cfg)
+	s.record(c, "set", st.name, old, now)
 	s.audit(c, sv, "SET %s %s (was %s)", st.name, now, old)
 	s.svc.LogAdmin(c.uid, sv, fmt.Sprintf("to change the configuration value of %s:%s to %s", st.table, st.key, now)) // os_config
 	s.botReply(c, sv, fmt.Sprintf("%s is now %s (was %s). Saved to %s.", st.name, now, old, filepath.Base(s.cfg.Path)))
@@ -310,7 +318,8 @@ func asSet(s *Server, c *Client, args []string) {
 
 func asMotd(s *Server, c *Client, args []string) {
 	sub := strings.ToUpper(argAt(args, 0))
-	lines := s.cfg.MOTDLines()
+	lines := append([]string(nil), s.cfg.MOTDLines()...)
+	before := strings.Join(lines, "\n")
 	text := strings.Join(args[min(1, len(args)):], " ")
 	switch sub {
 	case "SHOW", "":
@@ -358,6 +367,7 @@ func asMotd(s *Server, c *Client, args []string) {
 		return
 	}
 	s.audit(c, s.adminServ, "MOTD %s", strings.TrimSpace(sub+" "+text))
+	s.record(c, "motd", "motd", before, strings.Join(lines, "\n"))
 	s.svc.LogAdmin(c.uid, s.adminServ, strings.TrimSpace(sub+" "+text))
 	s.as(c, "The MOTD has %s now. See it: /motd", plural(len(lines), "line"))
 }
@@ -500,6 +510,7 @@ func asPort(s *Server, c *Client, args []string) {
 			kind = "TLS"
 		}
 		s.audit(c, s.adminServ, "PORT ADD %s %s", addr, kind)
+		s.record(c, "port", "ADD "+addr+" "+kind, "", addr+" "+kind)
 		s.svc.LogAdmin(c.uid, s.adminServ, "ADD "+addr+" "+kind)
 		s.as(c, "%s is open (%s) and saved.", addr, kind)
 	case "DEL":
@@ -547,6 +558,7 @@ func asPort(s *Server, c *Client, args []string) {
 		l.Close()
 		s.cfg.Listen = fresh.Listen
 		s.audit(c, s.adminServ, "PORT DEL %s", l.addr)
+		s.record(c, "port", "DEL "+l.addr, l.addr, "")
 		s.svc.LogAdmin(c.uid, s.adminServ, "DEL "+l.addr)
 		s.as(c, "%s is closed and saved. People connected through it stay.", l.addr)
 	default:
@@ -630,8 +642,12 @@ func asOper(s *Server, c *Client, args []string) {
 		s.dbErr(c, s.adminServ, err)
 		return
 	}
+	before := encodeOper(cur)
 	// flagsOK checks that c only gives flags it has itself.
 	flagsOK := func(raw string) (string, bool) {
+		if strings.EqualFold(raw, "OFF") || raw == "-" {
+			return "", true
+		}
 		flags, bad := cleanFlags(strings.TrimPrefix(raw, "+"))
 		switch {
 		case bad != 0:
@@ -649,16 +665,68 @@ func asOper(s *Server, c *Client, args []string) {
 		}
 		return flags, true
 	}
+	// classOK checks a class exists and c has all of its flags.
+	classOK := func(name string) (string, bool) {
+		oc, ok := s.cfg.Class(name)
+		if !ok {
+			s.as(c, "There is no class %s. See them: /as class list", name)
+			return "", false
+		}
+		for i := 0; i < len(oc.Flags); i++ {
+			if !c.can(oc.Flags[i]) {
+				s.as(c, "You can't give class %s: it has flag %c and you don't.", oc.Name, oc.Flags[i])
+				return "", false
+			}
+		}
+		return oc.Name, true
+	}
 	switch strings.ToUpper(args[1]) {
+	case "DISABLE", "ENABLE":
+		if cur == nil {
+			s.as(c, "%s isn't an oper.", a.Name)
+			return
+		}
+		if strings.EqualFold(args[1], "DISABLE") {
+			cur.Disabled = irc.Truncate(strings.Join(args[2:], " "), 100)
+			if cur.Disabled == "" {
+				cur.Disabled = "disabled by " + c.user.Nick
+			}
+			cur.DisabledBy = c.user.Nick
+		} else {
+			if cur.Disabled == "" {
+				s.as(c, "%s isn't disabled.", a.Name)
+				return
+			}
+			cur.Disabled, cur.DisabledBy = "", ""
+		}
+		if err := s.store.SaveOper(cur); err != nil {
+			s.dbErr(c, s.adminServ, err)
+			return
+		}
+		verb := strings.ToUpper(args[1])
+		s.record(c, "oper", a.Name, before, encodeOper(cur))
+		s.audit(c, s.adminServ, "OPER %s %s", a.Name, verb)
+		s.svc.LogAdmin(c.uid, s.adminServ, strings.ToLower(verb)+" "+a.Name)
+		s.recheckOpers(a.ID)
+		if cur.Disabled != "" {
+			s.as(c, "%s may not /oper now (%s). Undo: /as oper %s enable", a.Name, cur.Disabled, a.Name)
+		} else {
+			s.as(c, "%s may /oper again.", a.Name)
+		}
 	case "ADD":
 		if cur != nil {
 			s.as(c, "%s is an oper already (%s). Change it: /as oper %s set flags <letters>", a.Name, cur.Flags, a.Name)
 			return
 		}
-		var flagArg, title, pass string
+		var flagArg, classArg, title, pass string
 		var hostArgs []string
 		for i := 2; i < len(args); i++ {
 			switch strings.ToUpper(args[i]) {
+			case "CLASS":
+				if i+1 < len(args) {
+					classArg = args[i+1]
+					i++
+				}
 			case "FLAGS":
 				if i+1 < len(args) {
 					flagArg = args[i+1]
@@ -670,7 +738,7 @@ func asOper(s *Server, c *Client, args []string) {
 					i++
 				}
 			case "HOST":
-				for i+1 < len(args) && !strings.EqualFold(args[i+1], "TITLE") && !strings.EqualFold(args[i+1], "FLAGS") && !strings.EqualFold(args[i+1], "PASSWORD") {
+				for i+1 < len(args) && !strings.EqualFold(args[i+1], "TITLE") && !strings.EqualFold(args[i+1], "FLAGS") && !strings.EqualFold(args[i+1], "PASSWORD") && !strings.EqualFold(args[i+1], "CLASS") {
 					hostArgs = append(hostArgs, args[i+1])
 					i++
 				}
@@ -679,35 +747,57 @@ func asOper(s *Server, c *Client, args []string) {
 				i = len(args)
 			}
 		}
-		if flagArg == "" || len(hostArgs) == 0 {
-			s.as(c, "Syntax: OPER <nick> ADD FLAGS <letters> HOST <mask> [PASSWORD <password>] [TITLE <text>]")
+		if flagArg == "" && classArg == "" || len(hostArgs) == 0 {
+			s.as(c, "Syntax: OPER <nick> ADD CLASS <class>|FLAGS <letters> HOST <mask> [PASSWORD <password>] [TITLE <text>]")
 			return
+		}
+		class := ""
+		if classArg != "" {
+			var ok bool
+			if class, ok = classOK(classArg); !ok {
+				return
+			}
 		}
 		if pass != "" && len(pass) < minOperPassword {
 			s.as(c, "An oper password needs at least %d characters.", minOperPassword)
 			return
 		}
-		flags, ok := flagsOK(flagArg)
-		if !ok {
-			return
+		flags := ""
+		if flagArg != "" {
+			var ok bool
+			if flags, ok = flagsOK(flagArg); !ok {
+				return
+			}
 		}
 		hosts, ok := operMasks(hostArgs)
 		if !ok {
 			s.as(c, "A host mask looks like *@192.168.50.* or ~ember@*.example.net (up to 20).")
 			return
 		}
-		o := &store.Oper{AccountID: a.ID, Account: a.Name, Flags: flags, Title: irc.Truncate(title, 50), Hosts: hosts, AddedBy: c.user.Nick, AddedAt: time.Now()}
+		o := &store.Oper{AccountID: a.ID, Account: a.Name, Class: class, Flags: flags, Title: irc.Truncate(title, 50), Hosts: hosts, AddedBy: c.user.Nick, AddedAt: time.Now()}
 		finish := func() {
 			if err := s.store.SaveOper(o); err != nil {
 				s.dbErr(c, s.adminServ, err)
 				return
 			}
-			s.audit(c, s.adminServ, "OPER %s ADD flags %s hosts %s", a.Name, flags, strings.Join(hosts, " "))
+			audited := ""
+			if class != "" {
+				audited += "class " + class + " "
+			}
+			if flags != "" {
+				audited += "flags " + flags + " "
+			}
+			s.audit(c, s.adminServ, "OPER %s ADD %shosts %s", a.Name, audited, strings.Join(hosts, " "))
+			s.record(c, "oper", a.Name, "", encodeOper(o))
 			s.svc.LogAdmin(c.uid, s.adminServ, "ADD "+a.Name+" with flags "+flags) // os_oper
+			what := describeFlags(s.viewOf(o).flags)
+			if class != "" {
+				what = "class " + class + ", " + what
+			}
 			if o.PassHash == "" {
-				s.as(c, "%s is an oper now: %s, from %s. Set their oper password: /as oper %s set password <password>", a.Name, describeFlags(flags), strings.Join(hosts, " "), a.Name)
+				s.as(c, "%s is an oper now: %s, from %s. Set their oper password: /as oper %s set password <password>", a.Name, what, strings.Join(hosts, " "), a.Name)
 			} else {
-				s.as(c, "%s is an oper now: %s, from %s. They oper up with /oper %s <password>", a.Name, describeFlags(flags), strings.Join(hosts, " "), a.Name)
+				s.as(c, "%s is an oper now: %s, from %s. They oper up with /oper %s <password>", a.Name, what, strings.Join(hosts, " "), a.Name)
 			}
 		}
 		if pass == "" {
@@ -720,12 +810,12 @@ func asOper(s *Server, c *Client, args []string) {
 		})
 	case "SET":
 		if cur == nil {
-			s.as(c, "%s isn't an oper. Add them: /as oper %s add flags <letters> host <mask>", a.Name, a.Name)
+			s.as(c, "%s isn't an oper. Add them: /as oper %s add class <class> host <mask>", a.Name, a.Name)
 			return
 		}
 		what, rest := strings.ToUpper(argAt(args, 2)), args[min(3, len(args)):]
 		if len(rest) == 0 {
-			s.as(c, "Syntax: OPER <nick> SET FLAGS|HOST|PASSWORD|TITLE <value>")
+			s.as(c, "Syntax: OPER <nick> SET CLASS|FLAGS|HOST|PASSWORD|TITLE|VHOST|SWHOIS <value>")
 			return
 		}
 		if what == "PASSWORD" {
@@ -745,16 +835,54 @@ func asOper(s *Server, c *Client, args []string) {
 					return
 				}
 				s.svc.ClearLockout(operLockKey(a.ID))
+				s.record(c, "oper", a.Name, "password", "password")
 				s.audit(c, s.adminServ, "OPER %s SET PASSWORD", a.Name)
 				s.svc.LogAdmin(c.uid, s.adminServ, "to change the oper password of "+a.Name)
 				s.as(c, "%s has a new oper password.", a.Name)
 			})
 			return
 		}
+		val := strings.Join(rest, " ")
 		switch what {
+		case "CLASS":
+			if strings.EqualFold(val, "OFF") {
+				if cur.Flags == "" {
+					s.as(c, "Give %s flags first (/as oper %s set flags <letters>), or another class.", a.Name, a.Name)
+					return
+				}
+				cur.Class = ""
+			} else {
+				class, ok := classOK(val)
+				if !ok {
+					return
+				}
+				cur.Class = class
+			}
+		case "VHOST":
+			if strings.EqualFold(val, "OFF") {
+				cur.Vhost = ""
+			} else if !s.validOperVhost(val) {
+				s.as(c, "A vhost is a hostname like staff.example.org.")
+				return
+			} else {
+				cur.Vhost = val
+			}
+		case "SWHOIS":
+			if strings.EqualFold(val, "OFF") {
+				cur.Swhois = nil
+			} else if lines, ok := splitSwhois(val); ok {
+				cur.Swhois = lines
+			} else {
+				s.as(c, "Up to 5 swhois lines of 100 characters, split with |.")
+				return
+			}
 		case "FLAGS":
 			flags, ok := flagsOK(rest[0])
 			if !ok {
+				return
+			}
+			if flags == "" && cur.Class == "" {
+				s.as(c, "Without a class, %s needs flags.", a.Name)
 				return
 			}
 			for i := 0; i < len(cur.Flags); i++ {
@@ -777,7 +905,7 @@ func asOper(s *Server, c *Client, args []string) {
 				cur.Title = ""
 			}
 		default:
-			s.as(c, "Syntax: OPER <nick> SET FLAGS|HOST|PASSWORD|TITLE <value>")
+			s.as(c, "Syntax: OPER <nick> SET CLASS|FLAGS|HOST|PASSWORD|TITLE|VHOST|SWHOIS <value>")
 			return
 		}
 		if err := s.store.SaveOper(cur); err != nil {
@@ -785,18 +913,30 @@ func asOper(s *Server, c *Client, args []string) {
 			return
 		}
 		s.audit(c, s.adminServ, "OPER %s SET %s %s", a.Name, what, strings.Join(rest, " "))
+		s.record(c, "oper", a.Name, before, encodeOper(cur))
 		s.svc.LogAdmin(c.uid, s.adminServ, "to change the "+strings.ToLower(what)+" of "+a.Name+" to "+strings.Join(rest, " "))
 		s.recheckOpers(a.ID)
-		s.as(c, "%s: flags %s, hosts %s, title %s.", a.Name, cur.Flags, strings.Join(cur.Hosts, " "), orNone(cur.Title))
+		v := s.viewOf(cur)
+		reply := a.Name + ": "
+		if cur.Class != "" {
+			reply += "class " + cur.Class + ", "
+		}
+		reply += "flags " + orNone(v.flags) + ", hosts " + strings.Join(cur.Hosts, " ") + ", title " + orNone(v.title)
+		if v.vhost != "" {
+			reply += ", vhost " + v.vhost
+		}
+		s.as(c, "%s.", reply)
 	case "DEL":
 		if cur == nil {
 			s.as(c, "%s isn't an oper.", a.Name)
 			return
 		}
-		for i := 0; i < len(cur.Flags); i++ {
-			if !c.can(cur.Flags[i]) {
-				s.as(c, "You can't remove %s: they have flag %c and you don't.", a.Name, cur.Flags[i])
-				return
+		if eff := s.viewOf(cur).flags; true {
+			for i := 0; i < len(eff); i++ {
+				if !c.can(eff[i]) {
+					s.as(c, "You can't remove %s: they have flag %c and you don't.", a.Name, eff[i])
+					return
+				}
 			}
 		}
 		if _, err := s.store.DeleteOper(a.ID); err != nil {
@@ -804,11 +944,12 @@ func asOper(s *Server, c *Client, args []string) {
 			return
 		}
 		s.audit(c, s.adminServ, "OPER %s DEL", a.Name)
+		s.record(c, "oper", a.Name, before, "")
 		s.svc.LogAdmin(c.uid, s.adminServ, "DEL "+a.Name) // os_oper
 		s.recheckOpers(a.ID)
 		s.as(c, "%s is no longer an oper.", a.Name)
 	default:
-		s.as(c, "Syntax: OPER LIST | OPER <nick> ADD|SET|DEL ... (/as help oper)")
+		s.as(c, "Syntax: OPER LIST | OPER <nick> ADD|SET|DEL|DISABLE|ENABLE ... (/as help oper)")
 	}
 }
 
@@ -841,13 +982,21 @@ func asOperList(s *Server, c *Client) {
 		}
 		return "no"
 	}
-	s.as(c, "  %-*s  %-6s  %-6s  %-8s  %s", width, "Nick", "Flags", "Online", "Password", "Hosts")
+	s.as(c, "  %-*s  %-10s  %-6s  %-6s  %-8s  %s", width, "Nick", "Class", "Flags", "Online", "Password", "Hosts")
 	if admin := s.cfg.Services.Admin; admin != "" {
 		a, _ := s.store.AccountByNick(admin)
-		s.as(c, "  %-*s  %-6s  %-6s  %-8s  %s", width, admin, allFlags, yesNo(a != nil && online[a.ID]), yesNo(s.cfg.Services.AdminPassword != ""), "any (server admin from beeircd.conf)")
+		where := "any (server admin from beeircd.conf)"
+		if len(s.cfg.Services.AdminHosts) > 0 {
+			where = strings.Join(s.adminHosts(), " ") + " (server admin from beeircd.conf)"
+		}
+		s.as(c, "  %-*s  %-10s  %-6s  %-6s  %-8s  %s", width, admin, "netadmin", allFlags, yesNo(a != nil && online[a.ID]), yesNo(s.cfg.Services.AdminPassword != ""), where)
 	}
 	for _, o := range list {
-		s.as(c, "  %-*s  %-6s  %-6s  %-8s  %s", width, o.Account, o.Flags, yesNo(online[o.AccountID]), yesNo(o.PassHash != ""), strings.Join(o.Hosts, " "))
+		hosts := strings.Join(o.Hosts, " ")
+		if o.Disabled != "" {
+			hosts += "  DISABLED: " + o.Disabled
+		}
+		s.as(c, "  %-*s  %-10s  %-6s  %-6s  %-8s  %s", width, o.Account, describeClass(o), orNone(s.viewOf(&o).flags), yesNo(online[o.AccountID]), yesNo(o.PassHash != ""), hosts)
 	}
 	n := len(list)
 	if s.cfg.Services.Admin != "" {
