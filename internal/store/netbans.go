@@ -121,26 +121,45 @@ func (s *Store) DelNetBan(kind, mask string) (bool, error) {
 	return s.affected("DELETE FROM netbans WHERE kind = ? AND mask = ?", kind, mask)
 }
 
+// Expired is something PurgeExpired removed.
+type Expired struct {
+	What string // "netban", "forbid" or "exception"
+	Kind string // ban kind (BanAkill, ...) or forbid kind; "" for exceptions
+	Mask string
+}
+
 // PurgeExpired removes network bans, forbids and session exceptions that
-// ran out before now and returns what went, like "AKILL on *@1.2.3.4".
-func (s *Store) PurgeExpired(now time.Time) ([]string, error) {
-	var gone []string
-	for _, q := range []struct{ sel, del string }{
-		{"SELECT upper(kind) || ' on ' || mask FROM netbans WHERE expires > 0 AND expires <= ?", "DELETE FROM netbans WHERE expires > 0 AND expires <= ?"},
-		{"SELECT 'FORBID ' || upper(kind) || ' on ' || name FROM forbids WHERE expires > 0 AND expires <= ?", "DELETE FROM forbids WHERE expires > 0 AND expires <= ?"},
-		{"SELECT 'EXCEPTION on ' || mask FROM session_excepts WHERE expires > 0 AND expires <= ?", "DELETE FROM session_excepts WHERE expires > 0 AND expires <= ?"},
+// ran out before now and returns what went.
+func (s *Store) PurgeExpired(now time.Time) ([]Expired, error) {
+	var gone []Expired
+	for _, q := range []struct{ what, sel, del string }{
+		{"netban", "SELECT kind, mask FROM netbans WHERE expires > 0 AND expires <= ?", "DELETE FROM netbans WHERE expires > 0 AND expires <= ?"},
+		{"forbid", "SELECT kind, name FROM forbids WHERE expires > 0 AND expires <= ?", "DELETE FROM forbids WHERE expires > 0 AND expires <= ?"},
+		{"exception", "SELECT '', mask FROM session_excepts WHERE expires > 0 AND expires <= ?", "DELETE FROM session_excepts WHERE expires > 0 AND expires <= ?"},
 	} {
-		list, err := s.strings(q.sel, now.Unix())
+		rows, err := s.db.Query(q.sel, now.Unix())
 		if err != nil {
 			return gone, err
 		}
-		if len(list) == 0 {
+		n := len(gone)
+		for rows.Next() {
+			e := Expired{What: q.what}
+			if err := rows.Scan(&e.Kind, &e.Mask); err != nil {
+				rows.Close()
+				return gone, err
+			}
+			gone = append(gone, e)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return gone, err
+		}
+		if len(gone) == n {
 			continue
 		}
 		if _, err := s.db.Exec(q.del, now.Unix()); err != nil {
 			return gone, err
 		}
-		gone = append(gone, list...)
 	}
 	return gone, nil
 }

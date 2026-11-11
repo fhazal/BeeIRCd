@@ -131,6 +131,7 @@ func (s *Services) csChan(c *Client, name string, need int) (*store.Channel, int
 		switch {
 		case c.accountID == 0:
 			s.cs(c, "Identify first: /ns identify <password>")
+			s.logDeniedUnreg(c, s.chanServ)
 			return nil, 0, false
 		case lvl < need && need == store.LevelFounder:
 			s.cs(c, "Only the founder of %s can do that.", reg.Name)
@@ -162,6 +163,7 @@ func csRegister(s *Services, c *Client, args []string) {
 	name := argAt(args, 0)
 	if c.accountID == 0 {
 		s.cs(c, "Identify first: /ns identify <password>")
+		s.logDeniedUnreg(c, s.chanServ)
 		return
 	}
 	if !irc.IsChannel(name) {
@@ -215,6 +217,7 @@ func csRegister(s *Services, c *Client, args []string) {
 	}
 	s.log.Printf("registered channel %s to %s", reg.Name, a.Name)
 	s.cs(c, "%s is registered to %s. You are its Founder.", reg.Name, a.Name)
+	s.csLog(c, reg.Name, false, "")
 	s.csMode(live, mlockChanges(reg, live))
 	s.csAutoModes(reg, live, u)
 }
@@ -242,6 +245,7 @@ func csDrop(s *Services, c *Client, args []string) {
 		return
 	}
 	s.channelGone(reg.Name)
+	s.csLog(c, reg.Name, asOper, "(founder was: %s)", orNone(reg.Founder))
 	s.log.Printf("dropped channel %s (by %s)", reg.Name, c.user.Nick)
 	if asOper {
 		s.audit(c, s.chanServ, "DROP %s (founder %s)", reg.Name, reg.Founder)
@@ -371,6 +375,7 @@ func csLevelList(level int) func(*Services, *Client, []string) {
 				s.dbErr(c, s.chanServ, err)
 				return
 			}
+			s.csLog(c, reg.Name, false, "to add %s", target.Name)
 			if old == store.LevelNone {
 				s.csUsed(c, reg)
 				s.cs(c, "%s added to the %s list of %s.", target.Name, n, reg.Name)
@@ -417,6 +422,7 @@ func csLevelList(level int) func(*Services, *Client, []string) {
 				return
 			}
 			s.csUsed(c, reg)
+			s.csLog(c, reg.Name, false, "to clear the access list")
 			s.cs(c, "The %s list of %s is now empty (%d removed).", n, reg.Name, removed)
 		default:
 			s.cs(c, "Syntax: %s #chan ADD|DEL|LIST|CLEAR [nick]", n)
@@ -500,6 +506,11 @@ func csAkick(s *Services, c *Client, args []string) {
 			return
 		}
 		s.csUsed(c, reg)
+		if given := strings.Join(args[3:], " "); given != "" {
+			s.csLog(c, reg.Name, false, "to add %s: %s", mask, given)
+		} else {
+			s.csLog(c, reg.Name, false, "to add %s", mask)
+		}
 		s.cs(c, "Added %s to the AKICK list of %s.", mask, reg.Name)
 		s.akickEnforce(reg, []store.Akick{{Mask: mask, Reason: reason}})
 	case sub == "DEL":
@@ -528,10 +539,14 @@ func csAkick(s *Services, c *Client, args []string) {
 			return
 		}
 		s.csUsed(c, reg)
+		for _, m := range removed {
+			s.csLog(c, reg.Name, false, "to delete %s", m)
+		}
 		s.cs(c, "Removed %s from the AKICK list of %s.", strings.Join(removed, ", "), reg.Name)
 	case sub == "ENFORCE":
 		n := s.akickEnforce(reg, list)
 		s.csUsed(c, reg)
+		s.csLog(c, reg.Name, false, "ENFORCE, affects %d users", n)
 		s.cs(c, "AKICK enforced on %s: %s.", reg.Name, plural(n, "person")+" kicked")
 	case sub == "CLEAR":
 		for _, k := range list {
@@ -541,6 +556,7 @@ func csAkick(s *Services, c *Client, args []string) {
 			}
 		}
 		s.csUsed(c, reg)
+		s.csLog(c, reg.Name, false, "to clear the akick list")
 		s.cs(c, "The AKICK list of %s is now empty (%d removed).", reg.Name, len(list))
 	default:
 		s.cs(c, "Syntax: AKICK #chan ADD|DEL|LIST|VIEW|ENFORCE|CLEAR ...")
@@ -653,6 +669,7 @@ func csModeCmd(mode byte, add bool) func(*Services, *Client, []string) {
 			return
 		}
 		s.csUsed(c, reg)
+		s.csLog(c, reg.Name, false, "on %s", t.Nick)
 		s.csMode(live, []modeChange{{add, mode, t.Nick}})
 	}
 }
@@ -683,6 +700,7 @@ func csKick(s *Services, c *Client, args []string) {
 		reason = "Requested"
 	}
 	s.csUsed(c, reg)
+	s.csLog(c, reg.Name, false, "for %s", t.Nick)
 	s.csKickUser(live, t, s.signed(reg, c, lvl, reason))
 }
 
@@ -784,6 +802,7 @@ func csBan(s *Services, c *Client, args []string) {
 		reason = s.signed(reg, c, lvl, strings.Join(args[2:], " "))
 	}
 	s.csUsed(c, reg)
+	s.csLog(c, reg.Name, false, "for %s", mask)
 	s.csMode(live, []modeChange{{true, 'b', mask}})
 	for _, m := range live.SortedMembers() {
 		if !m.User.Service && matchesMask(mask, m.User) && s.userLevel(reg, m.User) < lvl {
@@ -829,6 +848,11 @@ func csUnban(s *Services, c *Client, args []string) {
 		return
 	}
 	s.csUsed(c, reg)
+	if who != nil {
+		s.csLog(c, reg.Name, false, "to unban %s", who.Nick)
+	} else {
+		s.csLog(c, reg.Name, false, "to unban %s", arg)
+	}
 	s.csMode(live, lift)
 	s.cs(c, "%s removed in %s.", plural(len(lift), "ban"), reg.Name)
 }
@@ -856,6 +880,11 @@ func csInvite(s *Services, c *Client, args []string) {
 		s.cs(c, "%s is in %s already.", who.Nick, reg.Name)
 	default:
 		s.csUsed(c, reg)
+		if who != c.user {
+			s.csLog(c, reg.Name, false, "for %s", who.Nick)
+		} else {
+			s.csLog(c, reg.Name, false, "")
+		}
 		s.emit(&state.Invite{Source: s.chanServ.user.UID, UID: who.UID, Channel: live.Name})
 		if who != c.user {
 			s.cs(c, "%s is invited to %s.", who.Nick, reg.Name)
@@ -868,6 +897,7 @@ func csGetKey(s *Services, c *Client, args []string) {
 	if !ok {
 		return
 	}
+	s.csLog(c, reg.Name, false, "")
 	if live := s.net.Channel(reg.Name); live != nil && live.HasMode('k') {
 		s.csUsed(c, reg)
 		s.cs(c, "The key of %s is %s", reg.Name, live.Key)
@@ -912,16 +942,24 @@ func csSet(s *Services, c *Client, args []string) {
 		return
 	}
 	val := strings.Join(args[min(2, len(args)):], " ")
+	// logText is Anope's log text for the change save makes (cs_set.cpp).
+	logText := ""
 	save := func(format string, a ...any) bool {
 		if err := s.store.SaveChannel(reg); err != nil {
 			s.dbErr(c, s.chanServ, err)
 			return false
 		}
 		s.csUsed(c, reg)
+		if what == "NOEXPIRE" {
+			s.csLogAdmin(c, reg.Name, "%s", logText)
+		} else {
+			s.csLog(c, reg.Name, asOper, "%s", logText)
+		}
 		s.cs(c, format, a...)
 		return true
 	}
-	toggle := func(field *bool, label string, invert bool) bool {
+	// toggle sets an ON|OFF option; anope is its name in Anope's log text.
+	toggle := func(field *bool, label string, invert bool, anope string) bool {
 		on, ok := onOff(val)
 		if !ok {
 			s.cs(c, "Syntax: SET %s %s ON|OFF", what, reg.Name)
@@ -929,8 +967,10 @@ func csSet(s *Services, c *Client, args []string) {
 		}
 		*field = on != invert
 		word := "off"
+		logText = "to disable " + anope
 		if *field {
 			word = "on"
+			logText = "to enable " + anope
 		}
 		return save("%s is now %s for %s.", label, word, reg.Name)
 	}
@@ -942,9 +982,11 @@ func csSet(s *Services, c *Client, args []string) {
 			return
 		}
 		reg.Description = irc.Truncate(val, 200)
+		logText = "to change the description to " + reg.Description
 		save("The description of %s is now: %s", reg.Name, reg.Description)
 	case "FOUNDER", "SUCCESSOR":
 		if what == "SUCCESSOR" && strings.EqualFold(val, "OFF") {
+			logText = "to change the successor from " + orNoneP(reg.Successor) + " to (none)"
 			reg.SuccessorID, reg.Successor = 0, ""
 			save("%s has no successor now.", reg.Name)
 			return
@@ -963,6 +1005,7 @@ func csSet(s *Services, c *Client, args []string) {
 			return
 		}
 		if what == "SUCCESSOR" {
+			logText = "to change the successor from " + orNoneP(reg.Successor) + " to " + target.Name
 			reg.SuccessorID, reg.Successor = target.ID, target.Name
 			save("%s gets %s if %s's account goes.", target.Name, reg.Name, reg.Founder)
 			return
@@ -972,6 +1015,7 @@ func csSet(s *Services, c *Client, args []string) {
 			return
 		}
 		old := reg.Founder
+		logText = "to change the founder from " + orNoneP(old) + " to " + target.Name
 		reg.FounderID, reg.Founder = target.ID, target.Name
 		if reg.SuccessorID == target.ID {
 			reg.SuccessorID, reg.Successor = 0, ""
@@ -983,27 +1027,27 @@ func csSet(s *Services, c *Client, args []string) {
 	case "MLOCK":
 		s.mlockSet(c, reg, "SET", args[min(2, len(args)):])
 	case "KEEPTOPIC":
-		toggle(&reg.KeepTopic, "Keep topic", false)
+		toggle(&reg.KeepTopic, "Keep topic", false, "keeptopic")
 	case "TOPICLOCK":
-		toggle(&reg.TopicLock, "Topic lock", false)
+		toggle(&reg.TopicLock, "Topic lock", false, "topiclock")
 	case "SECUREOPS", "LEAVEOPS":
-		if toggle(&reg.SecureOps, "Secure ops", what == "LEAVEOPS") && reg.SecureOps && live != nil {
+		if toggle(&reg.SecureOps, "Secure ops", what == "LEAVEOPS", "secure ops") && reg.SecureOps && live != nil {
 			s.csSync(reg)
 		}
 	case "PRIVATE":
-		toggle(&reg.Private, "Private", false)
+		toggle(&reg.Private, "Private", false, "private")
 	case "RESTRICTED":
-		toggle(&reg.Restricted, "Restricted", false)
+		toggle(&reg.Restricted, "Restricted", false, "restricted")
 	case "PEACE":
-		toggle(&reg.Peace, "Peace", false)
+		toggle(&reg.Peace, "Peace", false, "peace")
 	case "SECUREFOUNDER":
-		toggle(&reg.SecureFounder, "Secure founder", false)
+		toggle(&reg.SecureFounder, "Secure founder", false, "secure founder")
 	case "SIGNKICK":
-		toggle(&reg.SignKick, "Sign kick", false)
+		toggle(&reg.SignKick, "Sign kick", false, "sign kick")
 	case "AUTOOP":
-		toggle(&reg.AutoOp, "Auto-op", false)
+		toggle(&reg.AutoOp, "Auto-op", false, "autoop")
 	case "NOEXPIRE":
-		if toggle(&reg.NoExpire, "No expire", false) {
+		if toggle(&reg.NoExpire, "No expire", false, "noexpire") {
 			s.audit(c, s.chanServ, "SET NOEXPIRE %s %s", reg.Name, strings.ToUpper(val))
 		}
 	case "KEEPMODES":
@@ -1012,9 +1056,9 @@ func csSet(s *Services, c *Client, args []string) {
 		if on && live != nil {
 			reg.LastModes = liveModes(live)
 		}
-		toggle(&reg.KeepModes, "Keep modes", false)
+		toggle(&reg.KeepModes, "Keep modes", false, "keep modes")
 	case "PERSIST":
-		if toggle(&reg.Persist, "Persist", false) {
+		if toggle(&reg.Persist, "Persist", false, "persist") {
 			if reg.Persist {
 				s.persistJoin(reg)
 			} else {
@@ -1028,6 +1072,7 @@ func csSet(s *Services, c *Client, args []string) {
 			return
 		}
 		reg.BanType = n
+		logText = "to change the ban type to " + strconv.Itoa(n)
 		save("Bans on %s now look like %s.", reg.Name, banTypes[n])
 	case "ENTRYMSG":
 		switch {
@@ -1039,6 +1084,7 @@ func csSet(s *Services, c *Client, args []string) {
 				return
 			}
 			s.csUsed(c, reg)
+			s.csLog(c, reg.Name, false, "to remove all messages")
 			s.cs(c, "%s has no entry message now.", reg.Name)
 		default:
 			text := irc.Truncate(val, 300)
@@ -1053,6 +1099,7 @@ func csSet(s *Services, c *Client, args []string) {
 				return
 			}
 			s.csUsed(c, reg)
+			s.csLog(c, reg.Name, false, "to add a message")
 			s.cs(c, "The entry message of %s is now: %s", reg.Name, text)
 		}
 	case "URL":
@@ -1061,9 +1108,11 @@ func csSet(s *Services, c *Client, args []string) {
 			s.cs(c, "Syntax: SET URL %s <url>|OFF", reg.Name)
 		case strings.EqualFold(val, "OFF"):
 			reg.URL = ""
+			logText = "to unset it"
 			save("%s has no URL now.", reg.Name)
 		default:
 			reg.URL = irc.Truncate(val, 300)
+			logText = "to change it to " + reg.URL
 			save("The URL of %s is now: %s", reg.Name, reg.URL)
 		}
 	case "MEMOLEVEL":
@@ -1078,6 +1127,7 @@ func csSet(s *Services, c *Client, args []string) {
 			return
 		}
 		s.csUsed(c, reg)
+		s.csLog(c, reg.Name, false, "to set MEMO to level %d", lvl)
 		s.cs(c, "MEMO on %s now needs level %s.", reg.Name, store.LevelName(lvl))
 	case "AUTOVOP":
 		on, ok := onOff(val)
@@ -1094,6 +1144,7 @@ func csSet(s *Services, c *Client, args []string) {
 			s.dbErr(c, s.chanServ, err)
 			return
 		}
+		s.csLog(c, reg.Name, false, "to set AUTOVOICE to level %d", lvl)
 		if on {
 			s.csUsed(c, reg)
 			s.cs(c, "Everyone who joins %s is voiced now (AUTOVOICE 0).", reg.Name)
@@ -1384,6 +1435,7 @@ func csUp(s *Services, c *Client, args []string) {
 	}
 	if c.accountID == 0 {
 		s.cs(c, "Identify first: /ns identify <password>")
+		s.logDeniedUnreg(c, s.chanServ)
 		return
 	}
 	live, _, ok := s.liveTarget(c, reg, c.user.Nick)
@@ -1395,6 +1447,7 @@ func csUp(s *Services, c *Client, args []string) {
 		return
 	}
 	s.csUsed(c, reg)
+	s.csLog(c, reg.Name, false, "to update the status modes of %s", c.user.Nick)
 	s.giveModes(reg, live, c.user)
 }
 
@@ -1415,6 +1468,7 @@ func csDown(s *Services, c *Client, args []string) {
 		}
 	}
 	s.csUsed(c, reg)
+	s.csLog(c, reg.Name, false, "to remove the status modes from %s", c.user.Nick)
 	s.csMode(live, changes)
 }
 
@@ -1441,4 +1495,12 @@ func (s *Services) channelInUse(reg *store.Channel) bool {
 		}
 	}
 	return false
+}
+
+// orNoneP is s, or "(none)" when empty (Anope's founder/successor words).
+func orNoneP(s string) string {
+	if s == "" {
+		return "(none)"
+	}
+	return s
 }

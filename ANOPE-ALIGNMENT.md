@@ -139,27 +139,33 @@ BAN`), CIDR in every IP mask. An SNLINE mask is one word (spaces as ? or
 `\s` in a /regex/), where Anope uses `mask:reason`. Timed channel bans are
 UnrealIRCd's ~t:minutes:mask, so they work without services too.
 
-## Log channel (built 11 Nov 2026, the user asked)
+## Log channel (built 11 Nov 2026, matches Anope 2.0.20)
 
-Like Anope's `log { target = "#services"; commands = "*"; admin = "*";
-users = "connect disconnect nick"; other = "*" }`, set with `[services]
-log_channel` or `/as set log-channel #services`. Lines use Anope's words
-and prefixes, sent by the bot they belong to (as Anope does):
+Follows Anope **2.0.20 stable** exactly (src/logger.cpp and every
+command's Log() call; full mapping in PLAN-anope-logs.md), with the
+owner's config: admin, override, commands, users = connect disconnect
+nick, other; no channel events. Each line comes from the service it
+belongs to (USERS and module lines from Global):
 
-- `COMMAND: nick!ident@host (account) used CMD args → reply` (ADMIN: for
-  OperServ and AdminServ)
-- `USERS: nick!ident@host (vhost) (realname) [ip] connected to the network
-  (server)`, `... disconnected from the network (server) (reason)`, `...
-  changed nick to new` (Global, only with `log-connects on`)
-- `M_SASL: host (ip) identified to account X using SASL PLAIN` (NickServ),
-  and `failed to identify ...` with the reason
-- `EXPIRE:` nicks, channels, suspensions; `FOUNDER:` channel handed on
-- `OPER:` every server notice (opers up/down, failed /oper, kills, ban hits,
-  bans running out), from OperServ
-
-Ours on top: every command shows the bot's first reply after →, so refused
-and failed ones are visible (Anope mostly logs successful ones); quits show
-the reason. Not logged: HELP. Not yet: OVERRIDE (opers using their power on
-channels) and CHANNEL events (join/part/kick/mode; Anope ships them off).
-The bots keep op and +O there and kick non-opers (the lines show real
-hosts). Passwords, drop codes, GETKEY and RESTART/DIE replies are hidden.
+- `COMMAND|ADMIN|OVERRIDE: nick!ident@realhost (account) used NAME [on
+  #chan] text`, only where Anope's command logs, with Anope's text. ADMIN
+  for OperServ and for NickServ changes to someone else's account;
+  OVERRIDE where an oper uses flag s on a channel without access (DROP,
+  SET FOUNDER).
+- `USERS: ... connected to the network (server)`, `... disconnected from
+  the network (server)`, `... changed nick to new`; on by default
+  (`log-connects`).
+- No prefix: `Access denied for unregistered user MASK with command NAME`,
+  `Access denied for user MASK with command NAME` (missing oper flag),
+  `Denied access to OperServ from MASK (non-oper)`, `Expiring nickname X
+  (group: X) (e-mail: E)`, `Expiring channel #c (founder: X)`,
+  `Transferring foundership of #c from deleted nick A to B`, `AKILL on
+  mask has expired` (SQLINE/SNLINE/ZLINE/SHUN alike), `Expiring forbid for
+  X type T`, `Session exception for X has expired.`; `CS_SUSPEND:
+  Expiring suspend for #c`.
+- SASL: Anope 2.0.20 logs only EXTERNAL (`M_SASL:`); BeeIRCd has the line
+  ready for 1.5.6, PLAIN logs nothing.
+- Not logged, as in Anope: INFO, LIST, READ, STATUS, HELP; server notices
+  (kills, ban hits, failed /oper) stay server notices for +s opers.
+- Ours, in Anope's shape: AdminServ (os_config / os_oper / os_shutdown
+  style), ZLINE/SHUN/EXCEPTION BAN (os_sxline style), CS CLEAR.

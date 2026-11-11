@@ -39,7 +39,6 @@ func TestLoad5000(t *testing.T) {
 		cfg.Limits.SessionLimit = clients + 100
 		cfg.Limits.MaxChannels = 20
 		cfg.Services.LogChannel = "#services" // every services command posts a line
-		cfg.Services.LogConnects = true
 	}, func(s *Server) {
 		// 200 accounts with access on the registered channels and a few
 		// AKICKs, so JOIN and NICK have services data to look at.

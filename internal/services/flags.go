@@ -17,5 +17,6 @@ func (s *Services) needFlag(c *Client, sv *service, f byte) bool {
 		return true
 	}
 	s.svcReply(c, sv, fmt.Sprintf("You need oper flag %c (%s) for that.", f, flagNames[f]))
+	s.logDenied(c, sv) // Anope: a command whose permission the oper lacks
 	return false
 }

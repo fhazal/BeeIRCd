@@ -59,9 +59,17 @@ bots, not the server; to be checked. CPU at 5,000 users is 54% against
 (5,000 joining within 5 s) BeeIRCd's lag p99 reaches ~450 ms for a few
 seconds before settling; worth improving with bigger write batches.
 
-Every step runs the small-VPS gate (`/tmp/bench2.sh` on the homelab)
-next to `check.sh`, the race test and the load test. A step that makes a
-gate worse needs a reason.
+When performance work happens (owner's decision, 11 Nov 2026):
+
+| When | What |
+| --- | --- |
+| Every step | Quick alarm only: the load test in `check.sh` and one small-VPS run (`/tmp/bench2.sh bee`, ~2 min). Numbers noted in HANDOFF. A step that is clearly worse (over ~20% slower or bigger than the step before) gets looked at before commit; no tuning otherwise. |
+| End of each stage | One benchmark against InspIRCd, numbers written here. Tuning only if something is badly off. |
+| Final stage before release | Full optimisation: profiling, tuning, every target above. |
+
+Design-level problems (work that grows with the square of the users, a
+syscall per line) are still fixed when the alarm finds them: they get
+harder to remove the more is built on top.
 
 ## Performance history
 

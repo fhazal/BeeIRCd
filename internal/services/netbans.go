@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"net/netip"
 	"regexp"
 	"strings"
@@ -295,6 +296,7 @@ func (s *Services) netBanCommand(c *Client, k banKind, args []string) {
 				s.quit(oc, "Banned: "+b.Reason)
 			}
 		}
+		s.osLog(c, "%s", anopeLineAdd(mask, b.Reason, life, n, people))
 		if k.kind == store.BanEline {
 			s.os(c, "%s added: %s %s (%s). %s online now.", k.name, mask, how, b.Reason, plural(n, "person")+" "+k.hit)
 			return
@@ -342,6 +344,9 @@ func (s *Services) netBanCommand(c *Client, k banKind, args []string) {
 		}
 		s.reloadOperData()
 		s.audit(c, s.operServ, "%s DEL %s", k.name, strings.Join(gone, " "))
+		for _, m := range gone {
+			s.osLog(c, "to remove %s from the list", m)
+		}
 		if len(gone) == 1 {
 			s.os(c, "%s on %s removed.", k.name, gone[0])
 		} else {
@@ -383,6 +388,7 @@ func (s *Services) netBanCommand(c *Client, k banKind, args []string) {
 		n := len(live)
 		s.reloadOperData()
 		s.audit(c, s.operServ, "%s CLEAR (%d)", k.name, n)
+		s.osLog(c, "to CLEAR the list")
 		s.os(c, "Every %s is removed (%d).", k.name, n)
 	default:
 		s.os(c, "Syntax: %s ADD|DEL|LIST|VIEW|CLEAR ... (/os help %s)", k.cmd, strings.ToLower(strings.Fields(k.cmd)[0]))
@@ -427,8 +433,23 @@ func osSQLine(s *Services, c *Client, args []string) {
 		}
 		s.reloadOperData()
 		s.audit(c, s.operServ, "SQLINE CLEAR (%d)", n)
+		s.osLog(c, "to CLEAR the list")
 		s.os(c, "Every SQLINE is removed (%d).", n)
 	default:
 		s.os(c, "Syntax: SQLINE ADD|DEL|LIST|CLEAR ... (/os help sqline)")
 	}
+}
+
+// anopeLineAdd is os_akill/os_sxline's ADD log text: "on MASK (REASON),
+// expires in DURATION [affects N user(s) (P%)]".
+func anopeLineAdd(mask, reason string, life time.Duration, affected, people int) string {
+	expires := "never"
+	if life > 0 {
+		expires = anopeDuration(life)
+	}
+	percent := 0
+	if people > 0 {
+		percent = affected * 100 / people
+	}
+	return fmt.Sprintf("on %s (%s), expires in %s [affects %d user(s) (%d%%)]", mask, reason, expires, affected, percent)
 }

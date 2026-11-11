@@ -482,23 +482,6 @@ func (s *Store) Counts() (accounts, nicks, memos int, err error) {
 	return len(s.c.accounts), len(s.c.nicks), len(s.c.memoOwner), nil
 }
 
-func (s *Store) strings(query string, args ...any) ([]string, error) {
-	rows, err := s.db.Query(query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []string
-	for rows.Next() {
-		var v string
-		if err := rows.Scan(&v); err != nil {
-			return nil, err
-		}
-		out = append(out, v)
-	}
-	return out, rows.Err()
-}
-
 // without returns list minus the items drop matches, reusing no memory
 // callers might still hold.
 func without[T any](list []T, drop func(T) bool) []T {

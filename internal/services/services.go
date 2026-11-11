@@ -115,18 +115,16 @@ func (s *Services) toService(c *Client, sv *service, text string) {
 	}
 	name := strings.ToUpper(fields[0])
 	args := fields[1:]
-	logName := name
-	if real, isAlias := sv.aliases[name]; isAlias {
-		logName = real
-	}
-	s.logStart(c, sv, logName, args)
-	defer s.logDone(c)
+	c.cmdName = name // as typed, like Anope's source.command
 	switch {
 	case sv.need == 'o' && !c.isOper():
 		s.svcReply(c, sv, sv.user.Nick+" is for IRC operators.")
+		// Anope's operserv.cpp: OnBotPrivmsg for non-opers.
+		s.logTo(sv, "Denied access to "+sv.user.Nick+" from "+anopeMask(c.user)+" (non-oper)")
 		return
 	case sv.need == 'a' && !c.can('a'):
 		s.svcReply(c, sv, sv.user.Nick+" is for server admins (oper flag a).")
+		s.logDenied(c, sv)
 		return
 	case sv.alias == "":
 		s.svcReply(c, sv, sv.intro)
@@ -154,7 +152,6 @@ func (s *Services) toService(c *Client, sv *service, text string) {
 
 // svcReply sends a notice from a service.
 func (s *Services) svcReply(c *Client, sv *service, text string) {
-	s.logReply(c, text)
 	s.host.Notice(sv.user.UID, c.user.UID, text)
 }
 
@@ -479,7 +476,7 @@ func (s *Services) expireAccounts(now time.Time) {
 		}
 		s.applyFounderChanges(changes, "founder "+a.Name+" expired")
 		s.log.Printf("expired account %s (last seen %s)", a.Name, a.LastSeen.UTC().Format(time.DateOnly))
-		s.logTo(s.nickServ, "EXPIRE: Expiring nickname "+a.Name+" (last seen "+a.LastSeen.UTC().Format(time.DateOnly)+")")
+		s.logTo(s.nickServ, "Expiring nickname "+a.Name+" (group: "+a.Name+") (e-mail: "+orNone(a.Email)+")")
 	}
 }
 

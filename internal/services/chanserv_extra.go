@@ -39,6 +39,7 @@ func csModeCommand(s *Services, c *Client, args []string) {
 				return
 			}
 			s.csUsed(c, reg)
+			s.csLog(c, reg.Name, false, "to unlock %s", args[3])
 			s.cs(c, "The mode lock of %s is now %s.", reg.Name, mlockString(reg))
 		case "", "LIST":
 			s.cs(c, "The mode lock of %s is %s.", reg.Name, mlockString(reg))
@@ -60,6 +61,7 @@ func csModeCommand(s *Services, c *Client, args []string) {
 			return
 		}
 		s.csUsed(c, reg)
+		s.csLog(c, reg.Name, false, "to set %s", strings.Join(modes, " "))
 		s.host.ApplyChannelModes(c.user.UID, s.chanServ.user.UID, live.Name, modes[0], modes[1:])
 		if live = s.net.Channel(reg.Name); live != nil {
 			s.csMode(live, mlockChanges(reg, live))
@@ -82,6 +84,7 @@ func (s *Services) mlockSet(c *Client, reg *store.Channel, op string, modes []st
 		return
 	}
 	s.csUsed(c, reg)
+	s.csLog(c, reg.Name, false, "to lock %s", strings.Join(modes, " "))
 	s.cs(c, "The mode lock of %s is now %s.", reg.Name, mlockString(reg))
 	if live := s.net.Channel(reg.Name); live != nil {
 		s.csMode(live, mlockChanges(reg, live))
@@ -172,6 +175,7 @@ func (s *Services) modeClear(c *Client, reg *store.Channel, what string) {
 		}
 	}
 	s.csUsed(c, reg)
+	s.csLog(c, reg.Name, false, "to clear %s", strings.ToLower(what))
 	s.csMode(live, changes)
 	if modes {
 		s.csMode(live, mlockChanges(reg, live))
@@ -196,6 +200,11 @@ func csTopic(s *Services, c *Client, args []string) {
 			return
 		}
 		s.csUsed(c, reg)
+		if reg.TopicLock {
+			s.csLog(c, reg.Name, false, "to enable topiclock")
+		} else {
+			s.csLog(c, reg.Name, false, "to disable topiclock")
+		}
 		if reg.TopicLock {
 			s.cs(c, "The topic of %s is locked: only those with TOPIC may change it.", reg.Name)
 		} else {
@@ -239,6 +248,11 @@ func csTopic(s *Services, c *Client, args []string) {
 	}
 	topic = irc.Truncate(topic, s.cfg.Limits.TopicLen)
 	s.csUsed(c, reg)
+	if topic != "" {
+		s.csLog(c, reg.Name, false, "to change the topic to: %s", topic)
+	} else {
+		s.csLog(c, reg.Name, false, "to unset the topic")
+	}
 	s.emit(&state.Topic{Source: s.chanServ.user.UID, Channel: live.Name, Text: topic, By: c.user.Nick, At: time.Now()})
 	s.csSaveTopic(reg, live)
 }
@@ -265,6 +279,7 @@ func csEntryMsg(s *Services, c *Client, args []string) {
 			return
 		}
 		s.csUsed(c, reg)
+		s.csLog(c, reg.Name, false, "to add a message")
 		s.cs(c, "Line %d added to the entry message of %s.", len(lines)+1, reg.Name)
 	case "DEL":
 		nums, isList := numList(argAt(args, 2), len(lines))
@@ -283,6 +298,7 @@ func csEntryMsg(s *Services, c *Client, args []string) {
 			}
 		}
 		s.csUsed(c, reg)
+		s.csLog(c, reg.Name, false, "to remove a message")
 		s.cs(c, "%s removed from the entry message of %s.", plural(len(nums), "line"), reg.Name)
 	case "", "LIST":
 		if len(lines) == 0 {
@@ -300,6 +316,7 @@ func csEntryMsg(s *Services, c *Client, args []string) {
 			return
 		}
 		s.csUsed(c, reg)
+		s.csLog(c, reg.Name, false, "to remove all messages")
 		s.cs(c, "%s has no entry message now (%s removed).", reg.Name, plural(n, "line"))
 	default:
 		s.cs(c, "Syntax: ENTRYMSG #chan ADD|DEL|LIST|CLEAR ...")
@@ -322,6 +339,7 @@ func csEnforce(s *Services, c *Client, args []string) {
 	case "SECUREOPS":
 		n = s.stripStatus(reg, live)
 		s.csUsed(c, reg)
+		s.csLog(c, reg.Name, false, "to enforce secureops")
 		s.cs(c, "SECUREOPS enforced on %s: %s.", reg.Name, plural(n, "status mode")+" taken")
 		return
 	case "RESTRICTED":
@@ -366,6 +384,7 @@ func csEnforce(s *Services, c *Client, args []string) {
 		return
 	}
 	s.csUsed(c, reg)
+	s.csLog(c, reg.Name, false, "to enforce %s", map[string]string{"RESTRICTED": "restricted", "REGONLY": "registered only", "BANS": "bans", "LIMIT": "limit"}[what])
 	s.cs(c, "%s enforced on %s: %s kicked.", what, reg.Name, plural(n, "person"))
 }
 
@@ -421,6 +440,7 @@ func csSyncCmd(s *Services, c *Client, args []string) {
 	}
 	s.csSync(reg)
 	s.csUsed(c, reg)
+	s.csLog(c, reg.Name, false, "")
 	s.cs(c, "Everyone in %s has the status their level earns now.", reg.Name)
 }
 
@@ -527,6 +547,7 @@ func csLog(s *Services, c *Client, args []string) {
 			s.cs(c, "%s doesn't log %s.", reg.Name, command)
 		} else {
 			s.csUsed(c, reg)
+			s.csLog(c, reg.Name, false, "to remove logging for %s with method %s", command, strings.ToUpper(argAt(args, 2)))
 			s.cs(c, "%s no longer logs %s.", reg.Name, command)
 		}
 		return
@@ -548,6 +569,11 @@ func csLog(s *Services, c *Client, args []string) {
 		return
 	}
 	s.csUsed(c, reg)
+	if status != "" {
+		s.csLog(c, reg.Name, false, "to log %s with method %s %s", command, method, status)
+	} else {
+		s.csLog(c, reg.Name, false, "to log %s with method %s", command, method)
+	}
 	switch {
 	case method == "MEMO":
 		s.cs(c, "%s now leaves a channel memo whenever someone uses %s.", reg.Name, command)
@@ -600,6 +626,11 @@ func csSuspend(s *Services, c *Client, args []string) {
 		until = "for " + durWords(life)
 	}
 	s.audit(c, s.chanServ, "SUSPEND %s %s: %s", reg.Name, until, reason)
+	expires := "never"
+	if life > 0 {
+		expires = anopeTime(reg.SuspendUntil)
+	}
+	s.csLogAdmin(c, reg.Name, "(%s), expires on %s", reason, expires)
 	s.cs(c, "%s is suspended %s (%s kicked).", reg.Name, until, plural(kicked, "person"))
 }
 
@@ -616,6 +647,7 @@ func csUnsuspend(s *Services, c *Client, args []string) {
 		s.cs(c, "%s isn't suspended.", reg.Name)
 		return
 	}
+	s.csLogAdmin(c, reg.Name, "which was suspended by %s for: %s", reg.SuspendedBy, orNoneReason(reg.SuspendReason))
 	s.unsuspend(reg)
 	s.audit(c, s.chanServ, "UNSUSPEND %s", reg.Name)
 	s.cs(c, "%s can be used again.", reg.Name)
@@ -639,7 +671,7 @@ func (s *Services) expireSuspends(now time.Time) {
 		if reg.SuspendedBy != "" && !reg.Suspended(now) {
 			s.unsuspend(reg)
 			s.log.Printf("suspension of %s ran out", reg.Name)
-			s.logTo(s.chanServ, "EXPIRE: Suspension of "+reg.Name+" ran out")
+			s.logTo(s.global, "CS_SUSPEND: Expiring suspend for "+reg.Name) // Anope: Log(this) in cs_suspend
 		}
 	}
 }
@@ -754,4 +786,12 @@ func (s *Services) startPersist() {
 			s.persistJoin(reg)
 		}
 	}
+}
+
+// orNoneReason is r, or Anope's "No reason" when empty.
+func orNoneReason(r string) string {
+	if r == "" {
+		return "No reason"
+	}
+	return r
 }

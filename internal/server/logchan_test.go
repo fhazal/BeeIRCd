@@ -52,57 +52,85 @@ func TestLogChannel(t *testing.T) {
 		}
 	}
 
-	// A command that works, one that is refused, an unknown one.
-	u.send("CS REGISTER #nowhere")
-	b.expect(":ChanServ!services@irc.test.local " + logSrc + "COMMAND: user!~user@127.0.0.1 (user) used REGISTER #nowhere → ")
+	// Lines are Anope 2.0.20's, each from the service it belongs to.
+	ns := ":NickServ!services@irc.test.local " + logSrc
+	cs := ":ChanServ!services@irc.test.local " + logSrc
+	osl := ":OperServ!services@irc.test.local " + logSrc
+	asl := ":AdminServ!services@irc.test.local " + logSrc
+	gl := ":Global!services@irc.test.local " + logSrc
+
+	// Commands that only show something log nothing.
+	u.send("NS INFO user")
+	u.send("CS LIST *")
+	u.send("MS LIST")
+	b.quiet(logSrc)
+
+	// Refused: an unidentified user, a non-oper messaging OperServ.
+	g := login(t, s, "guest")
+	b.expect(gl + "USERS: guest!~guest@127.0.0.1 (guest Real) connected to the network (irc.test.local)")
+	g.send("CS REGISTER #g")
+	b.expect(cs + "Access denied for unregistered user guest!~guest@127.0.0.1 with command REGISTER")
 	u.send("OS STATS")
-	b.expect(":OperServ!services@irc.test.local " + logSrc + "ADMIN: user!~user@127.0.0.1 (user) used STATS → OperServ is for IRC operators.")
-	u.send("NS FROB")
-	b.expect(":NickServ!services@irc.test.local " + logSrc + "COMMAND: user!~user@127.0.0.1 (user) used FROB → Unknown command FROB.")
+	b.expect(osl + "Denied access to OperServ from user!~user@127.0.0.1 (non-oper)")
 
-	// Passwords never show; a password check answers later.
-	u.send("NS IDENTIFY wrong-secret")
-	line := b.expect(":NickServ!services@irc.test.local " + logSrc + "COMMAND: user!~user@127.0.0.1 (user) used IDENTIFY **** → ")
-	if strings.Contains(line, "wrong-secret") {
-		t.Fatalf("password logged: %s", line)
-	}
+	// IDENTIFY: failed, unknown account, then working. No password, ever.
+	g.send("NS IDENTIFY user wrong-secret")
+	line := b.expect(ns + "COMMAND: guest!~guest@127.0.0.1 used IDENTIFY and failed to identify to account user")
+	g.send("NS IDENTIFY nobody x123456")
+	b.expect(ns + "COMMAND: guest!~guest@127.0.0.1 used IDENTIFY and failed to identify to nonexistent account nobody")
+	g.send("NS IDENTIFY user " + pw)
+	line += b.expect(ns + "COMMAND: guest!~guest@127.0.0.1 used IDENTIFY and identified for account user")
 	u.send("NS SET PASSWORD new-secret-1")
-	line = b.expect("used SET PASSWORD **** → ")
-	if strings.Contains(line, "new-secret-1") {
-		t.Fatalf("password logged: %s", line)
+	line += b.expect(ns + "COMMAND: user!~user@127.0.0.1 (user) used SET to change their password")
+	for _, secret := range []string{"wrong-secret", "new-secret-1", pw} {
+		if strings.Contains(line, secret) {
+			t.Fatalf("password in the log: %s", line)
+		}
 	}
-	// The drop code stays hidden.
-	u.send("NS DROP user")
-	b.expect("used DROP user → (reply hidden)")
 
-	// Oper commands log once (no audit copy), oper events come from OperServ.
+	// ChanServ: COMMAND with "on #chan", OVERRIDE for an oper without access.
+	joinAll("#own", u)
+	u.send("CS REGISTER #own")
+	b.expect(cs + "COMMAND: user!~user@127.0.0.1 (user) used REGISTER on #own")
+	joinAll("#own", g)
+	u.send("CS KICK #own guest bye")
+	b.expect(cs + "COMMAND: user!~user@127.0.0.1 (user) used KICK on #own for guest")
+	u.send("CS SET PEACE #own ON")
+	b.expect(cs + "COMMAND: user!~user@127.0.0.1 (user) used SET on #own to enable peace")
+	b.send("CS DROP #own")
+	l := b.expect("To go ahead within 2 minutes: /cs drop #own ")
+	b.send("CS DROP #own " + l[strings.LastIndex(l, " ")+1:])
+	b.expect(cs + "OVERRIDE: Boss!~boss@127.0.0.1 (Boss) used DROP on #own (founder was: user)")
+
+	// OperServ and its IRCd-style aliases: ADMIN, Anope's text, no audit copy.
 	b.send("OS AKILL ADD +1h *@203.0.113.9 spam")
-	b.expect(":OperServ!services@irc.test.local " + logSrc + "ADMIN: Boss!~boss@127.0.0.1 (Boss) used AKILL ADD +1h *@203.0.113.9 spam → AKILL added")
-	b.quiet(logSrc + "Boss used OperServ")
-	b.send("AS OPER LIST")
-	b.expect(":AdminServ!services@irc.test.local " + logSrc + "ADMIN: Boss!~boss@127.0.0.1 (Boss) used OPER LIST → ")
-	u.send("OPER user nope")
-	b.expect(":OperServ!services@irc.test.local " + logSrc + "OPER: Failed /oper as user from user")
+	b.expect(osl + "ADMIN: Boss!~boss@127.0.0.1 (Boss) used AKILL on *@203.0.113.9 (spam), expires in 1 hour [affects 0 user(s) (0%)]")
+	b.send("GLINE *@198.51.100.7 1d bad")
+	b.expect(osl + "ADMIN: Boss!~boss@127.0.0.1 (Boss) used AKILL on *@198.51.100.7 (bad), expires in 1 day [affects 0 user(s) (0%)]")
+	b.send("OS AKILL DEL *@203.0.113.9")
+	b.expect(osl + "ADMIN: Boss!~boss@127.0.0.1 (Boss) used AKILL to remove *@203.0.113.9 from the list")
+	b.send("AS SET max-users 500")
+	b.expect(asl + "ADMIN: Boss!~boss@127.0.0.1 (Boss) used SET to change the configuration value of limits:max_users to 500")
+	u.send("OPER user nope") // a server notice, not an Anope log line
+	b.quiet(logSrc + "Failed /oper")
 
 	// Deopping a bot puts it back.
 	b.send("OS MODE #services -o NickServ")
 	b.expect(csSrc + "MODE #services +o NickServ")
 
-	// Connects are logged only with log-connects on.
-	login(t, s, "quietone")
-	b.quiet(logSrc + "Connect: quietone")
-	b.send("AS SET log-connects on")
-	b.expect("log-connects is now on")
+	// USERS lines are on by default (Anope's users = "connect disconnect nick").
 	ld := login(t, s, "loud")
-	b.expect(":Global!services@irc.test.local " + logSrc + "USERS: loud!~loud@127.0.0.1 (loud Real) [127.0.0.1] connected to the network (irc.test.local)")
+	b.expect(gl + "USERS: loud!~loud@127.0.0.1 (loud Real) connected to the network (irc.test.local)")
 	ld.send("NICK louder")
-	b.expect(":Global!services@irc.test.local " + logSrc + "USERS: loud!~loud@127.0.0.1 (loud Real) changed nick to louder")
-	ld.send("NICK loud")
-	b.expect("changed nick to loud")
-	b.send("KILL loud :bye now")
-	b.expect(":Global!services@irc.test.local " + logSrc + "USERS: loud!~loud@127.0.0.1 (loud Real) disconnected from the network (irc.test.local) (Killed (Boss (bye now)))")
+	b.expect(gl + "USERS: loud!~loud@127.0.0.1 (loud Real) changed nick to louder")
+	ld.send("QUIT :bye")
+	b.expect(gl + "USERS: louder!~loud@127.0.0.1 (loud Real) disconnected from the network (irc.test.local)")
+	b.send("AS SET log-connects off")
+	b.expect("log-connects is now off")
+	login(t, s, "quietone")
+	b.quiet(logSrc + "USERS: quietone")
 
-	// SASL, Anope's M_SASL lines from NickServ.
+	// SASL PLAIN is not logged by Anope 2.0.20 (only EXTERNAL is).
 	registered(t, s, "Sas").send("QUIT")
 	sc := raw(t, s)
 	sc.nick = "Sas"
@@ -112,18 +140,15 @@ func TestLogChannel(t *testing.T) {
 	sc.send("USER sas 0 * :Sas")
 	sc.send("AUTHENTICATE PLAIN")
 	sc.expect("AUTHENTICATE +")
-	sc.send("AUTHENTICATE " + base64.StdEncoding.EncodeToString([]byte("\x00Sas\x00nope")))
-	b.expect(":NickServ!services@irc.test.local " + logSrc + "M_SASL: 127.0.0.1 (127.0.0.1) failed to identify for account Sas using SASL PLAIN (wrong password)")
-	sc.send("AUTHENTICATE PLAIN")
-	sc.expect("AUTHENTICATE +")
 	sc.send("AUTHENTICATE " + base64.StdEncoding.EncodeToString([]byte("\x00Sas\x00"+pw)))
-	b.expect(":NickServ!services@irc.test.local " + logSrc + "M_SASL: 127.0.0.1 (127.0.0.1) identified to account Sas using SASL PLAIN")
+	sc.expect(" 903 ")
+	b.quiet("M_SASL")
 
 	// Moving it: the bots leave the old channel.
 	b.send("AS SET log-channel off")
 	b.expect(":NickServ!services@irc.test.local PART #services :No longer the log channel")
 	b.expect("log-channel is now off (was #services).")
-	u.send("NS INFO user")
+	u.send("NS LOGOUT")
 	b.quiet(logSrc)
 }
 

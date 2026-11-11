@@ -37,6 +37,7 @@ func memoServCommands() map[string]svcCmd {
 func (s *Services) msIdentified(c *Client) (*store.Account, bool) {
 	if c.accountID == 0 {
 		s.ms(c, "Identify first: /ns identify <password>")
+		s.logDeniedUnreg(c, s.memoServ)
 		return nil, false
 	}
 	a, err := s.store.AccountByID(c.accountID)
@@ -178,6 +179,7 @@ func msSend(s *Services, c *Client, args []string) {
 	} else {
 		s.ms(c, "Memo sent to %s. They'll see it the next time they identify.", to.Name)
 	}
+	s.msLog(c, "", "to send a memo to %s", args[0])
 }
 
 // memoToChannel puts a memo in a channel's box (Anope's way) and tells
@@ -218,6 +220,7 @@ func (s *Services) memoToChannel(c *Client, from *store.Account, name, text stri
 		}
 	}
 	s.ms(c, "Memo sent to %s.", reg.Name)
+	s.msLog(c, "", "to send a memo to %s", reg.Name)
 }
 
 // chanMemoNotice tells c about unread memos in reg's box, if c may read it.
@@ -418,6 +421,21 @@ func msDel(s *Services, c *Client, args []string) {
 		if err := s.boxDelete(b, b.memos[i].ID); err != nil {
 			s.dbErr(c, s.memoServ, err)
 			return
+		}
+	}
+	channel := ""
+	if b.reg != nil {
+		channel = b.reg.Name
+	}
+	switch {
+	case len(picks) == 0:
+	case arg == "ALL":
+		s.msLog(c, channel, "on ALL memos")
+	case arg == "LAST":
+		s.msLog(c, channel, "on LAST memo")
+	default:
+		for _, i := range picks {
+			s.msLog(c, channel, "on memo %d", i+1)
 		}
 	}
 	switch {

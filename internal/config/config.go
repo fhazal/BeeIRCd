@@ -225,9 +225,15 @@ type Services struct {
 	// oper events (like Anope's log { target = "#services" }). The bots sit
 	// in it with op and keep it +O (opers only). Empty: no log channel.
 	LogChannel string `toml:"log_channel"`
-	// LogConnects also logs connects and quits there (busy networks: noisy).
-	LogConnects bool `toml:"log_connects"`
+	// LogConnects logs connects, quits and nick changes there (Anope's
+	// users = "connect disconnect nick"). On by default; off for busy
+	// networks.
+	LogConnects *bool `toml:"log_connects"`
 }
+
+// LogConnectsOn reports whether connects, quits and nick changes are
+// logged in the log channel (default on).
+func (s Services) LogConnectsOn() bool { return s.LogConnects == nil || *s.LogConnects }
 
 func setDur(d *Duration, v time.Duration) {
 	if d.Duration <= 0 {

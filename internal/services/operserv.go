@@ -62,9 +62,7 @@ func (s *Services) os(c *Client, format string, a ...any) {
 
 // audit notes who changed what, for the log and opers with +s.
 func (s *Services) audit(c *Client, sv *service, format string, a ...any) {
-	s.auditing = true
 	s.snotice("%s used %s: %s", c.user.Nick, sv.user.Nick, fmt.Sprintf(format, a...))
-	s.auditing = false
 }
 
 func durWords(d time.Duration) string {
@@ -80,6 +78,7 @@ func durWords(d time.Duration) string {
 }
 
 func osStats(s *Services, c *Client, args []string) {
+	s.osLog(c, "%s", strings.ToUpper(strings.Join(args, " ")))
 	people, opers := 0, 0
 	for _, u := range s.net.Users() {
 		if u.Service {
@@ -146,6 +145,7 @@ func osGlobal(s *Services, c *Client, args []string) {
 		}
 	}
 	s.audit(c, s.operServ, "GLOBAL %s", text)
+	s.osLog(c, "")
 	s.os(c, "Sent to everyone online (%s).", plural(n, "person"))
 }
 
@@ -183,6 +183,7 @@ func osKill(s *Services, c *Client, args []string) {
 	case t.Service:
 		s.os(c, "%s is a service.", t.Nick)
 	default:
+		s.osLog(c, "on %s for %s", t.Nick, reason)
 		s.killUser(t, "OperServ", reason+" ["+c.user.Nick+"]")
 		s.os(c, "%s is disconnected.", t.Nick)
 	}
@@ -204,6 +205,7 @@ func osMode(s *Services, c *Client, args []string) {
 	s.host.ApplyChannelModes(c.user.UID, s.operServ.user.UID, ch.Name, args[1], args[2:])
 	modes, params := ch.ModeString(true)
 	s.audit(c, s.operServ, "MODE %s %s", ch.Name, strings.Join(args[1:], " "))
+	s.osLog(c, "%s on %s", strings.Join(args[1:], " "), ch.Name)
 	s.os(c, "%s is now %s.", ch.Name, strings.TrimSpace(modes+" "+strings.Join(params, " ")))
 }
 
@@ -225,6 +227,7 @@ func osKick(s *Services, c *Client, args []string) {
 		s.os(c, "%s is a service.", t.Nick)
 		return
 	}
+	s.osLog(c, "on %s in %s (%s)", t.Nick, ch.Name, strings.Join(args[2:], " "))
 	s.svcKick(s.operServ, ch, t, strings.Join(args[2:], " "))
 	s.audit(c, s.operServ, "KICK %s %s", ch.Name, t.Nick)
 	s.os(c, "%s is kicked from %s.", t.Nick, ch.Name)
@@ -281,6 +284,11 @@ func osForbid(s *Services, c *Client, args []string) {
 		}
 		s.reloadOperData()
 		s.audit(c, s.operServ, "FORBID DEL %s %s", strings.ToUpper(kind), name)
+		if c.cmdName == "SQLINE" {
+			s.osLog(c, "to remove %s from the list", name)
+		} else {
+			s.osLog(c, "to remove forbid on %s of type %s", name, strings.ToUpper(kind))
+		}
 		s.os(c, "%s can be used again.", name)
 	default:
 		s.os(c, "Syntax: FORBID ADD|DEL|LIST ... (/os help forbid)")
@@ -343,6 +351,20 @@ func osForbidAdd(s *Services, c *Client, kind, name, reason string, life time.Du
 		how = " for " + durWords(life)
 	}
 	s.audit(c, s.operServ, "FORBID ADD %s %s%s (%s)", strings.ToUpper(kind), name, how, reason)
+	if c.cmdName == "SQLINE" {
+		affected, people := 0, 0
+		for _, oc := range s.clients {
+			if !oc.closed {
+				people++
+				if irc.Match(name, oc.user.Nick) {
+					affected++
+				}
+			}
+		}
+		s.osLog(c, "%s", anopeLineAdd(name, reason, life, affected, people))
+	} else {
+		s.osLog(c, "to add a forbid on %s of type %s", name, strings.ToUpper(kind))
+	}
 	switch kind {
 	case store.ForbidNick:
 		for _, oc := range s.clients {
@@ -531,6 +553,7 @@ func osException(s *Services, c *Client, args []string) {
 		}
 		s.reloadOperData()
 		s.audit(c, s.operServ, "EXCEPTION ADD %s %d", mask, n)
+		s.osLog(c, "to set the session limit for %s to %d", mask, n)
 		s.os(c, "%s may now have %d connections.", mask, n)
 	case "DEL":
 		arg := strings.ToLower(argAt(args, 1))
@@ -562,6 +585,9 @@ func osException(s *Services, c *Client, args []string) {
 		}
 		s.reloadOperData()
 		s.audit(c, s.operServ, "EXCEPTION DEL %s", strings.Join(gone, " "))
+		for _, m := range gone {
+			s.osLog(c, "to remove the session limit exception for %s", m)
+		}
 		s.os(c, "%s back to the normal limit (%d).", strings.Join(gone, ", ")+map[bool]string{true: " is", false: " are"}[len(gone) == 1], s.cfg.Limits.SessionLimit)
 	case "LIST", "VIEW":
 		if len(list) == 0 {
@@ -609,6 +635,7 @@ func osNews(s *Services, c *Client, args []string) {
 		}
 		s.reloadOperData()
 		s.audit(c, s.operServ, "LOGONNEWS ADD %s", text)
+		s.osLog(c, "to add a news item")
 		s.os(c, "News added. Everyone sees it when they connect.")
 	case "DEL":
 		arg := argAt(args, 1)
@@ -629,6 +656,11 @@ func osNews(s *Services, c *Client, args []string) {
 			s.audit(c, s.operServ, "LOGONNEWS DEL %s", n.Text)
 		}
 		s.reloadOperData()
+		if strings.EqualFold(arg, "ALL") {
+			s.osLog(c, "to delete all news items")
+		} else {
+			s.osLog(c, "to delete a news item")
+		}
 		if len(picks) == 1 && !strings.EqualFold(arg, "ALL") {
 			s.os(c, "News line %s removed.", arg)
 		} else {

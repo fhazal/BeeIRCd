@@ -1,30 +1,27 @@
 package services
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/state"
+	"github.com/fhazal/beeircd/internal/store"
 )
 
-// The log channel ([services] log_channel, like Anope's log { target =
-// "#services" }): every service bot sits in it with op, and each posts a
-// line for every command it runs, with its first reply, so opers can see
-// what was used and whether it worked. Oper events (opers up, kills, ban
-// hits, things that ran out) come from OperServ; connects and quits too
-// when log_connects is on. Passwords and confirm codes are never shown.
-
-// logEntry is a command waiting for its first reply.
-type logEntry struct {
-	sv   *service
-	text string // "nick!ident@host used CMD args"
-	hide bool   // the reply holds a secret (a key, a confirm code)
-}
-
-// logReplyMax is how much of a reply a log line shows.
-const logReplyMax = 200
+// The log channel ([services] log_channel), exactly like Anope 2.0.20's
+// log { target = "#services"; admin = "*"; override = ...; commands = "*";
+// users = "connect disconnect nick"; other = "*" }: every service bot sits
+// in it with op. Lines are Anope's (src/logger.cpp):
+//
+//	COMMAND|ADMIN|OVERRIDE: nick!ident@realhost (account) used NAME [on #chan] text
+//
+// sent by the command's service, only where Anope's command code logs
+// (mostly when it worked); USERS: connect/disconnect/nick lines from Global;
+// module lines like M_SASL:; and plain lines (access denied, expiry). The
+// text never holds a password.
 
 // logChannel is the log channel, "" when there is none.
 func (s *Services) logChannel() string { return s.cfg.Services.LogChannel }
@@ -130,43 +127,41 @@ func (s *Services) logTo(sv *service, text string) {
 	s.host.ChannelMessage(sv.user.UID, ch.Name, 0, true, text)
 }
 
-// LogEvent posts an oper event (what goes to +s opers) as OperServ.
-// Audit lines are skipped: the command log already shows that command.
-func (s *Services) LogEvent(text string) {
-	if s.auditing || s.logChannel() == "" {
-		return
-	}
-	s.logTo(s.operServ, "OPER: "+text)
+// anopeMask is Anope's User::GetMask(): nick!ident@realhost.
+func anopeMask(u *state.User) string { return u.Nick + "!" + u.Ident + "@" + u.RealHost }
+
+// logUsersOn reports whether USERS lines go to the log channel.
+func (s *Services) logUsersOn() bool {
+	return s.logChannel() != "" && s.cfg.Services.LogConnectsOn()
 }
 
-// userMask is Anope's "nick!ident@realhost (shown host)" for log lines.
-func userMask(u *state.User) string {
-	m := u.Nick + "!" + u.Ident + "@" + u.RealHost
-	if u.Host != "" && u.Host != u.RealHost {
-		m += " (" + u.Host + ")"
-	}
-	return m
-}
-
-// LogUserConnect posts Anope's USERS line for a connect (log_connects).
+// LogUserConnect posts Anope's connect line (users.cpp).
 func (s *Services) LogUserConnect(u *state.User) {
-	if !s.cfg.Services.LogConnects || s.logChannel() == "" {
+	if !s.logUsersOn() || u.Service {
 		return
 	}
-	s.logTo(s.global, "USERS: "+userMask(u)+" ("+u.Realname+") ["+irc.DisplayIP(u.IP)+"] connected to the network ("+u.Server+")")
+	text := "USERS: " + anopeMask(u) + " "
+	if u.Host != "" && u.Host != u.RealHost {
+		text += "(" + u.Host + ") "
+	}
+	text += "(" + u.Realname + ") "
+	if ip := irc.DisplayIP(u.IP); ip != "" && ip != u.RealHost {
+		text += "[" + ip + "] "
+	}
+	s.logTo(s.global, text+"connected to the network ("+u.Server+")")
 }
 
-// LogUserQuit posts Anope's USERS line for a quit (log_connects).
-func (s *Services) LogUserQuit(u *state.User, reason string) {
-	if !s.cfg.Services.LogConnects || s.logChannel() == "" {
+// LogUserQuit posts Anope's disconnect line (users.cpp).
+func (s *Services) LogUserQuit(u *state.User, _ string) {
+	if !s.logUsersOn() || u.Service {
 		return
 	}
-	s.logTo(s.global, "USERS: "+userMask(u)+" ("+u.Realname+") disconnected from the network ("+u.Server+") ("+reason+")")
+	s.logTo(s.global, "USERS: "+anopeMask(u)+" ("+u.Realname+") disconnected from the network ("+u.Server+")")
 }
 
-// logNick posts Anope's USERS line for a nick change (log_connects).
+// logNick posts Anope's nick change line (users.cpp).
 func (s *Services) logNick(e *state.NickChange) {
-	if !s.cfg.Services.LogConnects || s.logChannel() == "" || e.Old == "" {
+	if !s.logUsersOn() || e.Old == "" {
 		return
 	}
 	u := s.net.UserByUID(e.UID)
@@ -177,99 +172,170 @@ func (s *Services) logNick(e *state.NickChange) {
 	s.logTo(s.global, "USERS: "+old+"!"+u.Ident+"@"+u.RealHost+" ("+u.Realname+") changed nick to "+e.Nick)
 }
 
-// LogSASL posts Anope's M_SASL line as NickServ. why is "" on success.
-func (s *Services) LogSASL(host, ip, account, mech, why string) {
-	if s.logChannel() == "" {
+// LogSASLExternal posts m_sasl's line for a certificate login (Anope
+// 2.0.20 logs SASL only for EXTERNAL). who is "host (ip)".
+func (s *Services) LogSASLExternal(who, account, cert string, ok bool) {
+	if ok {
+		s.logTo(s.nickServ, "M_SASL: "+who+" identified to account "+account+" using SASL EXTERNAL")
 		return
 	}
-	who := host + " (" + irc.DisplayIP(ip) + ")"
-	if why == "" {
-		s.logTo(s.nickServ, "M_SASL: "+who+" identified to account "+account+" using SASL "+mech)
+	s.logTo(s.nickServ, "M_SASL: "+who+" failed to identify using certificate "+cert+" using SASL EXTERNAL")
+}
+
+// Log kinds of a command line.
+const (
+	logCommand  = "COMMAND"
+	logAdmin    = "ADMIN"
+	logOverride = "OVERRIDE"
+)
+
+// logCmd posts Anope's command line: KIND: mask (account) used NAME [on
+// #chan] text, from sv.
+func (s *Services) logCmd(c *Client, sv *service, kind, channel, text string) {
+	if s.logChannel() == "" || c == nil || c.user == nil {
 		return
 	}
-	s.logTo(s.nickServ, "M_SASL: "+who+" failed to identify for account "+account+" using SASL "+mech+" ("+why+")")
+	line := kind + ": " + anopeMask(c.user)
+	if c.user.Account != "" {
+		line += " (" + c.user.Account + ")"
+	}
+	name := c.cmdName
+	if name == "" {
+		name = "?"
+	}
+	line += " used " + name
+	if channel != "" {
+		line += " on " + channel
+	}
+	if text != "" {
+		line += " " + text
+	}
+	s.logTo(sv, line)
 }
 
-// logStart remembers a command c sent to sv; its first reply finishes
-// the line.
-func (s *Services) logStart(c *Client, sv *service, name string, args []string) {
-	c.logPending = nil
-	if s.logChannel() == "" || name == "HELP" || sv == s.global {
+// nsLog logs a NickServ command on account id: COMMAND when it is c's own
+// account, ADMIN when it is someone else's (Anope's nc == source.nc test).
+func (s *Services) nsLog(c *Client, id int64, format string, a ...any) {
+	kind := logCommand
+	if id != c.accountID {
+		kind = logAdmin
+	}
+	s.logCmd(c, s.nickServ, kind, "", fmt.Sprintf(format, a...))
+}
+
+// nsLogCmd logs a NickServ command as COMMAND.
+func (s *Services) nsLogCmd(c *Client, format string, a ...any) {
+	s.logCmd(c, s.nickServ, logCommand, "", fmt.Sprintf(format, a...))
+}
+
+// csLog logs a ChanServ command on channel; override is an oper acting
+// without channel access.
+func (s *Services) csLog(c *Client, channel string, override bool, format string, a ...any) {
+	kind := logCommand
+	if override {
+		kind = logOverride
+	}
+	s.logCmd(c, s.chanServ, kind, channel, fmt.Sprintf(format, a...))
+}
+
+// csLogAdmin logs an oper-only ChanServ command (SUSPEND, NOEXPIRE).
+func (s *Services) csLogAdmin(c *Client, channel, format string, a ...any) {
+	s.logCmd(c, s.chanServ, logAdmin, channel, fmt.Sprintf(format, a...))
+}
+
+// msLog logs a MemoServ command; channel is "" for a nick's box.
+func (s *Services) msLog(c *Client, channel, format string, a ...any) {
+	s.logCmd(c, s.memoServ, logCommand, channel, fmt.Sprintf(format, a...))
+}
+
+// osLog logs an OperServ command (always ADMIN in Anope).
+func (s *Services) osLog(c *Client, format string, a ...any) {
+	s.logCmd(c, s.operServ, logAdmin, "", fmt.Sprintf(format, a...))
+}
+
+// LogAdmin logs a command of a bot the server runs (AdminServ) as ADMIN.
+func (s *Services) LogAdmin(uid string, bot *state.User, text string) {
+	c, sv := s.clients[uid], s.serviceFor(bot)
+	if c == nil || sv == nil {
 		return
 	}
-	shown, hide := logArgs(sv, name, args)
-	u := c.user
-	kind := "COMMAND: "
-	if sv.need != 0 || sv == s.operServ {
-		kind = "ADMIN: " // OperServ and AdminServ, as Anope
-	}
-	who := u.Nick + "!" + u.Ident + "@" + u.RealHost
-	if u.Account != "" {
-		who += " (" + u.Account + ")" // Anope shows the account too
-	}
-	text := kind + who + " used " + strings.TrimSpace(name+" "+strings.Join(shown, " "))
-	c.logPending = &logEntry{sv: sv, text: text, hide: hide}
+	s.logCmd(c, sv, logAdmin, "", text)
 }
 
-// logReply finishes c's pending line with reply.
-func (s *Services) logReply(c *Client, reply string) {
-	e := c.logPending
-	if e == nil {
+// logDenied posts Anope's "Access denied" line (command.cpp) from sv.
+func (s *Services) logDenied(c *Client, sv *service) {
+	if c == nil || c.user == nil {
 		return
 	}
-	c.logPending = nil
-	switch {
-	case e.hide:
-		reply = "(reply hidden)"
-	case reply == "":
-		reply = "(no reply)"
-	}
-	s.logTo(e.sv, e.text+" → "+irc.Truncate(reply, logReplyMax))
+	s.logTo(sv, "Access denied for user "+anopeMask(c.user)+" with command "+c.cmdName)
 }
 
-// logDone runs after a command: a command that said nothing is logged
-// now, unless a password check will answer later.
-func (s *Services) logDone(c *Client) {
-	if c.logPending != nil && !c.pwBusy {
-		s.logReply(c, "")
+// logDeniedUnreg posts Anope's line for an unidentified user using a
+// command that needs an account.
+func (s *Services) logDeniedUnreg(c *Client, sv *service) {
+	if c == nil || c.user == nil {
+		return
 	}
+	s.logTo(sv, "Access denied for unregistered user "+anopeMask(c.user)+" with command "+c.cmdName)
 }
 
-// logArgs hides passwords and confirm codes in a command's arguments, and
-// says whether its reply has a secret in it.
-func logArgs(sv *service, name string, args []string) (shown []string, hideReply bool) {
-	shown = append([]string(nil), args...)
-	mask := func(i int) {
-		if i < len(shown) {
-			shown[i] = "****"
+// expiredWords says what ran out, for the server notice.
+func expiredWords(e store.Expired) string {
+	switch e.What {
+	case "netban":
+		return strings.ToUpper(e.Kind) + " on " + e.Mask
+	case "forbid":
+		return "FORBID " + strings.ToUpper(e.Kind) + " on " + e.Mask
+	}
+	return "EXCEPTION on " + e.Mask
+}
+
+// anopeExpired is Anope's line for something that ran out (operserv.cpp,
+// os_forbid, os_session).
+func anopeExpired(e store.Expired) string {
+	switch e.What {
+	case "netban":
+		return strings.ToUpper(e.Kind) + " on \x02" + e.Mask + "\x02 has expired"
+	case "forbid":
+		return "Expiring forbid for " + e.Mask + " type " + strings.ToUpper(e.Kind)
+	}
+	return "Session exception for " + e.Mask + " has expired."
+}
+
+// anopeDuration is Anope::Duration: "1 day, 2 hours, 5 minutes", or
+// seconds when under a minute.
+func anopeDuration(d time.Duration) string {
+	t := int64(d / time.Second)
+	years, days, hours, minutes, seconds := t/31536000, (t/86400)%365, (t/3600)%24, (t/60)%60, t%60
+	unit := func(n int64, word string) string {
+		if n != 1 {
+			word += "s"
+		}
+		return fmt.Sprintf("%d %s", n, word)
+	}
+	if years == 0 && days == 0 && hours == 0 && minutes == 0 {
+		return unit(seconds, "second")
+	}
+	var parts []string
+	for _, p := range []struct {
+		n    int64
+		word string
+	}{{years, "year"}, {days, "day"}, {hours, "hour"}, {minutes, "minute"}} {
+		if p.n != 0 {
+			parts = append(parts, unit(p.n, p.word))
 		}
 	}
-	switch sv.user.Nick + " " + name {
-	case "NickServ IDENTIFY":
-		mask(len(shown) - 1)
-	case "NickServ REGISTER":
-		mask(0)
-	case "NickServ GROUP", "NickServ RECOVER":
-		mask(1)
-	case "NickServ DROP", "ChanServ DROP":
-		mask(1)
-		hideReply = len(args) < 2 // without a code, the reply holds the code
-	case "ChanServ GETKEY":
-		hideReply = true
-	case "AdminServ RESTART", "AdminServ DIE":
-		hideReply = true
+	return strings.Join(parts, ", ")
+}
+
+// anopeTime is Anope::strftime: "Nov 12 10:00:00 2026 UTC (2 days from now)".
+func anopeTime(t time.Time) string {
+	s := t.UTC().Format("Jan 02 15:04:05 2006 UTC")
+	switch now := time.Now(); {
+	case t.Before(now):
+		return s + " (" + anopeDuration(now.Sub(t)) + " ago)"
+	case t.After(now):
+		return s + " (" + anopeDuration(t.Sub(now)) + " from now)"
 	}
-	// SET PASSWORD x, SASET PASSWORD nick x, AS OPER ... PASSWORD x
-	for i, a := range shown {
-		if strings.EqualFold(a, "PASSWORD") {
-			for j := i + 1; j < len(shown); j++ {
-				if name == "SASET" && j == i+1 {
-					continue // the nick
-				}
-				mask(j)
-			}
-			break
-		}
-	}
-	return shown, hideReply
+	return s + " (now)"
 }

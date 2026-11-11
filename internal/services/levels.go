@@ -144,6 +144,7 @@ func (s *Services) csPriv(c *Client, chanName, priv string) (*store.Channel, int
 	}
 	if c.accountID == 0 {
 		s.cs(c, "Identify first: /ns identify <password>")
+		s.logDeniedUnreg(c, s.chanServ)
 		return nil, 0, false
 	}
 	if !s.levelHas(reg, lvl, priv) {
@@ -249,6 +250,7 @@ func csAccess(s *Services, c *Client, args []string) {
 			return
 		}
 		s.csUsed(c, reg)
+		s.csLog(c, reg.Name, false, "to add %s with level %d", target.Name, newLevel)
 		if old == store.LevelNone {
 			s.cs(c, "%s added to the access list of %s at level %s.", target.Name, reg.Name, store.LevelName(newLevel))
 		} else {
@@ -287,6 +289,7 @@ func csAccess(s *Services, c *Client, args []string) {
 			}
 		}
 		s.csUsed(c, reg)
+		s.csLog(c, reg.Name, false, "to clear the access list")
 		s.cs(c, "The access list of %s is now empty (%d removed).", reg.Name, len(entries))
 	default:
 		s.cs(c, "Syntax: ACCESS #chan ADD|DEL|LIST|VIEW|CLEAR ...")
@@ -366,6 +369,7 @@ func (s *Services) accessDel(c *Client, reg *store.Channel, lvl, level int, arg,
 	}
 	if len(names) > 0 {
 		s.csUsed(c, reg)
+		s.csLog(c, reg.Name, false, "to delete %s", strings.Join(names, ", "))
 		s.cs(c, "%s removed from %s of %s.", strings.Join(names, ", "), what, reg.Name)
 	}
 }
@@ -471,6 +475,11 @@ func csLevels(s *Services, c *Client, args []string) {
 			return
 		}
 		s.csUsed(c, reg)
+		if lvl == store.LevelDisabled {
+			s.csLog(c, reg.Name, false, "to disable %s", p.name)
+		} else {
+			s.csLog(c, reg.Name, false, "to set %s to level %d", p.name, lvl)
+		}
 		switch lvl {
 		case store.LevelDisabled:
 			s.cs(c, "%s is now switched off on %s.", p.name, reg.Name)
@@ -490,6 +499,7 @@ func csLevels(s *Services, c *Client, args []string) {
 			return
 		}
 		s.csUsed(c, reg)
+		s.csLog(c, reg.Name, false, "to reset all levels")
 		s.cs(c, "Every level of %s is back to its default.", reg.Name)
 		s.csSync(reg)
 	default:

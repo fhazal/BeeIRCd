@@ -61,6 +61,7 @@ func nickServCommands() map[string]svcCmd {
 func (s *Services) identified(c *Client) (*store.Account, bool) {
 	if c.accountID == 0 {
 		s.ns(c, "Identify first: /ns identify <password>")
+		s.logDeniedUnreg(c, s.nickServ)
 		return nil, false
 	}
 	a, err := s.store.AccountByID(c.accountID)
@@ -137,7 +138,7 @@ func nsRegister(s *Services, c *Client, args []string) {
 			return
 		}
 	}
-	nick := u.Nick
+	nick, cmd := u.Nick, c.cmdName
 	s.hashPassword(c, pw, func(hash string) {
 		if c.user.Nick != nick {
 			s.ns(c, "Your nick changed while registering. Please try again.")
@@ -154,6 +155,8 @@ func nsRegister(s *Services, c *Client, args []string) {
 		}
 		s.log.Printf("registered nick %s (%s)", nick, c.ip)
 		s.ns(c, "%s is now registered to you. Keep your password safe: you need it to identify.", nick)
+		c.cmdName = cmd
+		s.nsLogCmd(c, "to register %s (email: %s)", nick, orNone(email))
 		s.login(c, a)
 	})
 }
@@ -174,15 +177,21 @@ func nsIdentify(s *Services, c *Client, args []string) {
 	}
 	if a == nil {
 		s.ns(c, "%s isn't registered. Register it: /ns register <password> [email]", nick)
+		s.nsLogCmd(c, "and failed to identify to nonexistent account %s", nick)
 		return
 	}
 	if c.accountID == a.ID {
 		s.ns(c, "You're already identified as %s.", a.Name)
 		return
 	}
+	cmd := c.cmdName
 	s.checkPassword(c, a, pw, func(r pwResult) {
+		c.cmdName = cmd
 		if r != pwOK {
 			s.pwProblem(c, a, r)
+			if r == pwWrong {
+				s.nsLogCmd(c, "and failed to identify to account %s", a.Name)
+			}
 			return
 		}
 		fresh, err := s.store.AccountByID(a.ID)
@@ -190,6 +199,7 @@ func nsIdentify(s *Services, c *Client, args []string) {
 			s.ns(c, "%s was dropped a moment ago.", a.Name)
 			return
 		}
+		s.nsLogCmd(c, "and identified for account %s", fresh.Name) // before login: Anope's line shows the account the user had when asking
 		s.ns(c, "Password accepted. You are identified as %s.", fresh.Name)
 		s.login(c, fresh)
 	})
@@ -201,21 +211,27 @@ func nsLogout(s *Services, c *Client, args []string) {
 		return
 	}
 	name := c.user.Account
+	s.nsLogCmd(c, "to logout %s", c.user.Nick)
 	s.logout(c, true)
 	s.ns(c, "You are no longer identified as %s.", name)
 	s.nickCheck(c)
 }
 
 // withOwnership runs then after proving c owns a: by being identified to it
-// or by the password.
-func (s *Services) withOwnership(c *Client, a *store.Account, pw string, then func()) {
+// or by the password. wrong runs after a wrong password (for the log).
+func (s *Services) withOwnership(c *Client, a *store.Account, pw string, then, wrong func()) {
 	if c.accountID == a.ID {
 		then()
 		return
 	}
+	cmd := c.cmdName
 	s.checkPassword(c, a, pw, func(r pwResult) {
+		c.cmdName = cmd
 		if r != pwOK {
 			s.pwProblem(c, a, r)
+			if r == pwWrong && wrong != nil {
+				wrong()
+			}
 			return
 		}
 		then()
@@ -250,6 +266,7 @@ func nsRecover(s *Services, c *Client, args []string) {
 		return
 	}
 	s.withOwnership(c, a, argAt(args, 1), func() {
+		s.nsLogCmd(c, "for %s", nick)
 		s.ghost(c, nick)
 		fresh, err := s.store.AccountByID(a.ID)
 		if err != nil || fresh == nil {
@@ -262,7 +279,7 @@ func nsRecover(s *Services, c *Client, args []string) {
 		}
 		s.forceNick(c, nick)
 		s.ns(c, "You now have %s.", nick)
-	})
+	}, func() { s.nsLogCmd(c, "with an invalid password for %s", a.Name) })
 }
 
 func nsGroup(s *Services, c *Client, args []string) {
@@ -318,8 +335,9 @@ func nsGroup(s *Services, c *Client, args []string) {
 			return
 		}
 		s.ns(c, "%s is now part of the account %s.", nick, fresh.Name)
+		s.nsLogCmd(c, "to make %s join group of %s (%s) (email: %s)", nick, args[0], fresh.Name, orNone(fresh.Email))
 		s.login(c, fresh)
-	})
+	}, func() { s.nsLogCmd(c, "and failed to group to %s", args[0]) })
 }
 
 func nsUngroup(s *Services, c *Client, args []string) {
@@ -347,6 +365,7 @@ func nsUngroup(s *Services, c *Client, args []string) {
 			return
 		}
 		s.ns(c, "%s is no longer part of %s.", nick, a.Name)
+		s.nsLogCmd(c, "to make %s leave group of %s (email: %s)", nick, a.Name, orNone(a.Email))
 	}
 }
 
@@ -429,12 +448,13 @@ func (s *Services) setOption(c *Client, a *store.Account, cmd, opt string, args 
 	if cmd == "SASET" {
 		whose = a.Name + "'s"
 	}
-	save := func(msg string) bool {
+	save := func(msg, logText string) bool {
 		if err := s.store.SaveAccount(a); err != nil {
 			s.dbErr(c, s.nickServ, err)
 			return false
 		}
 		s.ns(c, "%s", msg)
+		s.nsLog(c, a.ID, "%s", logText)
 		return true
 	}
 	switch opt {
@@ -443,8 +463,9 @@ func (s *Services) setOption(c *Client, a *store.Account, cmd, opt string, args 
 			s.ns(c, "Passwords need at least %d characters.", minPasswordLen)
 			return false
 		}
-		id, name := a.ID, a.Name
+		id, name, typed := a.ID, a.Name, c.cmdName
 		s.hashPassword(c, val, func(hash string) {
+			c.cmdName = typed
 			fresh, err := s.store.AccountByID(id)
 			if err != nil || fresh == nil {
 				return
@@ -459,29 +480,34 @@ func (s *Services) setOption(c *Client, a *store.Account, cmd, opt string, args 
 				s.audit(c, s.nickServ, "SASET PASSWORD %s", name)
 			}
 			s.ns(c, "%s password is changed.", whose)
+			if id == c.accountID {
+				s.nsLogCmd(c, "to change their password")
+			} else {
+				s.logCmd(c, s.nickServ, logAdmin, "", "to change the password of "+name)
+			}
 		})
 		return true
 	case "EMAIL":
 		switch {
 		case strings.EqualFold(val, "OFF"):
 			a.Email = ""
-			return save(whose + " email is removed.")
+			return save(whose+" email is removed.", "to unset the email of "+a.Name)
 		case validEmail(val) && s.emailForbidden(val) != "" && cmd == "SET":
 			s.ns(c, "%s", s.emailForbidden(val))
 			return false
 		case validEmail(val):
 			a.Email = val
-			return save(whose + " email is now " + val + ".")
+			return save(whose+" email is now "+val+".", "to change the email of "+a.Name+" to "+val)
 		}
 		s.ns(c, "Syntax: %s EMAIL <email>|OFF", cmd)
 	case "PROTECT", "ENFORCE": // ENFORCE is the old name
 		switch on, isOnOff := onOff(val); {
 		case isOnOff && !on:
 			a.Enforce = false
-			return save("Protect is off: people using " + strings.ToLower(whose) + " nicks are only told they are registered.")
+			return save("Protect is off: people using "+strings.ToLower(whose)+" nicks are only told they are registered.", "to disable kill for "+a.Name)
 		case isOnOff:
 			a.Enforce, a.Protect = true, 0
-			return save(fmt.Sprintf("Protect is on: people who don't identify within %d seconds get renamed.", int(s.protectDelay(a).Seconds())))
+			return save(fmt.Sprintf("Protect is on: people who don't identify within %d seconds get renamed.", int(s.protectDelay(a).Seconds())), "to set kill on for "+a.Name)
 		default:
 			d, err := parseSeconds(val)
 			if err != nil || d < minProtect || d > maxProtect {
@@ -489,7 +515,7 @@ func (s *Services) setOption(c *Client, a *store.Account, cmd, opt string, args 
 				return false
 			}
 			a.Enforce, a.Protect = true, int(d.Seconds())
-			return save(fmt.Sprintf("Protect is on: people who don't identify within %d seconds get renamed.", a.Protect))
+			return save(fmt.Sprintf("Protect is on: people who don't identify within %d seconds get renamed.", a.Protect), "to set kill on for "+a.Name)
 		}
 	case "HIDE":
 		field := strings.ToUpper(val)
@@ -518,7 +544,7 @@ func (s *Services) setOption(c *Client, a *store.Account, cmd, opt string, args 
 		if on {
 			shown = "hidden from"
 		}
-		return save(fmt.Sprintf("%s %s is %s others in INFO.", whose, what, shown))
+		return save(fmt.Sprintf("%s %s is %s others in INFO.", whose, what, shown), "to change hide "+field+" to "+strings.ToUpper(argAt(args, 1))+" for "+a.Name)
 	default:
 		s.ns(c, "Syntax: %s PASSWORD|EMAIL|PROTECT|HIDE ... (see /ns help %s)", cmd, strings.ToLower(cmd))
 	}
@@ -635,6 +661,7 @@ func nsDrop(s *Services, c *Client, args []string) {
 	switch {
 	case asOper && c.accountID == 0 && !c.can('s'):
 		s.ns(c, "Identify first: /ns identify <password>")
+		s.logDeniedUnreg(c, s.nickServ)
 		return
 	case asOper && !c.can('s'):
 		s.ns(c, "%s isn't part of your account.", nick)
@@ -665,6 +692,7 @@ func nsDrop(s *Services, c *Client, args []string) {
 		return
 	}
 	c.dropCode = ""
+	s.nsLog(c, owner.ID, "to drop nickname %s (group: %s) (email: %s)", nick, owner.Name, orNone(owner.Email))
 	if !whole {
 		if err := s.store.RemoveNick(nick); err != nil {
 			s.dbErr(c, s.nickServ, err)
@@ -759,4 +787,12 @@ func argAt(args []string, i int) string {
 		return args[i]
 	}
 	return ""
+}
+
+// orNone is s, or "none" when empty (Anope's log wording).
+func orNone(s string) string {
+	if s == "" {
+		return "none"
+	}
+	return s
 }

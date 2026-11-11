@@ -434,6 +434,7 @@ func (s *Store) DelAkick(c *Channel, mask string) (bool, error) {
 // went away.
 type FounderChange struct {
 	Channel  string
+	OldOwner string // the account that went
 	NewOwner string // "" when the channel was dropped
 }
 
@@ -457,6 +458,7 @@ func (s *Store) DeleteAccount(id int64) ([]FounderChange, error) {
 	}
 	defer tx.Rollback()
 	var changes []FounderChange
+	oldName := s.c.accountName(id)
 	for _, o := range list {
 		if o.succ != 0 && o.succ != id {
 			if _, err := tx.Exec("UPDATE channels SET founder_id = ?, successor_id = NULL WHERE id = ?", o.succ, o.id); err != nil {
@@ -465,13 +467,13 @@ func (s *Store) DeleteAccount(id int64) ([]FounderChange, error) {
 			if _, err := tx.Exec("DELETE FROM chan_access WHERE channel_id = ? AND account_id = ?", o.id, o.succ); err != nil {
 				return nil, err
 			}
-			changes = append(changes, FounderChange{Channel: o.name, NewOwner: s.c.accountName(o.succ)})
+			changes = append(changes, FounderChange{Channel: o.name, OldOwner: oldName, NewOwner: s.c.accountName(o.succ)})
 			continue
 		}
 		if _, err := tx.Exec("DELETE FROM channels WHERE id = ?", o.id); err != nil {
 			return nil, err
 		}
-		changes = append(changes, FounderChange{Channel: o.name})
+		changes = append(changes, FounderChange{Channel: o.name, OldOwner: oldName})
 	}
 	if _, err := tx.Exec("DELETE FROM accounts WHERE id = ?", id); err != nil {
 		return nil, err

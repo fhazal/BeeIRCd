@@ -180,7 +180,7 @@ func settings() []setting {
 				s.svc.SyncLogChannel(old)
 			}},
 		{name: "log-connects", table: "services", key: "log_connects", help: "also log connects and quits there", kind: 'b',
-			get: func(c *config.Config) string { return onoff(c.Services.LogConnects) }, apply: servicesApply},
+			get: func(c *config.Config) string { return onoff(c.Services.LogConnectsOn()) }, apply: servicesApply},
 	}
 }
 
@@ -263,6 +263,7 @@ func (s *Server) applySetting(c *Client, sv *state.User, name, value string) {
 	}
 	now := st.get(s.cfg)
 	s.audit(c, sv, "SET %s %s (was %s)", st.name, now, old)
+	s.svc.LogAdmin(c.uid, sv, fmt.Sprintf("to change the configuration value of %s:%s to %s", st.table, st.key, now)) // os_config
 	s.botReply(c, sv, fmt.Sprintf("%s is now %s (was %s). Saved to %s.", st.name, now, old, filepath.Base(s.cfg.Path)))
 }
 
@@ -349,6 +350,7 @@ func asMotd(s *Server, c *Client, args []string) {
 		return
 	}
 	s.audit(c, s.adminServ, "MOTD %s", strings.TrimSpace(sub+" "+text))
+	s.svc.LogAdmin(c.uid, s.adminServ, strings.TrimSpace(sub+" "+text))
 	s.as(c, "The MOTD has %s now. See it: /motd", plural(len(lines), "line"))
 }
 
@@ -490,6 +492,7 @@ func asPort(s *Server, c *Client, args []string) {
 			kind = "TLS"
 		}
 		s.audit(c, s.adminServ, "PORT ADD %s %s", addr, kind)
+		s.svc.LogAdmin(c.uid, s.adminServ, "ADD "+addr+" "+kind)
 		s.as(c, "%s is open (%s) and saved.", addr, kind)
 	case "DEL":
 		arg := argAt(args, 1)
@@ -536,6 +539,7 @@ func asPort(s *Server, c *Client, args []string) {
 		l.Close()
 		s.cfg.Listen = fresh.Listen
 		s.audit(c, s.adminServ, "PORT DEL %s", l.addr)
+		s.svc.LogAdmin(c.uid, s.adminServ, "DEL "+l.addr)
 		s.as(c, "%s is closed and saved. People connected through it stay.", l.addr)
 	default:
 		s.as(c, "Syntax: PORT ADD|DEL|LIST [port] [TLS]")
@@ -605,6 +609,7 @@ func asOper(s *Server, c *Client, args []string) {
 					return
 				}
 				s.audit(c, s.adminServ, "OPER %s SET PASSWORD", a.Name)
+				s.svc.LogAdmin(c.uid, s.adminServ, "to change the oper password of "+a.Name)
 				s.as(c, "Your oper password is changed and saved to beeircd.conf.")
 			})
 			return
@@ -690,6 +695,7 @@ func asOper(s *Server, c *Client, args []string) {
 				return
 			}
 			s.audit(c, s.adminServ, "OPER %s ADD flags %s hosts %s", a.Name, flags, strings.Join(hosts, " "))
+			s.svc.LogAdmin(c.uid, s.adminServ, "ADD "+a.Name+" with flags "+flags) // os_oper
 			if o.PassHash == "" {
 				s.as(c, "%s is an oper now: %s, from %s. Set their oper password: /as oper %s set password <password>", a.Name, describeFlags(flags), strings.Join(hosts, " "), a.Name)
 			} else {
@@ -732,6 +738,7 @@ func asOper(s *Server, c *Client, args []string) {
 				}
 				s.svc.ClearLockout(operLockKey(a.ID))
 				s.audit(c, s.adminServ, "OPER %s SET PASSWORD", a.Name)
+				s.svc.LogAdmin(c.uid, s.adminServ, "to change the oper password of "+a.Name)
 				s.as(c, "%s has a new oper password.", a.Name)
 			})
 			return
@@ -770,6 +777,7 @@ func asOper(s *Server, c *Client, args []string) {
 			return
 		}
 		s.audit(c, s.adminServ, "OPER %s SET %s %s", a.Name, what, strings.Join(rest, " "))
+		s.svc.LogAdmin(c.uid, s.adminServ, "to change the "+strings.ToLower(what)+" of "+a.Name+" to "+strings.Join(rest, " "))
 		s.recheckOpers(a.ID)
 		s.as(c, "%s: flags %s, hosts %s, title %s.", a.Name, cur.Flags, strings.Join(cur.Hosts, " "), orNone(cur.Title))
 	case "DEL":
@@ -788,6 +796,7 @@ func asOper(s *Server, c *Client, args []string) {
 			return
 		}
 		s.audit(c, s.adminServ, "OPER %s DEL", a.Name)
+		s.svc.LogAdmin(c.uid, s.adminServ, "DEL "+a.Name) // os_oper
 		s.recheckOpers(a.ID)
 		s.as(c, "%s is no longer an oper.", a.Name)
 	default:
@@ -873,6 +882,7 @@ func asStop(action int) func(*Server, *Client, []string) {
 		}
 		c.confirm = ""
 		s.audit(c, s.adminServ, "%s %s", word, reason)
+		s.svc.LogAdmin(c.uid, s.adminServ, "") // os_shutdown
 		s.as(c, "Going now.")
 		s.stopAfter, s.stopReason = action, irc.Truncate(reason, 200)
 	}
