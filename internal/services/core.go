@@ -197,8 +197,13 @@ func (s *Services) handle(ev state.Event) {
 		if c := s.clients[e.User.UID]; c != nil && !c.closed {
 			s.connected(c)
 		}
+	case *state.UserMode:
+		if c := s.clients[e.UID]; c != nil && !c.closed {
+			s.saveModes(c)
+		}
 	case *state.UserQuit:
 		if c := s.clients[e.UID]; c != nil {
+			s.saveModes(c)
 			s.saveQuit(c, e.Reason)
 			delete(s.clients, e.UID)
 		}
@@ -239,8 +244,10 @@ func (s *Services) connected(c *Client) {
 				s.log.Printf("services database: %v", err)
 			}
 			s.memoSummary(c, a)
+			s.afterLogin(c, a)
 		}
 	}
+	s.certLogin(c)
 	s.nickCheck(c)
 }
 
@@ -260,6 +267,7 @@ func (s *Services) Tick(now time.Time) {
 
 // Expire drops accounts, channels and AKILLs that ran out.
 func (s *Services) Expire(now time.Time) {
+	s.expireAccountSuspends(now)
 	s.expireAccounts(now)
 	s.expireChannels(now)
 	s.expireSuspends(now)

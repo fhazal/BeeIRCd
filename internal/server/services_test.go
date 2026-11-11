@@ -65,7 +65,7 @@ func TestRegisterAndIdentify(t *testing.T) {
 	other.send("NS INFO Bee")
 	other.expect(nsLine("other", "Bee · registered "))
 	other.expect(nsLine("other", "  Last seen     online now"))
-	other.expect(nsLine("other", "  Options       kill protection, security, email hidden, usermask hidden"))
+	other.expect(nsLine("other", "  Options       kill protection, security, private, auto-op, email hidden, usermask hidden"))
 	other.quiet("bee@example.org")
 
 	bee.send("QUIT")
@@ -231,7 +231,7 @@ func TestSetAndDrop(t *testing.T) {
 	other.send("NS IDENTIFY Bee newhoney99")
 	other.expect(nsLine("Bee_", "Password accepted. You are identified as Bee."))
 	other.send("NS INFO Bee")
-	other.expect(nsLine("Bee_", "  Options       security, quit hidden"))
+	other.expect(nsLine("Bee_", "  Options       security, private, auto-op, quit hidden"))
 	// Shown only while nobody uses the account.
 	other.send("NS SET HIDE QUIT OFF")
 	other.expect("Your last quit message is shown to others in INFO.")
@@ -287,7 +287,7 @@ func TestSASL(t *testing.T) {
 	c.send("NICK Bee")
 	c.send("USER bee 0 * :Bee")
 	c.send("AUTHENTICATE SCRAM-SHA-256")
-	c.expect(" 908 Bee PLAIN :are available SASL mechanisms")
+	c.expect(" 908 Bee PLAIN,EXTERNAL :are available SASL mechanisms")
 	c.expect(" 904 Bee :SASL authentication failed")
 	c.send("AUTHENTICATE PLAIN")
 	c.expect("AUTHENTICATE +")
@@ -493,7 +493,7 @@ func TestHelpLayout(t *testing.T) {
 	x.quiet("SASET")
 	b.send("NS HELP")
 	b.expect(nsLine("Boss", "Commands for IRC operators"))
-	b.expect(nsLine("Boss", "  SASET, LIST"))
+	b.expect(nsLine("Boss", "  SASET, SUSPEND, UNSUSPEND, GETEMAIL"))
 
 	b.send("AS OPER x ADD FLAGS g HOST *@127.0.0.1 PASSWORD Xoper-pass-1")
 	b.expect(asLine("Boss", "x is an oper now: g (global)"))

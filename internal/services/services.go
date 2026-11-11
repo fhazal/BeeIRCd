@@ -63,7 +63,13 @@ func isReserved(nick string) bool {
 // startServices creates the service bots.
 func (s *Services) startServices() {
 	s.services = make(map[string]*service)
-	s.nickServ = s.addService("NickServ", "ns", "Nickname Services", "NickServ keeps your nick yours. Commands:", nickServCommands())
+	nsCmds := nickServCommands()
+	if nickServExtras != nil {
+		for name, cmd := range nickServExtras() {
+			nsCmds[name] = cmd
+		}
+	}
+	s.nickServ = s.addService("NickServ", "ns", "Nickname Services", "NickServ keeps your nick yours. Commands:", nsCmds)
 	s.nickServ.aliases = nickServAliases
 	s.chanServ = s.addService("ChanServ", "cs", "Channel Services", "ChanServ keeps a channel yours. Commands:", chanServCommands())
 	s.chanServ.aliases = chanServAliases
@@ -342,6 +348,7 @@ func (s *Services) login(c *Client, a *store.Account) {
 	s.setRegistered(c, true)
 	s.csOnIdentify(c)
 	s.memoSummary(c, a)
+	s.afterLogin(c, a)
 }
 
 // logout ends c's identification.
@@ -458,6 +465,13 @@ func (s *Services) nickCheck(c *Client) {
 	if a == nil || c.accountID == a.ID {
 		return
 	}
+	if a.Suspended(time.Now()) {
+		s.ns(c, "Nick %s is suspended.", u.Nick)
+		return
+	}
+	if s.certValidate(c, a) {
+		return
+	}
 	onAccess := s.onAccess(c, a)
 	if onAccess && !a.Secure {
 		a.LastSeen, a.LastHost = time.Now(), u.Ident+"@"+u.RealHost
@@ -530,7 +544,7 @@ func (s *Services) expireAccounts(now time.Time) {
 		inUse[c.accountID] = true
 	}
 	for _, a := range old {
-		if inUse[a.ID] {
+		if inUse[a.ID] || a.NoExpire || a.SuspendedBy != "" {
 			continue
 		}
 		changes, err := s.store.DeleteAccount(a.ID)

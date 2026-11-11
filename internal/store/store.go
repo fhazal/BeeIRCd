@@ -48,6 +48,18 @@ type Account struct {
 	Protect    int // SET KILL: KillOn (the server's identify_within), KillQuick or KillImmed
 	MemoNotify bool
 	MemoLimit  int
+
+	// Step 1.5.6a (Anope 2.0.20 NickServ).
+	AutoOp        bool   // SET AUTOOP: ChanServ gives status on join
+	KeepModes     bool   // SET KEEPMODES: user modes come back on identify
+	LastModes     string // with KeepModes: the user modes, like "+iw"
+	Private       bool   // SET PRIVATE: hidden from NickServ LIST
+	URL           string // SET URL
+	NoExpire      bool   // SASET NOEXPIRE
+	SuspendedBy   string // "" when not suspended
+	SuspendReason string
+	SuspendedAt   time.Time
+	SuspendUntil  time.Time // Unix 0 = until UNSUSPEND
 }
 
 // Memo is one MemoServ message.
@@ -152,7 +164,7 @@ func Open(path string) (*Store, error) {
 		}
 		return fail(err)
 	}
-	if _, err := db.Exec(schema + channelSchema + operSchema + chanExtraSchema + netbanSchema); err != nil {
+	if _, err := db.Exec(schema + channelSchema + operSchema + chanExtraSchema + netbanSchema + ns156Schema); err != nil {
 		return fail(err)
 	}
 	if err := migrateLevels(db); err != nil {
@@ -162,6 +174,9 @@ func Open(path string) (*Store, error) {
 		return fail(err)
 	}
 	if err := migrateAccounts(db); err != nil {
+		return fail(err)
+	}
+	if err := migrateNS156(db); err != nil {
 		return fail(err)
 	}
 	notes, err := migrate2020(db)
@@ -205,14 +220,18 @@ func (s *Store) Check() error {
 
 const accountCols = `a.id, a.name, a.pass_hash, a.email, a.registered, a.last_seen, a.last_host,
 	a.enforce, a.hide_email, a.hide_host, a.memo_notify, a.memo_limit,
-	a.hide_status, a.hide_quit, a.last_quit, a.protect_delay, a.secure`
+	a.hide_status, a.hide_quit, a.last_quit, a.protect_delay, a.secure,
+	a.autoop, a.keepmodes, a.last_umodes, a.ns_private, a.url, a.noexpire,
+	a.suspended_by, a.suspend_reason, a.suspended_at, a.suspend_until`
 
 func scanAccount(row interface{ Scan(...any) error }) (*Account, error) {
 	var a Account
-	var reg, seen int64
+	var reg, seen, susAt, susUntil int64
 	err := row.Scan(&a.ID, &a.Name, &a.PassHash, &a.Email, &reg, &seen, &a.LastHost,
 		&a.Enforce, &a.HideEmail, &a.HideHost, &a.MemoNotify, &a.MemoLimit,
-		&a.HideStatus, &a.HideQuit, &a.LastQuit, &a.Protect, &a.Secure)
+		&a.HideStatus, &a.HideQuit, &a.LastQuit, &a.Protect, &a.Secure,
+		&a.AutoOp, &a.KeepModes, &a.LastModes, &a.Private, &a.URL, &a.NoExpire,
+		&a.SuspendedBy, &a.SuspendReason, &susAt, &susUntil)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -220,6 +239,7 @@ func scanAccount(row interface{ Scan(...any) error }) (*Account, error) {
 		return nil, err
 	}
 	a.Registered, a.LastSeen = time.Unix(reg, 0), time.Unix(seen, 0)
+	a.SuspendedAt, a.SuspendUntil = time.Unix(susAt, 0), time.Unix(susUntil, 0)
 	return &a, nil
 }
 
@@ -256,7 +276,8 @@ func (s *Store) CreateAccount(nick, passHash, email string, now time.Time) (*Acc
 	// The defaults below are the ones in the schema.
 	s.c.accounts[id] = &Account{ID: id, Name: nick, PassHash: passHash, Email: email,
 		Registered: sec(now), LastSeen: sec(now), Enforce: true, Secure: true, HideEmail: true, HideHost: true,
-		MemoNotify: true, MemoLimit: 50}
+		MemoNotify: true, MemoLimit: 50, AutoOp: true, Private: true,
+		SuspendedAt: time.Unix(0, 0), SuspendUntil: time.Unix(0, 0)}
 	s.c.addNick(&nickRow{key: key, nick: nick, account: id, registered: now.Unix()})
 	return s.c.account(id), nil
 }
@@ -280,9 +301,13 @@ func (s *Store) SaveAccount(a *Account) error {
 		return nil // dropped meanwhile; the database has nothing to update either
 	}
 	_, err := s.db.Exec(`UPDATE accounts SET pass_hash=?, email=?, last_seen=?, last_host=?, enforce=?, hide_email=?,
-		hide_host=?, memo_notify=?, memo_limit=?, hide_status=?, hide_quit=?, last_quit=?, protect_delay=?, secure=? WHERE id=?`,
+		hide_host=?, memo_notify=?, memo_limit=?, hide_status=?, hide_quit=?, last_quit=?, protect_delay=?, secure=?,
+		autoop=?, keepmodes=?, last_umodes=?, ns_private=?, url=?, noexpire=?,
+		suspended_by=?, suspend_reason=?, suspended_at=?, suspend_until=? WHERE id=?`,
 		a.PassHash, a.Email, a.LastSeen.Unix(), a.LastHost, a.Enforce, a.HideEmail, a.HideHost, a.MemoNotify, a.MemoLimit,
-		a.HideStatus, a.HideQuit, a.LastQuit, a.Protect, a.Secure, a.ID)
+		a.HideStatus, a.HideQuit, a.LastQuit, a.Protect, a.Secure,
+		a.AutoOp, a.KeepModes, a.LastModes, a.Private, a.URL, a.NoExpire,
+		a.SuspendedBy, a.SuspendReason, a.SuspendedAt.Unix(), a.SuspendUntil.Unix(), a.ID)
 	if err != nil {
 		return err
 	}
@@ -291,6 +316,8 @@ func (s *Store) SaveAccount(a *Account) error {
 	have.MemoNotify, have.MemoLimit = a.MemoNotify, a.MemoLimit
 	have.HideStatus, have.HideQuit, have.LastQuit, have.Protect = a.HideStatus, a.HideQuit, a.LastQuit, a.Protect
 	have.Secure = a.Secure
+	have.AutoOp, have.KeepModes, have.LastModes, have.Private, have.URL, have.NoExpire = a.AutoOp, a.KeepModes, a.LastModes, a.Private, a.URL, a.NoExpire
+	have.SuspendedBy, have.SuspendReason, have.SuspendedAt, have.SuspendUntil = a.SuspendedBy, a.SuspendReason, sec(a.SuspendedAt), sec(a.SuspendUntil)
 	return nil
 }
 
@@ -628,7 +655,8 @@ func (s *Store) SplitNick(nick string, now time.Time) (*Account, error) {
 	// The defaults below are the ones in the schema.
 	s.c.accounts[id] = &Account{ID: id, Name: n.nick, PassHash: old.PassHash, Email: old.Email,
 		Registered: sec(now), LastSeen: sec(now), Enforce: true, Secure: true, HideEmail: true, HideHost: true,
-		MemoNotify: true, MemoLimit: 50}
+		MemoNotify: true, MemoLimit: 50, AutoOp: true, Private: true,
+		SuspendedAt: time.Unix(0, 0), SuspendUntil: time.Unix(0, 0)}
 	row := *n
 	s.c.removeNick(key)
 	row.account = id

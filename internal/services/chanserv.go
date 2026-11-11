@@ -1447,9 +1447,15 @@ func (s *Services) giveModes(reg *store.Channel, ch *state.Channel, u *state.Use
 
 // csAutoModes is giveModes unless the channel has AUTOOP off.
 func (s *Services) csAutoModes(reg *store.Channel, ch *state.Channel, u *state.User) {
-	if reg.AutoOp {
-		s.giveModes(reg, ch, u)
+	if !reg.AutoOp {
+		return
 	}
+	if c := s.clientOf(u); c != nil && c.accountID != 0 {
+		if a, _ := s.store.AccountByID(c.accountID); a != nil && !a.AutoOp {
+			return // NickServ SET AUTOOP OFF
+		}
+	}
+	s.giveModes(reg, ch, u)
 }
 
 // secureAllows reports whether someone at lvl may hold status mode on reg

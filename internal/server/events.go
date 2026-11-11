@@ -15,11 +15,15 @@ func (s *Server) emit(ev state.Event) error {
 		s.beforeEmit(ev)
 	}
 	deliver := s.prepare(ev)
+	watch := s.monitorPrepare(ev)
 	if err := s.net.Apply(ev); err != nil {
 		return err
 	}
 	if deliver != nil {
 		deliver()
+	}
+	if watch != nil {
+		watch()
 	}
 	if cm, ok := ev.(*state.ChannelMode); ok {
 		s.noteTimedBans(cm)

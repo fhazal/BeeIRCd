@@ -131,8 +131,8 @@ func (s *Services) helpSetup() {
 	full := func() bool { return s.cfg.FullPrefixes() }
 
 	ns := s.nickServ
-	ns.groups = []helpGroup{{"Commands for IRC operators", []string{"SASET", "LIST"}}}
-	ns.cmdNeed = map[string]byte{"SASET": 's', "LIST": 'o'}
+	ns.groups = []helpGroup{{"Commands for IRC operators", []string{"SASET", "SUSPEND", "UNSUSPEND", "GETEMAIL"}}}
+	ns.cmdNeed = map[string]byte{"SASET": 's', "SUSPEND": 's', "UNSUSPEND": 's', "GETEMAIL": 'o'}
 
 	cs := s.chanServ
 	cs.groups = []helpGroup{

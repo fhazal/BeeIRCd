@@ -48,7 +48,7 @@ func TestNickServAccessSecureStatus(t *testing.T) {
 	imp.send("NS SET SECURE OFF")
 	imp.expect(nsLine("Bee", "Security is off for Bee: a connection matching the ACCESS list counts as the owner."))
 	imp.send("NS INFO")
-	imp.expect(nsLine("Bee", "  Options       kill protection, email hidden, usermask hidden"))
+	imp.expect(nsLine("Bee", "  Options       kill protection, private, auto-op, email hidden, usermask hidden"))
 	imp.send("QUIT")
 	imp.expect("ERROR")
 
@@ -92,7 +92,7 @@ func TestKillModes(t *testing.T) {
 	bee.send("NS SET KILL QUICK")
 	bee.expect(nsLine("Bee", "Kill protection is on for Bee, quick: people who don't identify within 0 seconds get renamed."))
 	bee.send("NS INFO")
-	bee.expect(nsLine("Bee", "  Options       quick kill, security, email hidden, usermask hidden"))
+	bee.expect(nsLine("Bee", "  Options       quick kill, security, private, auto-op, email hidden, usermask hidden"))
 	bee.send("NICK Bee_")
 	bee.expect(" NICK Bee_")
 	imp := login(t, s, "Bee")

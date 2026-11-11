@@ -52,6 +52,7 @@ session_limit = 100
 [services]
 database = "services.db"
 admin = "Boss"
+reg_delay = "0s"
 `
 
 // fileServer starts a server from a real config file (AdminServ writes to

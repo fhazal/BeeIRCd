@@ -46,17 +46,22 @@ func nickServCommands() map[string]svcCmd {
 		"ALIST": {"ALIST [nick]", "channels where you have access",
 			"Lists the channels where your account is on the access list, with your level.\nOpers may give someone else's nick.", nsAlist},
 		"SET": {"SET <option> <value>", "change your account",
-			"SET PASSWORD <new password>\nSET EMAIL <email>|OFF\nSET KILL {ON | QUICK | IMMED | OFF}   rename people who use your nick and don't\n    identify: ON after 60 s (default), QUICK after 20 s, IMMED at once (only\n    where the network allows it)\nSET SECURE {ON | OFF}   on (default): your ACCESS list never stands in for\n    your password\nSET HIDE {EMAIL | STATUS | USERMASK | QUIT} {ON | OFF}   what INFO shows others:\n    email, oper status, last user@host, last quit message (email and\n    user@host hidden)", nsSet},
+			"SET PASSWORD <new password>\nSET EMAIL <email>|OFF\nSET KILL {ON | QUICK | IMMED | OFF}   rename people who use your nick and don't\n    identify: ON after 60 s (default), QUICK after 20 s, IMMED at once (only\n    where the network allows it)\nSET SECURE {ON | OFF}   on (default): your ACCESS list never stands in for\n    your password\nSET HIDE {EMAIL | STATUS | USERMASK | QUIT} {ON | OFF}   what INFO shows others:\n    email, oper status, last user@host, last quit message (email and\n    user@host hidden)\nSET AUTOOP {ON | OFF}      ChanServ gives you your status when you join (on)\nSET DISPLAY <nick>         which of your nicks is the account's name\nSET KEEPMODES {ON | OFF}   your user modes (+iwx) come back when you identify\nSET PRIVATE {ON | OFF}     hide you from NickServ LIST (on)\nSET URL [url]              a URL in INFO; without one, it is removed", nsSet},
 		"SASET": {"SASET <option> <nick> <value>", "change someone's account (opers)",
-			"Like SET, for another account. Needs oper flag s.\nExample: /ns saset password Bee newpass42", nsSaset},
+			"Like SET, for another account. Needs oper flag s.\nExample: /ns saset password Bee newpass42\nSASET NOEXPIRE <nick> {ON | OFF}   the account never expires", nsSaset},
 		"INFO": {"INFO [nick]", "who owns a nick, when last seen",
 			"Shows when a nick was registered and last seen. You and opers see more.", nsInfo},
 		"DROP": {"DROP <nick>", "unregister one of your nicks",
 			"Removes the nick from your account; anyone may register it after that.\nYour account stays while it has other nicks. Dropping the account's name\ngives the account the name of its oldest other nick. Dropping the last nick\nremoves the account with its memos, and you lose the channels you own.\nOpers with flag s may drop anyone's nick, except other opers'.", nsDrop},
-		"LIST": {"LIST <pattern>", "search registered nicks (opers)",
-			"Lists registered nicks matching a pattern, like Bee* or *serv.", nsList},
+		"LIST": {"LIST <pattern> [SUSPENDED] [NOEXPIRE] [UNCONFIRMED]", "search registered nicks",
+			"Lists registered nicknames that match a given pattern, like Bee* or\n*!*@*.example.org (nick!last user@host). Accounts with SET PRIVATE on are\nleft out, except for opers. #1-10 shows those entries. Opers may add\nSUSPENDED or NOEXPIRE to see only those (! marks NOEXPIRE nicks).", nsList},
 	}
 }
+
+func init() { nickServExtras = ns156Commands }
+
+// nickServExtras adds the commands from other files (ns156.go).
+var nickServExtras func() map[string]svcCmd
 
 // identified returns c's account, or tells them to identify first.
 func (s *Services) identified(c *Client) (*store.Account, bool) {
@@ -105,6 +110,10 @@ func nsRegister(s *Services, c *Client, args []string) {
 	}
 	if c.accountID != 0 {
 		s.ns(c, "You're identified as %s already. To add %s to it: /ns group %s", u.Account, u.Nick, u.Account)
+		return
+	}
+	if d := s.cfg.Services.RegDelayOr(); d > 0 && !c.isOper() && time.Now().Unix()-u.NickTS < int64(d.Seconds()) {
+		s.ns(c, "You must have been using this nick for at least %d seconds to register.", int(d.Seconds()))
 		return
 	}
 	if a, err := s.store.AccountByNick(u.Nick); err != nil {
@@ -183,6 +192,13 @@ func nsIdentify(s *Services, c *Client, args []string) {
 	}
 	if c.accountID == a.ID {
 		s.ns(c, "You're already identified as %s.", a.Name)
+		return
+	}
+	if a.Suspended(time.Now()) {
+		s.ns(c, "Nick %s is suspended.", a.Name)
+		return
+	}
+	if s.loginsFull(c, a) {
 		return
 	}
 	cmd := c.cmdName
@@ -291,6 +307,10 @@ func nsGroup(s *Services, c *Client, args []string) {
 	}
 	a, ok := s.accountOf(c, args[0])
 	if !ok {
+		return
+	}
+	if a.Suspended(time.Now()) {
+		s.ns(c, "Nick %s is suspended.", a.Name)
 		return
 	}
 	if mine, err := s.store.AccountByNick(u.Nick); err != nil {
@@ -592,8 +612,96 @@ func (s *Services) setOption(c *Client, a *store.Account, cmd, opt string, args 
 			shown = "hidden from"
 		}
 		return save(fmt.Sprintf("%s %s is %s others in INFO.", whose, what, shown), "to change hide "+typed+" to "+strings.ToUpper(argAt(args, 1))+" for "+a.Name)
+	case "AUTOOP":
+		on, ok := onOff(val)
+		if !ok {
+			s.ns(c, "Syntax: %s AUTOOP {ON | OFF}", setSyntaxHead(cmd))
+			return false
+		}
+		a.AutoOp = on
+		if on {
+			return save("Services will from now on set status modes on "+a.Name+" in channels.", "to enable autoop for "+a.Name)
+		}
+		return save("Services will no longer set status modes on "+a.Name+" in channels.", "to disable autoop for "+a.Name)
+	case "KEEPMODES":
+		on, ok := onOff(val)
+		if !ok {
+			s.ns(c, "Syntax: %s KEEPMODES {ON | OFF}", setSyntaxHead(cmd))
+			return false
+		}
+		a.KeepModes, a.LastModes = on, ""
+		if on {
+			for _, oc := range s.onlineClients(a.ID) {
+				a.LastModes = keptModes(oc.user)
+			}
+			return save("Keep modes for "+a.Name+" is now on.", "to enable keepmodes for "+a.Name)
+		}
+		return save("Keep modes for "+a.Name+" is now off.", "to disable keepmodes for "+a.Name)
+	case "PRIVATE":
+		on, ok := onOff(val)
+		if !ok {
+			s.ns(c, "Syntax: %s PRIVATE {ON | OFF}", setSyntaxHead(cmd))
+			return false
+		}
+		a.Private = on
+		if on {
+			return save("Private option is now on for "+a.Name+".", "to enable private for "+a.Name)
+		}
+		return save("Private option is now off for "+a.Name+".", "to disable private for "+a.Name)
+	case "NOEXPIRE":
+		if cmd != "SASET" {
+			s.ns(c, "Syntax: SASET NOEXPIRE <nick> {ON | OFF}")
+			return false
+		}
+		on, ok := onOff(val)
+		if !ok {
+			s.ns(c, "Syntax: SASET NOEXPIRE <nick> {ON | OFF}")
+			return false
+		}
+		a.NoExpire = on
+		if on {
+			return save("Nick "+a.Name+" will not expire.", "to enable noexpire for "+a.Name)
+		}
+		return save("Nick "+a.Name+" will expire.", "to disable noexpire for "+a.Name)
+	case "URL":
+		url := strings.Join(args, " ")
+		a.URL = irc.Truncate(url, 300)
+		if err := s.store.SaveAccount(a); err != nil {
+			s.dbErr(c, s.nickServ, err)
+			return false
+		}
+		if url == "" {
+			s.ns(c, "URL for %s unset.", a.Name)
+		} else {
+			s.ns(c, "URL for %s set to %s.", a.Name, a.URL)
+		}
+		return true
+	case "DISPLAY":
+		nicks, err := s.store.Nicks(a)
+		if err != nil {
+			s.dbErr(c, s.nickServ, err)
+			return false
+		}
+		target := ""
+		for _, n := range nicks {
+			if irc.EqualFold(n, val) {
+				target = n
+			}
+		}
+		if val == "" || target == "" {
+			s.ns(c, "The new display MUST be a nickname of the nickname group %s.", a.Name)
+			return false
+		}
+		old := a.Name
+		if err := s.renameAccount(a.ID, target); err != nil {
+			s.dbErr(c, s.nickServ, err)
+			return false
+		}
+		s.nsLog(c, a.ID, "to change the display of %s to %s", old, target)
+		s.ns(c, "The new display is now %s.", target)
+		return true
 	default:
-		s.ns(c, "Syntax: %s PASSWORD|EMAIL|KILL|SECURE|HIDE ... (see /ns help %s)", cmd, strings.ToLower(cmd))
+		s.ns(c, "Syntax: %s PASSWORD|EMAIL|KILL|SECURE|HIDE|AUTOOP|DISPLAY|KEEPMODES|PRIVATE|URL ... (see /ns help %s)", cmd, strings.ToLower(cmd))
 	}
 	return false
 }
@@ -667,6 +775,21 @@ func nsInfo(s *Services, c *Client, args []string) {
 	if a.Email != "" && (!a.HideEmail || insider) {
 		s.ns(c, "  Email         %s", a.Email)
 	}
+	if a.URL != "" {
+		s.ns(c, "  URL           %s", a.URL)
+	}
+	if a.Suspended(time.Now()) {
+		// ns_suspend show = "suspended, by, reason, on, expires" (everyone).
+		s.ns(c, "  Suspended     This nickname is suspended.")
+		s.ns(c, "  Suspended by  %s", a.SuspendedBy)
+		if a.SuspendReason != "" {
+			s.ns(c, "  Reason        %s", a.SuspendReason)
+		}
+		s.ns(c, "  Suspended on  %s", showTime(a.SuspendedAt))
+		if a.SuspendUntil.Unix() != 0 {
+			s.ns(c, "  Expires       %s", showTime(a.SuspendUntil))
+		}
+	}
 	var others []string
 	for _, n := range nicks {
 		if !irc.EqualFold(n, shown) {
@@ -689,6 +812,18 @@ func nsInfo(s *Services, c *Client, args []string) {
 	}
 	if a.Secure {
 		opts = append(opts, "security")
+	}
+	if a.Private {
+		opts = append(opts, "private")
+	}
+	if a.AutoOp {
+		opts = append(opts, "auto-op")
+	}
+	if a.KeepModes {
+		opts = append(opts, "keep modes")
+	}
+	if a.NoExpire && insider {
+		opts = append(opts, "no expire")
 	}
 	for _, h := range []struct {
 		on   bool
@@ -948,46 +1083,6 @@ func (s *Services) dropAccount(a *store.Account, founderWhy, by string) error {
 	}
 	s.host.AccountGone(id)
 	return nil
-}
-
-func nsList(s *Services, c *Client, args []string) {
-	if !c.user.HasMode('o') {
-		s.ns(c, "LIST is for opers.")
-		return
-	}
-	pattern := argAt(args, 0)
-	if pattern == "" {
-		s.ns(c, "Syntax: LIST <pattern>")
-		return
-	}
-	all, err := s.store.AllNicks()
-	if err != nil {
-		s.dbErr(c, s.nickServ, err)
-		return
-	}
-	n := 0
-	for _, e := range all {
-		if !irc.Match(pattern, e.Nick) {
-			continue
-		}
-		n++
-		if n <= 100 {
-			if irc.EqualFold(e.Nick, e.Account) {
-				s.ns(c, "  %s", e.Nick)
-			} else {
-				s.ns(c, "  %s (account %s)", e.Nick, e.Account)
-			}
-		}
-	}
-	if n > 100 {
-		s.ns(c, "%d nicks match; showing the first 100.", n)
-	} else {
-		if n == 1 {
-			s.ns(c, "1 nick matches.")
-		} else {
-			s.ns(c, "%d nicks match.", n)
-		}
-	}
 }
 
 func argAt(args []string, i int) string {

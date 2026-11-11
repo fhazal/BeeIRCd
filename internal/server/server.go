@@ -47,10 +47,11 @@ type Server struct {
 	sinceFlush int              // loop jobs since the last flushWrites
 	msgSeq     uint64
 	batchSeq   uint64
-	sinks      []func(state.Event) // get every event after it was applied
-	beforeEmit func(state.Event)   // tests: runs before each event
-	timedBans  []timedBan          // ~t: channel list entries waiting to lift
-	loop       loopStats           // how long each piece of loop work took
+	sinks      []func(state.Event)         // get every event after it was applied
+	beforeEmit func(state.Event)           // tests: runs before each event
+	timedBans  []timedBan                  // ~t: channel list entries waiting to lift
+	watchers   map[string]map[*Client]bool // MONITOR: folded nick -> clients watching it
+	loop       loopStats                   // how long each piece of loop work took
 	wg         sync.WaitGroup
 
 	// Services. The store is shared: the server reads oper entries and
@@ -94,6 +95,7 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 		log:       logger,
 		net:       state.NewNetwork(cfg.Server.SID),
 		clients:   make(map[string]*Client),
+		watchers:  make(map[string]map[*Client]bool),
 		perIP:     make(map[string]int),
 		opers:     make(map[*Client]bool),
 		events:    make(chan func(), 1024),

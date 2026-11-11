@@ -99,6 +99,9 @@ func (s *Server) cmdWhois(c *Client, m irc.Message) {
 		if u.TLS {
 			s.reply(c, irc.RplWhoisSecure, u.Nick, "is using a secure connection")
 		}
+		if u.CertFP != "" && (u == c.user || c.isOper()) {
+			s.reply(c, irc.RplWhoisCertFP, u.Nick, "has client certificate fingerprint "+u.CertFP)
+		}
 		if tc := s.clientOf(u); tc != nil {
 			idle := int64(time.Since(tc.lastMsg).Seconds())
 			s.reply(c, irc.RplWhoisIdle, u.Nick, strconv.FormatInt(idle, 10), strconv.FormatInt(u.SignOn.Unix(), 10), "seconds idle, signon time")

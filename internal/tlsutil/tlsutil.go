@@ -30,7 +30,9 @@ func Load(certFile, keyFile string, selfSigned bool, host string) (*tls.Config, 
 	if err != nil {
 		return nil, fmt.Errorf("load certificate: %w", err)
 	}
-	return &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}, nil
+	// Clients may show a certificate (NickServ CERT, SASL EXTERNAL); it is
+	// only fingerprinted, never checked against a CA.
+	return &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12, ClientAuth: tls.RequestClientCert}, nil
 }
 
 // MakeSelfSigned writes a 10-year ECDSA certificate for host.

@@ -27,7 +27,7 @@ func capLS(v302 bool) string {
 	out := make([]string, len(capabilities))
 	for i, c := range capabilities {
 		if c == "sasl" && v302 {
-			c = "sasl=PLAIN"
+			c = "sasl=PLAIN,EXTERNAL"
 		}
 		out[i] = c
 	}
@@ -209,6 +209,7 @@ func (s *Server) tryRegister(c *Client) {
 		Realname: c.realname,
 		Server:   s.cfg.Server.Name,
 		TLS:      c.tls,
+		CertFP:   c.certfp,
 		SignOn:   now,
 		NickTS:   now.Unix(),
 		Modes:    map[byte]bool{'i': true},
@@ -348,6 +349,7 @@ func (s *Server) isupport() []string {
 		"KICKLEN=" + strconv.Itoa(l.KickLen),
 		"MAXLIST=beI:" + strconv.Itoa(maxListEntries),
 		"MAXTARGETS=" + strconv.Itoa(maxTargets),
+		"MONITOR=" + strconv.Itoa(monitorMax),
 		"MODES=" + strconv.Itoa(maxModeParams),
 		"NETWORK=" + s.cfg.Server.Network,
 		"NICKLEN=" + strconv.Itoa(l.NickLen),

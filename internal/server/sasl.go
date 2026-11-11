@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"strings"
+	"time"
 
 	"github.com/fhazal/beeircd/internal/cloak"
 	"github.com/fhazal/beeircd/internal/irc"
@@ -34,13 +35,14 @@ func (s *Server) cmdAuthenticate(c *Client, m irc.Message) {
 		return
 	}
 	if c.saslMech == "" {
-		if !strings.EqualFold(arg, "PLAIN") {
-			s.reply(c, irc.RplSaslMechs, "PLAIN", "are available SASL mechanisms")
+		switch mech := strings.ToUpper(arg); mech {
+		case "PLAIN", "EXTERNAL":
+			c.saslMech = mech
+			c.send("AUTHENTICATE +")
+		default:
+			s.reply(c, irc.RplSaslMechs, "PLAIN,EXTERNAL", "are available SASL mechanisms")
 			s.reply(c, irc.ErrSaslFail, "SASL authentication failed")
-			return
 		}
-		c.saslMech = "PLAIN"
-		c.send("AUTHENTICATE +")
 		return
 	}
 	if arg != "+" {
@@ -55,7 +57,12 @@ func (s *Server) cmdAuthenticate(c *Client, m irc.Message) {
 		return // more is coming
 	}
 	raw, err := base64.StdEncoding.DecodeString(c.saslBuf.String())
+	mech := c.saslMech
 	c.resetSASL()
+	if mech == "EXTERNAL" {
+		s.saslExternal(c, string(raw), err)
+		return
+	}
 	parts := bytes.Split(raw, []byte{0})
 	if err != nil || len(parts) != 3 || len(parts[1]) == 0 {
 		s.reply(c, irc.ErrSaslFail, "SASL authentication failed")
@@ -104,6 +111,28 @@ func (s *Server) saslDone(c *Client, a *store.Account) {
 		s.reply(c, irc.RplLoggedIn, mask, fresh.Name, "You are now logged in as "+fresh.Name)
 	}
 	s.reply(c, irc.RplSaslSuccess, "SASL authentication successful")
+}
+
+// saslExternal logs in with the TLS client certificate: the account whose
+// NickServ CERT list has its fingerprint. authz, when given, must be that
+// account.
+func (s *Server) saslExternal(c *Client, authz string, decodeErr error) {
+	who := c.host + " (" + c.ip + ")"
+	a := s.store.AccountByCert(c.certfp)
+	switch {
+	case decodeErr != nil || c.certfp == "":
+		s.reply(c, irc.ErrSaslFail, "SASL authentication failed")
+	case a == nil:
+		s.svc.LogSASLExternal(who, "", c.certfp, false)
+		s.reply(c, irc.ErrSaslFail, "SASL authentication failed")
+	case authz != "" && !irc.EqualFold(authz, a.Name) || a.Suspended(time.Now()):
+		s.svc.LogSASLExternal(who, "", c.certfp, false)
+		s.reply(c, irc.ErrSaslFail, "SASL authentication failed")
+	default:
+		s.svc.LogSASLExternal(who, a.Name, c.certfp, true)
+		s.saslDone(c, a)
+	}
+	s.tryRegister(c)
 }
 
 func (c *Client) resetSASL() {

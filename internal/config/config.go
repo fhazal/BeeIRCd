@@ -223,6 +223,10 @@ func (c *Config) SetDefaults() {
 	setDur(&sv.KillQuick, 20*time.Second)
 	setDur(&sv.BanExpiry, 30*24*time.Hour)
 	setDur(&sv.ChanExpire, 60*24*time.Hour)
+	setInt(&sv.MaxLogins, 10)
+	setInt(&sv.CertMax, 5)
+	setInt(&sv.AjoinMax, 10)
+	setInt(&sv.ListMax, 50)
 	if sv.GuestPrefix == "" {
 		sv.GuestPrefix = "Guest"
 	}
@@ -274,6 +278,28 @@ type Services struct {
 	// users = "connect disconnect nick"). On by default; off for busy
 	// networks.
 	LogConnects *bool `toml:"log_connects"`
+
+	// MaxLogins is how many connections may be identified to one account
+	// at once (Anope's maxlogins, 10).
+	MaxLogins int `toml:"max_logins"`
+	// RegDelay is how long someone must be connected before REGISTER works
+	// (Anope's regdelay, 30 s). "0s" switches it off.
+	RegDelay *Duration `toml:"reg_delay"`
+	// CertMax is how many certificate fingerprints one account may keep
+	// (ns_cert max, 5).
+	CertMax int `toml:"cert_max"`
+	// AjoinMax is how long an auto join list may be (ajoinmax, 10).
+	AjoinMax int `toml:"ajoin_max"`
+	// ListMax is how many entries NickServ LIST shows (listmax, 50).
+	ListMax int `toml:"list_max"`
+}
+
+// RegDelayOr is reg_delay with its default (30 s).
+func (s Services) RegDelayOr() time.Duration {
+	if s.RegDelay == nil {
+		return 30 * time.Second
+	}
+	return s.RegDelay.Duration
 }
 
 // LogConnectsOn reports whether connects, quits and nick changes are

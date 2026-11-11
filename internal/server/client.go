@@ -3,6 +3,9 @@ package server
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
+	"crypto/tls"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -46,8 +49,10 @@ type Client struct {
 	saslMech    string // SASL mechanism in progress
 	saslBuf     strings.Builder
 	saslBusy    bool
-	saslAccount *store.Account // SASL done before registration finished
-	operFlags   string         // oper flags like "acghks", "" when not an oper
+	saslAccount *store.Account    // SASL done before registration finished
+	certfp      string            // SHA-256 of the TLS client certificate, "" = none
+	monitor     map[string]string // MONITOR list: folded nick -> nick as given
+	operFlags   string            // oper flags like "acghks", "" when not an oper
 	operTitle   string
 	operAccount int64     // the oper entry (account ID) c opered with
 	confirm     string    // confirms AdminServ RESTART and DIE
@@ -261,6 +266,15 @@ func (c *Client) writeLoop() {
 }
 
 func (c *Client) readLoop() {
+	// A TLS client certificate is fingerprinted before any line is read,
+	// so the loop knows it when NICK and USER arrive.
+	if tc, ok := c.conn.(*tls.Conn); ok && tc.Handshake() == nil {
+		if certs := tc.ConnectionState().PeerCertificates; len(certs) > 0 {
+			sum := sha256.Sum256(certs[0].Raw)
+			fp := hex.EncodeToString(sum[:])
+			c.s.post(func() { c.certfp = fp })
+		}
+	}
 	r := bufio.NewReaderSize(c.conn, readBufSize)
 	gap := time.Second / time.Duration(c.floodRate)
 	allow := time.Duration(c.floodBurst) * gap
@@ -340,6 +354,7 @@ func (s *Server) quit(c *Client, reason string) {
 	c.closed = true
 	c.capture = nil
 	delete(s.clients, c.uid)
+	s.monitorDrop(c)
 	if s.perIP[c.ip]--; s.perIP[c.ip] <= 0 {
 		delete(s.perIP, c.ip)
 	}

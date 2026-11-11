@@ -252,3 +252,34 @@ Where we differ, on purpose:
 - DNSBL: Anope's m_dnsbl always AKILLs (4h in the owner's commented-out
   block); ours does what each list says, reject by default (decided for
   1.5.5). Reasons take Anope's %i %n %u %h %g %N %r, plus %b for the list.
+
+## Stage 1.5.6a (built 11 Nov 2026)
+
+Decided by the user (PLAN-1.5.6.md, all six recommendations): mail and
+BUDDY come in 1.5.6b; RSEND, SET MESSAGE and SET LANGUAGE are skipped;
+Anope 2.0.20's defaults (maxlogins 10, regdelay 30s, SET PRIVATE on for
+new accounts).
+
+Built as Anope 2.0.20 (ns_cert, ns_ajoin, ns_group GLIST, ns_suspend,
+ns_list, ns_getemail, ns_update, ns_set AUTOOP/DISPLAY/KEEPMODES/PRIVATE,
+ns_set_misc URL, ns_saset NOEXPIRE, m_sasl EXTERNAL), with their replies
+and log lines: CERT ADD/DEL/LIST [nick] (max 5, secureadmins), identify
+by certificate at connect and on a nick change, AJOIN ADD/DEL/LIST (max
+10, comma lists, channels that would refuse you are skipped unless your
+access lets ChanServ invite you), GLIST, SUSPEND nick [+expiry] [reason]
+(logged out and renamed, INFO shows suspended/by/reason/on/expires to
+everyone as in the owner's config), UNSUSPEND, LIST pattern [SUSPENDED]
+[NOEXPIRE] [UNCONFIRMED] with #from-to, GETEMAIL, UPDATE, SET AUTOOP,
+DISPLAY, KEEPMODES, PRIVATE, URL, SASET NOEXPIRE, maxlogins, regdelay.
+
+Where we differ, on purpose:
+
+- MONITOR is the IRCd's (IRCv3), not services.
+- NOEXPIRE is per account (Anope: per nick); our expiry is per account.
+- KEEPMODES keeps +i, +w and +x only (what people set themselves).
+- A suspended nick is renamed when suspended (Anope's Collide) and later
+  only told "Nick X is suspended." when someone takes it, as in Anope.
+- Fingerprints are SHA-256 of the client certificate, lower case hex;
+  CERT ADD for someone else takes the fingerprint with or without colons.
+- LIST UNCONFIRMED matches nothing: there are no unconfirmed accounts
+  until mail confirmation exists.

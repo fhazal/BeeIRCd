@@ -42,7 +42,7 @@ func testServerWith(t *testing.T, tweak func(*config.Config), setup func(*Server
 		// Cloaks off and room for fast test clients; tests of those turn them back.
 		Cloak:    config.Cloak{Enabled: &off, Secret: "0123456789abcdef-test"},
 		Limits:   config.Limits{FloodBurst: 10000, FloodRate: 10000, SessionLimit: 1000},
-		Services: config.Services{Database: filepath.Join(dir, "services.db")},
+		Services: config.Services{Database: filepath.Join(dir, "services.db"), RegDelay: &config.Duration{}},
 	}
 	if tweak != nil {
 		tweak(cfg)
