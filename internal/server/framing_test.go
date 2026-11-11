@@ -78,3 +78,13 @@ func TestFramingCleansServerText(t *testing.T) {
 		}
 	}
 }
+
+func TestBanMaskWithSpaceRefused(t *testing.T) {
+	s := testServer(t, nil)
+	a := login(t, s, "pa")
+	joinAll("#p", a)
+	a.send("MODE #p +b :foo bar")
+	a.expectNumeric("696", "#p", "b", "foo_bar", ":Invalid ban mask")
+	a.send("MODE #p +b")
+	a.expectNumeric("368", "#p")
+}

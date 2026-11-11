@@ -57,6 +57,9 @@ const MaxTimedBan = 525600
 // NormalizeBan is NormalizeMask that also takes extbans; false when an
 // extban is malformed.
 func NormalizeBan(m string) (string, bool) {
+	if m == "" || strings.ContainsAny(m, " \r\n\x00") {
+		return "", false // a mask with a space would break list replies (367)
+	}
 	if !strings.HasPrefix(m, "~") {
 		return NormalizeMask(m), true
 	}
@@ -69,7 +72,11 @@ func NormalizeBan(m string) (string, bool) {
 		if arg == "" || strings.ContainsAny(arg, " ") {
 			return "", false
 		}
-		return Truncate("~"+string(letter)+":"+arg, 100), true
+		out := Truncate("~"+string(letter)+":"+arg, 100)
+		if len(out) <= 3 { // the cut left no account or realname (bad UTF-8)
+			return "", false
+		}
+		return out, true
 	case 'm', 'q':
 		inner, ok := NormalizeBan(arg)
 		if !ok || strings.HasPrefix(inner, "~m:") || strings.HasPrefix(inner, "~q:") || strings.HasPrefix(inner, "~t:") {

@@ -110,5 +110,20 @@ func NormalizeMask(m string) string {
 	default:
 		m += "!*@*"
 	}
-	return Truncate(m, 100)
+	// Cut each part on its own (like UnrealIRCd), so a long mask keeps its
+	// nick!user@host shape and still matches: 30 + 1 + 10 + 1 + 58 = 100.
+	at := strings.LastIndexByte(m, '@')
+	host := m[at+1:]
+	nick, user, _ := strings.Cut(m[:at], "!")
+	if !strings.Contains(m[:at], "!") {
+		nick, user = "*", m[:at]
+	}
+	return orStar(Truncate(nick, 30)) + "!" + orStar(Truncate(user, 10)) + "@" + orStar(Truncate(host, 58))
+}
+
+func orStar(s string) string {
+	if s == "" {
+		return "*"
+	}
+	return s
 }

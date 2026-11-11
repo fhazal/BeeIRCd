@@ -143,12 +143,16 @@ func parseTags(raw string) map[string]string {
 			continue
 		}
 		k, v, _ := strings.Cut(part, "=")
+		if !validTagKey(k) {
+			continue // IRCv3 message-tags: [+][vendor/]name of letters, digits, -
+		}
 		tags[k] = unescapeTag(v)
 	}
 	return tags
 }
 
-var tagEscaper = strings.NewReplacer(`\`, `\\`, ";", `\:`, " ", `\s`, "\r", `\r`, "\n", `\n`)
+// tagEscaper escapes tag values; NUL has no escape in IRCv3 and is dropped.
+var tagEscaper = strings.NewReplacer(`\`, `\\`, ";", `\:`, " ", `\s`, "\r", `\r`, "\n", `\n`, "\x00", "")
 
 // EscapeTag escapes a tag value for the wire.
 func EscapeTag(v string) string { return tagEscaper.Replace(v) }
@@ -198,6 +202,33 @@ func middleParam(p string) string {
 		p = "_" + p[1:]
 	}
 	return p
+}
+
+// validTagKey reports whether k is a tag key IRCv3 allows: an optional +,
+// an optional vendor (a host name) and /, then letters, digits and -.
+func validTagKey(k string) bool {
+	k = strings.TrimPrefix(k, "+")
+	if i := strings.LastIndexByte(k, '/'); i >= 0 {
+		vendor := k[:i]
+		if vendor == "" {
+			return false
+		}
+		for j := 0; j < len(vendor); j++ {
+			if c := vendor[j]; !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '.') {
+				return false
+			}
+		}
+		k = k[i+1:]
+	}
+	if k == "" {
+		return false
+	}
+	for j := 0; j < len(k); j++ {
+		if c := k[j]; !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-') {
+			return false
+		}
+	}
+	return true
 }
 
 // framing are the bytes that end or break an IRC line.
