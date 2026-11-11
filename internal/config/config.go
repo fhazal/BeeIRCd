@@ -57,6 +57,7 @@ type Config struct {
 	Control  Control  `toml:"control"`
 	Backup   Backup   `toml:"backup"`
 	Link     Link     `toml:"link"`
+	Update   Update   `toml:"update"`
 	// OperClasses are the [[operclass]] blocks (see Classes).
 	OperClasses []OperClass `toml:"operclass"`
 
@@ -498,6 +499,9 @@ func (c *Config) Check() error {
 	}
 	if c.NeedsTLS() && (c.TLS.Cert == "" || c.TLS.Key == "") {
 		return fmt.Errorf("a TLS port needs [tls] cert and key (or acme = true)")
+	}
+	if err := c.checkUpdate(); err != nil {
+		return err
 	}
 	if err := c.checkLink(); err != nil {
 		return err

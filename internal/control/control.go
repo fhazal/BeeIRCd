@@ -18,6 +18,9 @@ const (
 	CmdCheck  = "check"
 	CmdBackup = "backup"
 	CmdRehash = "rehash"
+	// CmdQuitReason sets the quit message for the next stop (Path holds
+	// the text), so `beeircd update` can say why everyone is leaving.
+	CmdQuitReason = "quit-reason"
 )
 
 // MaxRequest is the most bytes one request may be.
@@ -89,6 +92,8 @@ type Status struct {
 	Cert            *Cert  `json:"cert,omitempty"`
 	BackupDir       string `json:"backup_dir"`
 	Safety          Safety `json:"safety"`
+	// Update is a newer release the daily check found (nil: none).
+	Update *UpdateInfo `json:"update,omitempty"`
 }
 
 // Check is what only the running server can check: its own database
@@ -136,4 +141,10 @@ func Ask(socket string, req Request, timeout time.Duration) (*Response, error) {
 		return &resp, errors.New(resp.Error)
 	}
 	return &resp, nil
+}
+
+// UpdateInfo is a newer release than the running one.
+type UpdateInfo struct {
+	Version string `json:"version"`
+	Date    string `json:"date"`
 }

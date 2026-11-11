@@ -148,6 +148,9 @@ func statusScreen(st *control.Status, p paint, now time.Time, timerOff bool) str
 	default:
 		row("Backup", ago(last, now)+" "+p.dim(fmt.Sprintf("· %d kept in %s", len(control.Backups(keep)), keep)))
 	}
+	if u := st.Update; u != nil {
+		b.WriteString(p.warn(fmt.Sprintf("  %-10s %s is out (%s) · beeircd update", "Update", u.Version, shortDate(u.Date))) + "\n")
+	}
 	sf := st.Safety
 	var safe []string
 	if sf.Throttled > 0 {
@@ -637,4 +640,13 @@ func acmeVia(addr string) string {
 		return ""
 	}
 	return " on " + addr
+}
+
+// shortDate turns a release date "2026-11-20" into "20 Nov".
+func shortDate(d string) string {
+	t, err := time.Parse("2006-01-02", d)
+	if err != nil {
+		return d
+	}
+	return t.Format("2 Jan")
 }

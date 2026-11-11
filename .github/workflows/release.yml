@@ -1,0 +1,54 @@
+# Builds a release when a tag like v1.0.0 is pushed, as a DRAFT. It never
+# signs: the signing key stays on the maintainer's machine, which signs the
+# draft and publishes it (RELEASING.md). Until then `beeircd update` sees
+# nothing, and a hacked GitHub account can't make a release servers accept.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: tests
+        run: go test -count=1 ./...
+      - name: build linux amd64 + arm64
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          v="${TAG#v}"
+          mkdir -p dist
+          for arch in amd64 arm64; do
+            CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath \
+              -ldflags "-s -w -X github.com/fhazal/beeircd/internal/version.Version=$v -X github.com/fhazal/beeircd/internal/version.Commit=${GITHUB_SHA::7}" \
+              -o dist/beeircd-linux-$arch ./cmd/beeircd
+          done
+          cp scripts/install.sh dist/install.sh
+      - name: release.json (unsigned)
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          git tag -l --format='%(contents)' "$TAG" > notes.txt
+          go run ./tools/release manifest -version "$TAG" -dir dist -notes notes.txt
+      - name: draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          pre=""
+          case "$TAG" in *-*) pre="--prerelease" ;; esac
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --draft $pre \
+            --title "BeeIRCd ${TAG#v}" --notes-file notes.txt

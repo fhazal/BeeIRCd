@@ -11,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -22,7 +23,37 @@ func main() {
 	admin := flag.String("admin", "", "admin nick")
 	pass := flag.String("pass", "", "admin oper password")
 	skipReg := flag.Bool("again", false, "the nick is registered already (after a restart): IDENTIFY instead")
+	serve := flag.String("serve", "", "serve this folder over HTTP on -addr instead (a release folder for the update test)")
+	addr := flag.String("addr", "127.0.0.1:8099", "address for -serve")
+	watch := flag.String("watch", "", "stay connected to this plain host:port and print the server's goodbye (ERROR line)")
 	flag.Parse()
+	if *watch != "" {
+		c, err := dial(*watch, false)
+		if err == nil {
+			err = c.register("watcher")
+		}
+		if err != nil {
+			fmt.Println("watch:", err)
+			os.Exit(1)
+		}
+		for {
+			c.SetReadDeadline(time.Now().Add(10 * time.Minute))
+			l, err := c.r.ReadString('\n')
+			if err != nil {
+				return
+			}
+			if strings.HasPrefix(l, "PING ") {
+				c.send("PONG " + strings.TrimPrefix(strings.TrimSpace(l), "PING "))
+			}
+			if strings.HasPrefix(l, "ERROR") {
+				fmt.Print(l)
+			}
+		}
+	}
+	if *serve != "" {
+		fmt.Println(http.ListenAndServe(*addr, http.FileServer(http.Dir(*serve))))
+		os.Exit(1)
+	}
 	fails := 0
 	check := func(name string, err error) {
 		if err != nil {

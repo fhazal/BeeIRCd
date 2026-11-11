@@ -129,6 +129,12 @@ role = {{q .Role}}
 port = {{.LinkPort}}
 {{- end}}
 
+[update]
+# ` + "`beeircd update`" + ` installs new releases; each one is signed and checked
+# first. The server looks once a day for a new one (one small download,
+# nothing about this server is sent); check = false turns that off.
+check = true
+
 [backup]
 # ` + "`beeircd backup`" + ` writes here; the beeircd-backup timer makes one daily
 # at 04:00 ({{.TimeZone}}). The newest 7 are kept.

@@ -73,6 +73,8 @@ type Server struct {
 	certErr     string
 	safe        safetyState
 	acme        acmeState                   // 7c Let's Encrypt renewal
+	upd         updState                    // 7e daily release check
+	quitReason  string                      // set by `beeircd update` before it restarts the server
 	watchers    map[string]map[*Client]bool // MONITOR: folded nick -> clients watching it
 	loop        loopStats                   // how long each piece of loop work took
 	wg          sync.WaitGroup
@@ -231,6 +233,7 @@ func (s *Server) Serve(ctx context.Context) error {
 		s.wg.Add(1)
 		go s.acmeLoop(s.acmeConfig())
 	}
+	s.startUpdateCheck()
 	s.log.Printf("%s ready on %d port(s)", s.cfg.Server.Name, len(s.listeners))
 	tick := time.NewTicker(s.tickEvery())
 	defer tick.Stop()
@@ -240,7 +243,11 @@ func (s *Server) Serve(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			s.shutdown("Server shutting down")
+			reason := "Server shutting down"
+			if s.quitReason != "" {
+				reason = s.quitReason
+			}
+			s.shutdown(reason)
 			return nil
 		case f := <-s.events:
 			start := time.Now()
@@ -378,6 +385,7 @@ func (s *Server) closeListeners() {
 }
 
 func (s *Server) shutdown(reason string) {
+	s.log.Printf("stopping: %s", reason)
 	snap := s.historySnapshot() // before everyone quits and channels go
 	close(s.done)
 	s.closeListeners()

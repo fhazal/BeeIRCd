@@ -122,6 +122,14 @@ func (s *Server) controlConn(conn net.Conn) {
 		if !s.onLoop(func() { resp.Check = s.checkInfo() }) {
 			stopping()
 		}
+	case control.CmdQuitReason:
+		reason := strings.TrimSpace(req.Path)
+		if len(reason) > 200 {
+			reason = reason[:200]
+		}
+		if !s.onLoop(func() { s.quitReason = reason }) {
+			stopping()
+		}
 	case control.CmdRehash:
 		var err error
 		if !s.onLoop(func() { resp.Rehash, err = s.rehash("beeircd rehash") }) {
@@ -166,6 +174,7 @@ func (s *Server) statusInfo() *control.Status {
 		HistoryChannels: s.hist.store.Channels(),
 		BackupDir:       s.cfg.Backup.Dir,
 		Safety:          *s.safety(),
+		Update:          s.upd.latest,
 	}
 	s.lmu.Lock()
 	for _, l := range s.listeners {

@@ -1,6 +1,6 @@
 # PLAN 7 - install, the `beeircd` command, TLS, and hardening for v1.0
 
-Status: approved 12 Nov 2026 with all ten recommendations (D1-D10). 7a committed 8c20ec8; 7b committed 5d11d59; 7c committed 7988386; 7d built 12 Nov 2026 (link role/port questions left out until Stage 2 linking exists). 7c: own small ACME client on x/crypto/acme instead of autocert, so HTTP-01 alone and port 80 only while asking; added acme_domains, acme_directory, acme_http, sts_port).
+Status: approved 12 Nov 2026 with all ten recommendations (D1-D10). 7a committed 8c20ec8; 7b committed 5d11d59; 7c committed 7988386; 7d committed 354ddac (link role/port added on request); 7e built 12 Nov 2026 (key signed offline with a passphrase, GitHub only builds drafts; daily check + quit message + --rc + --yes + config-upgrade hook added per the update mockup). 7c: own small ACME client on x/crypto/acme instead of autocert, so HTTP-01 alone and port 80 only while asking; added acme_domains, acme_directory, acme_http, sts_port).
 
 Step 7 turns BeeIRCd from "a binary we deploy by hand" into something a
 stranger can install on a small VPS with one command, keep running, back up

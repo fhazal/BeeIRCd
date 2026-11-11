@@ -68,6 +68,15 @@ BEEIRCD_LOAD=1 go test -run TestLoad5000 -v ./internal/server/   # 5,000-client 
   waits 2 min for one), uninstall, `--purge`, container deleted.
   Build `installcheck` with `GOOS=linux go build ./tools/installcheck`.
 
+- **`beeircd update` on real machines** (7e): on the dev PC
+  `scripts/updatetest-kit.sh <dir>` builds 1.0.0-test (installed first),
+  1.0.1-test (good), 1.0.2-test (passes every check but never starts) and a
+  release changed after signing, all signed with a throwaway key only these
+  test builds trust. Copy the folder to the homelab and run
+  `scripts/updatetest.sh <dir> deb13 ubu24`: install, fake release refused,
+  `--check`, update + IRC check + quit message in the log, broken release
+  rolled back by itself, `--rollback` by hand + IRC check.
+
 ## 2. Independent conformance (irctest)
 
 [irctest](https://github.com/progval/irctest) is the suite Ergo, Solanum,

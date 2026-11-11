@@ -33,7 +33,9 @@ const usage = `Usage: beeircd <command>
   restart   check the config, then restart
   status    show what the server is doing
   check     test config, certificate and database
-  update    install the newest release (backup first)
+  update    install the newest release: checks, backs up, rolls back
+            by itself if it fails (--check only looks, --rc test
+            versions, --yes no questions, --rollback goes back)
   backup    save config, database and certificates [to file]
   rehash    read beeircd.conf again, apply what is safe live
   version   show the version
@@ -42,12 +44,6 @@ const usage = `Usage: beeircd <command>
   run       run in the foreground (used by the service)
             beeircd run [-config /etc/beeircd/beeircd.conf]
 `
-
-// planned lists the commands from SPEC.md section 3.2 that later Stage 1
-// steps add, so a user gets a clear answer instead of "unknown command".
-var planned = map[string]bool{
-	"update": true,
-}
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -80,15 +76,16 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdBackup(args[1:], stdout, stderr)
 	case cmd == "rehash":
 		return cmdRehash(args[1:], stdout, stderr)
+	case cmd == "update":
+		return cmdUpdate(args[1:], stdout, stderr)
+	case cmd == "upgrade-config":
+		return cmdUpgradeConfig(args[1:], stdout, stderr)
 	case cmd == "install":
 		return cmdInstall(args[1:], stdout, stderr)
 	case cmd == "uninstall":
 		return cmdUninstall(args[1:], stdout, stderr)
 	case cmd == "start" || cmd == "stop" || cmd == "restart":
 		return cmdService(cmd, args[1:], stdout, stderr)
-	case planned[cmd]:
-		fmt.Fprintf(stderr, "beeircd %s isn't built yet in %s.\n", cmd, version.String())
-		return 2
 	default:
 		fmt.Fprintf(stderr, "Unknown command %q.\n\n%s", args[0], usage)
 		return 2

@@ -44,6 +44,7 @@ func testServerWith(t *testing.T, tweak func(*config.Config), setup func(*Server
 		Cloak:    config.Cloak{Enabled: &off, Secret: "0123456789abcdef-test"},
 		Limits:   config.Limits{FloodBurst: 10000, FloodRate: 10000, SessionLimit: 1000},
 		Services: config.Services{Database: filepath.Join(dir, "services.db"), RegDelay: &config.Duration{}, ForceEmail: &off, MemoSendDelay: &config.Duration{}},
+		Update:   config.Update{Check: &off},
 	}
 	if tweak != nil {
 		tweak(cfg)
