@@ -81,6 +81,8 @@ func newServices(t *testing.T) (*Services, *fakeHost) {
 	cfg := &config.Config{Server: config.Server{Name: "hub.test", Network: "BeeNet", SID: "0BE"}}
 	cfg.Services.Database = filepath.Join(t.TempDir(), "services.db")
 	cfg.SetDefaults()
+	no := false
+	cfg.Services.ForceEmail = &no
 	st, err := store.Open(cfg.Services.Database)
 	if err != nil {
 		t.Fatal(err)

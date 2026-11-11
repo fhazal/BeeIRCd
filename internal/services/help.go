@@ -133,6 +133,10 @@ func (s *Services) helpSetup() {
 	ns := s.nickServ
 	ns.groups = []helpGroup{{"Commands for IRC operators", []string{"SASET", "SUSPEND", "UNSUSPEND", "GETEMAIL"}}}
 	ns.cmdNeed = map[string]byte{"SASET": 's', "SUSPEND": 's', "UNSUSPEND": 's', "GETEMAIL": 'o'}
+	mailOn := func() bool { return s.cfg.Mail.On() }
+	ns.cmdShown = map[string]func() bool{"RESETPASS": mailOn, "CONFIRM": mailOn}
+	s.memoServ.groups = []helpGroup{{"Commands for IRC operators", []string{"SENDALL", "STAFF"}}}
+	s.memoServ.cmdNeed = map[string]byte{"SENDALL": 'g', "STAFF": 'o'}
 
 	cs := s.chanServ
 	cs.groups = []helpGroup{

@@ -47,6 +47,7 @@ type Config struct {
 	Services Services `toml:"services"`
 	Limits   Limits   `toml:"limits"`
 	DNSBL    []DNSBL  `toml:"dnsbl"`
+	Mail     Mail     `toml:"mail"`
 
 	// Path is the file this was read from; AdminServ writes changes there.
 	Path string `toml:"-"`
@@ -227,6 +228,8 @@ func (c *Config) SetDefaults() {
 	setInt(&sv.CertMax, 5)
 	setInt(&sv.AjoinMax, 10)
 	setInt(&sv.ListMax, 50)
+	setInt(&sv.MaxMemos, 20)
+	c.Mail.setDefaults()
 	if sv.GuestPrefix == "" {
 		sv.GuestPrefix = "Guest"
 	}
@@ -292,6 +295,24 @@ type Services struct {
 	AjoinMax int `toml:"ajoin_max"`
 	// ListMax is how many entries NickServ LIST shows (listmax, 50).
 	ListMax int `toml:"list_max"`
+	// ForceEmail makes REGISTER need an email (Anope's forceemail, on).
+	ForceEmail *bool `toml:"force_email"`
+	// MaxMemos is the memo limit of a new account (maxmemos, 20).
+	MaxMemos int `toml:"max_memos"`
+	// MemoSendDelay is how long someone waits between two memos
+	// (senddelay, 3 s; opers don't wait). "0s" switches it off.
+	MemoSendDelay *Duration `toml:"memo_send_delay"`
+}
+
+// ForceEmailOn reports whether REGISTER needs an email (default on).
+func (s Services) ForceEmailOn() bool { return s.ForceEmail == nil || *s.ForceEmail }
+
+// MemoSendDelayOr is memo_send_delay with its default (3 s).
+func (s Services) MemoSendDelayOr() time.Duration {
+	if s.MemoSendDelay == nil {
+		return 3 * time.Second
+	}
+	return s.MemoSendDelay.Duration
 }
 
 // RegDelayOr is reg_delay with its default (30 s).

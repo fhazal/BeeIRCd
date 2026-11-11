@@ -27,7 +27,7 @@ func memoServCommands() map[string]svcCmd {
 		"DEL": {"DEL [#chan] {<num> | <list> | LAST | READ | ALL}", "delete memos",
 			"DEL 2 deletes memo 2, DEL 1-3,5 several, DEL LAST the newest, DEL READ the\nones you have read, DEL ALL every memo. With #chan first: the channel's box.", msDel},
 		"SET": {"SET NOTIFY|LIMIT ...", "memo settings",
-			"SET NOTIFY ON|OFF          be told the moment a memo arrives (on)\nSET LIMIT [#chan] <n>      keep at most n memos, up to 50 (a channel box\n                           needs the MEMO privilege)", msSet},
+			"SET NOTIFY {ON | LOGON | NEW | OFF}   when you hear about memos: ON = when you\n    identify and when one arrives (default), LOGON = when you identify or come\n    back from /AWAY, NEW = when one arrives. With mail on: MAIL and NOMAIL.\nSET LIMIT [#chan] <n>      keep at most n memos, up to 50 (a channel box\n                           needs the MEMO privilege)", msSet},
 		"IGNORE": {"IGNORE [#chan] ADD|DEL|LIST [nick]", "drop memos from someone",
 			"Memos from a nick on this list are dropped without telling the sender.\nWith #chan first: the channel box's list (MEMO privilege).", msIgnore},
 	}
@@ -127,6 +127,11 @@ func msSend(s *Services, c *Client, args []string) {
 		return
 	}
 	target, text := args[0], strings.Join(args[1:], " ")
+	if d := s.cfg.Services.MemoSendDelayOr(); d > 0 && !c.isOper() && time.Since(c.lastMemoSend) < d {
+		s.ms(c, "Please wait %d seconds before using the SEND command again.", int(d.Seconds()))
+		return
+	}
+	c.lastMemoSend = time.Now()
 	if len(text) > maxMemoLen {
 		s.ms(c, "Memos can be up to %d characters; yours has %d.", maxMemoLen, len(text))
 		return
@@ -173,6 +178,7 @@ func msSend(s *Services, c *Client, args []string) {
 				s.ms(oc, "You have a new memo from %s. Read it: /ms read %d", from.Name, num)
 			}
 		}
+		s.memoMail(to, from.Name, text, num)
 	}
 	if len(online) > 0 && to.MemoNotify {
 		s.ms(c, "Memo sent to %s. They're online, so they were told right away.", to.Name)
@@ -256,6 +262,9 @@ func (s *Services) onlineClients(id int64) []*Client {
 
 // memoSummary tells someone who just identified about unread memos.
 func (s *Services) memoSummary(c *Client, a *store.Account) {
+	if !a.MemoSignon {
+		return
+	}
 	memos, err := s.store.Memos(a)
 	if err != nil {
 		return
@@ -459,21 +468,7 @@ func msSet(s *Services, c *Client, args []string) {
 	}
 	switch strings.ToUpper(argAt(args, 0)) {
 	case "NOTIFY":
-		on, ok := onOff(argAt(args, 1))
-		if !ok {
-			s.ms(c, "Syntax: SET NOTIFY ON|OFF")
-			return
-		}
-		a.MemoNotify = on
-		if err := s.store.SaveAccount(a); err != nil {
-			s.dbErr(c, s.memoServ, err)
-			return
-		}
-		if on {
-			s.ms(c, "You'll be told the moment a memo arrives.")
-		} else {
-			s.ms(c, "You'll hear about new memos when you identify.")
-		}
+		s.msSetNotify(c, a, argAt(args, 1))
 	case "LIMIT":
 		b, rest, ok := s.msBox(c, args[1:])
 		if !ok {

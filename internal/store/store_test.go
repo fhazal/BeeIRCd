@@ -22,7 +22,7 @@ func TestAccountsAndNicks(t *testing.T) {
 	s, path := open(t)
 	now := time.Unix(1_800_000_000, 0)
 	a, err := s.CreateAccount("Bee", "hash", "bee@example.org", now)
-	if err != nil || a.Name != "Bee" || !a.Enforce || !a.HideEmail || a.MemoLimit != 50 {
+	if err != nil || a.Name != "Bee" || !a.Enforce || !a.HideEmail || a.MemoLimit != 20 || !a.MemoSignon || a.MemoMail {
 		t.Fatalf("CreateAccount = %+v, %v", a, err)
 	}
 	if _, err := s.CreateAccount("BEE", "h", "", now); err != ErrExists {

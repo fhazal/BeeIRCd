@@ -137,6 +137,10 @@ func nsRegister(s *Services, c *Client, args []string) {
 		return
 	}
 	email := ""
+	if len(args) < 2 && s.cfg.Services.ForceEmailOn() {
+		s.ns(c, "Syntax: REGISTER <password> <email>")
+		return
+	}
 	if len(args) > 1 {
 		email = args[1]
 		if !validEmail(email) {
@@ -162,6 +166,10 @@ func nsRegister(s *Services, c *Client, args []string) {
 		if err != nil {
 			s.dbErr(c, s.nickServ, err)
 			return
+		}
+		if n := s.cfg.Services.MaxMemos; n != store.DefaultMemoLimit {
+			a.MemoLimit = n
+			s.store.SaveAccount(a)
 		}
 		s.log.Printf("registered nick %s (%s)", nick, c.ip)
 		s.ns(c, "%s is now registered to you. Keep your password safe: you need it to identify.", nick)

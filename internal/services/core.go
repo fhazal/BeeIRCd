@@ -111,20 +111,25 @@ type Services struct {
 	seenDirty map[string]bool
 	seenGone  []string
 	seenSaved time.Time
+
+	mailer Mailer              // how mail goes out (tests replace it)
+	resets map[int64]resetInfo // NickServ RESETPASS codes by account
 }
 
 // Client is services' record of one person on the network.
 type Client struct {
-	s           *Services
-	user        *state.User
-	ip          string
-	closed      bool      // gone from the network
-	accountID   int64     // NickServ account, 0 when not identified
-	enforceAt   time.Time // rename to Guest at this time, unless identified
-	enforceNick string    // the nick enforceAt is about
-	pwBusy      bool      // a password check is running
-	csUsedOn    string    // channel a ChanServ command passed its access check on (for LOG)
-	cmdName     string    // the command as typed, for log lines (Anope's source.command)
+	s            *Services
+	user         *state.User
+	ip           string
+	closed       bool      // gone from the network
+	accountID    int64     // NickServ account, 0 when not identified
+	enforceAt    time.Time // rename to Guest at this time, unless identified
+	enforceNick  string    // the nick enforceAt is about
+	pwBusy       bool      // a password check is running
+	csUsedOn     string    // channel a ChanServ command passed its access check on (for LOG)
+	lastMail     time.Time // when services last mailed for this person (mail delay)
+	lastMemoSend time.Time // MemoServ SEND (senddelay)
+	cmdName      string    // the command as typed, for log lines (Anope's source.command)
 }
 
 func (c *Client) isOper() bool    { return c.s.host.OperFlags(c.user.UID) != "" }
@@ -142,6 +147,7 @@ func New(host Host, cfg *config.Config, logger *log.Logger, net *state.Network, 
 		services: make(map[string]*service),
 		clients:  make(map[string]*Client),
 		lockouts: make(map[int64]*lockout),
+		resets:   make(map[int64]resetInfo),
 		hashSem:  make(chan struct{}, 2),
 
 		banRegexps: make(map[string]*regexp.Regexp),
@@ -197,6 +203,13 @@ func (s *Services) handle(ev state.Event) {
 		if c := s.clients[e.User.UID]; c != nil && !c.closed {
 			s.connected(c)
 		}
+	case *state.Away:
+		// Back from /AWAY: SET NOTIFY LOGON tells about new memos (Anope).
+		if c := s.clients[e.UID]; c != nil && !c.closed && e.Message == "" && c.accountID != 0 {
+			if a, _ := s.store.AccountByID(c.accountID); a != nil {
+				s.memoSummary(c, a)
+			}
+		}
 	case *state.UserMode:
 		if c := s.clients[e.UID]; c != nil && !c.closed {
 			s.saveModes(c)
@@ -206,6 +219,7 @@ func (s *Services) handle(ev state.Event) {
 			s.saveModes(c)
 			s.saveQuit(c, e.Reason)
 			delete(s.clients, e.UID)
+			s.buddyOffline(c.accountID)
 		}
 	case *state.NickChange:
 		s.logNick(e)
@@ -245,6 +259,7 @@ func (s *Services) connected(c *Client) {
 			}
 			s.memoSummary(c, a)
 			s.afterLogin(c, a)
+			s.buddyOnline(c, a)
 		}
 	}
 	s.certLogin(c)

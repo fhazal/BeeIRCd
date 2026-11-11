@@ -69,11 +69,18 @@ func (s *Services) startServices() {
 			nsCmds[name] = cmd
 		}
 	}
+	for name, cmd := range ns156bCommands() {
+		nsCmds[name] = cmd
+	}
 	s.nickServ = s.addService("NickServ", "ns", "Nickname Services", "NickServ keeps your nick yours. Commands:", nsCmds)
 	s.nickServ.aliases = nickServAliases
 	s.chanServ = s.addService("ChanServ", "cs", "Channel Services", "ChanServ keeps a channel yours. Commands:", chanServCommands())
 	s.chanServ.aliases = chanServAliases
-	s.memoServ = s.addService("MemoServ", "ms", "Memo Services", "MemoServ keeps messages for people who are away. Commands:", memoServCommands())
+	msCmds := memoServCommands()
+	for name, cmd := range ms156Commands() {
+		msCmds[name] = cmd
+	}
+	s.memoServ = s.addService("MemoServ", "ms", "Memo Services", "MemoServ keeps messages for people who are away. Commands:", msCmds)
 	osCmds := operServCommands()
 	for name, cmd := range operServ155bCommands() {
 		osCmds[name] = cmd
@@ -349,6 +356,7 @@ func (s *Services) login(c *Client, a *store.Account) {
 	s.csOnIdentify(c)
 	s.memoSummary(c, a)
 	s.afterLogin(c, a)
+	s.buddyOnline(c, a)
 }
 
 // logout ends c's identification.
@@ -359,7 +367,9 @@ func (s *Services) logout(c *Client, tell bool) {
 	}
 	s.touchAccount(c)
 	s.emit(&state.Login{UID: u.UID})
+	id := c.accountID
 	c.accountID = 0
+	defer s.buddyOffline(id)
 	if tell {
 		s.reply(c, irc.RplLoggedOut, u.Prefix(), "You are now logged out")
 	}

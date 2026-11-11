@@ -40,6 +40,7 @@ type cache struct {
 	certs     map[int64][]string     // account -> CERT fingerprints, oldest first
 	certOwner map[string]int64       // fingerprint -> account
 	ajoins    map[int64][]AjoinEntry // account -> AJOIN list, by ID
+	buddies   map[int64][]ignoreRow  // account -> BUDDY nicks, by key
 }
 
 type nickRow struct {
@@ -82,6 +83,7 @@ func newCache() *cache {
 		certs:     make(map[int64][]string),
 		certOwner: make(map[string]int64),
 		ajoins:    make(map[int64][]AjoinEntry),
+		buddies:   make(map[int64][]ignoreRow),
 	}
 }
 
@@ -187,6 +189,9 @@ func loadCache(db *sql.DB) (*cache, error) {
 		return nil, err
 	}
 	if err := loadNS156(db, c); err != nil {
+		return nil, err
+	}
+	if err := loadMS156(db, c); err != nil {
 		return nil, err
 	}
 	return c, nil
@@ -313,6 +318,7 @@ func (c *cache) dropAccount(id int64) {
 	}
 	delete(c.certs, id)
 	delete(c.ajoins, id)
+	delete(c.buddies, id)
 	for _, lv := range c.levels {
 		delete(lv, id)
 	}
@@ -358,7 +364,7 @@ func (s *Store) VerifyCache() error {
 		{"channel levels", have.chanLevels, want.chanLevels}, {"entry messages", have.entryMsgs, want.entryMsgs},
 		{"channel logs", have.chanLogs, want.chanLogs}, {"channel memos", have.chanMemos, want.chanMemos},
 		{"channel memo owners", have.chanMemoOwner, want.chanMemoOwner}, {"channel memo ignores", have.chanIgnores, want.chanIgnores},
-		{"certs", have.certs, want.certs}, {"cert owners", have.certOwner, want.certOwner}, {"ajoins", have.ajoins, want.ajoins},
+		{"certs", have.certs, want.certs}, {"cert owners", have.certOwner, want.certOwner}, {"ajoins", have.ajoins, want.ajoins}, {"buddies", have.buddies, want.buddies},
 	}
 	for _, p := range parts {
 		if !reflect.DeepEqual(p.have, p.want) {
@@ -385,6 +391,7 @@ func (c *cache) trimmed() *cache {
 	cp.chanIgnores = trimMap(c.chanIgnores)
 	cp.certs = trimMap(c.certs)
 	cp.ajoins = trimMap(c.ajoins)
+	cp.buddies = trimMap(c.buddies)
 	return &cp
 }
 

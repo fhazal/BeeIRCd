@@ -69,7 +69,9 @@ Last updated: 11 Nov 2026 (Stage 1.5.3).
 | NickServ (register, identify, SASL, recover, group, ungroup, alist, set, saset, info, drop, list), as Anope 2.0.20: ACCESS host list with SET SECURE (recognised connections), STATUS 0-3, SET KILL ON/QUICK/IMMED/OFF, SET HIDE EMAIL/STATUS/USERMASK/QUIT, DROP one nick at a time, UNGROUP makes a nick its own account | Implemented (2.0.20 shape 11 Nov 2026) |
 | NickServ CERT and SASL EXTERNAL (auto-identify by TLS client certificate, WHOIS 276) | Implemented (1.5.6a) |
 | NickServ AJOIN, GLIST, SUSPEND/UNSUSPEND (+expiry), LIST for everyone (PRIVATE, SUSPENDED, NOEXPIRE), GETEMAIL, UPDATE, SET AUTOOP/DISPLAY/KEEPMODES/PRIVATE/URL, SASET NOEXPIRE, max_logins, reg_delay | Implemented (1.5.6a, Anope 2.0.20) |
-| MemoServ CANCEL/CHECK/INFO/SENDALL/STAFF, SET NOTIFY ON/LOGON/NEW/OFF, mail (RESETPASS, NOTIFY MAIL), NickServ BUDDY | Planned (1.5.6b) |
+| MemoServ CANCEL/CHECK/INFO/SENDALL/STAFF, SET NOTIFY ON/LOGON/NEW/MAIL/NOMAIL/OFF, send delay 3 s, 20 memos | Implemented (1.5.6b, Anope 2.0.20) |
+| Mail ([mail]: SMTP with STARTTLS or a sendmail program, Anope's templates): NickServ RESETPASS + CONFIRM, MemoServ NOTIFY MAIL; REGISTER needs an email (force_email) | Implemented (1.5.6b) |
+| NickServ BUDDY (friend list with online/offline notices, ConferenceRoom) | Implemented (1.5.6b) |
 | ChanServ access levels as permission sets (Anope numbers 1-10000, xOP names UOP 1/VOP 3/HOP 4/AOP 5/SOP 10/QOP 10000, LEVELS with Anope's 32 privileges and defaults, ACCESS ADD/DEL/LIST/VIEW/CLEAR, STATUS/WHY) | Implemented (1.5.4) |
 | ChanServ (xOP lists with notes and number lists, AKICK with VIEW/ENFORCE/CLEAR, op tools incl. OWNER/PROTECT/HALFOP/UP/DOWN/SYNC, KICK/BAN/UNBAN/INVITE/GETKEY) | Implemented |
 | ChanServ MODE LOCK ADD/DEL/SET/LIST, MODE SET, MODE CLEAR, TOPIC SET/APPEND/PREPEND/LOCK/UNLOCK, ENTRYMSG (5 lines), ENFORCE, LOG (MESSAGE/NOTICE/MEMO, by status), SUSPEND/UNSUSPEND (+expiry) | Implemented (1.5.4) |

@@ -283,3 +283,30 @@ Where we differ, on purpose:
   CERT ADD for someone else takes the fingerprint with or without colons.
 - LIST UNCONFIRMED matches nothing: there are no unconfirmed accounts
   until mail confirmation exists.
+
+## Stage 1.5.6b (built 11 Nov 2026)
+
+Built as Anope 2.0.20 (ms_cancel, ms_check, ms_info, ms_sendall,
+ms_staff, ms_set NOTIFY, ns_resetpass, mail.cpp, memoserv senddelay and
+maxmemos, nickserv forceemail), with its replies and log lines.
+
+Mail: `[mail] use_mail`, `send_from`, `sendmail_path` (Anope's), `delay`
+5m, `dont_quote_addresses`, and the reset/memo templates with Anope's
+tokens. The mail looks like Anope's (From, To "name" <addr>, Subject,
+Content-Type text/plain UTF-8, 8bit). Delivery results are logged as
+Anope's mail lines.
+
+Where we differ, on purpose:
+
+- `smtp_server` (+ user/password, STARTTLS when offered) as well as
+  sendmail: BeeIRCd often runs where no sendmail exists (containers).
+- CONFIRM only takes RESETPASS codes: there is no mail confirmation of
+  registrations yet (Anope's registration = "none" in the owner's config).
+- RESETPASS and CONFIRM are hidden from HELP while mail is off.
+- STAFF says that it went; Anope 2.0.20 sends the memos and answers
+  nothing.
+- Old accounts on our old default memo limit (50) moved to 20 once;
+  limits people chose themselves stay.
+- BUDDY is ConferenceRoom's, not Anope's: up to 32 nicks, NickServ tells
+  you when one identifies or their last connection goes, and who is
+  online when you identify.
