@@ -196,6 +196,14 @@ func settings() []setting {
 			}},
 		{name: "log-connects", table: "services", key: "log_connects", help: "also log connects and quits there", kind: 'b',
 			get: func(c *config.Config) string { return onoff(c.Services.LogConnectsOn()) }, apply: servicesApply},
+		{name: "flood-profile", table: "channels", key: "flood_profile", help: "+F profile for channels without their own (off for none)", kind: 't', hi: 20,
+			get: func(c *config.Config) string { return c.Channels.FloodProfile }, apply: func(d, s *config.Config) { d.Channels = s.Channels },
+			check: func(v string) string {
+				if _, ok := config.FloodProfiles[strings.ToLower(v)]; !ok {
+					return "flood-profile is one of " + strings.Join(config.ProfileNames(), ", ") + "."
+				}
+				return ""
+			}},
 	}
 }
 

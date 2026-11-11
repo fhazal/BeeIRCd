@@ -21,7 +21,7 @@ func (s *Server) cmdWho(c *Client, m irc.Message) {
 			inside := ch.Member(c.user) != nil || c.can('h')
 			if inside || !(ch.HasMode('s') || ch.HasMode('p')) {
 				for _, mem := range ch.SortedMembers() {
-					if !inside && mem.User.HasMode('i') {
+					if (!inside && mem.User.HasMode('i')) || !visibleTo(mem, c.user) {
 						continue
 					}
 					if opersOnly && !mem.User.HasMode('o') {
@@ -115,7 +115,7 @@ func (s *Server) whoisChannels(c *Client, u *state.User) string {
 	var out []string
 	for _, ch := range s.net.Channels() {
 		mem := ch.Member(u)
-		if mem == nil {
+		if mem == nil || (mem.Hidden && asker != u && !c.can('h')) {
 			continue
 		}
 		hidden := ch.HasMode('s') || ch.HasMode('p')

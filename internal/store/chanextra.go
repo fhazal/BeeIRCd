@@ -87,6 +87,7 @@ func migrateChannels(db *sql.DB) error {
 		{"suspend_reason", "TEXT NOT NULL DEFAULT ''"},
 		{"suspended_at", "INTEGER NOT NULL DEFAULT 0"},
 		{"suspend_until", "INTEGER NOT NULL DEFAULT 0"},
+		{"mlock_params", "TEXT NOT NULL DEFAULT ''"},
 	}
 	for _, col := range cols {
 		var n int

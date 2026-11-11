@@ -49,6 +49,9 @@ type Host interface {
 	// ApplyChannelModes runs a mode string on a channel as srcUID with
 	// services rank; errors go to uid.
 	ApplyChannelModes(uid, srcUID, channel, modes string, args []string)
+	// CheckModeParam checks the argument of parameter mode m (+f +F +L
+	// +E +B +J) on channel and returns it as stored, or why it can't be.
+	CheckModeParam(channel string, m byte, arg string) (string, string)
 	// ChannelMessage sends a NOTICE (or PRIVMSG) from fromUID to channel;
 	// with status (a prefix like '@') only to members with that rank or up.
 	ChannelMessage(fromUID, channel string, status byte, privmsg bool, text string)

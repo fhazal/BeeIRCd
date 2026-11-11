@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -136,9 +137,22 @@ func (s *Server) cmdNick(c *Client, m irc.Message) {
 	if nick == u.Nick {
 		return
 	}
+	if !c.isOper() && !irc.EqualFold(nick, u.Nick) {
+		for _, ch := range u.Channels {
+			if mem := ch.Member(u); ch.HasMode('N') && !mem.AtLeast(state.RankOp) {
+				s.reply(c, irc.ErrNoNickChange, "Can not change nickname while on "+ch.Name+" (+N)")
+				return
+			}
+		}
+	}
 	if err := s.emit(&state.NickChange{UID: u.UID, Nick: nick, TS: time.Now().Unix()}); err != nil {
 		s.reply(c, irc.ErrNicknameInUse, nick, "Nickname is already in use")
 		return
+	}
+	for _, ch := range u.Channels {
+		if mem := ch.Member(u); mem != nil && !mem.Hidden {
+			s.floodEvent(c, ch, 'n')
+		}
 	}
 }
 
@@ -320,17 +334,26 @@ func (s *Server) rankPrefixes() string {
 }
 
 func (s *Server) channelModes() string {
+	all := chanModesList + chanModesKey + chanModesParam + chanModesFlags + "ov"
 	if s.cfg.FullPrefixes() {
-		return "IMORabehiklmnopqrstv"
+		all += "qah"
 	}
-	return "IMORbeiklmnoprstv"
+	return sortedLetters(all)
+}
+
+// sortedLetters sorts mode letters (capitals first, like the 004 lists).
+func sortedLetters(s string) string {
+	b := []byte(s)
+	sort.Slice(b, func(i, j int) bool { return b[i] < b[j] })
+	return string(b)
 }
 
 func (s *Server) channelModesWithParam() string {
+	all := chanModesList + chanModesKey + chanModesParam + "ov"
 	if s.cfg.FullPrefixes() {
-		return "Iabehkloqv"
+		all += "qah"
 	}
-	return "Ibeklov"
+	return sortedLetters(all)
 }
 
 func (s *Server) isupport() []string {
@@ -339,7 +362,7 @@ func (s *Server) isupport() []string {
 		"AWAYLEN=" + strconv.Itoa(l.AwayLen),
 		"CASEMAPPING=rfc1459",
 		"CHANLIMIT=#:" + strconv.Itoa(l.MaxChannels),
-		"CHANMODES=beI,k,l,MORimnprst",
+		"CHANMODES=" + chanModesList + "," + chanModesKey + "," + chanModesParam + "," + chanModesFlags,
 		"CHANNELLEN=" + strconv.Itoa(l.ChannelLen),
 		"CHANTYPES=#",
 		"EXTBAN=~," + irc.ExtbanLetters,

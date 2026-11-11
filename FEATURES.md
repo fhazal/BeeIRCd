@@ -7,7 +7,7 @@ Status words: **Implemented** (built and tested), **Partial**, **Planned**
 Update this file in the same commit as the code that changes a status. A
 capability is advertised to clients only when it is Implemented.
 
-Last updated: 11 Nov 2026 (Stage 1.5.3).
+Last updated: 11 Nov 2026 (Stage 1.5.9a).
 
 ## Core server
 
@@ -20,6 +20,12 @@ Last updated: 11 Nov 2026 (Stage 1.5.3).
 | MOTD, LUSERS, VERSION, TIME | Implemented | |
 | User modes i w o s r x | Implemented | |
 | Channel modes o v b e I k l i m n p s t R M r | Implemented | |
+| Channel modes c S C T N K V Q z Z D P O | Implemented | 1.5.9a; UnrealIRCd letters and rules; +K matters once KNOCK lands (1.5.9b) |
+| Flood guard +f `[10j#R10,40m#M10,...]:15` and +F profiles | Implemented | 1.5.9a; UnrealIRCd syntax, types c j k m n t r; server default profile `[channels] flood_profile` (normal), AS SET flood-profile; no p (paste) type |
+| +L link channel, +E repeat, +B caps, +J rejoin delay | Implemented | 1.5.9a; +L on +l +i +k +b +R +z like UnrealIRCd (3 hops at most); +E +B +J from InspIRCd |
+| ~f:#chan forward extban | Proposed | not in 1.5.9a |
+| +G censor (server word list) | Planned | later (D4) |
+| HELPOP CHMODES | Implemented | 1.5.9a; channel mode table, 292 lines |
 | Prefix option `@+` (default) or `~&@%+` | Implemented | `[server] prefixes`; +q +a +h with UnrealIRCd rules; restart to change |
 | TLS 1.2+ listeners, self-signed or own certificate | Implemented | |
 | Let's Encrypt built in, STS | Planned | step 7 |
@@ -76,7 +82,7 @@ Last updated: 11 Nov 2026 (Stage 1.5.3).
 | ChanServ (xOP lists with notes and number lists, AKICK with VIEW/ENFORCE/CLEAR, op tools incl. OWNER/PROTECT/HALFOP/UP/DOWN/SYNC, KICK/BAN/UNBAN/INVITE/GETKEY) | Implemented |
 | ChanServ MODE LOCK ADD/DEL/SET/LIST, MODE SET, MODE CLEAR, TOPIC SET/APPEND/PREPEND/LOCK/UNLOCK, ENTRYMSG (5 lines), ENFORCE, LOG (MESSAGE/NOTICE/MEMO, by status), SUSPEND/UNSUSPEND (+expiry) | Implemented (1.5.4) |
 | ChanServ SET: DESCRIPTION FOUNDER SUCCESSOR SECURE SECUREFOUNDER KEEPTOPIC KEEPMODES PEACE RESTRICTED SECUREOPS SIGNKICK AUTOOP PERSIST PRIVATE BANTYPE URL NOEXPIRE; CR shortcuts MEMOLEVEL AUTOVOP LEAVEOPS; DROP #chan #chan; UNBAN with no channel (Anope 2.0.20) | Implemented (1.5.4, 2.0.20 shape 11 Nov 2026) |
-| ChanServ SET OVERFLOW (send people on when full) | Planned (1.5.9, needs +L) |
+| ChanServ SET OVERFLOW (send people on when full) | Implemented | 1.5.9a; locks +L in the mode lock |
 | ChanServ FLAGS, CLONE, SEEN; BotServ (ASSIGN, SAY, BADWORDS) | Planned |
 | MemoServ (nick memos, number lists, ignore) | Implemented |
 | MemoServ channel memo boxes (one box per channel like Anope, MEMO privilege, own limit and ignore list, notice on join and identify) | Implemented (1.5.4) |

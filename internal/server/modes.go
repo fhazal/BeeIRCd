@@ -291,27 +291,48 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 			} else {
 				out = append(out, state.ModeChange{Mode: 'l'})
 			}
-		case strings.IndexByte("imnt", mc) >= 0, strings.IndexByte("psRM", mc) >= 0:
+		case state.IsParamMode(mc):
+			var arg string
+			if add {
+				var ok bool
+				if arg, ok = next(); !ok {
+					continue
+				}
+			}
+			if !can(state.RankOp) {
+				continue
+			}
+			if !add {
+				out = append(out, state.ModeChange{Mode: mc})
+				continue
+			}
+			norm, why := s.checkParamMode(ch.Name, mc, arg)
+			if why != "" {
+				s.reply(c, irc.ErrInvalidModeParam, ch.Name, string(mc), arg, why)
+				continue
+			}
+			out = append(out, state.ModeChange{Add: true, Mode: mc, Arg: norm})
+		case strings.IndexByte(halfopFlagModes, mc) >= 0, strings.IndexByte(opFlagModes, mc) >= 0:
 			need := state.RankOp
-			if strings.IndexByte("imnt", mc) >= 0 {
+			if strings.IndexByte(halfopFlagModes, mc) >= 0 {
 				need = state.RankHalfop
 			}
 			if !can(need) {
 				continue
 			}
 			out = append(out, state.ModeChange{Add: add, Mode: mc})
-		case mc == 'O':
-			// Oper-only channel (UnrealIRCd/InspIRCd +O): only opers and
-			// services set or remove it.
+		case mc == 'O' || mc == 'P':
+			// Oper-only (+O) and permanent (+P) channels, like UnrealIRCd:
+			// only opers and services set or remove them.
 			if !src.Service && (c == nil || !c.isOper()) {
 				if c != nil {
-					s.reply(c, irc.ErrNoPrivileges, "Permission Denied - only IRC operators may set +O")
+					s.reply(c, irc.ErrNoPrivileges, "Permission Denied - only IRC operators may set +"+string(mc))
 				}
 				continue
 			}
 			out = append(out, state.ModeChange{Add: add, Mode: mc})
-		case mc == 'r':
-			// Only ChanServ sets +r.
+		case mc == 'r' || mc == 'Z':
+			// Only ChanServ sets +r; +Z follows +z by itself.
 		default:
 			s.reply(c, irc.ErrUnknownMode, string(mc), "is unknown mode char to me for "+ch.Name)
 		}

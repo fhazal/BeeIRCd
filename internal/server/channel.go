@@ -37,7 +37,10 @@ func (s *Server) cmdJoin(c *Client, m irc.Message) {
 	}
 }
 
-func (s *Server) joinOne(c *Client, name, key string) {
+func (s *Server) joinOne(c *Client, name, key string) { s.joinVia(c, name, key, 0) }
+
+// joinVia joins c to name; hops counts the +L channels it came through.
+func (s *Server) joinVia(c *Client, name, key string, hops int) {
 	u := c.user
 	if !irc.ValidChannel(name, s.cfg.Limits.ChannelLen) {
 		s.reply(c, irc.ErrBadChanName, name, "Illegal channel name")
@@ -56,26 +59,14 @@ func (s *Server) joinOne(c *Client, name, key string) {
 		return
 	}
 	if ch != nil {
-		invited := ch.Invited[u.UID]
 		uop := s.svc.JoinLevel(c.uid, ch.Name) >= store.LevelUOP // ChanServ UOP and up get past +i and +k
-		switch {
-		case ch.HasMode('O') && !c.isOper():
-			s.reply(c, irc.ErrOperOnly, ch.Name, "Cannot join channel (+O)")
-			return
-		case ch.HasMode('i') && !invited && !uop && !ch.Matches('I', u):
-			s.reply(c, irc.ErrInviteOnlyChan, ch.Name, "Cannot join channel (+i)")
-			return
-		case ch.HasMode('k') && key != ch.Key && !invited && !uop:
-			s.reply(c, irc.ErrBadChannelKey, ch.Name, "Cannot join channel (+k)")
-			return
-		case ch.HasMode('l') && len(ch.Members) >= ch.Limit && !invited:
-			s.reply(c, irc.ErrChannelIsFull, ch.Name, "Cannot join channel (+l)")
-			return
-		case ch.IsBanned(u) && !invited:
-			s.reply(c, irc.ErrBannedFromChan, ch.Name, "Cannot join channel (+b)")
-			return
-		case ch.HasMode('R') && u.Account == "":
-			s.reply(c, irc.ErrNeedReggedNick, ch.Name, "You need to identify to a registered nick to join that channel")
+		if code, text, link := s.joinRefusal(c, ch, key, uop); code != "" {
+			if to := ch.Param('L'); link && to != "" && hops < maxLinkHops {
+				s.reply(c, irc.ErrLinkChannel, ch.Name, to, "[Link] "+ch.Name+" "+linkReason(code)+", so you are automatically being transferred to the linked channel "+to)
+				s.joinVia(c, to, "", hops+1)
+				return
+			}
+			s.reply(c, code, ch.Name, text)
 			return
 		}
 	}
@@ -84,6 +75,12 @@ func (s *Server) joinOne(c *Client, name, key string) {
 		return
 	}
 	ch = s.net.Channel(name)
+	if !ev.Created {
+		s.floodEvent(c, ch, 'j')
+		if ch = s.net.Channel(name); ch == nil || ch.Member(u) == nil {
+			return
+		}
+	}
 	if ch.Topic != "" {
 		s.sendTopic(c, ch)
 	}
@@ -144,6 +141,7 @@ func (s *Server) cmdTopic(c *Client, m irc.Message) {
 	if topic == ch.Topic {
 		return
 	}
+	s.reveal(u, ch)
 	s.emit(&state.Topic{Source: u.UID, Channel: ch.Name, Text: topic, By: u.Nick, At: time.Now()})
 }
 
@@ -187,7 +185,7 @@ func (s *Server) sendNames(c *Client, ch *state.Channel) {
 		}
 	}
 	for _, mem := range ch.Members { // unsorted, like InspIRCd: sorting cost a lot on every JOIN
-		if !inside && mem.User.HasMode('i') {
+		if (!inside && mem.User.HasMode('i')) || !visibleTo(mem, c.user) {
 			continue
 		}
 		n := memberPrefix(c, mem) + mem.User.Nick
@@ -242,6 +240,10 @@ func (s *Server) cmdKick(c *Client, m irc.Message) {
 		s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You're not channel operator")
 		return
 	}
+	if ch.HasMode('Q') && !c.isOper() {
+		s.reply(c, irc.ErrCannotDoCommand, "KICK", "channel is +Q")
+		return
+	}
 	reason := irc.Truncate(m.Param(2), s.cfg.Limits.KickLen)
 	if reason == "" {
 		reason = u.Nick
@@ -289,6 +291,9 @@ func (s *Server) cmdInvite(c *Client, m irc.Message) {
 		switch {
 		case mem == nil:
 			s.reply(c, irc.ErrNotOnChannel, ch.Name, "You're not on that channel")
+			return
+		case ch.HasMode('V') && !c.isOper():
+			s.reply(c, irc.ErrNoInvite, "Cannot invite (+V) at channel "+ch.Name)
 			return
 		case ch.HasMode('i') && !mem.AtLeast(state.RankHalfop):
 			s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You're not channel operator")

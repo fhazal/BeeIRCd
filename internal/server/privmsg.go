@@ -50,10 +50,11 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 		if len(name) > 1 && strings.IndexByte(s.rankPrefixes(), name[0]) >= 0 && irc.IsChannel(name[1:]) {
 			status, name = name[:1], name[1:]
 		}
+		text := m.Param(1)
 		build := func(to string) *outMsg {
 			params := []string{to}
 			if !tagOnly {
-				params = append(params, m.Params[1])
+				params = append(params, text)
 			}
 			o := s.out(u, verb, params...)
 			o.msg.Trailing = !tagOnly
@@ -73,6 +74,23 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 			if why := cannotSend(ch, u); why != "" {
 				fail(irc.ErrCannotSendToChan, ch.Name, why)
 				continue
+			}
+			if mem := ch.Member(u); mem != nil && mem.Hidden {
+				if tagOnly {
+					continue // typing in a +D channel would show you're there
+				}
+				s.reveal(u, ch)
+			}
+			if !tagOnly {
+				t, why, drop := s.channelText(c, ch, verb, text)
+				if why != "" {
+					fail(irc.ErrCannotSendToChan, ch.Name, why)
+					continue
+				}
+				if drop || s.net.Channel(ch.Name) == nil {
+					continue
+				}
+				text = t
 			}
 			o := build(status + ch.Name)
 			for _, mem := range ch.Members {

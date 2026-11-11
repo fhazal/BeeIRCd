@@ -64,6 +64,12 @@ type Kick struct {
 	Reason  string
 }
 
+// Reveal shows a hidden +D member to the rest of the channel.
+type Reveal struct {
+	UID     string
+	Channel string
+}
+
 // Topic sets a channel's topic. Source is who did it; By is the nick shown
 // as setter.
 type Topic struct {
@@ -144,12 +150,14 @@ func (*Away) event()        {}
 func (*Login) event()       {}
 func (*HostChange) event()  {}
 func (*Invite) event()      {}
+func (*Reveal) event()      {}
 
 // Errors from Apply.
 var (
 	ErrNoSuchUser    = errors.New("no such user")
 	ErrNoSuchChannel = errors.New("no such channel")
 	ErrNotOnChannel  = errors.New("not on that channel")
+	ErrNotHidden     = errors.New("already seen in that channel")
 )
 
 // Apply carries out ev. It is the only way the network changes.
@@ -204,6 +212,17 @@ func (n *Network) Apply(ev Event) error {
 			return ErrNoSuchChannel
 		}
 		e.Changes = n.channelModes(ch, e)
+		n.dropIfEmpty(ch) // -P on an empty channel closes it
+	case *Reveal:
+		u, ch, err := n.member(e.UID, e.Channel)
+		if err != nil {
+			return err
+		}
+		m := ch.Members[u.UID]
+		if !m.Hidden {
+			return ErrNotHidden
+		}
+		m.Hidden = false
 	case *UserMode:
 		u := n.users[e.UID]
 		if u == nil {
@@ -328,6 +347,23 @@ func (n *Network) channelModes(ch *Channel, e *ChannelMode) []ModeChange {
 				delete(ch.Modes, 'l')
 				m.Arg = ""
 			}
+		case IsParamMode(m.Mode):
+			if m.Add {
+				if m.Arg == "" || ch.Modes[m.Mode] && ch.Params[m.Mode] == m.Arg {
+					continue
+				}
+				if ch.Params == nil {
+					ch.Params = make(map[byte]string)
+				}
+				ch.Params[m.Mode], ch.Modes[m.Mode] = m.Arg, true
+			} else {
+				if !ch.Modes[m.Mode] {
+					continue
+				}
+				delete(ch.Params, m.Mode)
+				delete(ch.Modes, m.Mode)
+				m.Arg = ""
+			}
 		default:
 			if ch.Modes[m.Mode] == m.Add {
 				continue
@@ -442,12 +478,18 @@ func (n *Network) Clone() *Network {
 		for k, v := range ch.Lists {
 			cc.Lists[k] = append([]ListEntry(nil), v...)
 		}
+		if ch.Params != nil {
+			cc.Params = make(map[byte]string, len(ch.Params))
+			for k, v := range ch.Params {
+				cc.Params[k] = v
+			}
+		}
 		for k, v := range ch.Invited {
 			cc.Invited[k] = v
 		}
 		for uid, m := range ch.Members {
 			u := c.users[uid]
-			cc.Members[uid] = &Member{User: u, Ranks: m.Ranks}
+			cc.Members[uid] = &Member{User: u, Ranks: m.Ranks, Hidden: m.Hidden}
 			u.Channels[key] = cc
 		}
 		c.channels[key] = cc
@@ -497,6 +539,9 @@ func CopyEvent(ev Event) Event {
 		cp := *e
 		return &cp
 	case *Invite:
+		cp := *e
+		return &cp
+	case *Reveal:
 		cp := *e
 		return &cp
 	}

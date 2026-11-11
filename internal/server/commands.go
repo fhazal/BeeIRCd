@@ -61,6 +61,7 @@ func init() {
 		"ADMINSERV":    {1, false, (*Server).cmdAS},
 		"OPER":         {2, false, (*Server).cmdOper},
 		"KILL":         {1, false, (*Server).cmdKill},
+		"HELPOP":       {0, false, (*Server).cmdHelpop},
 		"WALLOPS":      {1, false, (*Server).cmdWallops},
 	}
 }

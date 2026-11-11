@@ -102,6 +102,10 @@ func (h host) ApplyChannelModes(uid, srcUID, channel, modes string, args []strin
 	s.applyChannelModes(c, src, ch, servicesRank, modes, args)
 }
 
+func (h host) CheckModeParam(channel string, m byte, arg string) (string, string) {
+	return h.s.checkParamMode(channel, m, arg)
+}
+
 func (h host) ApplySetting(uid, botUID, key, value string) {
 	s := h.s
 	c, bot := s.clients[uid], s.net.UserByUID(botUID)

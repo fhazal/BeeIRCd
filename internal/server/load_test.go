@@ -39,7 +39,12 @@ func TestLoad5000(t *testing.T) {
 		cfg.Limits.SessionLimit = clients + 100
 		cfg.Limits.MaxChannels = 20
 		cfg.Services.LogChannel = "#services" // every services command posts a line
+		// The flood guard counts every line (its cost is measured) but
+		// never trips, so each run sends the same traffic.
+		config.FloodProfiles["load"] = "[999j,999m,999c,999n,999k]:15"
+		cfg.Channels.FloodProfile = "load"
 	}, func(s *Server) {
+		s.floodBoot = 0
 		// 200 accounts with access on the registered channels and a few
 		// AKICKs, so JOIN and NICK have services data to look at.
 		now := time.Now()

@@ -98,6 +98,7 @@ type Channel struct {
 	MlockOff    string // flag modes kept off
 	MlockKey    string
 	MlockLimit  int
+	MlockParams string // locked parameter modes, "f [10j]:15 L #other"
 	KeepTopic   bool
 	TopicLock   bool
 	SecureOps   bool // only people with the privilege may hold a status mode
@@ -198,7 +199,7 @@ const channelCols = `c.id, c.name, c.founder_id, f.name, COALESCE(c.successor_id
 	c.description, c.registered, c.last_used, c.mlock_on, c.mlock_off, c.mlock_key, c.mlock_limit,
 	c.keeptopic, c.topiclock, c.secure, c.private, c.url, c.topic, c.topic_by, c.topic_at,
 	c.restricted, c.peace, c.securefounder, c.signkick, c.keepmodes, c.persist, c.autoop, c.noexpire,
-	c.bantype, c.last_modes, c.memo_limit, c.suspended_by, c.suspend_reason, c.suspended_at, c.suspend_until, c.cs_secure`
+	c.bantype, c.last_modes, c.memo_limit, c.suspended_by, c.suspend_reason, c.suspended_at, c.suspend_until, c.cs_secure, c.mlock_params`
 
 const channelFrom = ` FROM channels c JOIN accounts f ON f.id = c.founder_id LEFT JOIN accounts s ON s.id = c.successor_id`
 
@@ -209,7 +210,7 @@ func scanChannel(row interface{ Scan(...any) error }) (*Channel, error) {
 		&c.Description, &reg, &used, &c.MlockOn, &c.MlockOff, &c.MlockKey, &c.MlockLimit,
 		&c.KeepTopic, &c.TopicLock, &c.SecureOps, &c.Private, &c.URL, &c.Topic, &c.TopicBy, &topicAt,
 		&c.Restricted, &c.Peace, &c.SecureFounder, &c.SignKick, &c.KeepModes, &c.Persist, &c.AutoOp, &c.NoExpire,
-		&c.BanType, &c.LastModes, &c.MemoLimit, &c.SuspendedBy, &c.SuspendReason, &susAt, &susUntil, &c.Secure)
+		&c.BanType, &c.LastModes, &c.MemoLimit, &c.SuspendedBy, &c.SuspendReason, &susAt, &susUntil, &c.Secure, &c.MlockParams)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -294,12 +295,12 @@ func (s *Store) SaveChannel(c *Channel) error {
 	_, err := s.db.Exec(`UPDATE channels SET founder_id=?, successor_id=?, description=?, last_used=?, mlock_on=?, mlock_off=?,
 		mlock_key=?, mlock_limit=?, keeptopic=?, topiclock=?, secure=?, private=?, url=?, topic=?, topic_by=?, topic_at=?,
 		restricted=?, peace=?, securefounder=?, signkick=?, keepmodes=?, persist=?, autoop=?, noexpire=?, bantype=?,
-		last_modes=?, memo_limit=?, suspended_by=?, suspend_reason=?, suspended_at=?, suspend_until=?, cs_secure=?
+		last_modes=?, memo_limit=?, suspended_by=?, suspend_reason=?, suspended_at=?, suspend_until=?, cs_secure=?, mlock_params=?
 		WHERE id=?`,
 		c.FounderID, succ, c.Description, c.LastUsed.Unix(), c.MlockOn, c.MlockOff, c.MlockKey, c.MlockLimit,
 		c.KeepTopic, c.TopicLock, c.SecureOps, c.Private, c.URL, c.Topic, c.TopicBy, c.TopicAt.Unix(),
 		c.Restricted, c.Peace, c.SecureFounder, c.SignKick, c.KeepModes, c.Persist, c.AutoOp, c.NoExpire, c.BanType,
-		c.LastModes, c.MemoLimit, c.SuspendedBy, c.SuspendReason, c.SuspendedAt.Unix(), c.SuspendUntil.Unix(), c.Secure, c.ID)
+		c.LastModes, c.MemoLimit, c.SuspendedBy, c.SuspendReason, c.SuspendedAt.Unix(), c.SuspendUntil.Unix(), c.Secure, c.MlockParams, c.ID)
 	if err != nil {
 		return err
 	}

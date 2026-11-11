@@ -47,6 +47,10 @@ func (h *fakeHost) Kill(uid, by, reason string)          { h.Disconnect(uid, "Ki
 func (h *fakeHost) OperFlags(uid string) string          { return "" }
 func (h *fakeHost) AccountGone(id int64)                 {}
 func (h *fakeHost) IsAdminAccount(a *store.Account) bool { return false }
+func (h *fakeHost) CheckModeParam(channel string, m byte, arg string) (string, string) {
+	return arg, ""
+}
+
 func (h *fakeHost) ApplyChannelModes(uid, srcUID, channel, modes string, args []string) {
 }
 func (h *fakeHost) ApplySetting(uid, bot, key, value string) {}

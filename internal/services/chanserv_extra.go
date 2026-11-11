@@ -75,7 +75,7 @@ func csModeCommand(s *Services, c *Client, args []string) {
 
 // mlockSet is MODE LOCK ADD or SET (and the old SET MLOCK).
 func (s *Services) mlockSet(c *Client, reg *store.Channel, op string, modes []string) {
-	if problem := parseMlock(reg, modes, op == "ADD"); problem != "" {
+	if problem := parseMlock(reg, modes, op == "ADD", s.paramCheck(reg.Name)); problem != "" {
 		s.cs(c, "%s", problem)
 		return
 	}
@@ -178,7 +178,7 @@ func clearChanges(live *state.Channel, ranks, lists string, modes, skipOpers boo
 	if modes {
 		var flags []byte
 		for m, on := range live.Modes {
-			if on && m != 'r' && m != 'k' && m != 'l' {
+			if on && strings.IndexByte("rklZP", m) < 0 {
 				flags = append(flags, m)
 			}
 		}
@@ -728,7 +728,7 @@ func (s *Services) restoreChannel(reg *store.Channel, ch *state.Channel) {
 func liveModes(ch *state.Channel) string {
 	var flags []byte
 	for m, on := range ch.Modes {
-		if on && m != 'r' && m != 'k' && m != 'l' {
+		if on && m != 'r' && m != 'k' && m != 'l' && m != 'Z' && !state.IsParamMode(m) {
 			flags = append(flags, m)
 		}
 	}
@@ -741,6 +741,12 @@ func liveModes(ch *state.Channel) string {
 	if ch.Modes['l'] {
 		flags = append(flags, 'l')
 		params = append(params, strconv.Itoa(ch.Limit))
+	}
+	for _, m := range []byte(state.ParamModes) {
+		if ch.Modes[m] {
+			flags = append(flags, m)
+			params = append(params, ch.Param(m))
+		}
 	}
 	if len(flags) == 0 {
 		return ""
@@ -758,7 +764,7 @@ func parseModes(text string) []modeChange {
 	var out []modeChange
 	for _, m := range []byte(strings.TrimPrefix(fields[0], "+")) {
 		arg := ""
-		if m == 'k' || m == 'l' {
+		if m == 'k' || m == 'l' || state.IsParamMode(m) {
 			if len(params) == 0 {
 				continue
 			}
@@ -803,4 +809,55 @@ func orNoneReason(r string) string {
 		return "No reason"
 	}
 	return r
+}
+
+// paramCheck checks a locked parameter mode the way the server checks
+// MODE, for channel name.
+func (s *Services) paramCheck(name string) func(m byte, arg string) (string, string) {
+	return func(m byte, arg string) (string, string) { return s.host.CheckModeParam(name, m, arg) }
+}
+
+// csOverflow is the ConferenceRoom SET OVERFLOW: it locks +L on (or off).
+func (s *Services) csOverflow(c *Client, reg *store.Channel, val string) {
+	if val == "" {
+		s.cs(c, "Syntax: SET %s OVERFLOW <#channel>|OFF", reg.Name)
+		return
+	}
+	vals := mlockParams(reg)
+	if strings.EqualFold(val, "OFF") {
+		if _, ok := vals['L']; !ok {
+			s.cs(c, "%s has no overflow channel.", reg.Name)
+			return
+		}
+		delete(vals, 'L')
+		setMlockParams(reg, vals)
+	} else {
+		norm, why := s.host.CheckModeParam(reg.Name, 'L', val)
+		if why != "" {
+			s.cs(c, "%s", why)
+			return
+		}
+		vals['L'] = norm
+		setMlockParams(reg, vals)
+		reg.MlockOff = strings.ReplaceAll(reg.MlockOff, "L", "")
+	}
+	if err := s.store.SaveChannel(reg); err != nil {
+		s.dbErr(c, s.chanServ, err)
+		return
+	}
+	s.csUsed(c, reg)
+	live := s.net.Channel(reg.Name)
+	if v, ok := vals['L']; ok {
+		s.csLog(c, reg.Name, false, "to set the overflow channel to %s", v)
+		s.cs(c, "People who can't join %s now go to %s.", reg.Name, v)
+	} else {
+		s.csLog(c, reg.Name, false, "to remove the overflow channel")
+		s.cs(c, "%s has no overflow channel now.", reg.Name)
+		if live != nil && live.HasMode('L') {
+			s.csMode(live, []modeChange{{false, 'L', ""}})
+		}
+	}
+	if live = s.net.Channel(reg.Name); live != nil {
+		s.csMode(live, mlockChanges(reg, live))
+	}
 }

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/fhazal/beeircd/internal/irc"
@@ -139,6 +140,9 @@ func RankForPrefix(p byte) Rank {
 type Member struct {
 	User  *User
 	Ranks Rank
+	// Hidden is a +D (delay join) member nobody else sees yet: they show
+	// up when they first talk, get a status or the channel loses +D.
+	Hidden bool
 }
 
 // Has reports whether the member holds rank r.
@@ -204,7 +208,19 @@ type Channel struct {
 	Members map[string]*Member   // by UID
 	Lists   map[byte][]ListEntry // 'b', 'e', 'I'
 	Invited map[string]bool      // UIDs invited since their last join
+	// Params holds the argument of the other parameter modes (f F L E B J).
+	Params map[byte]string
 }
+
+// ParamModes are the channel modes that take an argument when set and none
+// when unset (besides k and l).
+const ParamModes = "BEFJLf"
+
+// IsParamMode reports whether m is one of ParamModes.
+func IsParamMode(m byte) bool { return strings.IndexByte(ParamModes, m) >= 0 }
+
+// Param returns the argument of parameter mode m, or "".
+func (c *Channel) Param(m byte) string { return c.Params[m] }
 
 // Member returns u's membership, or nil.
 func (c *Channel) Member(u *User) *Member { return c.Members[u.UID] }
@@ -238,6 +254,10 @@ func (c *Channel) ModeString(showKey bool) (string, []string) {
 			}
 		case 'l':
 			params = append(params, strconv.Itoa(c.Limit))
+		default:
+			if IsParamMode(m) {
+				params = append(params, c.Params[m])
+			}
 		}
 	}
 	return string(b), params
@@ -453,6 +473,9 @@ func (n *Network) join(u *User, name string, ts int64, ranks Rank) (ch *Channel,
 	if created && ranks == 0 {
 		m.Ranks = RankOp
 	}
+	if !created && ranks == 0 && ch.Modes['D'] {
+		m.Hidden = true
+	}
 	ch.Members[u.UID] = m
 	u.Channels[key] = ch
 	delete(ch.Invited, u.UID)
@@ -463,7 +486,12 @@ func (n *Network) join(u *User, name string, ts int64, ranks Rank) (ch *Channel,
 func (n *Network) part(u *User, ch *Channel) {
 	delete(ch.Members, u.UID)
 	delete(u.Channels, irc.Fold(ch.Name))
-	if len(ch.Members) == 0 {
+	n.dropIfEmpty(ch)
+}
+
+// dropIfEmpty removes ch when nobody is in it and it isn't +P (permanent).
+func (n *Network) dropIfEmpty(ch *Channel) {
+	if len(ch.Members) == 0 && !ch.Modes['P'] {
 		delete(n.channels, irc.Fold(ch.Name))
 	}
 }
@@ -473,6 +501,9 @@ func (n *Network) Neighbours(u *User) []*User {
 	seen := map[string]bool{u.UID: true}
 	var out []*User
 	for _, ch := range u.Channels {
+		if me := ch.Members[u.UID]; me != nil && me.Hidden {
+			continue // nobody there knows u is in
+		}
 		for uid, m := range ch.Members {
 			if !seen[uid] {
 				seen[uid] = true

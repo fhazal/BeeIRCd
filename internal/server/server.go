@@ -47,12 +47,20 @@ type Server struct {
 	sinceFlush int              // loop jobs since the last flushWrites
 	msgSeq     uint64
 	batchSeq   uint64
-	sinks      []func(state.Event)         // get every event after it was applied
-	beforeEmit func(state.Event)           // tests: runs before each event
-	timedBans  []timedBan                  // ~t: channel list entries waiting to lift
-	watchers   map[string]map[*Client]bool // MONITOR: folded nick -> clients watching it
-	loop       loopStats                   // how long each piece of loop work took
-	wg         sync.WaitGroup
+	sinks      []func(state.Event) // get every event after it was applied
+	beforeEmit func(state.Event)   // tests: runs before each event
+	timedBans  []timedBan          // ~t: channel list entries waiting to lift
+	// 1.5.9a channel modes: flood guard counters (by folded channel),
+	// parsed +f values, flood modes waiting to lift, +J rejoin blocks.
+	floods      map[string]*chanFloodState
+	floodCache  map[string]floodSet
+	floodUnsets []floodUnset
+	floodSwept  time.Time
+	floodBoot   time.Duration // join floods aren't counted this long after start
+	rejoinBlock map[string]time.Time
+	watchers    map[string]map[*Client]bool // MONITOR: folded nick -> clients watching it
+	loop        loopStats                   // how long each piece of loop work took
+	wg          sync.WaitGroup
 
 	// Services. The store is shared: the server reads oper entries and
 	// SASL accounts from it, services own the rest.
@@ -91,20 +99,24 @@ var ErrRestart = errors.New("restart requested")
 // New opens the configured ports. Call Serve to start answering.
 func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	s := &Server{
-		cfg:       cfg,
-		log:       logger,
-		net:       state.NewNetwork(cfg.Server.SID),
-		clients:   make(map[string]*Client),
-		watchers:  make(map[string]map[*Client]bool),
-		perIP:     make(map[string]int),
-		opers:     make(map[*Client]bool),
-		events:    make(chan func(), 1024),
-		done:      make(chan struct{}),
-		created:   time.Now(),
-		resolve:   lookupHost,
-		lookupA:   lookupA,
-		dnsblSkip: dnsblSkipped,
-		dnsbl:     dnsblState{cache: make(map[string]dnsblResult), hits: make(map[string]int), off: make(map[string]bool)},
+		cfg:         cfg,
+		log:         logger,
+		net:         state.NewNetwork(cfg.Server.SID),
+		clients:     make(map[string]*Client),
+		watchers:    make(map[string]map[*Client]bool),
+		perIP:       make(map[string]int),
+		opers:       make(map[*Client]bool),
+		events:      make(chan func(), 1024),
+		done:        make(chan struct{}),
+		created:     time.Now(),
+		floods:      make(map[string]*chanFloodState),
+		floodCache:  make(map[string]floodSet),
+		floodBoot:   floodBootDelay,
+		rejoinBlock: make(map[string]time.Time),
+		resolve:     lookupHost,
+		lookupA:     lookupA,
+		dnsblSkip:   dnsblSkipped,
+		dnsbl:       dnsblState{cache: make(map[string]dnsblResult), hits: make(map[string]int), off: make(map[string]bool)},
 	}
 	if err := os.MkdirAll(filepath.Dir(cfg.Services.Database), 0o750); err != nil {
 		return nil, err
@@ -223,6 +235,7 @@ func (s *Server) Serve(ctx context.Context) error {
 		case now := <-tick.C:
 			s.checkTimeouts(now)
 			s.expireTimedBans(now)
+			s.floodTick(now)
 			s.svc.Tick(now)
 			s.reap()
 			s.flushWrites()

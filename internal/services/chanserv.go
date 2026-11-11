@@ -16,7 +16,7 @@ const (
 	maxAkicks         = 100
 	maxChannelsPerAcc = 20
 	maxEntryMsgs      = 5
-	mlockFlags        = "MRimnpst"
+	mlockFlags        = "CDKMNQRSTVcimnpstz"
 )
 
 // chanServAliases are old or other names HELP doesn't show.
@@ -75,7 +75,7 @@ func chanServCommands() map[string]svcCmd {
 		"TOPIC": {"TOPIC #chan [SET|APPEND|PREPEND|LOCK|UNLOCK] [text]", "set or lock the topic",
 			"TOPIC #chan <text>           set the topic (SET may come first)\nTOPIC #chan SET              with no text: clear the topic\nTOPIC #chan APPEND <text>    add to the end\nTOPIC #chan PREPEND <text>   add to the front\nTOPIC #chan LOCK|UNLOCK      only those with TOPIC may change it (the old TOPICLOCK)\nNeeds TOPIC (AOP by default); LOCK and UNLOCK need SET.", csTopic},
 		"MODE": {"MODE #chan LOCK|SET|CLEAR ...", "channel modes and the mode lock",
-			"MODE #chan LOCK ADD <modes>    like +nt-s or +k secret; joins the lock\nMODE #chan LOCK DEL <modes>    take letters out of the lock\nMODE #chan LOCK SET <modes>    replace the whole lock\nMODE #chan LOCK LIST\nMODE #chan SET <modes>         set modes now (the lock still wins)\nMODE #chan CLEAR [what]        BANS, EXCEPTS, INVITES, OPS, HALFOPS, VOICES,\n                               PROTECTS, OWNERS, MODES or ALL (the default)\nThe lock can hold M R i m n p s t, k and l. Needs MODE (QOP by default).", csModeCommand},
+			"MODE #chan LOCK ADD <modes>    like +nt-s or +k secret; joins the lock\nMODE #chan LOCK DEL <modes>    take letters out of the lock\nMODE #chan LOCK SET <modes>    replace the whole lock\nMODE #chan LOCK LIST\nMODE #chan SET <modes>         set modes now (the lock still wins)\nMODE #chan CLEAR [what]        BANS, EXCEPTS, INVITES, OPS, HALFOPS, VOICES,\n                               PROTECTS, OWNERS, MODES or ALL (the default)\nThe lock can hold the on/off modes C D K M N Q R S T V c i m n p s t z,\nk and l, and f F L E B J with their value (see /helpop chmodes).\nNeeds MODE (QOP by default).", csModeCommand},
 		"CLEAR": {"CLEAR #chan <what>", "same as MODE CLEAR", "Kept for ConferenceRoom habits: /cs clear #chan bans is /cs mode #chan clear bans.", csClearOld},
 		"ENTRYMSG": {"ENTRYMSG #chan ADD|DEL|LIST|CLEAR ...", "notices people get when they join",
 			"ENTRYMSG #chan ADD <text>\nENTRYMSG #chan DEL <num>\nENTRYMSG #chan LIST\nENTRYMSG #chan CLEAR\nUp to 5 lines, sent to everyone who joins. Needs SET.", csEntryMsg},
@@ -87,7 +87,7 @@ func chanServCommands() map[string]svcCmd {
 			"Nobody can use a suspended channel: everyone is kicked and kept out, and\nChanServ commands on it are refused. Expiry like +7d; without it the channel\nstays suspended until UNSUSPEND. Opers with flag s.", csSuspend},
 		"UNSUSPEND": {"UNSUSPEND #chan", "open a suspended channel again (opers)", "Opers with flag s.", csUnsuspend},
 		"SET": {"SET <option> #chan <value>", "change channel settings",
-			"SET DESCRIPTION #chan <text>\nSET FOUNDER #chan <nick>        (founder) Opers with flag s too.\nSET SUCCESSOR #chan <nick>|OFF  (founder) gets the channel if the founder's\n                                account goes\nSET SECUREFOUNDER #chan ON|OFF  (founder) only the real founder has founder\n                                rights, not the FOUNDER privilege (on)\nSET KEEPTOPIC #chan ON|OFF      the topic comes back when the channel reopens (on)\nSET KEEPMODES #chan ON|OFF      the modes come back when the channel reopens\nSET PEACE #chan ON|OFF          nobody can kick, ban or deop someone at their\n                                level or above (on)\nSET RESTRICTED #chan ON|OFF     only people on the access list may stay\nSET SECURE #chan ON|OFF         access only for people who identified, not for\n                                ones NickServ ACCESS recognises (on)\nSET SECUREOPS #chan ON|OFF      only those allowed a status may hold it\nSET SIGNKICK #chan ON|OFF       kicks show who asked for them (on)\nSET AUTOOP #chan ON|OFF         ChanServ gives status on join (on)\nSET PERSIST #chan ON|OFF        ChanServ keeps the channel open when empty\nSET PRIVATE #chan ON|OFF        hide from /cs list and /cs info for outsiders\nSET BANTYPE #chan 0-3           0 *!user@host, 1 *!*user@host, 2 *!*@host (default),\n                                3 *!*user@*.domain\nSET URL #chan <url>|OFF\nSET NOEXPIRE #chan ON|OFF       (opers with flag s) the channel never expires\nEverything else needs the SET privilege. The mode lock is in MODE, entry\nmessages in ENTRYMSG, the topic lock in TOPIC.\nConferenceRoom shortcuts: MEMOLEVEL <level>, AUTOVOP ON|OFF, LEAVEOPS ON|OFF.", csSet},
+			"SET DESCRIPTION #chan <text>\nSET FOUNDER #chan <nick>        (founder) Opers with flag s too.\nSET SUCCESSOR #chan <nick>|OFF  (founder) gets the channel if the founder's\n                                account goes\nSET SECUREFOUNDER #chan ON|OFF  (founder) only the real founder has founder\n                                rights, not the FOUNDER privilege (on)\nSET KEEPTOPIC #chan ON|OFF      the topic comes back when the channel reopens (on)\nSET KEEPMODES #chan ON|OFF      the modes come back when the channel reopens\nSET PEACE #chan ON|OFF          nobody can kick, ban or deop someone at their\n                                level or above (on)\nSET RESTRICTED #chan ON|OFF     only people on the access list may stay\nSET SECURE #chan ON|OFF         access only for people who identified, not for\n                                ones NickServ ACCESS recognises (on)\nSET SECUREOPS #chan ON|OFF      only those allowed a status may hold it\nSET SIGNKICK #chan ON|OFF       kicks show who asked for them (on)\nSET AUTOOP #chan ON|OFF         ChanServ gives status on join (on)\nSET PERSIST #chan ON|OFF        ChanServ keeps the channel open when empty\nSET OVERFLOW #chan <#other>|OFF people who can't get in (full, +i, +k,\n                                banned) go to #other: mode lock +L\nSET PRIVATE #chan ON|OFF        hide from /cs list and /cs info for outsiders\nSET BANTYPE #chan 0-3           0 *!user@host, 1 *!*user@host, 2 *!*@host (default),\n                                3 *!*user@*.domain\nSET URL #chan <url>|OFF\nSET NOEXPIRE #chan ON|OFF       (opers with flag s) the channel never expires\nEverything else needs the SET privilege. The mode lock is in MODE, entry\nmessages in ENTRYMSG, the topic lock in TOPIC.\nConferenceRoom shortcuts: MEMOLEVEL <level>, AUTOVOP ON|OFF, LEAVEOPS ON|OFF.", csSet},
 		"SEEN": {"SEEN <nick>", "when someone was last seen, and doing what",
 			"Tells you the last time a nick was seen connecting, joining, leaving,\nchanging nick or quitting, and where (secret channels stay secret).", csSeen},
 		"LIST": {"LIST <pattern>", "search registered channels", "Lists registered channels matching a pattern, like #bee*. Private ones are\nleft out unless you are on their access list.", csList},
@@ -1093,6 +1093,8 @@ func csSet(s *Services, c *Client, args []string) {
 				s.persistPart(reg)
 			}
 		}
+	case "OVERFLOW":
+		s.csOverflow(c, reg, val)
 	case "BANTYPE":
 		n, err := strconv.Atoi(val)
 		if err != nil || n < 0 || n > 3 {
@@ -1187,14 +1189,16 @@ func csSet(s *Services, c *Client, args []string) {
 }
 
 // parseMlock reads "+ntk-s secret" into lock fields, starting from the
-// lock reg has (for ADD) or an empty one (for SET). It returns what was
+// lock reg has (for ADD) or an empty one (for SET). check validates the
+// argument of a parameter mode (+f +F +L +E +B +J). It returns what was
 // wrong, or "".
-func parseMlock(reg *store.Channel, args []string, merge bool) string {
+func parseMlock(reg *store.Channel, args []string, merge bool, check func(m byte, arg string) (string, string)) string {
 	if len(args) == 0 || args[0] == "" {
 		return "Give modes, like +nt-s or +k secret."
 	}
 	on, off := map[byte]bool{}, map[byte]bool{}
 	key, limit := "", 0
+	vals := map[byte]string{}
 	if merge {
 		for _, m := range []byte(reg.MlockOn) {
 			on[m] = true
@@ -1203,6 +1207,7 @@ func parseMlock(reg *store.Channel, args []string, merge bool) string {
 			off[m] = true
 		}
 		key, limit = reg.MlockKey, reg.MlockLimit
+		vals = mlockParams(reg)
 	}
 	params := args[1:]
 	next := func() string {
@@ -1240,6 +1245,20 @@ func parseMlock(reg *store.Channel, args []string, merge bool) string {
 			} else {
 				limit = 0
 			}
+		case state.IsParamMode(m) && add:
+			arg := next()
+			if arg == "" {
+				return fmt.Sprintf("+%c in a mode lock needs a value.", m)
+			}
+			norm, why := check(m, arg)
+			if why != "" {
+				return fmt.Sprintf("+%c %s: %s", m, arg, why)
+			}
+			vals[m] = norm
+			delete(off, m)
+		case state.IsParamMode(m):
+			off[m] = true
+			delete(vals, m)
 		case strings.IndexByte(mlockFlags, m) >= 0:
 			if add {
 				on[m], off[m] = true, false
@@ -1247,16 +1266,44 @@ func parseMlock(reg *store.Channel, args []string, merge bool) string {
 				off[m], on[m] = true, false
 			}
 		default:
-			return fmt.Sprintf("A mode lock can hold %s, k and l, not %c.", mlockFlags, m)
+			return mlockHelp(m)
 		}
 	}
 	reg.MlockOn, reg.MlockOff, reg.MlockKey, reg.MlockLimit = flagString(on), flagString(off), key, limit
+	setMlockParams(reg, vals)
 	return ""
+}
+
+func mlockHelp(m byte) string {
+	return fmt.Sprintf("A mode lock can hold %s, k, l and %s, not %c.", mlockFlags, state.ParamModes, m)
+}
+
+// mlockParams reads reg's locked parameter modes ("f [10j]:15 L #other").
+func mlockParams(reg *store.Channel) map[byte]string {
+	out := map[byte]string{}
+	f := strings.Fields(reg.MlockParams)
+	for i := 0; i+1 < len(f); i += 2 {
+		if len(f[i]) == 1 && state.IsParamMode(f[i][0]) {
+			out[f[i][0]] = f[i+1]
+		}
+	}
+	return out
+}
+
+func setMlockParams(reg *store.Channel, vals map[byte]string) {
+	var parts []string
+	for _, m := range []byte(state.ParamModes) {
+		if v, ok := vals[m]; ok {
+			parts = append(parts, string(m), v)
+		}
+	}
+	reg.MlockParams = strings.Join(parts, " ")
 }
 
 // unlockModes takes the letters in modes out of reg's lock.
 func unlockModes(reg *store.Channel, modes string) string {
 	drop := func(set string, m byte) string { return strings.ReplaceAll(set, string(m), "") }
+	vals := mlockParams(reg)
 	for i := 0; i < len(modes); i++ {
 		m := modes[i]
 		switch {
@@ -1265,18 +1312,22 @@ func unlockModes(reg *store.Channel, modes string) string {
 			reg.MlockKey, reg.MlockOff = "", drop(reg.MlockOff, 'k')
 		case m == 'l':
 			reg.MlockLimit, reg.MlockOff = 0, drop(reg.MlockOff, 'l')
+		case state.IsParamMode(m):
+			delete(vals, m)
+			reg.MlockOff = drop(reg.MlockOff, m)
 		case strings.IndexByte(mlockFlags, m) >= 0:
 			reg.MlockOn, reg.MlockOff = drop(reg.MlockOn, m), drop(reg.MlockOff, m)
 		default:
-			return fmt.Sprintf("A mode lock can hold %s, k and l, not %c.", mlockFlags, m)
+			return mlockHelp(m)
 		}
 	}
+	setMlockParams(reg, vals)
 	return ""
 }
 
 func flagString(m map[byte]bool) string {
 	var b []byte
-	for _, f := range []byte(mlockFlags + "kl") {
+	for _, f := range []byte(mlockFlags + "kl" + state.ParamModes) {
 		if m[f] {
 			b = append(b, f)
 		}
@@ -1287,11 +1338,20 @@ func flagString(m map[byte]bool) string {
 // mlockString shows a mode lock like "+ntk-s" (the key itself stays hidden).
 func mlockString(reg *store.Channel) string {
 	on := reg.MlockOn
+	var args []string
 	if reg.MlockKey != "" {
 		on += "k"
 	}
 	if reg.MlockLimit > 0 {
-		on += "l " + strconv.Itoa(reg.MlockLimit)
+		on += "l"
+		args = append(args, strconv.Itoa(reg.MlockLimit))
+	}
+	vals := mlockParams(reg)
+	for _, m := range []byte(state.ParamModes) {
+		if v, ok := vals[m]; ok {
+			on += string(m)
+			args = append(args, v)
+		}
 	}
 	out := ""
 	if on != "" {
@@ -1302,6 +1362,9 @@ func mlockString(reg *store.Channel) string {
 	}
 	if out == "" {
 		return "none"
+	}
+	if len(args) > 0 {
+		out += " " + strings.Join(args, " ")
 	}
 	return out
 }
@@ -1321,9 +1384,7 @@ func mlockChanges(reg *store.Channel, ch *state.Channel) []modeChange {
 		switch {
 		case m == 'k' && ch.Modes['k']:
 			out = append(out, modeChange{false, 'k', ch.Key})
-		case m == 'l' && ch.Modes['l']:
-			out = append(out, modeChange{false, 'l', ""})
-		case m != 'k' && m != 'l' && ch.Modes[m]:
+		case m != 'k' && ch.Modes[m]:
 			out = append(out, modeChange{false, m, ""})
 		}
 	}
@@ -1332,6 +1393,12 @@ func mlockChanges(reg *store.Channel, ch *state.Channel) []modeChange {
 	}
 	if reg.MlockLimit > 0 && (!ch.Modes['l'] || ch.Limit != reg.MlockLimit) {
 		out = append(out, modeChange{true, 'l', strconv.Itoa(reg.MlockLimit)})
+	}
+	vals := mlockParams(reg)
+	for _, m := range []byte(state.ParamModes) {
+		if v, ok := vals[m]; ok && (!ch.Modes[m] || ch.Param(m) != v) {
+			out = append(out, modeChange{true, m, v})
+		}
 	}
 	return out
 }

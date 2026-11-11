@@ -212,7 +212,7 @@ func TestRegistration(t *testing.T) {
 	c.expect(" 002 Bee :Your host is irc.test.local, running BeeIRCd")
 	c.expect(" 004 Bee irc.test.local BeeIRCd-")
 	l := c.expect(" 005 Bee ") + c.expect(" 005 Bee ")
-	for _, tok := range []string{"CASEMAPPING=rfc1459", "PREFIX=(ov)@+", "CHANMODES=beI,k,l,MORimnprst", "NETWORK=BeeNet", "STATUSMSG=@+"} {
+	for _, tok := range []string{"CASEMAPPING=rfc1459", "PREFIX=(ov)@+", "CHANMODES=beI,k,BEFJLfl,CDKMNOPQRSTVZcimnprstz", "NETWORK=BeeNet", "STATUSMSG=@+"} {
 		if !strings.Contains(l, tok) {
 			t.Errorf("005 lacks %s: %s", tok, l)
 		}
@@ -385,8 +385,8 @@ func TestModesAndKick(t *testing.T) {
 
 	nova.send("MODE #a +t")
 	nova.expect(" 482 nova #a :You're not channel operator")
-	nova.send("MODE #a +Q")
-	nova.expect(" 472 nova Q :is unknown mode char to me for #a")
+	nova.send("MODE #a +Y")
+	nova.expect(" 472 nova Y :is unknown mode char to me for #a")
 
 	bee.send("MODE #a +k secret")
 	nova.expect("MODE #a +k secret")

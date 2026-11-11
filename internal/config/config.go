@@ -49,6 +49,7 @@ type Config struct {
 	DNSBL    []DNSBL  `toml:"dnsbl"`
 	Mail     Mail     `toml:"mail"`
 	HostServ HostServ `toml:"hostserv"`
+	Channels Channels `toml:"channels"`
 	// OperClasses are the [[operclass]] blocks (see Classes).
 	OperClasses []OperClass `toml:"operclass"`
 
@@ -234,6 +235,7 @@ func (c *Config) SetDefaults() {
 	setInt(&sv.MaxMemos, 20)
 	c.Mail.setDefaults()
 	c.HostServ.setDefaults()
+	c.Channels.setDefaults()
 	if sv.GuestPrefix == "" {
 		sv.GuestPrefix = "Guest"
 	}
@@ -357,6 +359,9 @@ var (
 // Check reports the first thing wrong, in words a person can act on.
 func (c *Config) Check() error {
 	if err := c.checkClasses(); err != nil {
+		return err
+	}
+	if err := c.Channels.check(); err != nil {
 		return err
 	}
 	switch {

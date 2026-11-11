@@ -14,6 +14,7 @@ func (s *Server) emit(ev state.Event) error {
 	if s.beforeEmit != nil {
 		s.beforeEmit(ev)
 	}
+	secure := s.beforeModeEvent(ev)
 	deliver := s.prepare(ev)
 	watch := s.monitorPrepare(ev)
 	if err := s.net.Apply(ev); err != nil {
@@ -31,6 +32,7 @@ func (s *Server) emit(ev state.Event) error {
 	for _, sink := range s.sinks {
 		sink(ev)
 	}
+	s.afterModeEvent(ev, secure)
 	return nil
 }
 
@@ -65,6 +67,10 @@ func (s *Server) prepare(ev state.Event) func() {
 			u, ch := s.net.UserByUID(e.UID), s.net.Channel(e.Channel)
 			join := s.out(u, "JOIN", ch.Name)
 			join.extParams = []string{ch.Name, accountOrStar(u), u.Realname}
+			if mem := ch.Member(u); mem != nil && mem.Hidden {
+				s.deliverTo(u, join) // +D: only they see it, until they talk
+				return
+			}
 			s.broadcast(ch, join, nil)
 			if u.Away != "" {
 				away := s.out(u, "AWAY", u.Away).text()
@@ -84,6 +90,9 @@ func (s *Server) prepare(ev state.Event) func() {
 		o := s.out(u, "PART", params...)
 		o.msg.Trailing = e.Reason != ""
 		to := members(ch)
+		if mem := ch.Member(u); mem != nil && mem.Hidden {
+			to = []*state.User{u}
+		}
 		return func() { s.deliverAll(to, o) }
 	case *state.Kick:
 		t, ch := s.net.UserByUID(e.UID), s.net.Channel(e.Channel)
@@ -92,17 +101,49 @@ func (s *Server) prepare(ev state.Event) func() {
 		}
 		o := s.outFrom(e.Source, "KICK", ch.Name, t.Nick, e.Reason).text()
 		to := members(ch)
+		if mem := ch.Member(t); mem != nil && mem.Hidden {
+			to = []*state.User{t}
+			if src := s.net.UserByUID(e.Source); src != nil && src != t {
+				to = append(to, src)
+			}
+		}
 		return func() { s.deliverAll(to, o) }
+	case *state.Reveal:
+		return func() {
+			u, ch := s.net.UserByUID(e.UID), s.net.Channel(e.Channel)
+			if u == nil || ch == nil {
+				return
+			}
+			join := s.out(u, "JOIN", ch.Name)
+			join.extParams = []string{ch.Name, accountOrStar(u), u.Realname}
+			s.broadcast(ch, join, u)
+			if u.Away != "" {
+				away := s.out(u, "AWAY", u.Away).text()
+				away.needCap = "away-notify"
+				s.broadcast(ch, away, u)
+			}
+		}
 	case *state.Topic:
 		return func() {
 			ch := s.net.Channel(e.Channel)
 			s.broadcast(ch, s.outFrom(e.Source, "TOPIC", ch.Name, e.Text).text(), nil)
 		}
 	case *state.ChannelMode:
+		name := e.Channel
+		if ch := s.net.Channel(e.Channel); ch != nil {
+			name = ch.Name
+		}
 		return func() {
 			ch := s.net.Channel(e.Channel)
 			for _, line := range modeLines(fromState(e.Changes)) {
-				s.broadcast(ch, s.outFrom(e.Source, "MODE", append([]string{ch.Name}, line...)...), nil)
+				o := s.outFrom(e.Source, "MODE", append([]string{name}, line...)...)
+				if ch == nil { // -P closed the empty channel: tell whoever did it
+					if src := s.net.UserByUID(e.Source); src != nil {
+						s.deliverTo(src, o)
+					}
+					continue
+				}
+				s.broadcast(ch, o, nil)
 			}
 		}
 	case *state.UserMode:
