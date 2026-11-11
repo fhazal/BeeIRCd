@@ -19,6 +19,7 @@ import (
 
 	"github.com/fhazal/beeircd/internal/acmecert"
 	"github.com/fhazal/beeircd/internal/config"
+	"github.com/fhazal/beeircd/internal/control"
 )
 
 // writeCASigned writes a pair signed by a throwaway CA, like Let's Encrypt's.
@@ -122,7 +123,7 @@ func TestACMEFailureKeepsStandIn(t *testing.T) {
 		}
 	})
 	waitFor(t, s, "the failure", func() bool { return s.acme.fails == 1 })
-	var c = s.statusInfo().Cert
+	var c *control.Cert
 	s.onLoop(func() { c = s.statusInfo().Cert })
 	if !strings.Contains(c.Source, "stand-in") || !strings.Contains(c.RenewError, "port 80") || s.realCert() {
 		t.Errorf("status cert %+v", c)
