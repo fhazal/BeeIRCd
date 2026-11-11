@@ -65,17 +65,17 @@ Last updated: 11 Nov 2026 (Stage 1.5.3).
 | Services in their own package, per-user records by UID, hooks from the event layer | Implemented (1.5.3) |
 | Commands and syntax follow Anope 2.1 (see ANOPE-ALIGNMENT.md), hidden aliases for old names | Implemented (1.5.3) |
 | HELP in Anope's layout: groups, HELP ALL, commands you can't use hidden | Implemented (1.5.3) |
-| NickServ (register, identify, SASL, recover, group, ungroup, alist, set, saset, info, drop, list; SET PROTECT/HIDE) | Implemented |
+| NickServ (register, identify, SASL, recover, group, ungroup, alist, set, saset, info, drop, list), as Anope 2.0.20: ACCESS host list with SET SECURE (recognised connections), STATUS 0-3, SET KILL ON/QUICK/IMMED/OFF, SET HIDE EMAIL/STATUS/USERMASK/QUIT, DROP one nick at a time, UNGROUP makes a nick its own account | Implemented (2.0.20 shape 11 Nov 2026) |
 | NickServ CERT and SASL EXTERNAL (auto-identify by certificate) | Planned (1.5.6) |
 | ChanServ access levels as permission sets (Anope numbers 1-10000, xOP names UOP 1/VOP 3/HOP 4/AOP 5/SOP 10/QOP 10000, LEVELS with Anope's 32 privileges and defaults, ACCESS ADD/DEL/LIST/VIEW/CLEAR, STATUS/WHY) | Implemented (1.5.4) |
 | ChanServ (xOP lists with notes and number lists, AKICK with VIEW/ENFORCE/CLEAR, op tools incl. OWNER/PROTECT/HALFOP/UP/DOWN/SYNC, KICK/BAN/UNBAN/INVITE/GETKEY) | Implemented |
 | ChanServ MODE LOCK ADD/DEL/SET/LIST, MODE SET, MODE CLEAR, TOPIC SET/APPEND/PREPEND/LOCK/UNLOCK, ENTRYMSG (5 lines), ENFORCE, LOG (MESSAGE/NOTICE/MEMO, by status), SUSPEND/UNSUSPEND (+expiry) | Implemented (1.5.4) |
-| ChanServ SET: DESCRIPTION FOUNDER SUCCESSOR SECUREFOUNDER KEEPTOPIC KEEPMODES PEACE RESTRICTED SECUREOPS SIGNKICK AUTOOP PERSIST PRIVATE BANTYPE URL NOEXPIRE; CR shortcuts MEMOLEVEL AUTOVOP LEAVEOPS | Implemented (1.5.4) |
+| ChanServ SET: DESCRIPTION FOUNDER SUCCESSOR SECURE SECUREFOUNDER KEEPTOPIC KEEPMODES PEACE RESTRICTED SECUREOPS SIGNKICK AUTOOP PERSIST PRIVATE BANTYPE URL NOEXPIRE; CR shortcuts MEMOLEVEL AUTOVOP LEAVEOPS; DROP #chan #chan; UNBAN with no channel (Anope 2.0.20) | Implemented (1.5.4, 2.0.20 shape 11 Nov 2026) |
 | ChanServ SET OVERFLOW (send people on when full) | Planned (1.5.9, needs +L) |
 | ChanServ FLAGS, CLONE, SEEN; BotServ (ASSIGN, SAY, BADWORDS) | Planned |
 | MemoServ (nick memos, number lists, ignore) | Implemented |
 | MemoServ channel memo boxes (one box per channel like Anope, MEMO privilege, own limit and ignore list, notice on join and identify) | Implemented (1.5.4) |
-| OperServ (stats, global, AKILL ZLINE SNLINE SHUN SQLINE with expiry and number lists, EXCEPTION BAN (ELINE), kill, mode, kick, FORBID nick/chan/email/register with expiry, sessions, exceptions with expiry and CIDR, logon news) | Implemented (ban engine 1.5.5a) |
+| OperServ (STATS AKILL/HASH/UPLINK/UPTIME/ALL/RESET, global, AKILL ZLINE SNLINE SHUN SQLINE with expiry (30 days by default, `ban_expiry`; +0 for good) and number lists, SNLINE mask:reason, EXCEPTION BAN (ELINE), kill, MODE incl. CLEAR [ALL], kick, FORBID nick/chan/email/register with expiry, sessions, exceptions with expiry and CIDR, logon news) | Implemented (ban engine 1.5.5a, 2.0.20 shape 11 Nov 2026) |
 | OperServ CHANKILL SVSNICK SVSJOIN SVSPART UMODE USERLIST CHANLIST INFO IGNORE OPERNEWS RANDOMNEWS, ChanServ SEEN | Planned (1.5.5b) |
 | AdminServ (settings saved to config, MOTD, ports, opers, restart, die) | Implemented |
 | HostServ (vhosts) | Planned (Stage 1.5) |

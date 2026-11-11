@@ -152,6 +152,12 @@ func settings() []setting {
 			get: dur(func(c *config.Config) time.Duration { return c.Services.ChanExpire.Duration }), apply: servicesApply},
 		{name: "identify-within", table: "services", key: "identify_within", help: "time to identify before the Guest rename", kind: 'd', lo: 10, hi: 600,
 			get: dur(func(c *config.Config) time.Duration { return c.Services.IdentifyWithin.Duration }), apply: servicesApply},
+		{name: "kill-quick", table: "services", key: "kill_quick", help: "time NickServ SET KILL QUICK gives", kind: 'd', lo: 5, hi: 300,
+			get: dur(func(c *config.Config) time.Duration { return c.Services.KillQuick.Duration }), apply: servicesApply},
+		{name: "allow-kill-immed", table: "services", key: "allow_kill_immed", help: "people may choose NickServ SET KILL IMMED", kind: 'b',
+			get: func(c *config.Config) string { return onoff(c.Services.AllowKillImmed) }, apply: servicesApply},
+		{name: "ban-expiry", table: "services", key: "ban_expiry", help: "network bans without +expiry last", kind: 'd', lo: 60, hi: 3650 * day,
+			get: dur(func(c *config.Config) time.Duration { return c.Services.BanExpiry.Duration }), apply: servicesApply},
 		{name: "guest-prefix", table: "services", key: "guest_prefix", help: "start of Guest12345 nicks", kind: 't', hi: 10,
 			get: func(c *config.Config) string { return c.Services.GuestPrefix }, apply: servicesApply,
 			check: func(v string) string {

@@ -101,6 +101,7 @@ type Channel struct {
 	KeepTopic   bool
 	TopicLock   bool
 	SecureOps   bool // only people with the privilege may hold a status mode
+	Secure      bool // SET SECURE: account access only for identified people, not recognised ones
 	Private     bool
 	URL         string
 	Topic       string
@@ -166,6 +167,7 @@ CREATE TABLE IF NOT EXISTS channels (
 	keeptopic    INTEGER NOT NULL DEFAULT 1,
 	topiclock    INTEGER NOT NULL DEFAULT 0,
 	secure       INTEGER NOT NULL DEFAULT 0,
+	cs_secure    INTEGER NOT NULL DEFAULT 1,
 	private      INTEGER NOT NULL DEFAULT 0,
 	entrymsg     TEXT NOT NULL DEFAULT '', -- unused since 1.5.4, see chan_entrymsg
 	url          TEXT NOT NULL DEFAULT '',
@@ -196,7 +198,7 @@ const channelCols = `c.id, c.name, c.founder_id, f.name, COALESCE(c.successor_id
 	c.description, c.registered, c.last_used, c.mlock_on, c.mlock_off, c.mlock_key, c.mlock_limit,
 	c.keeptopic, c.topiclock, c.secure, c.private, c.url, c.topic, c.topic_by, c.topic_at,
 	c.restricted, c.peace, c.securefounder, c.signkick, c.keepmodes, c.persist, c.autoop, c.noexpire,
-	c.bantype, c.last_modes, c.memo_limit, c.suspended_by, c.suspend_reason, c.suspended_at, c.suspend_until`
+	c.bantype, c.last_modes, c.memo_limit, c.suspended_by, c.suspend_reason, c.suspended_at, c.suspend_until, c.cs_secure`
 
 const channelFrom = ` FROM channels c JOIN accounts f ON f.id = c.founder_id LEFT JOIN accounts s ON s.id = c.successor_id`
 
@@ -207,7 +209,7 @@ func scanChannel(row interface{ Scan(...any) error }) (*Channel, error) {
 		&c.Description, &reg, &used, &c.MlockOn, &c.MlockOff, &c.MlockKey, &c.MlockLimit,
 		&c.KeepTopic, &c.TopicLock, &c.SecureOps, &c.Private, &c.URL, &c.Topic, &c.TopicBy, &topicAt,
 		&c.Restricted, &c.Peace, &c.SecureFounder, &c.SignKick, &c.KeepModes, &c.Persist, &c.AutoOp, &c.NoExpire,
-		&c.BanType, &c.LastModes, &c.MemoLimit, &c.SuspendedBy, &c.SuspendReason, &susAt, &susUntil)
+		&c.BanType, &c.LastModes, &c.MemoLimit, &c.SuspendedBy, &c.SuspendReason, &susAt, &susUntil, &c.Secure)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -240,7 +242,7 @@ func (s *Store) CreateChannel(name string, founder *Account, desc string, now ti
 	// The defaults below are the ones in the schema.
 	s.c.channels[id] = &Channel{ID: id, Name: name, FounderID: founder.ID, Description: desc,
 		Registered: sec(now), LastUsed: sec(now), MlockOn: "nt", KeepTopic: true, TopicAt: time.Unix(0, 0),
-		Peace: true, SecureFounder: true, SignKick: true, AutoOp: true, BanType: 2, MemoLimit: DefaultChanMemoLimit,
+		Peace: true, SecureFounder: true, SignKick: true, AutoOp: true, Secure: true, BanType: 2, MemoLimit: DefaultChanMemoLimit,
 		SuspendedAt: time.Unix(0, 0), SuspendUntil: time.Unix(0, 0)}
 	s.c.chanKeys[key] = id
 	return s.c.channel(id), nil
@@ -292,12 +294,12 @@ func (s *Store) SaveChannel(c *Channel) error {
 	_, err := s.db.Exec(`UPDATE channels SET founder_id=?, successor_id=?, description=?, last_used=?, mlock_on=?, mlock_off=?,
 		mlock_key=?, mlock_limit=?, keeptopic=?, topiclock=?, secure=?, private=?, url=?, topic=?, topic_by=?, topic_at=?,
 		restricted=?, peace=?, securefounder=?, signkick=?, keepmodes=?, persist=?, autoop=?, noexpire=?, bantype=?,
-		last_modes=?, memo_limit=?, suspended_by=?, suspend_reason=?, suspended_at=?, suspend_until=?
+		last_modes=?, memo_limit=?, suspended_by=?, suspend_reason=?, suspended_at=?, suspend_until=?, cs_secure=?
 		WHERE id=?`,
 		c.FounderID, succ, c.Description, c.LastUsed.Unix(), c.MlockOn, c.MlockOff, c.MlockKey, c.MlockLimit,
 		c.KeepTopic, c.TopicLock, c.SecureOps, c.Private, c.URL, c.Topic, c.TopicBy, c.TopicAt.Unix(),
 		c.Restricted, c.Peace, c.SecureFounder, c.SignKick, c.KeepModes, c.Persist, c.AutoOp, c.NoExpire, c.BanType,
-		c.LastModes, c.MemoLimit, c.SuspendedBy, c.SuspendReason, c.SuspendedAt.Unix(), c.SuspendUntil.Unix(), c.ID)
+		c.LastModes, c.MemoLimit, c.SuspendedBy, c.SuspendReason, c.SuspendedAt.Unix(), c.SuspendUntil.Unix(), c.Secure, c.ID)
 	if err != nil {
 		return err
 	}

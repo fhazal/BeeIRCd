@@ -124,7 +124,6 @@ func (s *Services) modeClear(c *Client, reg *store.Channel, what string) {
 		s.cs(c, "%s is empty right now.", reg.Name)
 		return
 	}
-	var changes []modeChange
 	ranks, lists, modes := "", "", false
 	switch {
 	case what == "ALL":
@@ -139,6 +138,26 @@ func (s *Services) modeClear(c *Client, reg *store.Channel, what string) {
 		s.cs(c, "Syntax: MODE %s CLEAR [BANS|EXCEPTS|INVITES|OPS|HALFOPS|VOICES|PROTECTS|OWNERS|MODES|ALL]", reg.Name)
 		return
 	}
+	changes := clearChanges(live, ranks, lists, modes, false)
+	s.csUsed(c, reg)
+	s.csLog(c, reg.Name, false, "to clear %s", strings.ToLower(what))
+	s.csMode(live, changes)
+	if modes {
+		s.csMode(live, mlockChanges(reg, live))
+	}
+	word := strings.ToLower(what)
+	if what == "STATUS" {
+		word = "ops"
+	}
+	s.cs(c, "Cleared %s in %s (%d).", word, reg.Name, len(changes))
+}
+
+// clearChanges are the mode changes that take away the status modes in
+// ranks (from everyone but services, and with skipOpers but IRC operators),
+// empty the list modes in lists and, with modes, drop every other mode but
+// +r.
+func clearChanges(live *state.Channel, ranks, lists string, modes, skipOpers bool) []modeChange {
+	var changes []modeChange
 	for _, l := range []byte(lists) {
 		for _, e := range live.Lists[l] {
 			changes = append(changes, modeChange{false, l, e.Mask})
@@ -146,7 +165,7 @@ func (s *Services) modeClear(c *Client, reg *store.Channel, what string) {
 	}
 	if ranks != "" {
 		for _, m := range live.SortedMembers() {
-			if m.User.Service {
+			if m.User.Service || skipOpers && m.User.HasMode('o') {
 				continue
 			}
 			for _, r := range state.Ranks {
@@ -174,17 +193,7 @@ func (s *Services) modeClear(c *Client, reg *store.Channel, what string) {
 			changes = append(changes, modeChange{false, 'l', ""})
 		}
 	}
-	s.csUsed(c, reg)
-	s.csLog(c, reg.Name, false, "to clear %s", strings.ToLower(what))
-	s.csMode(live, changes)
-	if modes {
-		s.csMode(live, mlockChanges(reg, live))
-	}
-	word := strings.ToLower(what)
-	if what == "STATUS" {
-		word = "ops"
-	}
-	s.cs(c, "Cleared %s in %s (%d).", word, reg.Name, len(changes))
+	return changes
 }
 
 func csTopic(s *Services, c *Client, args []string) {

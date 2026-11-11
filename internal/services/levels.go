@@ -56,7 +56,6 @@ var privileges = []privilege{
 	{"SIGNKICK", 9999, "kicks you ask for don't show your nick"},
 	{"TOPIC", 5, "use TOPIC and change a locked topic"},
 	{"UNBAN", 4, "unban others"},
-	{"UNBANME", 4, "unban yourself"},
 	{"VOICE", 4, "voice and devoice others"},
 	{"VOICEME", 3, "voice yourself"},
 }
@@ -112,10 +111,25 @@ func (s *Services) levelHas(reg *store.Channel, lvl int, name string) bool {
 // userLevel is a connected user's level on reg (0 when not identified).
 func (s *Services) userLevel(reg *store.Channel, u *state.User) int {
 	c := s.clientOf(u)
-	if c == nil || c.accountID == 0 {
+	if c == nil || s.chanAccount(c, reg) == 0 {
 		return store.LevelNone
 	}
-	return s.accountLevel(reg, c.accountID)
+	return s.accountLevel(reg, s.chanAccount(c, reg))
+}
+
+// chanAccount is the account c's channel access on reg comes from: the one
+// they identified to, or, when reg has SECURE off, the owner of their nick
+// if their connection is recognised (NickServ ACCESS with SECURE off).
+// 0 means none.
+func (s *Services) chanAccount(c *Client, reg *store.Channel) int64 {
+	if c.accountID != 0 || reg == nil || reg.Secure || c.user == nil {
+		return c.accountID
+	}
+	a, err := s.store.AccountByNick(c.user.Nick)
+	if err != nil || a == nil || !s.recognized(c, a) {
+		return 0
+	}
+	return a.ID
 }
 
 // userHas reports whether a connected user has privilege name on reg.
@@ -142,7 +156,7 @@ func (s *Services) csPriv(c *Client, chanName, priv string) (*store.Channel, int
 	if !ok {
 		return nil, 0, false
 	}
-	if c.accountID == 0 {
+	if s.chanAccount(c, reg) == 0 {
 		s.cs(c, "Identify first: /ns identify <password>")
 		s.logDeniedUnreg(c, s.chanServ)
 		return nil, 0, false

@@ -140,3 +140,5 @@ func (s *Server) toAlias(c *Client, alias string, m irc.Message) {
 
 // lockedFor and friends keep the oper password code short.
 func (s *Server) lockedFor(key int64) time.Duration { return s.svc.LockedFor(key) }
+
+func (h host) ResetPeak() { h.s.maxLocal = h.s.localUsers() }

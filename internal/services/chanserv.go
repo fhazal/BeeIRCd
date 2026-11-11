@@ -36,8 +36,8 @@ func chanServCommands() map[string]svcCmd {
 	return map[string]svcCmd{
 		"REGISTER": {"REGISTER #chan [description]", "register a channel you op in",
 			"Registers a channel to your account; you become its Founder. You need to be\nidentified and a channel operator in it.\nExample: /cs register #bchat Be kind, stay curious", csRegister},
-		"DROP": {"DROP #chan [code]", "unregister a channel (founder)",
-			"Removes the registration with its access list, AKICKs and memos. You are asked\nto repeat it with a code first. Opers with flag s may drop any channel.", csDrop},
+		"DROP": {"DROP #chan #chan", "unregister a channel (founder)",
+			"Removes the registration with its access list, AKICKs and memos. Type the\nchannel name twice, so it can't happen by accident. Opers with flag s may\ndrop any channel.\nExample: /cs drop #bchat #bchat", csDrop},
 		"INFO": {"INFO #chan", "who owns a channel and its settings",
 			"Shows the founder, successor and description. With the INFO privilege (QOP\nand the founder by default) also the mode lock and options.", csInfo},
 		"QOP": level(store.LevelQOP),
@@ -69,7 +69,7 @@ func chanServCommands() map[string]svcCmd {
 		"SYNC":      {"SYNC #chan", "give everyone the status they earn", "Gives everyone in the channel the modes their level earns and, with SECUREOPS\non, takes status from those not allowed it. Needs ACCESS_CHANGE.", csSyncCmd},
 		"KICK":      {"KICK #chan <nick> [reason]", "kick through ChanServ", "Needs KICK (HOP by default). With PEACE on, nobody can kick someone on the\nsame level or above, except the founder.", csKick},
 		"BAN":       {"BAN #chan [+expiry] <nick|mask> [reason]", "ban and kick", "Needs BAN (HOP by default). A nick bans that person's host, the way BANTYPE\nsays. With +expiry (+30m, +2h, +7d) the ban lifts itself (a ~t: ban).\nExtbans work too: ~a:account, ~r:realname, ~m:mask (mute).", csBan},
-		"UNBAN":     {"UNBAN #chan [nick|mask]", "remove bans", "Without a nick, removes every ban on you (UNBANME, HOP by default). Unbanning\nothers needs UNBAN.", csUnban},
+		"UNBAN":     {"UNBAN [#chan [nick|mask]]", "remove bans", "Needs UNBAN (HOP by default). UNBAN #chan removes every ban on you there;\nwith a nick, the bans on them. UNBAN alone unbans you in every channel where\nyou have UNBAN.", csUnban},
 		"INVITE":    {"INVITE #chan [nick]", "invite yourself or someone", "Needs INVITE (AOP by default). Without a nick it invites you.", csInvite},
 		"GETKEY":    {"GETKEY #chan", "tell you the channel key", "Needs GETKEY (AOP by default).", csGetKey},
 		"TOPIC": {"TOPIC #chan [SET|APPEND|PREPEND|LOCK|UNLOCK] [text]", "set or lock the topic",
@@ -87,7 +87,7 @@ func chanServCommands() map[string]svcCmd {
 			"Nobody can use a suspended channel: everyone is kicked and kept out, and\nChanServ commands on it are refused. Expiry like +7d; without it the channel\nstays suspended until UNSUSPEND. Opers with flag s.", csSuspend},
 		"UNSUSPEND": {"UNSUSPEND #chan", "open a suspended channel again (opers)", "Opers with flag s.", csUnsuspend},
 		"SET": {"SET <option> #chan <value>", "change channel settings",
-			"SET DESCRIPTION #chan <text>\nSET FOUNDER #chan <nick>        (founder) Opers with flag s too.\nSET SUCCESSOR #chan <nick>|OFF  (founder) gets the channel if the founder's\n                                account goes\nSET SECUREFOUNDER #chan ON|OFF  (founder) only the real founder has founder\n                                rights, not the FOUNDER privilege (on)\nSET KEEPTOPIC #chan ON|OFF      the topic comes back when the channel reopens (on)\nSET KEEPMODES #chan ON|OFF      the modes come back when the channel reopens\nSET PEACE #chan ON|OFF          nobody can kick, ban or deop someone at their\n                                level or above (on)\nSET RESTRICTED #chan ON|OFF     only people on the access list may stay\nSET SECUREOPS #chan ON|OFF      only those allowed a status may hold it\nSET SIGNKICK #chan ON|OFF       kicks show who asked for them (on)\nSET AUTOOP #chan ON|OFF         ChanServ gives status on join (on)\nSET PERSIST #chan ON|OFF        ChanServ keeps the channel open when empty\nSET PRIVATE #chan ON|OFF        hide from /cs list and /cs info for outsiders\nSET BANTYPE #chan 0-3           0 *!user@host, 1 *!*user@host, 2 *!*@host (default),\n                                3 *!*user@*.domain\nSET URL #chan <url>|OFF\nSET NOEXPIRE #chan ON|OFF       (opers with flag s) the channel never expires\nEverything else needs the SET privilege. The mode lock is in MODE, entry\nmessages in ENTRYMSG, the topic lock in TOPIC.\nConferenceRoom shortcuts: MEMOLEVEL <level>, AUTOVOP ON|OFF, LEAVEOPS ON|OFF.", csSet},
+			"SET DESCRIPTION #chan <text>\nSET FOUNDER #chan <nick>        (founder) Opers with flag s too.\nSET SUCCESSOR #chan <nick>|OFF  (founder) gets the channel if the founder's\n                                account goes\nSET SECUREFOUNDER #chan ON|OFF  (founder) only the real founder has founder\n                                rights, not the FOUNDER privilege (on)\nSET KEEPTOPIC #chan ON|OFF      the topic comes back when the channel reopens (on)\nSET KEEPMODES #chan ON|OFF      the modes come back when the channel reopens\nSET PEACE #chan ON|OFF          nobody can kick, ban or deop someone at their\n                                level or above (on)\nSET RESTRICTED #chan ON|OFF     only people on the access list may stay\nSET SECURE #chan ON|OFF         access only for people who identified, not for\n                                ones NickServ ACCESS recognises (on)\nSET SECUREOPS #chan ON|OFF      only those allowed a status may hold it\nSET SIGNKICK #chan ON|OFF       kicks show who asked for them (on)\nSET AUTOOP #chan ON|OFF         ChanServ gives status on join (on)\nSET PERSIST #chan ON|OFF        ChanServ keeps the channel open when empty\nSET PRIVATE #chan ON|OFF        hide from /cs list and /cs info for outsiders\nSET BANTYPE #chan 0-3           0 *!user@host, 1 *!*user@host, 2 *!*@host (default),\n                                3 *!*user@*.domain\nSET URL #chan <url>|OFF\nSET NOEXPIRE #chan ON|OFF       (opers with flag s) the channel never expires\nEverything else needs the SET privilege. The mode lock is in MODE, entry\nmessages in ENTRYMSG, the topic lock in TOPIC.\nConferenceRoom shortcuts: MEMOLEVEL <level>, AUTOVOP ON|OFF, LEAVEOPS ON|OFF.", csSet},
 		"LIST": {"LIST <pattern>", "search registered channels", "Lists registered channels matching a pattern, like #bee*. Private ones are\nleft out unless you are on their access list.", csList},
 	}
 }
@@ -112,7 +112,7 @@ func (s *Services) csLookup(c *Client, name string) (*store.Channel, int, bool) 
 		s.cs(c, "%s isn't registered.", name)
 		return nil, 0, false
 	}
-	return reg, s.accountLevel(reg, c.accountID), true
+	return reg, s.accountLevel(reg, s.chanAccount(c, reg)), true
 }
 
 // csChan is csLookup for commands: a suspended channel is refused (except
@@ -129,7 +129,7 @@ func (s *Services) csChan(c *Client, name string, need int) (*store.Channel, int
 	}
 	if need > 0 {
 		switch {
-		case c.accountID == 0:
+		case s.chanAccount(c, reg) == 0:
 			s.cs(c, "Identify first: /ns identify <password>")
 			s.logDeniedUnreg(c, s.chanServ)
 			return nil, 0, false
@@ -227,19 +227,10 @@ func csDrop(s *Services, c *Client, args []string) {
 	if !ok {
 		return
 	}
-	code := argAt(args, 1)
-	key := irc.Fold(reg.Name) + ":"
-	if code == "" || c.dropCode != key+code || time.Now().After(c.dropUntil) {
-		if code != "" {
-			s.cs(c, "That code is wrong or too old.")
-		}
-		fresh := randomCode()
-		c.dropCode, c.dropUntil = key+fresh, time.Now().Add(dropCodeFor)
-		s.cs(c, "This removes the registration of %s with its access list and AKICKs, for good.", reg.Name)
-		s.cs(c, "To go ahead within 2 minutes: /cs drop %s %s", reg.Name, fresh)
+	if again := argAt(args, 1); !irc.EqualFold(again, reg.Name) {
+		s.cs(c, "Type the channel name twice to drop it, as a confirmation: /cs drop %s %s", reg.Name, reg.Name)
 		return
 	}
-	c.dropCode = ""
 	if err := s.store.DeleteChannel(reg.ID); err != nil {
 		s.dbErr(c, s.chanServ, err)
 		return
@@ -305,7 +296,7 @@ func csInfo(s *Services, c *Client, args []string) {
 		on   bool
 		name string
 	}{{reg.KeepTopic, "keep topic"}, {reg.TopicLock, "topic lock"}, {reg.KeepModes, "keep modes"}, {reg.Peace, "peace"},
-		{reg.Restricted, "restricted"}, {reg.SecureOps, "secure ops"}, {reg.SecureFounder, "secure founder"},
+		{reg.Restricted, "restricted"}, {reg.Secure, "security"}, {reg.SecureOps, "secure ops"}, {reg.SecureFounder, "secure founder"},
 		{reg.SignKick, "sign kick"}, {!reg.AutoOp, "no auto-op"}, {reg.Persist, "persist"}, {reg.Private, "private"},
 		{reg.NoExpire, "no expire"}} {
 		if o.on {
@@ -812,13 +803,13 @@ func csBan(s *Services, c *Client, args []string) {
 }
 
 func csUnban(s *Services, c *Client, args []string) {
+	if len(args) == 0 {
+		csUnbanEverywhere(s, c)
+		return
+	}
 	arg := argAt(args, 1)
 	self := arg == "" || irc.EqualFold(arg, c.user.Nick)
-	priv := "UNBAN"
-	if self {
-		priv = "UNBANME"
-	}
-	reg, _, ok := s.csPriv(c, argAt(args, 0), priv)
+	reg, _, ok := s.csPriv(c, argAt(args, 0), "UNBAN")
 	if !ok {
 		return
 	}
@@ -833,12 +824,7 @@ func csUnban(s *Services, c *Client, args []string) {
 	} else {
 		who = s.net.UserByNick(arg)
 	}
-	var lift []modeChange
-	for _, e := range live.Lists['b'] {
-		if who != nil && matchesMask(e.Mask, who) || who == nil && irc.EqualFold(e.Mask, irc.NormalizeMask(arg)) || irc.EqualFold(e.Mask, arg) {
-			lift = append(lift, modeChange{false, 'b', e.Mask})
-		}
-	}
+	lift := bansOn(live, who, arg)
 	if len(lift) == 0 {
 		if self {
 			s.cs(c, "You aren't banned in %s.", reg.Name)
@@ -855,6 +841,45 @@ func csUnban(s *Services, c *Client, args []string) {
 	}
 	s.csMode(live, lift)
 	s.cs(c, "%s removed in %s.", plural(len(lift), "ban"), reg.Name)
+}
+
+// bansOn are the bans in live that hit who (or, with who nil, equal mask).
+func bansOn(live *state.Channel, who *state.User, mask string) []modeChange {
+	var lift []modeChange
+	for _, e := range live.Lists['b'] {
+		if who != nil && matchesMask(e.Mask, who) || who == nil && irc.EqualFold(e.Mask, irc.NormalizeMask(mask)) || irc.EqualFold(e.Mask, mask) {
+			lift = append(lift, modeChange{false, 'b', e.Mask})
+		}
+	}
+	return lift
+}
+
+// csUnbanEverywhere is UNBAN with no channel (Anope 2.0.20): lift the bans
+// on c in every open registered channel where c has UNBAN.
+func csUnbanEverywhere(s *Services, c *Client) {
+	if c.accountID == 0 {
+		s.cs(c, "Identify first: /ns identify <password>")
+		s.logDeniedUnreg(c, s.chanServ)
+		return
+	}
+	all, err := s.store.Channels()
+	if err != nil {
+		s.dbErr(c, s.chanServ, err)
+		return
+	}
+	n := 0
+	for _, reg := range all {
+		live := s.net.Channel(reg.Name)
+		if live == nil || reg.Suspended(time.Now()) || !s.userHas(reg, c.user, "UNBAN") {
+			continue
+		}
+		if lift := bansOn(live, c.user, ""); len(lift) > 0 {
+			s.csMode(live, lift)
+			n++
+		}
+	}
+	s.csLog(c, "", false, "on all channels")
+	s.cs(c, "You have been unbanned from %s.", plural(n, "channel"))
 }
 
 func csInvite(s *Services, c *Client, args []string) {
@@ -916,8 +941,6 @@ func csSet(s *Services, c *Client, args []string) {
 	switch what {
 	case "DESC":
 		what = "DESCRIPTION"
-	case "SECURE":
-		what = "SECUREOPS"
 	}
 	var reg *store.Channel
 	var ok, asOper bool
@@ -1030,6 +1053,8 @@ func csSet(s *Services, c *Client, args []string) {
 		toggle(&reg.KeepTopic, "Keep topic", false, "keeptopic")
 	case "TOPICLOCK":
 		toggle(&reg.TopicLock, "Topic lock", false, "topiclock")
+	case "SECURE":
+		toggle(&reg.Secure, "Security", false, "secure")
 	case "SECUREOPS", "LEAVEOPS":
 		if toggle(&reg.SecureOps, "Secure ops", what == "LEAVEOPS", "secure ops") && reg.SecureOps && live != nil {
 			s.csSync(reg)
@@ -1351,6 +1376,12 @@ func csList(s *Services, c *Client, args []string) {
 // csMode sets modes on ch as ChanServ. Changes that change nothing are
 // dropped when applied; the rest go out in lines of at most 4 parameters.
 func (s *Services) csMode(ch *state.Channel, changes []modeChange) {
+	s.svcMode(s.chanServ, ch, changes)
+}
+
+// svcMode sets channel modes as service sv. Status modes for people not in
+// the channel, or ranks this server doesn't use, are left out.
+func (s *Services) svcMode(sv *service, ch *state.Channel, changes []modeChange) {
 	var list []state.ModeChange
 	for _, m := range changes {
 		sc := state.ModeChange{Add: m.add, Mode: m.mode, Arg: m.arg}
@@ -1364,7 +1395,7 @@ func (s *Services) csMode(ch *state.Channel, changes []modeChange) {
 		list = append(list, sc)
 	}
 	if len(list) > 0 {
-		s.emit(&state.ChannelMode{Source: s.chanServ.user.UID, Channel: ch.Name, By: "ChanServ", At: time.Now(), Changes: list})
+		s.emit(&state.ChannelMode{Source: sv.user.UID, Channel: ch.Name, By: sv.user.Nick, At: time.Now(), Changes: list})
 	}
 }
 
@@ -1433,7 +1464,7 @@ func csUp(s *Services, c *Client, args []string) {
 	if !ok {
 		return
 	}
-	if c.accountID == 0 {
+	if s.chanAccount(c, reg) == 0 {
 		s.cs(c, "Identify first: /ns identify <password>")
 		s.logDeniedUnreg(c, s.chanServ)
 		return

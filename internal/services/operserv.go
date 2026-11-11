@@ -26,12 +26,12 @@ var operServAliases = map[string]string{
 
 func operServCommands() map[string]svcCmd {
 	return map[string]svcCmd{
-		"STATS": {"STATS [ALL]", "people, channels, opers, uptime",
-			"Shows how busy the network is. STATS ALL adds the details. Any oper.", osStats},
+		"STATS": {"STATS [AKILL | HASH | UPLINK | UPTIME | ALL | RESET]", "people, channels, opers, uptime",
+			"STATS alone shows how busy the network is. AKILL counts the network bans,\nHASH the size of the tables, UPLINK the server links, UPTIME people and\nuptime; ALL shows everything. RESET makes the people peak the number online\nnow. Any oper.", osStats},
 		"GLOBAL": {"GLOBAL <text>", "a notice to everyone",
 			"Sends a notice from Global to everyone on the network.\nExample: /os global The server restarts at 22:00 UTC.", osGlobal},
 		"AKILL": {"AKILL ADD|DEL|LIST|VIEW|CLEAR ...", "ban from the whole network",
-			"AKILL ADD [+expiry] <user@host|nick> <reason>   expiry like +30m, +12h, +7d;\n    without it the AKILL stays until removed\nAKILL DEL {<mask> | <num> | <list>}   numbers from LIST, like 2 or 1-3,5\nAKILL LIST [<mask> | <list>]\nAKILL VIEW [<mask> | <list>]   with who set it and when\nAKILL CLEAR\nThe host may be a CIDR range, like *@203.0.113.0/24. A nick bans that\nperson's IP. People who match are disconnected at once. Opers type /GLINE\nfor the same list.\nExample: /os akill add +7d *@203.0.113.* spam bots", osNetBan(store.BanAkill)},
+			"AKILL ADD [+expiry] <user@host|nick> <reason>   expiry like +30m, +12h, +7d;\n    without it the AKILL lasts 30 days, +0 keeps it until removed\nAKILL DEL {<mask> | <num> | <list>}   numbers from LIST, like 2 or 1-3,5\nAKILL LIST [<mask> | <list>]\nAKILL VIEW [<mask> | <list>]   with who set it and when\nAKILL CLEAR\nThe host may be a CIDR range, like *@203.0.113.0/24. A nick bans that\nperson's IP. People who match are disconnected at once. Opers type /GLINE\nfor the same list.\nExample: /os akill add +7d *@203.0.113.* spam bots", osNetBan(store.BanAkill)},
 		"ZLINE": {"ZLINE ADD|DEL|LIST|VIEW|CLEAR ...", "ban an IP before anything else",
 			"ZLINE ADD [+expiry] <ip|cidr|nick> <reason>\nZLINE DEL|LIST|VIEW|CLEAR like AKILL.\nA ZLINE refuses the connection the moment it opens: no host lookup, no ident,\nno services. For floods and known bad ranges. /ZLINE does the same.\nExample: /os zline add +1d 198.51.100.0/24 flood", osNetBan(store.BanZline)},
 		"SNLINE": {"SNLINE ADD|DEL|LIST|VIEW|CLEAR ...", "ban by realname",
@@ -42,8 +42,8 @@ func operServCommands() map[string]svcCmd {
 			"SQLINE ADD [+expiry] <nick-mask> [reason]\nSQLINE DEL <nick-mask>\nSQLINE LIST\nSQLINE CLEAR\nThe same list as FORBID NICK: nobody but opers may use or register a matching\nnick. /QLINE does the same.", osSQLine},
 		"KILL": {"KILL <nick> [reason]", "disconnect someone",
 			"Disconnects someone, with OperServ as the sender.", osKill},
-		"MODE": {"MODE #chan <modes>", "set channel modes as services",
-			"Sets modes on a channel without being an op there.\nExample: /os mode #bchat -i+b *!*@spam.example", osMode},
+		"MODE": {"MODE #chan {<modes> | CLEAR [ALL]}", "set channel modes as services",
+			"Sets modes on a channel without being an op there. CLEAR takes away every\nmode, ban, exception and invite; CLEAR ALL also everyone's status, except\nIRC operators'. The mode lock comes back by itself.\nExample: /os mode #bchat -i+b *!*@spam.example", osMode},
 		"KICK": {"KICK #chan <nick> <reason>", "kick as services", "Kicks someone with OperServ as the sender.", osKick},
 		"FORBID": {"FORBID ADD|DEL|LIST ...", "names nobody may use",
 			"FORBID ADD {NICK|CHAN|EMAIL|REGISTER} [+expiry] <name> [reason]\nFORBID DEL {NICK|CHAN|EMAIL|REGISTER} <name>\nFORBID LIST [NICK|CHAN|EMAIL|REGISTER]\nNICK: nobody but opers may use or register it. CHAN: nobody but opers may\njoin or register it. EMAIL: no account may use it. REGISTER: may be used, but\nnot registered. Names may hold * and ?, like *@mailinator.com or Guest*.", osForbid},
@@ -78,7 +78,18 @@ func durWords(d time.Duration) string {
 }
 
 func osStats(s *Services, c *Client, args []string) {
-	s.osLog(c, "%s", strings.ToUpper(strings.Join(args, " ")))
+	extra := strings.ToUpper(argAt(args, 0))
+	s.osLog(c, "%s", extra)
+	switch extra {
+	case "RESET":
+		s.host.ResetPeak()
+		s.os(c, "Statistics reset: the peak is now the number of people online.")
+		return
+	case "", "ALL", "AKILL", "HASH", "UPLINK", "UPTIME":
+	default:
+		s.os(c, "Unknown STATS option: %s (AKILL, HASH, UPLINK, UPTIME, ALL or RESET)", argAt(args, 0))
+		return
+	}
 	people, opers := 0, 0
 	for _, u := range s.net.Users() {
 		if u.Service {
@@ -89,43 +100,71 @@ func osStats(s *Services, c *Client, args []string) {
 			opers++
 		}
 	}
-	accounts, nicks, memos, err := s.store.Counts()
-	if err != nil {
-		s.dbErr(c, s.operServ, err)
-		return
-	}
-	regChans, err := s.store.ChannelCount()
-	if err != nil {
-		s.dbErr(c, s.operServ, err)
-		return
-	}
 	hs := s.host.Stats()
-	s.os(c, "%s · %s · up %s", s.cfg.Server.Network, s.cfg.Server.Name, durWords(time.Since(hs.Started)))
-	s.os(c, "  People     %d now, peak %d", people, hs.PeakUsers)
-	s.os(c, "  Opers      %d online", opers)
-	s.os(c, "  Channels   %d open, %d registered", s.net.ChannelCount(), regChans)
-	s.os(c, "  Accounts   %d (%s), %s", accounts, plural(nicks, "nick"), plural(memos, "memo"))
-	s.os(c, "  AKILLs     %d", len(s.liveAkills()))
-	if n := len(s.liveBans(store.BanZline)) + len(s.liveBans(store.BanSNLine)) + len(s.liveBans(store.BanShun)) + len(s.liveBans(store.BanEline)); n > 0 {
-		s.os(c, "  Other bans ZLINE %d, SNLINE %d, SHUN %d, ELINE %d", len(s.liveBans(store.BanZline)), len(s.liveBans(store.BanSNLine)),
-			len(s.liveBans(store.BanShun)), len(s.liveBans(store.BanEline)))
+	if extra == "" || extra == "ALL" {
+		accounts, nicks, memos, err := s.store.Counts()
+		if err != nil {
+			s.dbErr(c, s.operServ, err)
+			return
+		}
+		regChans, err := s.store.ChannelCount()
+		if err != nil {
+			s.dbErr(c, s.operServ, err)
+			return
+		}
+		s.os(c, "%s · %s · up %s", s.cfg.Server.Network, s.cfg.Server.Name, durWords(time.Since(hs.Started)))
+		s.os(c, "  People     %d now, peak %d", people, hs.PeakUsers)
+		s.os(c, "  Opers      %d online", opers)
+		s.os(c, "  Channels   %d open, %d registered", s.net.ChannelCount(), regChans)
+		s.os(c, "  Accounts   %d (%s), %s", accounts, plural(nicks, "nick"), plural(memos, "memo"))
+		s.os(c, "  AKILLs     %d", len(s.liveAkills()))
+		if n := len(s.liveBans(store.BanZline)) + len(s.liveBans(store.BanSNLine)) + len(s.liveBans(store.BanShun)) + len(s.liveBans(store.BanEline)); n > 0 {
+			s.os(c, "  Other bans ZLINE %d, SNLINE %d, SHUN %d, ELINE %d", len(s.liveBans(store.BanZline)), len(s.liveBans(store.BanSNLine)),
+				len(s.liveBans(store.BanShun)), len(s.liveBans(store.BanEline)))
+		}
+		s.os(c, "  Servers    1")
+		s.os(c, "  Loop       %s", hs.Loop)
 	}
-	s.os(c, "  Servers    1")
-	s.os(c, "  Loop       %s", hs.Loop)
-	if !strings.EqualFold(argAt(args, 0), "ALL") {
-		return
+	if extra == "ALL" {
+		nForbid := 0
+		for _, kind := range store.ForbidKinds {
+			nForbid += len(s.forbids[kind])
+		}
+		var mem runtime.MemStats
+		runtime.ReadMemStats(&mem)
+		s.os(c, "  Forbids    %d", nForbid)
+		s.os(c, "  Exceptions %d (session limit %d)", len(s.sessionExcepts), s.cfg.Limits.SessionLimit)
+		s.os(c, "  News       %s", plural(len(s.news), "line"))
+		s.os(c, "  Memory     %.1f MiB in use, %d goroutines", float64(mem.HeapAlloc)/(1<<20), runtime.NumGoroutine())
+		s.os(c, "  Started    %s", showTime(hs.Started))
 	}
-	nForbid := 0
-	for _, kind := range store.ForbidKinds {
-		nForbid += len(s.forbids[kind])
+	if extra == "AKILL" || extra == "ALL" {
+		s.os(c, "Network bans (without +expiry they last %s; ELINEs stay until removed):", durWords(s.cfg.Services.BanExpiry.Duration))
+		s.os(c, "  AKILL %d, SNLINE %d, SQLINE %d, ZLINE %d, SHUN %d, ELINE %d", len(s.liveBans(store.BanAkill)), len(s.liveBans(store.BanSNLine)),
+			len(s.forbids[store.ForbidNick]), len(s.liveBans(store.BanZline)), len(s.liveBans(store.BanShun)), len(s.liveBans(store.BanEline)))
 	}
-	var mem runtime.MemStats
-	runtime.ReadMemStats(&mem)
-	s.os(c, "  Forbids    %d", nForbid)
-	s.os(c, "  Exceptions %d (session limit %d)", len(s.sessionExcepts), s.cfg.Limits.SessionLimit)
-	s.os(c, "  News       %s", plural(len(s.news), "line"))
-	s.os(c, "  Memory     %.1f MiB in use, %d goroutines", float64(mem.HeapAlloc)/(1<<20), runtime.NumGoroutine())
-	s.os(c, "  Started    %s", showTime(hs.Started))
+	if extra == "HASH" || extra == "ALL" {
+		accounts, nicks, _, err := s.store.Counts()
+		if err != nil {
+			s.dbErr(c, s.operServ, err)
+			return
+		}
+		regChans, err := s.store.ChannelCount()
+		if err != nil {
+			s.dbErr(c, s.operServ, err)
+			return
+		}
+		s.os(c, "Tables (entries): users %d, channels %d, registered channels %d, nicks %d, accounts %d, services records %d",
+			len(s.net.Users()), s.net.ChannelCount(), regChans, nicks, accounts, len(s.clients))
+	}
+	if extra == "UPLINK" || extra == "ALL" {
+		s.os(c, "Uplink: none, %s runs on its own (linking comes in Stage 2).", s.cfg.Server.Name)
+	}
+	if extra == "UPTIME" {
+		s.os(c, "Current users: %d (%d ops)", people, opers)
+		s.os(c, "Maximum users: %d", hs.PeakUsers)
+		s.os(c, "Services up %s.", durWords(time.Since(hs.Started)))
+	}
 }
 
 func osGlobal(s *Services, c *Client, args []string) {
@@ -149,7 +188,8 @@ func osGlobal(s *Services, c *Client, args []string) {
 	s.os(c, "Sent to everyone online (%s).", plural(n, "person"))
 }
 
-// parseExpiry reads Anope's "+7d" (and "+0" for until removed).
+// parseExpiry reads Anope's "+7d" ("+0" for until removed; a bare number
+// is days, as in Anope).
 func parseExpiry(arg string) (time.Duration, bool) {
 	if !strings.HasPrefix(arg, "+") {
 		return 0, false
@@ -157,7 +197,11 @@ func parseExpiry(arg string) (time.Duration, bool) {
 	if arg == "+0" {
 		return 0, true
 	}
-	d, err := config.ParseDuration(arg[1:])
+	num := arg[1:]
+	if n, err := strconv.Atoi(num); err == nil && n > 0 {
+		num += "d"
+	}
+	d, err := config.ParseDuration(num)
 	if err != nil || d < time.Minute {
 		return 0, false
 	}
@@ -194,12 +238,27 @@ func osMode(s *Services, c *Client, args []string) {
 		return
 	}
 	if len(args) < 2 || !irc.IsChannel(args[0]) {
-		s.os(c, "Syntax: MODE #chan <modes>")
+		s.os(c, "Syntax: MODE #chan <modes> | MODE #chan CLEAR [ALL]")
 		return
 	}
 	ch := s.net.Channel(args[0])
 	if ch == nil {
 		s.os(c, "%s is empty right now.", args[0])
+		return
+	}
+	if strings.EqualFold(args[1], "CLEAR") {
+		all := strings.EqualFold(argAt(args, 2), "ALL")
+		ranks := ""
+		if all {
+			ranks = "qaohv"
+		}
+		s.svcMode(s.operServ, ch, clearChanges(ch, ranks, "beI", true, true))
+		s.audit(c, s.operServ, "MODE %s CLEAR%s", ch.Name, map[bool]string{true: " ALL"}[all])
+		if all {
+			s.os(c, "All modes cleared on %s.", ch.Name)
+		} else {
+			s.os(c, "Non-status modes cleared on %s.", ch.Name)
+		}
 		return
 	}
 	s.host.ApplyChannelModes(c.user.UID, s.operServ.user.UID, ch.Name, args[1], args[2:])

@@ -98,8 +98,8 @@ func TestLogChannel(t *testing.T) {
 	u.send("CS SET PEACE #own ON")
 	b.expect(cs + "COMMAND: user!~user@127.0.0.1 (user) used SET on #own to enable peace")
 	b.send("CS DROP #own")
-	l := b.expect("To go ahead within 2 minutes: /cs drop #own ")
-	b.send("CS DROP #own " + l[strings.LastIndex(l, " ")+1:])
+	b.expect("Type the channel name twice to drop it, as a confirmation: /cs drop #own #own")
+	b.send("CS DROP #own #own")
 	b.expect(cs + "OVERRIDE: Boss!~boss@127.0.0.1 (Boss) used DROP on #own (founder was: user)")
 
 	// OperServ and its IRCd-style aliases: ADMIN, Anope's text, no audit copy.

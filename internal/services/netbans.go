@@ -217,6 +217,16 @@ func (s *Services) banHits(b *store.NetBan) []*Client {
 	return hits
 }
 
+// defaultBanLife is how long a network ban added without +expiry lasts:
+// ban_expiry (30 days, Anope's autokillexpiry/snlineexpiry/sqlineexpiry)
+// for everything but ELINE, which stays until removed.
+func (s *Services) defaultBanLife(kind string) time.Duration {
+	if kind == store.BanEline {
+		return 0
+	}
+	return s.cfg.Services.BanExpiry.Duration
+}
+
 // osNetBan is the OperServ command for one kind of network ban.
 func osNetBan(kind string) func(*Services, *Client, []string) {
 	k := banKinds[kind]
@@ -234,14 +244,25 @@ func (s *Services) netBanCommand(c *Client, k banKind, args []string) {
 	switch sub {
 	case "ADD":
 		rest := args[1:]
-		var life time.Duration
+		life := s.defaultBanLife(k.kind)
 		if len(rest) > 0 && strings.HasPrefix(rest[0], "+") {
 			d, ok := parseExpiry(rest[0])
 			if !ok {
-				s.os(c, "%s isn't a time. Use +30m, +12h, +7d, or leave it out for until removed.", rest[0])
+				s.os(c, "%s isn't a time. Use +30m, +12h, +7d, or +0 for until removed.", rest[0])
 				return
 			}
 			life, rest = d, rest[1:]
+		}
+		if k.kind == store.BanSNLine && len(rest) > 0 && !strings.HasPrefix(rest[0], "/") {
+			// Anope's form: mask:reason, where the mask may hold spaces.
+			if joined := strings.Join(rest, " "); strings.Contains(joined, ":") {
+				m, r, _ := strings.Cut(joined, ":")
+				if m, r = strings.TrimSpace(m), strings.TrimSpace(r); m == "" || r == "" {
+					s.os(c, "Syntax: SNLINE ADD [+expiry] <mask>:<reason>")
+					return
+				}
+				rest = []string{m, r}
+			}
 		}
 		if len(rest) < 2 {
 			s.os(c, "Syntax: %s ADD [+expiry] %s <reason>", k.cmd, k.maskF)
@@ -404,11 +425,11 @@ func osSQLine(s *Services, c *Client, args []string) {
 	switch sub {
 	case "ADD":
 		rest := args[1:]
-		var life time.Duration
+		life := s.cfg.Services.BanExpiry.Duration
 		if len(rest) > 0 && strings.HasPrefix(rest[0], "+") {
 			d, ok := parseExpiry(rest[0])
 			if !ok {
-				s.os(c, "%s isn't a time. Use +30m, +12h, +7d, or leave it out for until removed.", rest[0])
+				s.os(c, "%s isn't a time. Use +30m, +12h, +7d, or +0 for until removed.", rest[0])
 				return
 			}
 			life, rest = d, rest[1:]

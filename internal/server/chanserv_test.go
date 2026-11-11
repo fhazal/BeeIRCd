@@ -137,7 +137,7 @@ func TestChanServModeLockSecureTopicLock(t *testing.T) {
 	bee.send("MODE #bchat -m")
 	bee.expect("MODE #bchat -m")
 
-	bee.send("CS SET #bchat SECURE ON")
+	bee.send("CS SET #bchat SECUREOPS ON")
 	bee.expect(csLine("Bee", "Secure ops is now on for #bchat."))
 	bee.send("MODE #bchat +o x")
 	x.expect(":Bee!~bee@127.0.0.1 MODE #bchat +o x")
@@ -145,7 +145,7 @@ func TestChanServModeLockSecureTopicLock(t *testing.T) {
 	bee.send("CS OP #bchat x")
 	bee.expect(csLine("Bee", "x may not hold +o on #bchat: SECUREOPS is on."))
 
-	bee.send("CS SET #bchat SECURE OFF")
+	bee.send("CS SET #bchat SECUREOPS OFF")
 	bee.expect("Secure ops is now off")
 	bee.send("CS SET #bchat TOPICLOCK ON")
 	bee.expect("Topic lock is now on")
@@ -260,7 +260,7 @@ func TestChanServInfoListSetDrop(t *testing.T) {
 	other.quiet("Mode lock") // the details are for those with INFO (Anope)
 	bee.send("CS INFO #bchat")
 	bee.expect(csLine("Bee", "  Mode lock     +nt"))
-	bee.expect(csLine("Bee", "  Options       keep topic, peace, secure founder, sign kick"))
+	bee.expect(csLine("Bee", "  Options       keep topic, peace, security, secure founder, sign kick"))
 	bee.expect(csLine("Bee", "  Ban type      2 (*!*@host)"))
 	other.send("CS LIST #b*")
 	other.expect("#bchat               Be kind, stay curious")
@@ -273,9 +273,8 @@ func TestChanServInfoListSetDrop(t *testing.T) {
 	other.expect(csLine("other", "0 channels match."))
 
 	bee.send("CS DROP #bchat")
-	l := bee.expect("To go ahead within 2 minutes: /cs drop #bchat ")
-	code := l[strings.LastIndex(l, " ")+1:]
-	bee.send("CS DROP #bchat " + code)
+	bee.expect("Type the channel name twice to drop it, as a confirmation: /cs drop #bchat #bchat")
+	bee.send("CS DROP #bchat #bchat")
 	bee.expect(csSrc + "MODE #bchat -r")
 	bee.expect(csLine("Bee", "#bchat is no longer registered."))
 }
@@ -306,16 +305,12 @@ func TestFounderHandOverAndChannelMemo(t *testing.T) {
 	bee.send("CS SET #bchat SUCCESSOR Kestrel")
 	bee.expect("Kestrel gets #bchat")
 	bee.send("NS DROP Bee")
-	l := bee.expect("To go ahead within 2 minutes: /ns drop Bee ")
-	bee.send("NS DROP Bee " + l[strings.LastIndex(l, " ")+1:])
-	bee.expect("The account Bee is gone.")
+	bee.expect(nsLine("Bee", "Bee has been dropped."))
 	kes.send("CS INFO #bchat")
 	kes.expect(csLine("Kestrel", "  Founder       Kestrel"))
 
 	// Kestrel has no successor: dropping that account drops the channel.
 	kes.send("NS DROP Kestrel")
-	l = kes.expect("To go ahead within 2 minutes: /ns drop Kestrel ")
-	kes.send("NS DROP Kestrel " + l[strings.LastIndex(l, " ")+1:])
 	bee.expect(csSrc + "MODE #bchat -r")
 	ember.send("CS INFO #bchat")
 	ember.expect(csLine("ember", "#bchat isn't registered."))
@@ -376,7 +371,7 @@ func TestChanServAnopeForms(t *testing.T) {
 	bee.send("CS SET #bchat DESC old order")
 	bee.expect(csLine("Bee", "The description of #bchat is now: old order"))
 	bee.send("CS SET SECURE #bchat maybe")
-	bee.expect(csLine("Bee", "Syntax: SET SECUREOPS #bchat ON|OFF"))
+	bee.expect(csLine("Bee", "Syntax: SET SECURE #bchat ON|OFF"))
 
 	// AKICK numbers, ENFORCE and CLEAR.
 	bee.send("CS AKICK #bchat ADD *!*@one.example")
@@ -422,8 +417,8 @@ func TestChanServOperDropAndFounder(t *testing.T) {
 	bee.send("CS SET SUCCESSOR #bchat Boss")
 	bee.expect(csLine("Bee", "Only the founder of #bchat can do that."))
 	b.send("CS DROP #bchat")
-	l := b.expect("To go ahead within 2 minutes: /cs drop #bchat ")
-	b.send("CS DROP #bchat " + l[strings.LastIndex(l, " ")+1:])
+	b.expect("Type the channel name twice to drop it, as a confirmation: /cs drop #bchat #bchat")
+	b.send("CS DROP #bchat #bchat")
 	b.expect("Boss used ChanServ: DROP #bchat (founder ember)")
 	b.expect(csLine("Boss", "#bchat is no longer registered."))
 }

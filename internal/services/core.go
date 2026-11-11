@@ -59,6 +59,8 @@ type Host interface {
 	Post(f func())
 	// Stats is what OperServ STATS shows about the server itself.
 	Stats() HostStats
+	// ResetPeak makes the people peak the number online now (STATS RESET).
+	ResetPeak()
 }
 
 // HostStats are server figures for OperServ STATS.
@@ -106,8 +108,6 @@ type Client struct {
 	enforceAt   time.Time // rename to Guest at this time, unless identified
 	enforceNick string    // the nick enforceAt is about
 	pwBusy      bool      // a password check is running
-	dropCode    string    // confirms /ns drop
-	dropUntil   time.Time // dropCode is valid until then
 	csUsedOn    string    // channel a ChanServ command passed its access check on (for LOG)
 	cmdName     string    // the command as typed, for log lines (Anope's source.command)
 }

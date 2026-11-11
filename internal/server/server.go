@@ -104,6 +104,9 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 		return nil, err
 	}
 	s.store = db
+	for _, n := range db.Notes() {
+		logger.Printf("services database: %s", n)
+	}
 	svc, err := services.New(host{s}, cfg, logger, s.net, db)
 	if err != nil {
 		db.Close()
@@ -235,7 +238,7 @@ func (s *Server) flushWrites() {
 // tickEvery checks timeouts often enough for the shortest one.
 func (s *Server) tickEvery() time.Duration {
 	l := s.cfg.Limits
-	d := min(l.PingInterval.Duration, l.PingTimeout.Duration, l.RegisterTimeout.Duration, s.cfg.Services.IdentifyWithin.Duration)
+	d := min(l.PingInterval.Duration, l.PingTimeout.Duration, l.RegisterTimeout.Duration, s.cfg.Services.IdentifyWithin.Duration, s.cfg.Services.KillQuick.Duration)
 	d /= 4
 	switch {
 	case d < 20*time.Millisecond:

@@ -169,3 +169,53 @@ belongs to (USERS and module lines from Global):
   (kills, ban hits, failed /oper) stay server notices for +s opers.
 - Ours, in Anope's shape: AdminServ (os_config / os_oper / os_shutdown
   style), ZLINE/SHUN/EXCEPTION BAN (os_sxline style), CS CLEAR.
+
+## Re-check against Anope 2.0.20 (built 11 Nov 2026)
+
+The rule is now Anope **2.0.20 stable**, exactly (the passes above were
+against 2.1). Every command in 2.0.20 `modules/commands` and its default
+config was compared with 2.1 and with ours; PLAN-anope-2.0.20.md has the
+full list. Decided by the user: all five recommendations (B1-B5).
+
+Changed to 2.0.20:
+
+- NickServ ACCESS ADD/DEL/LIST [nick] mask is back (up to 32 user@host
+  masks), with SET/SASET SECURE (on by default) and STATUS 0-3. A
+  connection on the list is "recognised" only with SECURE off; with SECURE
+  on it just isn't renamed. ALIST is no longer an alias of ACCESS.
+- SET KILL {ON | QUICK | IMMED | OFF} (60 s, `kill_quick` 20 s, at once;
+  IMMED only with `allow_kill_immed`, off by default as in Anope).
+  PROTECT and ENFORCE are hidden names for it; old PROTECT delays moved
+  to the nearest mode.
+- SET HIDE USERMASK (MASK and HOST hidden names).
+- DROP <nick>: no code, one nick at a time; dropping the account's name
+  gives the account its oldest other nick's name; the last nick takes the
+  account. Opers may not drop other opers' nicks (secureadmins).
+- UNGROUP makes the nick an account of its own with the same password and
+  email, as Anope does (it used to delete the nick); found during the
+  build.
+- ChanServ SET SECURE has its own meaning again (it was an alias of
+  SECUREOPS): with it off, a recognised founder or access-list member gets
+  their access without identifying. On by default.
+- CS DROP #chan #chan (the name twice instead of a code).
+- UNBANME is gone (UNBAN covers yourself); UNBAN with no channel unbans
+  you everywhere you have UNBAN. Channels that had changed UNBANME's level
+  are named in the server log when the database moves over.
+- OperServ STATS AKILL | HASH | UPLINK | UPTIME | ALL | RESET; MODE #chan
+  CLEAR [ALL] (ALL leaves opers' status); SNLINE accepts mask:reason.
+- Network bans without +expiry last 30 days (`ban_expiry`, Anope's
+  autokillexpiry/snlineexpiry/sqlineexpiry, also in the owner's live
+  config); +0 keeps one for good, a bare number is days. ELINEs stay until
+  removed. Found during the build.
+
+Kept as hidden extras (B5): TOPIC PREPEND, a description on xOP/ACCESS
+ADD, GHOST and RELEASE (2.0.20 ships them commented out), WHY.
+
+Where we differ from 2.0.20, on purpose:
+
+- In 2.0.20 the code never reads ChanServ's SECURE flag (AccessFor checks
+  NS_SECURE on the channel), so recognised users get no channel access at
+  all. We follow what its HELP says instead.
+- STATS with no option shows our one-page overview (Anope: uptime only).
+- Defaults that are config in both: nick_expire 90 days (Anope 21),
+  chan_expire 60 days (Anope 90); the owner's live Anope uses 365 for both.

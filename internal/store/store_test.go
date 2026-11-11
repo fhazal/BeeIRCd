@@ -277,3 +277,80 @@ func TestNetBansAndMigration(t *testing.T) {
 		t.Errorf("left = %+v", left)
 	}
 }
+
+// Opening an older database moves SET PROTECT delays to SET KILL modes and
+// drops the UNBANME privilege (Anope 2.0.20), saying which channels lost it.
+func TestMigrate2020(t *testing.T) {
+	s, path := open(t)
+	now := time.Unix(1_800_000_000, 0)
+	var ids []int64
+	for _, n := range []string{"on", "short", "long", "quick"} {
+		a, err := s.CreateAccount(n, "h", "", now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, a.ID)
+	}
+	ch, err := s.CreateChannel("#lvl", s.c.account(ids[0]), "", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetChanLevel(ch, "UNBANME", 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetChanLevel(ch, "UNBAN", 3); err != nil {
+		t.Fatal(err)
+	}
+	for i, d := range []int{0, 15, 45, 20} {
+		if _, err := s.db.Exec("UPDATE accounts SET protect_delay = ? WHERE id = ?", d, ids[i]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s.Close()
+	s2, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s2.Close()
+	for i, want := range []int{KillOn, KillQuick, KillOn, KillQuick} {
+		if a, _ := s2.AccountByID(ids[i]); a.Protect != want || !a.Secure {
+			t.Errorf("account %d: Protect %d Secure %v, want %d true", i, a.Protect, a.Secure, want)
+		}
+	}
+	reg, _ := s2.ChannelByName("#lvl")
+	lv := s2.ChanLevels(reg)
+	if _, ok := lv["UNBANME"]; ok || lv["UNBAN"] != 3 || !reg.Secure {
+		t.Errorf("levels %v, secure %v", lv, reg.Secure)
+	}
+	if n := s2.Notes(); len(n) != 1 || n[0] != "#lvl: LEVELS UNBANME 1 removed (Anope 2.0.20 has only UNBAN)" {
+		t.Errorf("notes %q", n)
+	}
+	if err := s2.VerifyCache(); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestSplitAndRename(t *testing.T) {
+	s, _ := open(t)
+	now := time.Unix(1_800_000_000, 0)
+	a, _ := s.CreateAccount("Bee", "hash", "bee@example.org", now)
+	s.AddNick(a, "Bee_", now)
+	b, err := s.SplitNick("bee_", now)
+	if err != nil || b == nil || b.Name != "Bee_" || b.PassHash != "hash" || b.Email != "bee@example.org" || b.ID == a.ID {
+		t.Fatalf("SplitNick = %+v, %v", b, err)
+	}
+	if got, _ := s.AccountByNick("Bee_"); got.ID != b.ID {
+		t.Errorf("Bee_ belongs to %d", got.ID)
+	}
+	s.AddNick(a, "Bee2", now)
+	if err := s.RenameAccount(a.ID, "Bee2"); err != nil {
+		t.Fatal(err)
+	}
+	s.RemoveNick("Bee")
+	if got, _ := s.AccountByNick("Bee2"); got.Name != "Bee2" {
+		t.Errorf("name %q", got.Name)
+	}
+	if err := s.VerifyCache(); err != nil {
+		t.Error(err)
+	}
+}

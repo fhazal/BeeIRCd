@@ -65,7 +65,7 @@ func TestRegisterAndIdentify(t *testing.T) {
 	other.send("NS INFO Bee")
 	other.expect(nsLine("other", "Bee · registered "))
 	other.expect(nsLine("other", "  Last seen     online now"))
-	other.expect(nsLine("other", "  Options       protect (60 s), email hidden, mask hidden"))
+	other.expect(nsLine("other", "  Options       kill protection, security, email hidden, usermask hidden"))
 	other.quiet("bee@example.org")
 
 	bee.send("QUIT")
@@ -154,12 +154,25 @@ func TestGhostRecoverGroupUngroup(t *testing.T) {
 	x.send("NS INFO Bee_")
 	x.expect(nsLine("Bee", "  Account       Bee"))
 	x.expect(nsLine("Bee", "  Also uses     Bee"))
-	x.send("NS UNGROUP Bee")
-	x.expect(nsLine("Bee", "Bee is the account's own name and can't be ungrouped. To remove everything: /ns drop Bee"))
+	// UNGROUP makes the nick an account of its own, with the same password
+	// (Anope 2.0.20).
 	x.send("NS UNGROUP Bee_")
-	x.expect(nsLine("Bee", "Bee_ is no longer part of Bee."))
+	x.expect(nsLine("Bee", "Bee_ has been ungrouped from Bee. It is an account of its own now, with the same password."))
 	x.send("NS INFO Bee_")
-	x.expect(nsLine("Bee", "Bee_ isn't registered."))
+	x.expect(nsLine("Bee", "Bee_ · registered "))
+	x.quiet("  Account       ")
+	x.send("NS UNGROUP")
+	x.expect(nsLine("Bee", "Your nick isn't grouped with any other, so you can't ungroup it."))
+	me.send("NS IDENTIFY Bee_ " + pw)
+	me.expect(nsLine("Bee_", "Password accepted. You are identified as Bee_."))
+	// Ungrouping the account's name: the account takes its next nick's name.
+	me.send("NICK Bee_two")
+	me.expect("NICK Bee_two")
+	me.send("NS GROUP Bee_")
+	me.expect("Bee_two is now part of the account Bee_.")
+	me.send("NS UNGROUP Bee_")
+	me.expect(" 900 Bee_two ")
+	me.expect(nsLine("Bee_two", "Bee_ has been ungrouped from Bee_two. It is an account of its own now, with the same password."))
 }
 
 func TestLockout(t *testing.T) {
@@ -177,9 +190,6 @@ func TestLockout(t *testing.T) {
 func TestSetAndDrop(t *testing.T) {
 	s := testServer(t, nil)
 	bee := registered(t, s, "Bee")
-	// ACCESS is now Anope's alias for ALIST; hosts no longer identify anyone.
-	bee.send("NS ACCESS")
-	bee.expect(nsLine("Bee", "Bee isn't on the access list of any channel."))
 	bee.send("JOIN #hive")
 	bee.expect(" 366 ")
 	bee.send("CS REGISTER #hive bees")
@@ -189,15 +199,19 @@ func TestSetAndDrop(t *testing.T) {
 	bee.expect(nsLine("Bee", "  #hive                Founder"))
 	bee.expect(nsLine("Bee", "1 channel."))
 
-	bee.send("NS SET PROTECT 5")
-	bee.expect(nsLine("Bee", "Syntax: SET PROTECT ON|<seconds>|OFF (between 10 and 600 seconds)"))
-	bee.send("NS SET PROTECT 30")
-	bee.expect(nsLine("Bee", "Protect is on: people who don't identify within 30 seconds get renamed."))
-	bee.send("NS SET ENFORCE OFF") // the old name still works
-	bee.expect(nsLine("Bee", "Protect is off: people using your nicks are only told they are registered."))
+	bee.send("NS SET KILL 30")
+	bee.expect(nsLine("Bee", "Syntax: SET KILL {ON | QUICK | IMMED | OFF}"))
+	bee.send("NS SET KILL QUICK")
+	bee.expect(nsLine("Bee", "Kill protection is on for Bee, quick: people who don't identify within 20 seconds get renamed."))
+	bee.send("NS SET KILL IMMED")
+	bee.expect(nsLine("Bee", "The IMMED option is not available on this network."))
+	bee.send("NS SET PROTECT ON") // Anope 2.1's name still works, hidden
+	bee.expect(nsLine("Bee", "Kill protection is on for Bee: people who don't identify within 60 seconds get renamed."))
+	bee.send("NS SET ENFORCE OFF") // and our old one
+	bee.expect(nsLine("Bee", "Kill protection is off for Bee: people using the nick are only told it is registered."))
 	bee.send("NS SET HIDE EMAIL OFF")
 	bee.expect(nsLine("Bee", "Your email is shown to others in INFO."))
-	bee.send("NS SET HIDE HOST OFF")
+	bee.send("NS SET HIDE USERMASK OFF")
 	bee.expect(nsLine("Bee", "Your last user@host is shown to others in INFO."))
 	bee.send("NS SET HIDE QUIT ON")
 	bee.expect(nsLine("Bee", "Your last quit message is hidden from others in INFO."))
@@ -217,7 +231,7 @@ func TestSetAndDrop(t *testing.T) {
 	other.send("NS IDENTIFY Bee newhoney99")
 	other.expect(nsLine("Bee_", "Password accepted. You are identified as Bee."))
 	other.send("NS INFO Bee")
-	other.expect(nsLine("Bee_", "  Options       quit hidden"))
+	other.expect(nsLine("Bee_", "  Options       security, quit hidden"))
 	// Shown only while nobody uses the account.
 	other.send("NS SET HIDE QUIT OFF")
 	other.expect("Your last quit message is shown to others in INFO.")
@@ -228,31 +242,33 @@ func TestSetAndDrop(t *testing.T) {
 	other.send("NS IDENTIFY Bee newhoney99")
 	other.expect(" 900 Bee_ ")
 
-	// Dropping a grouped nick keeps the account.
+	// DROP takes one nick at a time (Anope 2.0.20): a grouped nick goes,
+	// the account stays.
 	other.send("NS GROUP Bee")
 	other.expect("Bee_ is now part of the account Bee.")
 	other.send("NS DROP Bee_")
-	other.expect(nsLine("Bee_", "This removes Bee_ from the account Bee. The account and its other nicks stay."))
-	l := other.expect(nsLine("Bee_", "To go ahead within 2 minutes: /ns drop Bee_ "))
-	other.send("NS DROP Bee_ " + l[strings.LastIndex(l, " ")+1:])
-	other.expect(nsLine("Bee_", "Bee_ is no longer registered."))
+	other.expect(nsLine("Bee_", "Bee_ has been dropped."))
+	other.send("NS INFO Bee_")
+	other.expect(nsLine("Bee_", "Bee_ isn't registered."))
 
+	// Dropping the account's name moves the name to the next nick.
+	other.send("NICK Bee_")
+	other.send("NS GROUP Bee")
+	other.expect("Bee_ is now part of the account Bee.")
 	other.send("NS DROP")
-	other.expect(nsLine("Bee_", "Syntax: DROP <nick> [code]   (your account name drops the whole account)"))
+	other.expect(nsLine("Bee_", "Syntax: DROP <nick>"))
 	other.send("NS DROP Bee")
-	other.expect(nsLine("Bee_", "This removes the account Bee with its nicks (Bee) and all its memos, for good."))
-	l = other.expect(nsLine("Bee_", "To go ahead within 2 minutes: /ns drop Bee "))
-	if first := l[strings.LastIndex(l, " ")+1:]; len(first) != 6 {
-		t.Errorf("drop code %q should be 6 characters", first)
-	}
-	other.send("NS DROP Bee wrongcode")
-	other.expect(nsLine("Bee_", "That code is wrong or too old."))
-	l = other.expect("To go ahead within 2 minutes: /ns drop Bee ")
-	other.send("NS DROP Bee " + l[strings.LastIndex(l, " ")+1:])
-	other.expect(" 901 Bee_ ")
-	other.expect(nsLine("Bee_", "The account Bee is gone."))
+	other.expect(" 900 Bee_ ")
+	other.expect(nsLine("Bee_", "Bee has been dropped. The account is now called Bee_."))
 	other.send("NS INFO Bee")
 	other.expect(nsLine("Bee_", "Bee isn't registered."))
+
+	// The last nick takes the account with it.
+	other.send("NS DROP Bee_")
+	other.expect(" 901 Bee_ ")
+	other.expect(nsLine("Bee_", "Bee_ has been dropped."))
+	other.send("NS INFO Bee_")
+	other.expect(nsLine("Bee_", "Bee_ isn't registered."))
 }
 
 func TestSASL(t *testing.T) {

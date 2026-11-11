@@ -196,6 +196,8 @@ func (c *Config) SetDefaults() {
 	}
 	setDur(&sv.NickExpire, 90*24*time.Hour)
 	setDur(&sv.IdentifyWithin, 60*time.Second)
+	setDur(&sv.KillQuick, 20*time.Second)
+	setDur(&sv.BanExpiry, 30*24*time.Hour)
 	setDur(&sv.ChanExpire, 60*24*time.Hour)
 	if sv.GuestPrefix == "" {
 		sv.GuestPrefix = "Guest"
@@ -212,6 +214,15 @@ type Services struct {
 	ChanExpire Duration `toml:"chan_expire"`
 	// IdentifyWithin is how long someone on a protected nick has.
 	IdentifyWithin Duration `toml:"identify_within"`
+	// KillQuick is how long SET KILL QUICK gives (Anope's killquick, 20 s).
+	KillQuick Duration `toml:"kill_quick"`
+	// AllowKillImmed lets people choose SET KILL IMMED: renamed at once,
+	// without a warning (Anope's allowkillimmed, off by default).
+	AllowKillImmed bool `toml:"allow_kill_immed"`
+	// BanExpiry is how long an AKILL, SNLINE, SQLINE, ZLINE or SHUN added
+	// without +expiry lasts (Anope's autokillexpiry etc., 30 days). +0
+	// keeps one until removed.
+	BanExpiry Duration `toml:"ban_expiry"`
 	// GuestPrefix starts the nick given to people who didn't identify.
 	GuestPrefix string `toml:"guest_prefix"`
 	// Admin is the account of the server admin. It always has every oper

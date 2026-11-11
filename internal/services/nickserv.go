@@ -3,7 +3,6 @@ package services
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -15,17 +14,15 @@ import (
 const (
 	minPasswordLen  = 6
 	maxNicksPerAcct = 10
-	dropCodeFor     = 2 * time.Minute
-	minProtect      = 10 * time.Second
-	maxProtect      = 10 * time.Minute
+	maxAccessMasks  = 32 // Anope's accessmax
 )
 
-// nickServAliases are old names that still work but HELP doesn't show,
-// as in Anope 2.1.
+// nickServAliases are names that still work but HELP doesn't show. Anope
+// 2.0.20 ships GHOST and RELEASE commented out in its config; we keep them
+// on because many people type them by habit.
 var nickServAliases = map[string]string{
 	"GHOST":   "RECOVER",
 	"RELEASE": "RECOVER",
-	"ACCESS":  "ALIST",
 }
 
 func nickServCommands() map[string]svcCmd {
@@ -40,18 +37,22 @@ func nickServCommands() map[string]svcCmd {
 			"Takes back one of your nicks: whoever uses it (an old connection, someone\nelse) is disconnected, and you get the nick and are identified. No password\nneeded when you are identified already.\nExample: /ns recover Bee honeypot42", nsRecover},
 		"GROUP": {"GROUP <nick> [password]", "add this nick to your account",
 			"Adds the nick you are using now to the account that owns <nick>. After that\nboth nicks are yours and share one password and one memo box. No password\nneeded when you are identified to that account.\nExample, while using Bee_: /ns group Bee honeypot42", nsGroup},
-		"UNGROUP": {"UNGROUP [nick]", "remove a nick from your account",
-			"Takes one of your grouped nicks (the one you use, if you give none) out of\nyour account. The account's own name can't be ungrouped; DROP it instead.", nsUngroup},
+		"UNGROUP": {"UNGROUP [nick]", "make a nick an account of its own",
+			"Takes one of your nicks (the one you use, if you give none) out of your\naccount and makes it an account of its own, with the same password and\nemail. Ungrouping the account's name gives the account the name of its\noldest other nick.", nsUngroup},
+		"ACCESS": {"ACCESS {ADD | DEL | LIST} [nick] [mask]", "hosts that recognise you",
+			"ACCESS ADD [nick] <user@host>\nACCESS DEL [nick] <user@host>\nACCESS LIST [nick]\nA connection from a host on your list is \"recognised\": NickServ doesn't\nrename it, and STATUS says 2. It is not identified: with SECURE on (the\ndefault) you still need your password for your channels and memos. With\nSECURE off, a recognised connection counts as you. Masks look like\n~bee@*.example.org; up to 32. Opers with flag s may give someone's nick.\nExample: /ns access add ~bee@*.example.org", nsAccess},
+		"STATUS": {"STATUS [nick ...]", "is someone the owner of their nick",
+			"Answers STATUS <nick> <code> <account> for each nick (yours if you give none):\n  0  not online, or the nick isn't registered\n  1  not recognised as the nick's owner\n  2  recognised by the ACCESS list only\n  3  identified with the password", nsStatus},
 		"ALIST": {"ALIST [nick]", "channels where you have access",
 			"Lists the channels where your account is on the access list, with your level.\nOpers may give someone else's nick.", nsAlist},
 		"SET": {"SET <option> <value>", "change your account",
-			"SET PASSWORD <new password>\nSET EMAIL <email>|OFF\nSET PROTECT ON|<seconds>|OFF   rename people who don't identify in time (on, 60 s)\nSET HIDE EMAIL|MASK|STATUS|QUIT ON|OFF   what INFO shows others: email,\n    last user@host, oper status, last quit message (email and mask hidden)", nsSet},
+			"SET PASSWORD <new password>\nSET EMAIL <email>|OFF\nSET KILL {ON | QUICK | IMMED | OFF}   rename people who use your nick and don't\n    identify: ON after 60 s (default), QUICK after 20 s, IMMED at once (only\n    where the network allows it)\nSET SECURE {ON | OFF}   on (default): your ACCESS list never stands in for\n    your password\nSET HIDE {EMAIL | STATUS | USERMASK | QUIT} {ON | OFF}   what INFO shows others:\n    email, oper status, last user@host, last quit message (email and\n    user@host hidden)", nsSet},
 		"SASET": {"SASET <option> <nick> <value>", "change someone's account (opers)",
 			"Like SET, for another account. Needs oper flag s.\nExample: /ns saset password Bee newpass42", nsSaset},
 		"INFO": {"INFO [nick]", "who owns a nick, when last seen",
 			"Shows when a nick was registered and last seen. You and opers see more.", nsInfo},
-		"DROP": {"DROP <nick> [code]", "unregister a nick or your account",
-			"DROP <your account name> removes the account with all its nicks and memos.\nDROP <grouped nick> removes only that nick from your account.\nYou are asked to repeat it with a code first, so it can't happen by accident.\nOpers with flag s may drop other people's nicks.", nsDrop},
+		"DROP": {"DROP <nick>", "unregister one of your nicks",
+			"Removes the nick from your account; anyone may register it after that.\nYour account stays while it has other nicks. Dropping the account's name\ngives the account the name of its oldest other nick. Dropping the last nick\nremoves the account with its memos, and you lose the channels you own.\nOpers with flag s may drop anyone's nick, except other opers'.", nsDrop},
 		"LIST": {"LIST <pattern>", "search registered nicks (opers)",
 			"Lists registered nicks matching a pattern, like Bee* or *serv.", nsList},
 	}
@@ -349,23 +350,54 @@ func nsUngroup(s *Services, c *Client, args []string) {
 	if len(args) > 0 {
 		nick = args[0]
 	}
+	nicks, err := s.store.Nicks(a)
+	if err != nil {
+		s.dbErr(c, s.nickServ, err)
+		return
+	}
+	if len(nicks) == 1 {
+		s.ns(c, "Your nick isn't grouped with any other, so you can't ungroup it.")
+		return
+	}
 	owner, err := s.store.AccountByNick(nick)
 	if err != nil {
 		s.dbErr(c, s.nickServ, err)
 		return
 	}
 	switch {
-	case owner == nil || owner.ID != a.ID:
+	case owner == nil:
+		s.ns(c, "%s isn't registered.", nick)
+		return
+	case owner.ID != a.ID:
 		s.ns(c, "%s isn't part of your account.", nick)
-	case irc.EqualFold(nick, a.Name):
-		s.ns(c, "%s is the account's own name and can't be ungrouped. To remove everything: /ns drop %s", a.Name, a.Name)
-	default:
-		if err := s.store.RemoveNick(nick); err != nil {
+		return
+	}
+	var rest []string
+	for _, n := range nicks {
+		if irc.EqualFold(n, nick) {
+			nick = n // as registered
+		} else {
+			rest = append(rest, n)
+		}
+	}
+	if _, err := s.store.SplitNick(nick, time.Now()); err != nil {
+		s.dbErr(c, s.nickServ, err)
+		return
+	}
+	name := a.Name
+	if irc.EqualFold(nick, a.Name) {
+		name = rest[0] // the oldest other nick, as Anope moves the display
+		if err := s.renameAccount(a.ID, name); err != nil {
 			s.dbErr(c, s.nickServ, err)
 			return
 		}
-		s.ns(c, "%s is no longer part of %s.", nick, a.Name)
-		s.nsLogCmd(c, "to make %s leave group of %s (email: %s)", nick, a.Name, orNone(a.Email))
+	}
+	s.nsLogCmd(c, "to make %s leave group of %s (email: %s)", nick, name, orNone(a.Email))
+	s.ns(c, "%s has been ungrouped from %s. It is an account of its own now, with the same password.", nick, name)
+	// Whoever uses the nick while identified to the old account is no
+	// longer on a nick of their own: -r, as Anope does.
+	if t := s.clientOf(s.net.UserByNick(nick)); t != nil && !t.closed && t.accountID == a.ID {
+		s.setRegistered(t, false)
 	}
 }
 
@@ -500,27 +532,42 @@ func (s *Services) setOption(c *Client, a *store.Account, cmd, opt string, args 
 			return save(whose+" email is now "+val+".", "to change the email of "+a.Name+" to "+val)
 		}
 		s.ns(c, "Syntax: %s EMAIL <email>|OFF", cmd)
-	case "PROTECT", "ENFORCE": // ENFORCE is the old name
-		switch on, isOnOff := onOff(val); {
-		case isOnOff && !on:
-			a.Enforce = false
-			return save("Protect is off: people using "+strings.ToLower(whose)+" nicks are only told they are registered.", "to disable kill for "+a.Name)
-		case isOnOff:
-			a.Enforce, a.Protect = true, 0
-			return save(fmt.Sprintf("Protect is on: people who don't identify within %d seconds get renamed.", int(s.protectDelay(a).Seconds())), "to set kill on for "+a.Name)
-		default:
-			d, err := parseSeconds(val)
-			if err != nil || d < minProtect || d > maxProtect {
-				s.ns(c, "Syntax: %s PROTECT ON|<seconds>|OFF (between %d and %d seconds)", cmd, int(minProtect.Seconds()), int(maxProtect.Seconds()))
+	case "KILL", "PROTECT", "ENFORCE": // PROTECT (Anope 2.1) and ENFORCE (ours before) are hidden names
+		switch strings.ToUpper(val) {
+		case "ON":
+			a.Enforce, a.Protect = true, store.KillOn
+			return save(fmt.Sprintf("Kill protection is on for %s: people who don't identify within %d seconds get renamed.", a.Name, int(s.killDelay(a).Seconds())), "to set kill on for "+a.Name)
+		case "QUICK":
+			a.Enforce, a.Protect = true, store.KillQuick
+			return save(fmt.Sprintf("Kill protection is on for %s, quick: people who don't identify within %d seconds get renamed.", a.Name, int(s.killDelay(a).Seconds())), "to set kill quick for "+a.Name)
+		case "IMMED":
+			if !s.cfg.Services.AllowKillImmed {
+				s.ns(c, "The IMMED option is not available on this network.")
 				return false
 			}
-			a.Enforce, a.Protect = true, int(d.Seconds())
-			return save(fmt.Sprintf("Protect is on: people who don't identify within %d seconds get renamed.", a.Protect), "to set kill on for "+a.Name)
+			a.Enforce, a.Protect = true, store.KillImmed
+			return save("Kill protection is on for "+a.Name+", with no delay: people who use the nick without identifying are renamed at once.", "to set kill immed for "+a.Name)
+		case "OFF":
+			a.Enforce = false
+			return save("Kill protection is off for "+a.Name+": people using the nick are only told it is registered.", "to disable kill for "+a.Name)
 		}
+		s.ns(c, "Syntax: %s KILL {ON | QUICK | IMMED | OFF}", setSyntaxHead(cmd))
+	case "SECURE":
+		on, ok := onOff(val)
+		if !ok {
+			s.ns(c, "Syntax: %s SECURE {ON | OFF}", setSyntaxHead(cmd))
+			return false
+		}
+		a.Secure = on
+		if on {
+			return save("Security is on for "+a.Name+": the ACCESS list never stands in for the password.", "to enable secure for "+a.Name)
+		}
+		return save("Security is off for "+a.Name+": a connection matching the ACCESS list counts as the owner.", "to disable secure for "+a.Name)
 	case "HIDE":
-		field := strings.ToUpper(val)
-		if field == "HOST" {
-			field = "MASK" // the old name
+		typed := strings.ToUpper(val)
+		field := typed
+		if field == "MASK" || field == "HOST" {
+			field = "USERMASK" // Anope 2.1's and our old names
 		}
 		on, ok := onOff(argAt(args, 1))
 		var p *bool
@@ -528,7 +575,7 @@ func (s *Services) setOption(c *Client, a *store.Account, cmd, opt string, args 
 		switch field {
 		case "EMAIL":
 			p, what = &a.HideEmail, "email"
-		case "MASK":
+		case "USERMASK":
 			p, what = &a.HideHost, "last user@host"
 		case "STATUS":
 			p, what = &a.HideStatus, "oper status"
@@ -536,7 +583,7 @@ func (s *Services) setOption(c *Client, a *store.Account, cmd, opt string, args 
 			p, what = &a.HideQuit, "last quit message"
 		}
 		if p == nil || !ok {
-			s.ns(c, "Syntax: %s HIDE EMAIL|MASK|STATUS|QUIT ON|OFF", cmd)
+			s.ns(c, "Syntax: %s HIDE {EMAIL | STATUS | USERMASK | QUIT} {ON | OFF}", setSyntaxHead(cmd))
 			return false
 		}
 		*p = on
@@ -544,19 +591,19 @@ func (s *Services) setOption(c *Client, a *store.Account, cmd, opt string, args 
 		if on {
 			shown = "hidden from"
 		}
-		return save(fmt.Sprintf("%s %s is %s others in INFO.", whose, what, shown), "to change hide "+field+" to "+strings.ToUpper(argAt(args, 1))+" for "+a.Name)
+		return save(fmt.Sprintf("%s %s is %s others in INFO.", whose, what, shown), "to change hide "+typed+" to "+strings.ToUpper(argAt(args, 1))+" for "+a.Name)
 	default:
-		s.ns(c, "Syntax: %s PASSWORD|EMAIL|PROTECT|HIDE ... (see /ns help %s)", cmd, strings.ToLower(cmd))
+		s.ns(c, "Syntax: %s PASSWORD|EMAIL|KILL|SECURE|HIDE ... (see /ns help %s)", cmd, strings.ToLower(cmd))
 	}
 	return false
 }
 
-// parseSeconds reads "45", "45s" or "2m".
-func parseSeconds(v string) (time.Duration, error) {
-	if n, err := strconv.Atoi(v); err == nil {
-		return time.Duration(n) * time.Second, nil
+// setSyntaxHead is how a SET syntax line starts: "SET", or "SASET <nick>".
+func setSyntaxHead(cmd string) string {
+	if cmd == "SASET" {
+		return "SASET <nick>"
 	}
-	return time.ParseDuration(v)
+	return cmd
 }
 
 func nsInfo(s *Services, c *Client, args []string) {
@@ -631,12 +678,22 @@ func nsInfo(s *Services, c *Client, args []string) {
 	}
 	var opts []string
 	if a.Enforce {
-		opts = append(opts, fmt.Sprintf("protect (%d s)", int(s.protectDelay(a).Seconds())))
+		switch s.killMode(a) {
+		case store.KillQuick:
+			opts = append(opts, "quick kill")
+		case store.KillImmed:
+			opts = append(opts, "immediate kill")
+		default:
+			opts = append(opts, "kill protection")
+		}
+	}
+	if a.Secure {
+		opts = append(opts, "security")
 	}
 	for _, h := range []struct {
 		on   bool
 		name string
-	}{{a.HideEmail, "email"}, {a.HideHost, "mask"}, {a.HideStatus, "status"}, {a.HideQuit, "quit"}} {
+	}{{a.HideEmail, "email"}, {a.HideHost, "usermask"}, {a.HideStatus, "status"}, {a.HideQuit, "quit"}} {
 		if h.on {
 			opts = append(opts, h.name+" hidden")
 		}
@@ -649,74 +706,224 @@ func nsInfo(s *Services, c *Client, args []string) {
 
 func nsDrop(s *Services, c *Client, args []string) {
 	if len(args) == 0 {
-		s.ns(c, "Syntax: DROP <nick> [code]   (your account name drops the whole account)")
+		s.ns(c, "Syntax: DROP <nick>")
 		return
 	}
-	nick, code := args[0], argAt(args, 1)
-	owner, ok := s.accountOf(c, nick)
+	owner, ok := s.accountOf(c, args[0])
 	if !ok {
 		return
 	}
-	asOper := c.accountID != owner.ID
+	mine := c.accountID == owner.ID
 	switch {
-	case asOper && c.accountID == 0 && !c.can('s'):
+	case !mine && c.accountID == 0 && !c.can('s'):
 		s.ns(c, "Identify first: /ns identify <password>")
 		s.logDeniedUnreg(c, s.nickServ)
 		return
-	case asOper && !c.can('s'):
-		s.ns(c, "%s isn't part of your account.", nick)
+	case !mine && !c.can('s'):
+		s.ns(c, "%s isn't part of your account.", args[0])
 		return
-	case asOper && s.isAdminAccount(owner):
-		s.ns(c, "%s belongs to the server admin's account; only they can drop it.", nick)
-		return
-	}
-	whole := irc.EqualFold(nick, owner.Name)
-	key := irc.Fold(nick) + ":"
-	if code == "" || c.dropCode != key+code || time.Now().After(c.dropUntil) {
-		fresh := randomCode()
-		c.dropCode, c.dropUntil = key+fresh, time.Now().Add(dropCodeFor)
-		if code != "" {
-			s.ns(c, "That code is wrong or too old.")
-		}
-		if whole {
-			nicks, err := s.store.Nicks(owner)
-			if err != nil {
-				s.dbErr(c, s.nickServ, err)
-				return
-			}
-			s.ns(c, "This removes the account %s with its nicks (%s) and all its memos, for good.", owner.Name, strings.Join(nicks, ", "))
-		} else {
-			s.ns(c, "This removes %s from the account %s. The account and its other nicks stay.", nick, owner.Name)
-		}
-		s.ns(c, "To go ahead within 2 minutes: /ns drop %s %s", nick, fresh)
+	case !mine && s.isServicesOper(owner):
+		s.ns(c, "You may not drop other opers' nicks.")
 		return
 	}
-	c.dropCode = ""
-	s.nsLog(c, owner.ID, "to drop nickname %s (group: %s) (email: %s)", nick, owner.Name, orNone(owner.Email))
-	if !whole {
-		if err := s.store.RemoveNick(nick); err != nil {
-			s.dbErr(c, s.nickServ, err)
-			return
-		}
-		if asOper {
-			s.audit(c, s.nickServ, "DROP %s (nick of %s)", nick, owner.Name)
-		}
-		s.ns(c, "%s is no longer registered.", nick)
-		return
-	}
-	name := owner.Name
-	by := "by its owner"
-	if asOper {
-		by = "by " + c.user.Nick
-	}
-	if err := s.dropAccount(owner, "founder "+name+" was dropped", by); err != nil {
+	nicks, err := s.store.Nicks(owner)
+	if err != nil {
 		s.dbErr(c, s.nickServ, err)
 		return
 	}
-	if asOper {
-		s.audit(c, s.nickServ, "DROP %s", name)
+	nick := args[0]
+	for _, n := range nicks {
+		if irc.EqualFold(n, nick) {
+			nick = n // as registered
+		}
 	}
-	s.ns(c, "The account %s is gone.", name)
+	s.nsLog(c, owner.ID, "to drop nickname %s (group: %s) (email: %s)", nick, owner.Name, orNone(owner.Email))
+	if !mine {
+		s.audit(c, s.nickServ, "DROP %s (account %s)", nick, owner.Name)
+	}
+	if len(nicks) <= 1 { // the last nick: the account goes with it
+		by := "by its owner"
+		if !mine {
+			by = "by " + c.user.Nick
+		}
+		if err := s.dropAccount(owner, "founder "+owner.Name+" was dropped", by); err != nil {
+			s.dbErr(c, s.nickServ, err)
+			return
+		}
+		s.ns(c, "%s has been dropped.", nick)
+		return
+	}
+	if err := s.store.RemoveNick(nick); err != nil {
+		s.dbErr(c, s.nickServ, err)
+		return
+	}
+	if irc.EqualFold(nick, owner.Name) {
+		next := nicks[1] // the oldest other nick, as Anope moves the display
+		if err := s.renameAccount(owner.ID, next); err != nil {
+			s.dbErr(c, s.nickServ, err)
+			return
+		}
+		s.ns(c, "%s has been dropped. The account is now called %s.", nick, next)
+		return
+	}
+	s.ns(c, "%s has been dropped.", nick)
+}
+
+// renameAccount gives account id the name of one of its nicks and tells
+// everyone using it (account-notify, 900).
+func (s *Services) renameAccount(id int64, name string) error {
+	if err := s.store.RenameAccount(id, name); err != nil {
+		return err
+	}
+	s.log.Printf("account %d renamed to %s", id, name)
+	for _, other := range s.clients {
+		if other.accountID == id && !other.closed {
+			s.emit(&state.Login{UID: other.user.UID, Account: name})
+			s.reply(other, irc.RplLoggedIn, other.user.Prefix(), name, "You are now logged in as "+name)
+		}
+	}
+	return nil
+}
+
+// isServicesOper reports whether account a belongs to an IRC operator
+// (Anope's IsServicesOper, for secureadmins).
+func (s *Services) isServicesOper(a *store.Account) bool {
+	if s.isAdminAccount(a) {
+		return true
+	}
+	o, err := s.store.OperByAccount(a.ID)
+	return err == nil && o != nil
+}
+
+func nsAccess(s *Services, c *Client, args []string) {
+	a, ok := s.identified(c)
+	if !ok {
+		return
+	}
+	sub := strings.ToUpper(argAt(args, 0))
+	var nick, mask string
+	if sub == "LIST" {
+		nick = argAt(args, 1)
+	} else {
+		if len(args) == 3 {
+			nick = args[1]
+		}
+		if len(args) > 1 {
+			mask = args[len(args)-1]
+		}
+	}
+	target := a
+	if nick != "" {
+		t, ok := s.accountOf(c, nick)
+		if !ok {
+			return
+		}
+		if t.ID != a.ID && !c.can('s') {
+			s.ns(c, "Only opers with flag s may use someone else's access list.")
+			s.logDenied(c, s.nickServ)
+			return
+		}
+		if t.ID != a.ID && sub != "LIST" && s.isServicesOper(t) {
+			s.ns(c, "You may look at, but not change, the access list of other opers.")
+			return
+		}
+		target = t
+	}
+	if mask != "" && (!strings.Contains(mask, "@") || strings.Contains(mask, "!")) {
+		s.ns(c, "Masks look like user@host, for example ~bee@*.example.org.")
+		return
+	}
+	masks, err := s.store.Access(target)
+	if err != nil {
+		s.dbErr(c, s.nickServ, err)
+		return
+	}
+	has := func(m string) string {
+		for _, x := range masks {
+			if strings.EqualFold(x, m) {
+				return x
+			}
+		}
+		return ""
+	}
+	switch {
+	case sub == "LIST":
+		if len(masks) == 0 {
+			s.ns(c, "%s's access list is empty.", target.Name)
+			return
+		}
+		s.ns(c, "Access list for %s:", target.Name)
+		for _, m := range masks {
+			if mask == "" || irc.Match(mask, m) {
+				s.ns(c, "    %s", m)
+			}
+		}
+	case sub == "ADD" && mask != "":
+		if len(masks) >= maxAccessMasks {
+			s.ns(c, "%s's access list is full (%d masks).", target.Name, maxAccessMasks)
+			return
+		}
+		if has(mask) != "" {
+			s.ns(c, "%s is already on %s's access list.", mask, target.Name)
+			return
+		}
+		if _, err := s.store.AddAccess(target, mask); err != nil {
+			s.dbErr(c, s.nickServ, err)
+			return
+		}
+		s.nsLog(c, target.ID, "to ADD mask %s to %s", mask, target.Name)
+		s.ns(c, "%s added to %s's access list.", mask, target.Name)
+	case sub == "DEL" && mask != "":
+		m := has(mask)
+		if m == "" {
+			s.ns(c, "%s isn't on %s's access list.", mask, target.Name)
+			return
+		}
+		if _, err := s.store.DelAccess(target, m); err != nil {
+			s.dbErr(c, s.nickServ, err)
+			return
+		}
+		s.nsLog(c, target.ID, "to DELETE mask %s from %s", m, target.Name)
+		s.ns(c, "%s deleted from %s's access list.", m, target.Name)
+	default:
+		s.ns(c, "Syntax: ACCESS ADD [nick] <user@host> | DEL [nick] <user@host> | LIST [nick]")
+	}
+}
+
+func nsStatus(s *Services, c *Client, args []string) {
+	nicks := args
+	if len(nicks) == 0 {
+		nicks = []string{c.user.Nick}
+	}
+	if len(nicks) > 16 {
+		nicks = nicks[:16]
+	}
+	name := func(id int64) string {
+		if a, err := s.store.AccountByID(id); err == nil && a != nil {
+			return a.Name
+		}
+		return ""
+	}
+	for _, nick := range nicks {
+		code, acct := 0, ""
+		tc := s.clientOf(s.net.UserByNick(nick))
+		a, err := s.store.AccountByNick(nick)
+		if err != nil {
+			s.dbErr(c, s.nickServ, err)
+			return
+		}
+		switch {
+		case tc == nil || tc.closed:
+		case a != nil && tc.accountID == a.ID:
+			code, acct = 3, a.Name
+		case a != nil && s.recognized(tc, a):
+			code, acct = 2, name(tc.accountID)
+		case a == nil:
+		default:
+			code, acct = 1, name(tc.accountID)
+		}
+		s.ns(c, "STATUS %s %d %s", nick, code, acct)
+	}
 }
 
 // dropAccount removes a with its nicks and memos and logs out everyone

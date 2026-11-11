@@ -38,13 +38,14 @@ type Account struct {
 	Registered time.Time
 	LastSeen   time.Time
 	LastHost   string
-	Enforce    bool // PROTECT on
+	Enforce    bool // SET KILL on (kill protection)
+	Secure     bool // SET SECURE: the access list never stands in for the password
 	HideEmail  bool
 	HideHost   bool // HIDE MASK
 	HideStatus bool // HIDE STATUS: don't show whether they're online
 	HideQuit   bool // HIDE QUIT: don't show the last quit message
 	LastQuit   string
-	Protect    int // PROTECT delay in seconds, 0 = the server's identify_within
+	Protect    int // SET KILL: KillOn (the server's identify_within), KillQuick or KillImmed
 	MemoNotify bool
 	MemoLimit  int
 }
@@ -60,9 +61,17 @@ type Memo struct {
 
 // Store is the open database and its in-memory copy.
 type Store struct {
-	db *sql.DB
-	c  *cache
+	db    *sql.DB
+	c     *cache
+	notes []string // what the migrations changed, for the server log
 }
+
+// SET KILL modes, kept in Account.Protect.
+const (
+	KillOn    = 0  // the server's identify_within (60 s by default)
+	KillQuick = 20 // seconds
+	KillImmed = -1 // renamed at once, no warning
+)
 
 const schema = `
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -82,7 +91,8 @@ CREATE TABLE IF NOT EXISTS accounts (
 	hide_status INTEGER NOT NULL DEFAULT 0,
 	hide_quit   INTEGER NOT NULL DEFAULT 0,
 	last_quit   TEXT NOT NULL DEFAULT '',
-	protect_delay INTEGER NOT NULL DEFAULT 0
+	protect_delay INTEGER NOT NULL DEFAULT 0,
+	secure      INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS nicks (
 	nick_key   TEXT PRIMARY KEY,
@@ -154,6 +164,10 @@ func Open(path string) (*Store, error) {
 	if err := migrateAccounts(db); err != nil {
 		return fail(err)
 	}
+	notes, err := migrate2020(db)
+	if err != nil {
+		return fail(err)
+	}
 	if err := migrateChannels(db); err != nil {
 		return fail(err)
 	}
@@ -164,8 +178,12 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return fail(err)
 	}
-	return &Store{db: db, c: c}, nil
+	return &Store{db: db, c: c, notes: notes}, nil
 }
+
+// Notes says what opening the database changed in it (old settings that
+// moved), for the server log. Empty most of the time.
+func (s *Store) Notes() []string { return s.notes }
 
 // Close closes the database.
 func (s *Store) Close() error { return s.db.Close() }
@@ -184,14 +202,14 @@ func (s *Store) Check() error {
 
 const accountCols = `a.id, a.name, a.pass_hash, a.email, a.registered, a.last_seen, a.last_host,
 	a.enforce, a.hide_email, a.hide_host, a.memo_notify, a.memo_limit,
-	a.hide_status, a.hide_quit, a.last_quit, a.protect_delay`
+	a.hide_status, a.hide_quit, a.last_quit, a.protect_delay, a.secure`
 
 func scanAccount(row interface{ Scan(...any) error }) (*Account, error) {
 	var a Account
 	var reg, seen int64
 	err := row.Scan(&a.ID, &a.Name, &a.PassHash, &a.Email, &reg, &seen, &a.LastHost,
 		&a.Enforce, &a.HideEmail, &a.HideHost, &a.MemoNotify, &a.MemoLimit,
-		&a.HideStatus, &a.HideQuit, &a.LastQuit, &a.Protect)
+		&a.HideStatus, &a.HideQuit, &a.LastQuit, &a.Protect, &a.Secure)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -234,7 +252,7 @@ func (s *Store) CreateAccount(nick, passHash, email string, now time.Time) (*Acc
 	}
 	// The defaults below are the ones in the schema.
 	s.c.accounts[id] = &Account{ID: id, Name: nick, PassHash: passHash, Email: email,
-		Registered: sec(now), LastSeen: sec(now), Enforce: true, HideEmail: true, HideHost: true,
+		Registered: sec(now), LastSeen: sec(now), Enforce: true, Secure: true, HideEmail: true, HideHost: true,
 		MemoNotify: true, MemoLimit: 50}
 	s.c.addNick(&nickRow{key: key, nick: nick, account: id, registered: now.Unix()})
 	return s.c.account(id), nil
@@ -259,9 +277,9 @@ func (s *Store) SaveAccount(a *Account) error {
 		return nil // dropped meanwhile; the database has nothing to update either
 	}
 	_, err := s.db.Exec(`UPDATE accounts SET pass_hash=?, email=?, last_seen=?, last_host=?, enforce=?, hide_email=?,
-		hide_host=?, memo_notify=?, memo_limit=?, hide_status=?, hide_quit=?, last_quit=?, protect_delay=? WHERE id=?`,
+		hide_host=?, memo_notify=?, memo_limit=?, hide_status=?, hide_quit=?, last_quit=?, protect_delay=?, secure=? WHERE id=?`,
 		a.PassHash, a.Email, a.LastSeen.Unix(), a.LastHost, a.Enforce, a.HideEmail, a.HideHost, a.MemoNotify, a.MemoLimit,
-		a.HideStatus, a.HideQuit, a.LastQuit, a.Protect, a.ID)
+		a.HideStatus, a.HideQuit, a.LastQuit, a.Protect, a.Secure, a.ID)
 	if err != nil {
 		return err
 	}
@@ -269,6 +287,7 @@ func (s *Store) SaveAccount(a *Account) error {
 	have.Enforce, have.HideEmail, have.HideHost = a.Enforce, a.HideEmail, a.HideHost
 	have.MemoNotify, have.MemoLimit = a.MemoNotify, a.MemoLimit
 	have.HideStatus, have.HideQuit, have.LastQuit, have.Protect = a.HideStatus, a.HideQuit, a.LastQuit, a.Protect
+	have.Secure = a.Secure
 	return nil
 }
 
@@ -342,7 +361,22 @@ func (s *Store) AllNicks() ([]NickEntry, error) {
 	return out, nil
 }
 
-// Access returns the host masks that identify a by themselves.
+// RenameAccount gives account id a new name, one of its own nicks (NS DROP
+// of the account's name, as Anope moves the display nick).
+func (s *Store) RenameAccount(id int64, name string) error {
+	a := s.c.accounts[id]
+	if a == nil {
+		return nil
+	}
+	if _, err := s.db.Exec("UPDATE accounts SET name = ? WHERE id = ?", name, id); err != nil {
+		return err
+	}
+	a.Name = name
+	return nil
+}
+
+// Access returns the account's NickServ ACCESS list: user@host masks that
+// mark a connection as recognised (Anope 2.0.20).
 func (s *Store) Access(a *Account) ([]string, error) {
 	return append([]string(nil), s.c.access[a.ID]...), nil
 }
@@ -501,6 +535,8 @@ func migrateAccounts(db *sql.DB) error {
 		{"accounts", "hide_quit", "INTEGER NOT NULL DEFAULT 0"},
 		{"accounts", "last_quit", "TEXT NOT NULL DEFAULT ''"},
 		{"accounts", "protect_delay", "INTEGER NOT NULL DEFAULT 0"},
+		{"accounts", "secure", "INTEGER NOT NULL DEFAULT 1"},
+		{"channels", "cs_secure", "INTEGER NOT NULL DEFAULT 1"},
 		{"chan_access", "note", "TEXT NOT NULL DEFAULT ''"},
 	} {
 		var n int
@@ -514,4 +550,85 @@ func migrateAccounts(db *sql.DB) error {
 		}
 	}
 	return nil
+}
+
+// migrate2020 moves settings to their Anope 2.0.20 shape (Stage 1.5.5,
+// "services follow Anope 2.0.20"):
+//   - SET PROTECT delays become SET KILL modes: 0 stays ON, anything up to
+//     30 s becomes QUICK (20 s), longer becomes ON.
+//   - The UNBANME privilege is gone (2.0.20 has only UNBAN); channels that
+//     had changed its level lose that setting, and the notes name them.
+func migrate2020(db *sql.DB) ([]string, error) {
+	if _, err := db.Exec(`UPDATE accounts SET protect_delay = CASE
+		WHEN protect_delay > 0 AND protect_delay <= 30 THEN 20 ELSE 0 END
+		WHERE protect_delay NOT IN (0, 20, -1)`); err != nil {
+		return nil, err
+	}
+	rows, err := db.Query(`SELECT c.name, l.level FROM chan_levels l JOIN channels c ON c.id = l.channel_id
+		WHERE l.priv = 'UNBANME' ORDER BY c.name`)
+	if err != nil {
+		return nil, err
+	}
+	var notes []string
+	for rows.Next() {
+		var name string
+		var lvl int
+		if err := rows.Scan(&name, &lvl); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		notes = append(notes, fmt.Sprintf("%s: LEVELS UNBANME %d removed (Anope 2.0.20 has only UNBAN)", name, lvl))
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if _, err := db.Exec("DELETE FROM chan_levels WHERE priv = 'UNBANME'"); err != nil {
+		return nil, err
+	}
+	return notes, nil
+}
+
+// SplitNick moves nick out of its account into a new account of its own,
+// with the same password and email (Anope's UNGROUP). The old account must
+// keep at least one nick; the caller renames it when nick was its name.
+func (s *Store) SplitNick(nick string, now time.Time) (*Account, error) {
+	key := irc.Fold(nick)
+	n := s.c.nicks[key]
+	if n == nil {
+		return nil, nil
+	}
+	old := s.c.accounts[n.account]
+	if old == nil {
+		return nil, nil
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	res, err := tx.Exec(`INSERT INTO accounts (name, pass_hash, email, registered, last_seen) VALUES (?, ?, ?, ?, ?)`,
+		n.nick, old.PassHash, old.Email, now.Unix(), now.Unix())
+	if err != nil {
+		return nil, err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := tx.Exec("UPDATE nicks SET account_id = ? WHERE nick_key = ?", id, key); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	// The defaults below are the ones in the schema.
+	s.c.accounts[id] = &Account{ID: id, Name: n.nick, PassHash: old.PassHash, Email: old.Email,
+		Registered: sec(now), LastSeen: sec(now), Enforce: true, Secure: true, HideEmail: true, HideHost: true,
+		MemoNotify: true, MemoLimit: 50}
+	row := *n
+	s.c.removeNick(key)
+	row.account = id
+	s.c.addNick(&row)
+	return s.c.account(id), nil
 }

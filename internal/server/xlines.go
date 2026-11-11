@@ -64,10 +64,11 @@ func (s *Server) cmdXline(c *Client, m irc.Message) {
 }
 
 // xlineDuration reads UnrealIRCd's durations (1d, 2h30m, 3600 = seconds,
-// 0 = until removed) as an OperServ +expiry.
+// 0 = until removed) as an OperServ +expiry. Without one, OperServ's
+// ban_expiry applies (30 days).
 func xlineDuration(arg string) (string, bool) {
 	if arg == "0" {
-		return "", true
+		return "+0", true
 	}
 	if n, err := strconv.Atoi(arg); err == nil && n > 0 {
 		return "+" + strconv.Itoa(max(1, n/60)) + "m", true

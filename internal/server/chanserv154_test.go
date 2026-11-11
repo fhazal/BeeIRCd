@@ -377,7 +377,7 @@ func TestChanServSetOptions(t *testing.T) {
 	bee.send("CS SET BOGUS #bchat ON")
 	bee.expect(csLine("Bee", "Unknown option BOGUS. See /cs help set"))
 	bee.send("CS INFO #bchat")
-	bee.expect(csLine("Bee", "  Options       keep topic, secure founder"))
+	bee.expect(csLine("Bee", "  Options       keep topic, security, secure founder"))
 	bee.expect(csLine("Bee", "  Ban type      3 (*!*user@*.domain)"))
 }
 

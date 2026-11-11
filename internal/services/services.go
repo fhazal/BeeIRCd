@@ -382,12 +382,52 @@ func (s *Services) saveQuit(c *Client, reason string) {
 	}
 }
 
-// protectDelay is how long someone has to identify to a's nick.
-func (s *Services) protectDelay(a *store.Account) time.Duration {
-	if a.Protect > 0 {
-		return time.Duration(a.Protect) * time.Second
+// killMode is a's SET KILL mode as it works on this network: IMMED counts
+// as ON where the network doesn't allow it (Anope's allowkillimmed).
+func (s *Services) killMode(a *store.Account) int {
+	if a.Protect == store.KillImmed && !s.cfg.Services.AllowKillImmed {
+		return store.KillOn
+	}
+	if a.Protect != store.KillQuick && a.Protect != store.KillImmed {
+		return store.KillOn
+	}
+	return a.Protect
+}
+
+// killDelay is how long someone has to identify to a's nick.
+func (s *Services) killDelay(a *store.Account) time.Duration {
+	switch s.killMode(a) {
+	case store.KillQuick:
+		return s.cfg.Services.KillQuick.Duration
+	case store.KillImmed:
+		return 0
 	}
 	return s.cfg.Services.IdentifyWithin.Duration
+}
+
+// onAccess reports whether c's connection matches one of a's NickServ
+// ACCESS masks: ident@real host or ident@the host others see (Anope
+// matches the real host, the vhost and the cloak).
+func (s *Services) onAccess(c *Client, a *store.Account) bool {
+	masks, err := s.store.Access(a)
+	if err != nil || len(masks) == 0 {
+		return false
+	}
+	u := c.user
+	real, shown := u.Ident+"@"+u.RealHost, u.Ident+"@"+u.Host
+	for _, m := range masks {
+		if irc.Match(m, real) || irc.Match(m, shown) {
+			return true
+		}
+	}
+	return false
+}
+
+// recognized is Anope's IsRecognized(): on a's access list while a has
+// SECURE off. A recognised connection is treated as the owner of the nick,
+// without being identified.
+func (s *Services) recognized(c *Client, a *store.Account) bool {
+	return !a.Secure && s.onAccess(c, a)
 }
 
 // setRegistered sets or clears user mode +r.
@@ -397,7 +437,9 @@ func (s *Services) setRegistered(c *Client, on bool) {
 }
 
 // nickCheck runs after registration and after every nick change: is the
-// nick registered to someone else?
+// nick registered to someone else? It follows Anope 2.0.20's Validate:
+// a recognised connection (ACCESS list, SECURE off) is left alone; one on
+// the access list with SECURE on is told, but not renamed.
 func (s *Services) nickCheck(c *Client) {
 	u := c.user
 	c.enforceAt = time.Time{}
@@ -409,14 +451,29 @@ func (s *Services) nickCheck(c *Client) {
 	if a == nil || c.accountID == a.ID {
 		return
 	}
-	wait := s.protectDelay(a)
-	if a.Enforce {
-		s.ns(c, "%s is a registered nick. Identify within %d seconds: /ns identify <password>", u.Nick, int(wait.Seconds()))
-		c.enforceAt = time.Now().Add(wait)
-		c.enforceNick = u.Nick
+	onAccess := s.onAccess(c, a)
+	if onAccess && !a.Secure {
+		a.LastSeen, a.LastHost = time.Now(), u.Ident+"@"+u.RealHost
+		if err := s.store.SaveAccount(a); err != nil {
+			s.log.Printf("services database: %v", err)
+		}
 		return
 	}
-	s.ns(c, "%s is a registered nick. If it's yours: /ns identify <password>", u.Nick)
+	if !a.Enforce || onAccess {
+		s.ns(c, "%s is a registered nick. If it's yours: /ns identify <password>", u.Nick)
+		return
+	}
+	if s.killMode(a) == store.KillImmed {
+		s.ns(c, "%s is a registered nick, and you may not use it.", u.Nick)
+		guest := s.guestNick()
+		s.forceNick(c, guest)
+		s.ns(c, "Your nick was changed to %s.", guest)
+		return
+	}
+	wait := s.killDelay(a)
+	s.ns(c, "%s is a registered nick. Identify within %d seconds: /ns identify <password>", u.Nick, int(wait.Seconds()))
+	c.enforceAt = time.Now().Add(wait)
+	c.enforceNick = u.Nick
 }
 
 // enforce renames someone who didn't identify in time.
@@ -505,7 +562,7 @@ func plural(n int, word string) string {
 	switch {
 	case word == "person":
 		word = "people"
-	case strings.HasSuffix(word, "y"):
+	case strings.HasSuffix(word, "y") && !strings.ContainsAny(word[len(word)-2:len(word)-1], "aeiou"): // entry -> entries, day -> days
 		word = word[:len(word)-1] + "ies"
 	default:
 		word += "s"

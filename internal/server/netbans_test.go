@@ -71,7 +71,7 @@ func TestAkillCIDRShunSNLine(t *testing.T) {
 
 	// SHUN: still connected, but only PART, QUIT and PING work.
 	b.send("OS SHUN ADD ~sh@* noisy")
-	b.expect(osLine("Boss", "SHUN added: ~sh@* until removed (noisy). 1 person shunned."))
+	b.expect(osLine("Boss", "SHUN added: ~sh@* for 30 days (noisy). 1 person shunned."))
 	sh.send("PRIVMSG #room :can anyone hear me")
 	sh.send("JOIN #other")
 	sh.send("NICK shh")
@@ -88,7 +88,7 @@ func TestAkillCIDRShunSNLine(t *testing.T) {
 	// SNLINE: a realname glob (spaces as ?) and a /regex/.
 	b.send("OS SNLINE ADD evil?Real spam realname")
 	ev.expect(" 465 evil :You are banned from this network: spam realname")
-	b.expect("SNLINE added: evil?Real until removed (spam realname). 1 person removed.")
+	b.expect("SNLINE added: evil?Real for 30 days (spam realname). 1 person removed.")
 	b.send(`OS SNLINE ADD /^w.tcher\sreal$/ regex test`) // a mask is one word: \s for spaces
 	watcher.expect(" 465 watcher ")
 	b.send("OS SNLINE ADD /([/ broken")
@@ -119,7 +119,7 @@ func TestXlineCommandsAndSQLine(t *testing.T) {
 	b.send("SHUN ~loud@* 3600 too loud")
 	b.expect(osLine("Boss", "SHUN added: ~loud@* for 60 minutes (too loud). 0 people shunned."))
 	b.send("RLINE *bitcoin* crypto spam")
-	b.expect(osLine("Boss", "SNLINE added: *bitcoin* until removed (crypto spam)."))
+	b.expect(osLine("Boss", "SNLINE added: *bitcoin* for 30 days (crypto spam)."))
 	b.send("ELINE ~me@127.0.0.1 me")
 	b.expect(osLine("Boss", "ELINE added: ~me@127.0.0.1 until removed (me)."))
 
