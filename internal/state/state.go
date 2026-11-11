@@ -464,8 +464,9 @@ func (n *Network) ChannelCount() int { return len(n.channels) }
 
 // join puts u in channel name, creating it (+nt) when it doesn't exist.
 // u gets ranks, or op when ranks is 0 and the channel is new. created
-// reports whether it was new.
-func (n *Network) join(u *User, name string, ts int64, ranks Rank) (ch *Channel, m *Member, created bool) {
+// reports whether it was new. A burst join (from a server link) creates
+// the channel bare and gives exactly ranks.
+func (n *Network) join(u *User, name string, ts int64, ranks Rank, burst bool) (ch *Channel, m *Member, created bool) {
 	key := irc.Fold(name)
 	ch = n.channels[key]
 	if ch == nil {
@@ -477,7 +478,13 @@ func (n *Network) join(u *User, name string, ts int64, ranks Rank) (ch *Channel,
 			Lists:   make(map[byte][]ListEntry),
 			Invited: make(map[string]bool),
 		}
+		if burst {
+			ch.Modes = map[byte]bool{}
+		}
 		for m, v := range n.NewChannelParams {
+			if burst {
+				break
+			}
 			if ch.Params == nil {
 				ch.Params = make(map[byte]string)
 			}
@@ -490,10 +497,10 @@ func (n *Network) join(u *User, name string, ts int64, ranks Rank) (ch *Channel,
 		return ch, m, false
 	}
 	m = &Member{User: u, Ranks: ranks}
-	if created && ranks == 0 {
+	if created && ranks == 0 && !burst {
 		m.Ranks = RankOp
 	}
-	if !created && ranks == 0 && ch.Modes['D'] {
+	if !created && ranks == 0 && ch.Modes['D'] && !burst {
 		m.Hidden = true
 	}
 	ch.Members[u.UID] = m

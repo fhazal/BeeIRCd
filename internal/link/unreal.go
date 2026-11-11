@@ -302,7 +302,7 @@ func vlInfo(desc string) string {
 	return rest
 }
 
-func (h *unreal) Burst(servers []ServerInfo) []string {
+func (h *unreal) Burst(servers []ServerInfo, body []string) []string {
 	var out []string
 	for _, s := range servers {
 		out = append(out, fmt.Sprintf(":%s SID %s %d %s :%s", s.Uplink, s.Name, s.Hops+1, s.SID, s.Description))
@@ -310,6 +310,7 @@ func (h *unreal) Burst(servers []ServerInfo) []string {
 			out = append(out, ":"+s.SID+" EOS")
 		}
 	}
+	out = append(out, body...)
 	out = append(out,
 		fmt.Sprintf("NETINFO %d %d %d %s 0 0 0 :%s", h.me.MaxGlobal, h.me.Now(), UnrealProtocol, h.me.CloakHash, h.me.Network),
 		":"+h.me.SID+" EOS")

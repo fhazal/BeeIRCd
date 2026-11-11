@@ -93,7 +93,7 @@ func (s *Server) cmdWhois(c *Client, m irc.Message) {
 		if (u == c.user || c.can('h')) && !u.Service && (u.Host != u.RealHost || u != c.user) {
 			s.reply(c, irc.RplWhoisHost, u.Nick, "is connecting from *@"+u.RealHost+" "+u.IP)
 		}
-		s.reply(c, irc.RplWhoisServer, u.Nick, u.Server, s.cfg.Server.Description)
+		s.reply(c, irc.RplWhoisServer, u.Nick, u.Server, s.serverDescription(u.Server))
 		if u.Away != "" {
 			s.reply(c, irc.RplAway, u.Nick, u.Away)
 		}

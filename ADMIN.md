@@ -383,8 +383,9 @@ that class.
 
 ### [link]
 
-Server linking is being built (Stage 2, v1.1). Since 2a servers link and
-keep the server tree; users and channels follow in 2b/2c. BeeIRCd speaks
+Server linking is being built (Stage 2, v1.1). Servers link, keep the
+server tree and exchange every user and channel when they link (2b);
+live changes over links follow in 2c, network bans in 2d. BeeIRCd speaks
 the UnrealIRCd 6 server protocol, so it links with BeeIRCd and UnrealIRCd 6.
 
 | Setting | Default | Meaning |

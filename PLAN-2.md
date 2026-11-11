@@ -13,6 +13,11 @@ fingerprint is the real lock (owner agreed 12 Nov: fingerprint-only is the
 default `link-info` prints; `beeircd check` warns about a world-readable
 config holding a link password and a link key others can read); `[link]
 address` added.
+2b built 12 Nov 2026 (branch stage2): burst both ways, collisions, TS
+merge, netjoin batch, split quits; tested against a real UnrealIRCd 6.2.7.
+Moved: network bans as TKL go to 2d (they are OperServ data on the hub).
+Until 2c/2d services act on remote users but those changes stay on the
+server that made them, and every BeeIRCd still runs its own services.
 
 Stage 2 links BeeIRCd servers into one network: a hub with leaves (and
 later hubs under hubs), one set of services on the hub, splits and rejoins

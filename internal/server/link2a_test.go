@@ -96,7 +96,7 @@ func (n *linkNode) start(t *testing.T) {
 	t.Helper()
 	n.log = &syncBuf{}
 	n.s = testServerWith(t, func(c *config.Config) {
-		c.Server.Name, c.Server.SID = n.name, n.sid
+		c.Server.Name, c.Server.SID, c.Server.Description = n.name, n.sid, "test "+n.name
 		c.Link = config.Link{Role: n.role, Port: n.port, Cert: n.cert, Key: n.key, Servers: n.blocks}
 	}, func(s *Server) { s.log = log.New(n.log, "", 0) })
 	t.Cleanup(func() {

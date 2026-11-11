@@ -120,6 +120,9 @@ func (c *Client) build(o *outMsg) string {
 // deliver sends o to c when c may have it.
 func (c *Client) deliver(o *outMsg) {
 	if line, ok := c.format(o); ok {
+		if nj := c.s.netjoin; nj != nil && o.msg.Command == "JOIN" && c.caps["batch"] {
+			line = nj.tag(c, line) // a burst from a server link (2b)
+		}
 		c.queueLine(line)
 	}
 }

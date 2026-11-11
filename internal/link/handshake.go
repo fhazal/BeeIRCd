@@ -45,10 +45,12 @@ type Handshake interface {
 	// Done reports whether the link is up; Peer is complete then.
 	Done() bool
 	Peer() Peer
-	// Burst returns the lines that end our side of the sync once Done:
-	// what the network has, then the end-of-sync marker. servers lists
-	// the other servers we know, in the order to introduce them.
-	Burst(servers []ServerInfo) []string
+	// Burst returns our side of the sync once Done: the servers we know
+	// (in the order to introduce them), then body (users and channels,
+	// written with Codec), then the end-of-sync marker.
+	Burst(servers []ServerInfo, body []string) []string
+	// Codec reads and writes the network once Done.
+	Codec() Codec
 }
 
 // ServerInfo is one server on the network, for bursts.

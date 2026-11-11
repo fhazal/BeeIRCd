@@ -47,6 +47,17 @@ type Join struct {
 	TS      int64
 	Ranks   Rank
 	Created bool
+	// Burst: a join from a server link's sync (SJOIN). A channel it
+	// creates gets no default modes and the member exactly Ranks (0 =
+	// none), and +D doesn't hide it.
+	Burst bool
+}
+
+// ChannelTS sets a channel's creation time: an older one from a linked
+// server wins (UnrealIRCd's SJOIN rule).
+type ChannelTS struct {
+	Channel string
+	TS      int64
 }
 
 // Part takes a user out of a channel.
@@ -158,6 +169,7 @@ func (*HostChange) event()     {}
 func (*RealnameChange) event() {}
 func (*Invite) event()         {}
 func (*Reveal) event()         {}
+func (*ChannelTS) event()      {}
 
 // Errors from Apply.
 var (
@@ -193,7 +205,7 @@ func (n *Network) Apply(ev Event) error {
 		if u == nil {
 			return ErrNoSuchUser
 		}
-		_, m, created := n.join(u, e.Channel, e.TS, e.Ranks)
+		_, m, created := n.join(u, e.Channel, e.TS, e.Ranks, e.Burst)
 		e.Created, e.Ranks = created, m.Ranks
 	case *Part:
 		u, ch, err := n.member(e.UID, e.Channel)
@@ -207,6 +219,12 @@ func (n *Network) Apply(ev Event) error {
 			return err
 		}
 		n.part(u, ch)
+	case *ChannelTS:
+		ch := n.Channel(e.Channel)
+		if ch == nil {
+			return ErrNoSuchChannel
+		}
+		ch.TS = e.TS
 	case *Topic:
 		ch := n.Channel(e.Channel)
 		if ch == nil {
@@ -565,6 +583,9 @@ func CopyEvent(ev Event) Event {
 		cp := *e
 		return &cp
 	case *Reveal:
+		cp := *e
+		return &cp
+	case *ChannelTS:
 		cp := *e
 		return &cp
 	}

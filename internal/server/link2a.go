@@ -106,6 +106,9 @@ type linkConn struct {
 	closed   bool
 	ignored  map[string]bool // commands not handled yet, logged once
 	warned   bool            // NETINFO mismatch reported
+	codec    link.Codec      // reads and writes users and channels (2b)
+	eos      bool            // their burst is complete
+	netjoin  *netjoinBatch   // JOINs of their burst, for batch clients
 
 	mu      sync.Mutex
 	queue   []string
@@ -381,7 +384,11 @@ func (s *Server) handleLinkLine(l *linkConn, line string) {
 		}
 		return
 	}
+	if !l.eos {
+		s.netjoin = s.netjoinFor(l)
+	}
 	s.linkCommand(l, m)
+	s.netjoin = nil
 }
 
 // linkUp runs when the handshake is done: the server joins the tree, we
@@ -407,7 +414,7 @@ func (s *Server) linkUp(l *linkConn) {
 	if r := s.links.retry[strings.ToLower(p.Name)]; r != nil {
 		r.wait, r.lastErr = 0, ""
 	}
-	for _, line := range l.hs.Burst(others) {
+	for _, line := range l.hs.Burst(others, s.burstBody(l)) {
 		l.send(line)
 	}
 	s.linkBroadcast(l, fmt.Sprintf(":%s SID %s 2 %s :%s", s.cfg.Server.SID, p.Name, p.SID, p.Description))
@@ -486,6 +493,8 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		}
 		r.synced = true
 		if r.sid == l.peer.SID {
+			l.eos = true
+			l.netjoin.end()
 			l.synced = time.Since(l.since)
 			s.snotice("Link with %s: sync done in %s", r.name, l.synced.Round(time.Millisecond))
 		}
@@ -500,6 +509,9 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		// Server info, module lists and notices for opers: nothing to do
 		// until 2c, and nothing worth a log line.
 	default:
+		if s.linkItem(l, m) {
+			return
+		}
 		if !l.ignored[m.Command] {
 			l.ignored[m.Command] = true
 			s.log.Printf("link %s: %s not handled yet (users and channels over links arrive in Stage 2b/2c)", l.peer.Name, m.Command)
@@ -556,7 +568,7 @@ func (s *Server) linkSQUIT(l *linkConn, m irc.Message) {
 		s.dropLink(l, "they ended the link: "+reason)
 		return
 	}
-	gone := s.splitOff(r.sid)
+	gone := s.splitOff(r.sid, s.links.servers[r.uplink].nameOr(r.uplink), r.name)
 	s.linkBroadcast(l, fmt.Sprintf(":%s SQUIT %s :%s", r.uplink, r.name, reason))
 	s.snotice("Server %s split from %s (%s)%s", r.name, s.links.servers[r.uplink].nameOr(r.uplink), reason, splitCount(gone))
 }
@@ -575,9 +587,9 @@ func splitCount(n int) string {
 	return fmt.Sprintf(", %d servers in all", n)
 }
 
-// splitOff removes a server and everything behind it; it returns how many
-// servers went.
-func (s *Server) splitOff(sid string) int {
+// splitOff removes a server and everything behind it, with the users on
+// them (quit reason "near far"); it returns how many servers went.
+func (s *Server) splitOff(sid, near, far string) int {
 	gone := map[string]bool{sid: true}
 	for changed := true; changed; {
 		changed = false
@@ -587,6 +599,7 @@ func (s *Server) splitOff(sid string) int {
 			}
 		}
 	}
+	s.quitSplit(gone, near, far)
 	for k := range gone {
 		delete(s.links.servers, k)
 	}
@@ -621,6 +634,7 @@ func (s *Server) dropLink(l *linkConn, reason string) {
 	}
 	l.closed = true
 	delete(s.links.conns, l)
+	l.netjoin.end()
 	l.send("ERROR :Closing Link: " + s.cfg.Server.Name + " (" + reason + ")")
 	l.close()
 	name := l.name()
@@ -631,16 +645,17 @@ func (s *Server) dropLink(l *linkConn, reason string) {
 		s.snotice("Link with %s refused: %s", name, reason)
 		return
 	}
-	gone := 0
-	if r := s.links.servers[l.peer.SID]; r != nil && r.via == l {
-		gone = s.splitOff(l.peer.SID)
-	}
-	for sid, r := range s.links.servers { // anything left behind l
+	behind := map[string]bool{}
+	for sid, r := range s.links.servers {
 		if r.via == l {
-			delete(s.links.servers, sid)
-			gone++
+			behind[sid] = true
 		}
 	}
+	s.quitSplit(behind, s.cfg.Server.Name, l.peer.Name)
+	for sid := range behind {
+		delete(s.links.servers, sid)
+	}
+	gone := len(behind)
 	s.linkBroadcast(nil, fmt.Sprintf(":%s SQUIT %s :%s", s.cfg.Server.SID, l.peer.Name, reason))
 	s.snotice("Link with %s lost after %s: %s%s", l.peer.Name, since(time.Since(l.since)), reason, splitCount(gone))
 }

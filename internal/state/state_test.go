@@ -45,12 +45,12 @@ func TestNicks(t *testing.T) {
 func TestJoinPart(t *testing.T) {
 	n := NewNetwork("0BE")
 	bee, ember := newUser(n, "Bee"), newUser(n, "ember")
-	ch, m, created := n.join(bee, "#BChat", 100, 0)
+	ch, m, created := n.join(bee, "#BChat", 100, 0, false)
 	if !created || !m.Has(RankOp) || !ch.HasMode('n') || !ch.HasMode('t') || ch.TS != 100 {
 		t.Fatalf("first join: created=%v op=%v modes=%v", created, m.Has(RankOp), ch.Modes)
 	}
 	ch.Invited[ember.UID] = true
-	ch2, m2, created2 := n.join(ember, "#bchat", 200, 0)
+	ch2, m2, created2 := n.join(ember, "#bchat", 200, 0, false)
 	if ch2 != ch || created2 || m2.Has(RankOp) || ch.Invited[ember.UID] {
 		t.Fatal("second join should reuse the channel, not op, and clear the invite")
 	}
@@ -68,7 +68,7 @@ func TestBans(t *testing.T) {
 	n := NewNetwork("0BE")
 	bee := newUser(n, "Bee")
 	bee.RealHost = "real.example"
-	ch, _, _ := n.join(bee, "#a", 1, 0)
+	ch, _, _ := n.join(bee, "#a", 1, 0, false)
 	now := time.Now()
 	if !ch.addListEntry('b', "*!*@real.example", "x", now) || ch.addListEntry('b', "*!*@REAL.example", "x", now) {
 		t.Fatal("AddListEntry duplicate handling wrong")
@@ -88,7 +88,7 @@ func TestBans(t *testing.T) {
 func TestModeStrings(t *testing.T) {
 	n := NewNetwork("0BE")
 	bee := newUser(n, "Bee")
-	ch, _, _ := n.join(bee, "#a", 1, 0)
+	ch, _, _ := n.join(bee, "#a", 1, 0, false)
 	ch.Modes['k'], ch.Key = true, "secret"
 	ch.Modes['l'], ch.Limit = true, 25
 	modes, params := ch.ModeString(false)

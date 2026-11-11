@@ -51,7 +51,7 @@ func pump(t *testing.T, a, b Handshake) (string, error) {
 			}
 			qb = append(qb, out...)
 			if b.Done() && len(qb) == 0 {
-				qb = append(qb, b.Burst(nil)...)
+				qb = append(qb, b.Burst(nil, nil)...)
 			}
 			continue
 		}

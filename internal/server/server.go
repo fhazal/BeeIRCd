@@ -78,6 +78,7 @@ type Server struct {
 	watchers    map[string]map[*Client]bool // MONITOR: folded nick -> clients watching it
 	loop        loopStats                   // how long each piece of loop work took
 	links       linkState                   // Stage 2 server links
+	netjoin     *netjoinBatch               // set while a link's burst is handled
 	wg          sync.WaitGroup
 
 	// Services. The store is shared: the server reads oper entries and

@@ -62,7 +62,7 @@ func TestUnrealReplay(t *testing.T) {
 	if p.Tokens["PREFIX"] != "(ov)@+" || p.Tokens["CHANMODES"] != "beI,fkL,lFH,cdimnprstzCDGKMNOPQRSTVZ" {
 		t.Errorf("tokens %v", p.Tokens)
 	}
-	if got := h.Burst(nil); len(got) != 2 || got[1] != ":0BE EOS" || !strings.HasPrefix(got[0], "NETINFO 0 1794434552 6100 abc 0 0 0 :SandUnreal") {
+	if got := h.Burst(nil, nil); len(got) != 2 || got[1] != ":0BE EOS" || !strings.HasPrefix(got[0], "NETINFO 0 1794434552 6100 abc 0 0 0 :SandUnreal") {
 		t.Errorf("burst %q", got)
 	}
 }
