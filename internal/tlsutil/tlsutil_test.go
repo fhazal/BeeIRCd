@@ -1,6 +1,7 @@
 package tlsutil
 
 import (
+	"crypto/tls"
 	"os"
 	"path/filepath"
 	"testing"
@@ -62,5 +63,45 @@ func TestReload(t *testing.T) {
 	}
 	if _, err := Describe(filepath.Join(dir, "none.pem"), key, "two.test", time.Now()); err == nil {
 		t.Error("Describe without files")
+	}
+}
+
+// TLS 1.2 offers forward secret AEAD suites only: a client with nothing
+// but CBC is refused, one with AES-GCM gets in.
+func TestNoCBC(t *testing.T) {
+	dir := t.TempDir()
+	cert, key := filepath.Join(dir, "cert.pem"), filepath.Join(dir, "key.pem")
+	r, err := NewReloader(cert, key, true, "ciphers.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ln, err := tls.Listen("tcp", "127.0.0.1:0", r.Config())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			c.(*tls.Conn).Handshake()
+			c.Close()
+		}
+	}()
+	try := func(suite uint16) error {
+		c, err := tls.Dial("tcp", ln.Addr().String(), &tls.Config{InsecureSkipVerify: true,
+			MinVersion: tls.VersionTLS12, MaxVersion: tls.VersionTLS12, CipherSuites: []uint16{suite}})
+		if err == nil {
+			c.Close()
+		}
+		return err
+	}
+	if err := try(tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA); err == nil {
+		t.Error("a CBC suite was accepted")
+	}
+	if err := try(tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256); err != nil {
+		t.Errorf("AES-GCM refused: %v", err)
 	}
 }

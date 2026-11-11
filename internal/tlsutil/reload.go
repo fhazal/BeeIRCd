@@ -46,9 +46,21 @@ func (r *Reloader) Config() *tls.Config {
 			defer r.mu.RUnlock()
 			return r.cert, nil
 		},
-		MinVersion: tls.VersionTLS12,
-		ClientAuth: tls.RequestClientCert,
+		MinVersion:   tls.VersionTLS12,
+		CipherSuites: Ciphers12,
+		ClientAuth:   tls.RequestClientCert,
 	}
+}
+
+// Ciphers12 are the TLS 1.2 suites offered: forward secret AEAD only
+// (Mozilla's "intermediate" list), no CBC. TLS 1.3 has its own fixed set.
+var Ciphers12 = []uint16{
+	tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+	tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+	tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+	tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+	tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+	tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
 }
 
 func (r *Reloader) fileStamp() string {
