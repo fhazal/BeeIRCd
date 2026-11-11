@@ -109,6 +109,8 @@ func runServer(args []string, stderr io.Writer) int {
 		return 2
 	}
 	logger := log.New(stderr, "", log.LstdFlags)
+	startProfile(logger)
+	startMemStats(logger)
 	cfg, err := config.Load(*path)
 	if err != nil {
 		logger.Print(err)

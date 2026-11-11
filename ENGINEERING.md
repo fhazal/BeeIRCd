@@ -30,27 +30,36 @@ BeeIRCd must run well on a cheap VPS and scale up on big servers, without
 limiting what it can do. InspIRCd, UnrealIRCd and Anope are studied for
 behaviour and techniques; all BeeIRCd code is our own.
 
-## Performance targets (PROPOSED 11 Nov 2026, waiting for the owner's OK)
+## Performance targets (agreed 11 Nov 2026)
 
 Measured with the same bots for every server (`beeload`: 50 busy
 channels, each bot in 3, 200 bots in a watch channel, every bot talks
-every 30 s). Reference on the same machine and limits: InspIRCd 4.12.1.
+every 30-60 s). Each server is pinned to one core with 512 MB (a 1-vCPU
+VPS), on the same machine; reference InspIRCd 4.12.1. CPU is split into
+the connect rush (first 15 s) and steady chat.
 
-| Gate | Where | Target | Now (11 Nov 2026) | InspIRCd 4.12.1 |
-| --- | --- | --- | --- | --- |
-| Small VPS, 1,000 users | 1 CPU, 512 MB | all online; lag p99 < 20 ms; memory < 40 MB; CPU < 5% | 1.7 ms / 6 ms; 39 MB; 4% | 16 MB; 3% |
-| Small VPS, 5,000 users | 1 CPU, 512 MB | all online in 10 s; lag p50 < 20 ms, p99 < 100 ms; memory < 160 MB (about 2x InspIRCd); CPU < 50% | 12 ms / 19 ms; 204 MB; 65% | 2–13 ms; 78 MB; ~6% |
+| Gate | Target | BeeIRCd now | InspIRCd 4.12.1 |
+| --- | --- | --- | --- |
+| 1,000 users | all online; lag p99 < 20 ms; memory < 40 MB; CPU < 5% | met except lag p99: 29 MB; 4%; lag 9 ms / 11-45 ms | 16 MB; 4%; lag 2-8 ms / 10-42 ms |
+| 5,000 users | all online in 10 s; lag p50 < 20 ms, p99 < 100 ms; memory < 160 MB; CPU < 50% | met except CPU: 99 MB; lag 5-10 ms / 15-19 ms; chat 54%, connect 47% | 80 MB; chat 57%, connect 23% |
+| Loop work | 99% of loop jobs < 5 ms | 99% < 2 ms | – |
+| Big server | 5,000 users in the load test (later: 50,000) | passes | – |
+| Server-to-server | to be set with linking (Stage 2) | – | – |
 
 The owner's rule (11 Nov 2026): BeeIRCd may use somewhat more than
 InspIRCd when that buys performance or features, as long as it installs
 on small and big servers and runs smoothly on each; never unreasonable
-resources. Matching InspIRCd exactly is not required.
-Roughly 2x InspIRCd's memory is the ceiling to aim for.
-| Loop work | any | 99% of loop jobs < 5 ms | 99% < 2 ms | – |
-| Big server | 28 cores | 5,000 users in the load test (later: 50,000) | passes | – |
-| Server-to-server | Stage 2 | to be set with linking | – | – |
+resources. Matching InspIRCd exactly is not required. Roughly 2x
+InspIRCd's memory is the ceiling to aim for.
 
-Every step runs the small-VPS gate (`/tmp/vpsbench.sh` on the homelab)
+Not met yet, with the reason: the 1,000-user lag p99 spikes to ~45 ms
+on both servers (InspIRCd too), so it looks like the test machine or the
+bots, not the server; to be checked. CPU at 5,000 users is 54% against
+50%, while InspIRCd needs 57% for the same work. During the connect rush itself
+(5,000 joining within 5 s) BeeIRCd's lag p99 reaches ~450 ms for a few
+seconds before settling; worth improving with bigger write batches.
+
+Every step runs the small-VPS gate (`/tmp/bench2.sh` on the homelab)
 next to `check.sh`, the race test and the load test. A step that makes a
 gate worse needs a reason.
 
@@ -60,3 +69,19 @@ gate worse needs a reason.
   maxed. Fixed: LUSERS sorted every user at every connect (36% of CPU);
   writer goroutines woken per line instead of once per loop batch; each
   message rebuilt for every member instead of once per kind of client.
+  Result: 5,000 online, lag ~12 ms, 204 MB, CPU 65%.
+- 11 Nov 2026, second round (measured per phase, pinned to one core):
+  running counts instead of scanning every client at every connect
+  (LUSERS, local users, sessions per IP, opers for server notices); NAMES
+  no longer sorted (InspIRCd doesn't either); readers get a turn before
+  writers are woken, so batches are bigger; 1 KB read buffer per
+  connection (longer lines put together on the side) and pooled write
+  buffers instead of 8.7 KB + 4 KB held by every connection. Result: 99 MB
+  (from 204), chat CPU 54% (InspIRCd 57%), connect rush 47% (from 99%).
+- Measuring tools: `BEEIRCD_CPUPROFILE=file:seconds` writes a CPU profile,
+  `BEEIRCD_MEMSTATS=seconds` logs heap, stacks and goroutines. Both off by
+  default. Benchmark script on the homelab: `/tmp/bench2.sh bee|insp`
+  (`N=1000` for the small run).
+- Later ideas (only if a gate needs them): no writer goroutine for idle
+  connections (stacks are now the biggest share, ~30 MB at 5,000);
+  bigger write batches during the connect rush.

@@ -234,6 +234,7 @@ func (s *Server) tryRegister(c *Client) {
 	}
 	c.user = u
 	c.registered = true
+	s.local++
 	if n := s.localUsers(); n > s.maxLocal {
 		s.maxLocal = n
 	}
@@ -361,15 +362,7 @@ func (s *Server) sendISupport(c *Client) {
 	}
 }
 
-func (s *Server) localUsers() int {
-	n := 0
-	for _, c := range s.clients {
-		if c.registered {
-			n++
-		}
-	}
-	return n
-}
+func (s *Server) localUsers() int { return s.local }
 
 func (s *Server) lusers(c *Client) {
 	total, invisible, opers := s.net.PeopleCounts() // services aren't people

@@ -16,6 +16,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 
@@ -39,8 +40,11 @@ type Server struct {
 	whowas     []whowasEntry
 	maxLocal   int
 	toKill     []*Client
-	dirty      []*Client // clients with output to wake their writer for
-	sinceFlush int       // loop jobs since the last flushWrites
+	local      int              // registered clients here
+	perIP      map[string]int   // connections per IP (session limit)
+	opers      map[*Client]bool // opered clients here (server notices)
+	dirty      []*Client        // clients with output to wake their writer for
+	sinceFlush int              // loop jobs since the last flushWrites
 	msgSeq     uint64
 	batchSeq   uint64
 	sinks      []func(state.Event) // get every event after it was applied
@@ -85,6 +89,8 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 		log:     logger,
 		net:     state.NewNetwork(cfg.Server.SID),
 		clients: make(map[string]*Client),
+		perIP:   make(map[string]int),
+		opers:   make(map[*Client]bool),
 		events:  make(chan func(), 1024),
 		done:    make(chan struct{}),
 		created: time.Now(),
@@ -173,8 +179,16 @@ func (s *Server) Serve(ctx context.Context) error {
 			s.reap()
 			// Wake writers when the batch is done, or every 64 jobs so a
 			// busy server never holds output back for long.
-			if s.sinceFlush++; len(s.events) == 0 || s.sinceFlush >= 64 {
+			if s.sinceFlush++; s.sinceFlush >= 64 {
 				s.flushWrites()
+			} else if len(s.events) == 0 {
+				// Let readers with lines waiting hand them in first, so
+				// more work lands in this batch (InspIRCd handles every
+				// ready socket in one pass).
+				runtime.Gosched()
+				if len(s.events) == 0 {
+					s.flushWrites()
+				}
 			}
 			if s.stopAfter != 0 {
 				reason := "Server shutting down"

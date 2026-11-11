@@ -283,6 +283,23 @@ type Network struct {
 	nicks    map[string]*User
 	channels map[string]*Channel
 	next     uint64
+
+	// Running counts for LUSERS (people = users who aren't services).
+	people, invisible, opers int
+}
+
+// count adds d (1 or -1) for u to the running counts.
+func (n *Network) count(u *User, d int) {
+	if u.Service {
+		return
+	}
+	n.people += d
+	if u.Modes['i'] {
+		n.invisible += d
+	}
+	if u.Modes['o'] {
+		n.opers += d
+	}
 }
 
 // NewNetwork starts an empty network for server ID sid.
@@ -322,6 +339,7 @@ func (n *Network) addUser(u *User) error {
 	}
 	n.users[u.UID] = u
 	n.nicks[irc.Fold(u.Nick)] = u
+	n.count(u, 1)
 	return nil
 }
 
@@ -330,6 +348,7 @@ func (n *Network) removeUser(u *User) {
 	for _, ch := range u.Channels {
 		n.part(u, ch)
 	}
+	n.count(u, -1)
 	delete(n.users, u.UID)
 	if n.nicks[irc.Fold(u.Nick)] == u {
 		delete(n.nicks, irc.Fold(u.Nick))
@@ -371,19 +390,7 @@ func (n *Network) Users() []*User {
 // are invisible (+i) and opers (+o), without building a list (LUSERS runs
 // at every connect).
 func (n *Network) PeopleCounts() (total, invisible, opers int) {
-	for _, u := range n.users {
-		if u.Service {
-			continue
-		}
-		total++
-		if u.HasMode('i') {
-			invisible++
-		}
-		if u.HasMode('o') {
-			opers++
-		}
-	}
-	return
+	return n.people, n.invisible, n.opers
 }
 
 // UserCount is the number of users.

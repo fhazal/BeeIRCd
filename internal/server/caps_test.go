@@ -130,9 +130,9 @@ func TestNamesCaps(t *testing.T) {
 	bee.send("MODE #a +v Bee")
 	ember.expect("MODE #a +v Bee")
 	ember.send("NAMES #a")
-	ember.expect(" 353 ember = #a :@+Bee!~bee@127.0.0.1 ember!~ember@127.0.0.1")
+	expectNames(t, ember.expect(" 353 ember = #a :"), "@+Bee!~bee@127.0.0.1 ember!~ember@127.0.0.1")
 	bee.send("NAMES #a")
-	bee.expect(" 353 Bee = #a :@Bee ember")
+	expectNames(t, bee.expect(" 353 Bee = #a :"), "@Bee ember")
 	ember.send("WHO #a")
 	ember.expect(" 352 ember #a ~bee 127.0.0.1 irc.test.local Bee H@+ ")
 }

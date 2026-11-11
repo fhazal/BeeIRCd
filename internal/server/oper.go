@@ -96,6 +96,7 @@ func (s *Server) operUp(c *Client, o *store.Oper) {
 	u := c.user
 	was := c.operFlags
 	c.operFlags, c.operTitle, c.operAccount = o.Flags, o.Title, o.AccountID
+	s.opers[c] = true
 	if u.Modes['o'] {
 		if was != o.Flags {
 			s.notice(c, "*** Your oper flags are now "+describeFlags(o.Flags))
@@ -115,6 +116,7 @@ func (s *Server) deoper(c *Client, why string) {
 		return
 	}
 	c.operFlags, c.operTitle, c.operAccount = "", "", 0
+	delete(s.opers, c)
 	s.emit(&state.UserMode{UID: u.UID, Changes: umodes(false, "os")})
 	if why != "" {
 		s.notice(c, "*** "+why)
@@ -158,7 +160,7 @@ func (s *Server) snotice(format string, a ...any) {
 // snoticeOnly sends a server notice without logging it (for things the
 // log already has).
 func (s *Server) snoticeOnly(text string) {
-	for _, c := range s.clients {
+	for c := range s.opers {
 		if c.user != nil && c.isOper() && c.user.Modes['s'] {
 			s.notice(c, "*** Notice -- "+text)
 		}
@@ -319,15 +321,7 @@ func (s *Server) cmdWallops(c *Client, m irc.Message) {
 }
 
 // sessions counts the connections from ip.
-func (s *Server) sessions(ip string) int {
-	n := 0
-	for _, c := range s.clients {
-		if c.ip == ip && !c.closed {
-			n++
-		}
-	}
-	return n
-}
+func (s *Server) sessions(ip string) int { return s.perIP[ip] }
 
 // checkSecret checks an oper or SASL password off the loop for c.
 func (s *Server) checkSecret(c *Client, key int64, hash, pw string, result func(services.PwResult)) {

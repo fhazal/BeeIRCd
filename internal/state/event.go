@@ -207,12 +207,14 @@ func (n *Network) Apply(ev Event) error {
 			return ErrNoSuchUser
 		}
 		var done []ModeChange
+		n.count(u, -1)
 		for _, m := range e.Changes {
 			if u.Modes[m.Mode] != m.Add {
 				setFlag(u.Modes, m.Mode, m.Add)
 				done = append(done, m)
 			}
 		}
+		n.count(u, 1)
 		e.Changes = done
 	case *Away:
 		u := n.users[e.UID]
@@ -340,6 +342,9 @@ func Equal(a, b *Network) (bool, string) {
 	if len(a.users) != len(b.users) {
 		return false, "number of users"
 	}
+	if a.people != b.people || a.invisible != b.invisible || a.opers != b.opers {
+		return false, "LUSERS counts"
+	}
 	for uid, u := range a.users {
 		v := b.users[uid]
 		if v == nil {
@@ -414,6 +419,7 @@ func (n *Network) Clone() *Network {
 		cp := u.Copy()
 		c.users[uid] = cp
 		c.nicks[irc.Fold(cp.Nick)] = cp
+		c.count(cp, 1)
 	}
 	for key, ch := range n.channels {
 		cc := &Channel{Name: ch.Name, TS: ch.TS, Key: ch.Key, Limit: ch.Limit, Topic: ch.Topic, TopicBy: ch.TopicBy, TopicAt: ch.TopicAt,

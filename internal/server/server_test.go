@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -287,7 +288,7 @@ func TestChannelBasics(t *testing.T) {
 	ember.send("JOIN #bchat")
 	ember.expect(" 332 ember #BChat :Welcome to #bchat · be kind")
 	ember.expect(" 333 ember #BChat Bee ")
-	ember.expect(" 353 ember = #BChat :@Bee ember")
+	expectNames(t, ember.expect(" 353 ember = #BChat :"), "@Bee ember")
 
 	ember.send("PRIVMSG #bchat :hi all")
 	bee.expect(":ember!~ember@127.0.0.1 PRIVMSG #BChat :hi all")
@@ -370,7 +371,7 @@ func TestModesAndKick(t *testing.T) {
 	bee.send("MODE #a +ov-n ember nova")
 	nova.expect(":Bee!~bee@127.0.0.1 MODE #a +ov-n ember nova")
 	nova.send("NAMES #a")
-	nova.expect(" 353 nova = #a :@Bee @ember +nova")
+	expectNames(t, nova.expect(" 353 nova = #a :"), "@Bee @ember +nova")
 
 	bee.send("MODE #a +m")
 	nova.expect("MODE #a +m")
@@ -602,4 +603,17 @@ func TestHostLookup(t *testing.T) {
 	c.expect(" 001 Bee ")
 	c.send("WHOIS Bee")
 	c.expect(" 311 Bee Bee ~bee bee.example.org * :Bee")
+}
+
+// expectNames checks a 353 line holds exactly want (NAMES order is not
+// fixed, as in InspIRCd).
+func expectNames(t *testing.T, line, want string) {
+	t.Helper()
+	_, got, _ := strings.Cut(line, " :")
+	g, w := strings.Fields(got), strings.Fields(want)
+	sort.Strings(g)
+	sort.Strings(w)
+	if strings.Join(g, " ") != strings.Join(w, " ") {
+		t.Fatalf("NAMES: got %q, want %q", got, want)
+	}
 }

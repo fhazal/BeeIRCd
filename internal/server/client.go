@@ -86,6 +86,7 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 		floodRate:   s.cfg.Limits.FloodRate,
 	}
 	s.clients[c.uid] = c
+	s.perIP[c.ip]++
 	s.wg.Add(1)
 	go c.writeLoop()
 	go c.readLoop()
@@ -212,7 +213,6 @@ func clip(line string) string {
 
 func (c *Client) writeLoop() {
 	defer c.s.wg.Done()
-	w := bufio.NewWriter(c.conn)
 	for {
 		c.mu.Lock()
 		for len(c.queue) == 0 && !c.closing {
@@ -225,11 +225,20 @@ func (c *Client) writeLoop() {
 		closing := c.closing
 		c.mu.Unlock()
 
+		// One write per batch, from a buffer borrowed for just this write:
+		// idle connections hold no write buffer.
+		bp := writeBufs.Get().(*[]byte)
+		buf := (*bp)[:0]
 		for _, l := range q {
-			w.WriteString(l)
+			buf = append(buf, l...)
 		}
 		c.conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
-		if err := w.Flush(); err != nil {
+		_, err := c.conn.Write(buf)
+		if cap(buf) <= maxPooledWrite {
+			*bp = buf
+			writeBufs.Put(bp)
+		}
+		if err != nil {
 			c.conn.Close()
 			return
 		}
@@ -246,7 +255,7 @@ func (c *Client) writeLoop() {
 }
 
 func (c *Client) readLoop() {
-	r := bufio.NewReaderSize(c.conn, maxInput)
+	r := bufio.NewReaderSize(c.conn, readBufSize)
 	gap := time.Second / time.Duration(c.floodRate)
 	allow := time.Duration(c.floodBurst) * gap
 	var clock time.Time
@@ -282,22 +291,40 @@ func (c *Client) readLoop() {
 }
 
 func readLine(r *bufio.Reader) (string, error) {
+	var long []byte // a line longer than the read buffer, put together here
 	tooLong := false
 	for {
 		b, err := r.ReadSlice('\n')
 		if errors.Is(err, bufio.ErrBufferFull) {
-			tooLong = true
+			if !tooLong {
+				if long = append(long, b...); len(long) > maxInput {
+					long, tooLong = nil, true
+				}
+			}
 			continue
 		}
 		if err != nil {
 			return "", err
 		}
-		if tooLong {
+		if tooLong || len(long)+len(b) > maxInput {
 			return "", errTooLong
+		}
+		if long != nil {
+			return strings.TrimRight(string(append(long, b...)), "\r\n"), nil
 		}
 		return strings.TrimRight(string(b), "\r\n"), nil
 	}
 }
+
+// readBufSize is each connection's read buffer: normal lines fit, longer
+// ones (IRCv3 tags, up to maxInput) are put together on the side.
+const readBufSize = 1024
+
+// maxPooledWrite is the largest write buffer kept for reuse.
+const maxPooledWrite = 64 << 10
+
+// writeBufs are write buffers shared by all connections.
+var writeBufs = sync.Pool{New: func() any { b := make([]byte, 0, 4096); return &b }}
 
 // quit takes c off the server, tells its channels and hangs up.
 func (s *Server) quit(c *Client, reason string) {
@@ -307,6 +334,13 @@ func (s *Server) quit(c *Client, reason string) {
 	c.closed = true
 	c.capture = nil
 	delete(s.clients, c.uid)
+	if s.perIP[c.ip]--; s.perIP[c.ip] <= 0 {
+		delete(s.perIP, c.ip)
+	}
+	if c.registered {
+		s.local--
+	}
+	delete(s.opers, c)
 	if c.user != nil {
 		u := c.user
 		s.emit(&state.UserQuit{UID: u.UID, Reason: reason})

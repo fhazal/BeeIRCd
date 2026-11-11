@@ -186,7 +186,7 @@ func (s *Server) sendNames(c *Client, ch *state.Channel) {
 			names, size = nil, head
 		}
 	}
-	for _, mem := range ch.SortedMembers() {
+	for _, mem := range ch.Members { // unsorted, like InspIRCd: sorting cost a lot on every JOIN
 		if !inside && mem.User.HasMode('i') {
 			continue
 		}

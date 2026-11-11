@@ -111,6 +111,7 @@ func (s *Server) userMode(c *Client, m irc.Message) {
 	}
 	if deopered {
 		c.operFlags, c.operTitle, c.operAccount = "", "", 0
+		delete(s.opers, c)
 		s.snotice("%s is no longer an operator", u.Nick)
 	}
 	if s.cfg.CloakEnabled() {
