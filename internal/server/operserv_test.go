@@ -84,6 +84,7 @@ func fileServerWith(t *testing.T, extra string, setup func(*Server)) (*Server, s
 	if setup != nil {
 		setup(s)
 	}
+	leakCheck := goroutineBaseline(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	result := make(chan error, 1)
 	go func() { result <- s.Serve(ctx) }()
@@ -91,6 +92,7 @@ func fileServerWith(t *testing.T, extra string, setup func(*Server)) (*Server, s
 		cancel()
 		select {
 		case <-result:
+			leakCheck()
 		case <-time.After(5 * time.Second):
 		}
 	})

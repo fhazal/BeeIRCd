@@ -32,6 +32,7 @@ func testServer(t *testing.T, tweak func(*config.Config)) *Server {
 // testServerWith also lets setup change the server before it starts.
 func testServerWith(t *testing.T, tweak func(*config.Config), setup func(*Server)) *Server {
 	t.Helper()
+	leakCheck := goroutineBaseline(t)
 	off := false
 	dir := t.TempDir()
 	cfg := &config.Config{
@@ -103,6 +104,7 @@ func testServerWith(t *testing.T, tweak func(*config.Config), setup func(*Server
 		cancel()
 		select {
 		case <-stopped:
+			leakCheck()
 		case <-time.After(5 * time.Second):
 			t.Error("server did not stop")
 		}
@@ -168,6 +170,7 @@ func (c *tc) expect(want string) string {
 		if err != nil {
 			c.t.Fatalf("%s: waiting for %q: %v\nseen:\n%s", c.nick, want, err, strings.Join(seen, ""))
 		}
+		c.check(line)
 		if strings.Contains(line, want) {
 			return strings.TrimRight(line, "\r\n")
 		}
@@ -184,6 +187,7 @@ func (c *tc) quiet(bad string) {
 		if err != nil {
 			return
 		}
+		c.check(line)
 		if strings.Contains(line, bad) {
 			c.t.Fatalf("%s got unexpected %q", c.nick, strings.TrimSpace(line))
 		}
