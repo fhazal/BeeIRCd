@@ -131,7 +131,9 @@ func TestLogChannel(t *testing.T) {
 	b.quiet(logSrc + "USERS: quietone")
 
 	// SASL PLAIN is not logged by Anope 2.0.20 (only EXTERNAL is).
-	registered(t, s, "Sas").send("QUIT")
+	gone := registered(t, s, "Sas")
+	gone.send("QUIT")
+	gone.expect("ERROR :Closing Link") // nick free again
 	sc := raw(t, s)
 	sc.nick = "Sas"
 	sc.send("CAP REQ :sasl")

@@ -44,7 +44,9 @@ func TestIdentifyThenJoinKeepsOrder(t *testing.T) {
 
 func TestWrongPasswordReleasesHeldLines(t *testing.T) {
 	s := testServer(t, nil)
-	registered(t, s, "Bee").send("QUIT")
+	gone := registered(t, s, "Bee")
+	gone.send("QUIT")
+	gone.expect("ERROR :Closing Link") // nick free again
 	c := login(t, s, "guest")
 	c.sendRaw("NS IDENTIFY Bee wrong-password\r\nPING :after-wrong\r\n")
 	c.expect("Wrong password for Bee.")

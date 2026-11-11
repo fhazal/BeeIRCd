@@ -122,7 +122,9 @@ func TestLabeledMessageToSelf(t *testing.T) { // A7-A9
 
 func TestSASLAfterRegistrationOrder(t *testing.T) { // A10
 	s := testServer(t, nil)
-	registered(t, s, "Bee").send("QUIT")
+	old := registered(t, s, "Bee")
+	old.send("QUIT")
+	old.expect("ERROR :Closing Link")
 	c := capLogin(t, s, "Bee2", "sasl")
 	c.send("AUTHENTICATE PLAIN")
 	c.expect("AUTHENTICATE +")
@@ -138,10 +140,10 @@ func TestWhowasCount(t *testing.T) { // A11
 	s := testServer(t, nil)
 	a := login(t, s, "nick1")
 	for range 2 {
-		login(t, s, "nick2").send("QUIT :bye")
-		a.sync()
+		n := login(t, s, "nick2")
+		n.send("QUIT :bye")
+		n.expect("ERROR :Closing Link") // gone before the next nick2 arrives
 	}
-	time.Sleep(50 * time.Millisecond)
 	a.send("WHOWAS nick2 1")
 	a.expectNumeric("314", "nick2")
 	if l := a.next(); !strings.Contains(l, " 312 ") {

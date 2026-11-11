@@ -273,7 +273,9 @@ func TestSetAndDrop(t *testing.T) {
 
 func TestSASL(t *testing.T) {
 	s := testServer(t, nil)
-	registered(t, s, "Bee").send("QUIT")
+	gone := registered(t, s, "Bee")
+	gone.send("QUIT")
+	gone.expect("ERROR :Closing Link") // nick free again
 
 	plain := func(user, pass string) string {
 		return base64.StdEncoding.EncodeToString([]byte("\x00" + user + "\x00" + pass))
@@ -310,7 +312,9 @@ func TestSASL(t *testing.T) {
 	// With cloaks on, the early "logged in" line already shows the cloak.
 	on := true
 	cs := testServer(t, func(c *config.Config) { c.Cloak.Enabled = &on })
-	registered(t, cs, "Cee").send("QUIT")
+	old := registered(t, cs, "Cee")
+	old.send("QUIT")
+	old.expect("ERROR :Closing Link") // the nick is free before Cee comes back
 	k := raw(t, cs)
 	k.nick = "Cee"
 	k.send("CAP REQ :sasl")
