@@ -59,6 +59,9 @@ func (s *Server) joinOne(c *Client, name, key string) {
 		invited := ch.Invited[u.UID]
 		uop := s.svc.JoinLevel(c.uid, ch.Name) >= store.LevelUOP // ChanServ UOP and up get past +i and +k
 		switch {
+		case ch.HasMode('O') && !c.isOper():
+			s.reply(c, irc.ErrOperOnly, ch.Name, "Cannot join channel (+O)")
+			return
 		case ch.HasMode('i') && !invited && !uop && !ch.Matches('I', u):
 			s.reply(c, irc.ErrInviteOnlyChan, ch.Name, "Cannot join channel (+i)")
 			return

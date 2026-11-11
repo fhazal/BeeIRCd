@@ -68,6 +68,7 @@ func (s *Server) cmdAuthenticate(c *Client, m irc.Message) {
 	}
 	a, err := s.store.AccountByNick(authc)
 	if err != nil || a == nil {
+		s.svc.LogSASL(c.host, c.ip, authc, "PLAIN", "no such account")
 		s.reply(c, irc.ErrSaslFail, "SASL authentication failed")
 		return
 	}
@@ -76,10 +77,13 @@ func (s *Server) cmdAuthenticate(c *Client, m irc.Message) {
 		c.saslBusy = false
 		switch r {
 		case services.PwOK:
+			s.svc.LogSASL(c.host, c.ip, a.Name, "PLAIN", "")
 			s.saslDone(c, a)
 		case services.PwLocked:
+			s.svc.LogSASL(c.host, c.ip, a.Name, "PLAIN", "locked: too many wrong passwords")
 			s.reply(c, irc.ErrSaslFail, "SASL authentication failed: too many wrong passwords, try again later")
 		default:
+			s.svc.LogSASL(c.host, c.ip, a.Name, "PLAIN", "wrong password")
 			s.reply(c, irc.ErrSaslFail, "SASL authentication failed")
 		}
 		s.tryRegister(c)

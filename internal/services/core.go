@@ -94,6 +94,9 @@ type Services struct {
 	news           []store.News
 	sessionExcepts []store.SessionExcept
 	forbids        map[string][]store.Forbid // by kind
+
+	// Log channel (logchan.go).
+	auditing bool // an audit line is on its way to the snotices; the command log has it already
 }
 
 // Client is services' record of one person on the network.
@@ -109,6 +112,7 @@ type Client struct {
 	dropCode    string    // confirms /ns drop
 	dropUntil   time.Time // dropCode is valid until then
 	csUsedOn    string    // channel a ChanServ command passed its access check on (for LOG)
+	logPending  *logEntry // a command waiting for its first reply, for the log channel
 }
 
 func (c *Client) isOper() bool    { return c.s.host.OperFlags(c.user.UID) != "" }
@@ -180,6 +184,7 @@ func (s *Services) handle(ev state.Event) {
 			delete(s.clients, e.UID)
 		}
 	case *state.NickChange:
+		s.logNick(e)
 		if c := s.clients[e.UID]; c != nil && !c.closed {
 			s.nickCheck(c)
 		}
@@ -196,6 +201,7 @@ func (s *Services) handle(ev state.Event) {
 		if ch := s.net.Channel(e.Channel); ch != nil && len(e.Changes) > 0 {
 			s.csModesChanged(ch)
 		}
+		s.logModes(e)
 	case *state.Topic:
 		if ch := s.net.Channel(e.Channel); ch != nil && e.Source != s.chanServ.user.UID {
 			s.csTopicChanged(ch)

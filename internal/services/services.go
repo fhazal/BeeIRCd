@@ -115,6 +115,12 @@ func (s *Services) toService(c *Client, sv *service, text string) {
 	}
 	name := strings.ToUpper(fields[0])
 	args := fields[1:]
+	logName := name
+	if real, isAlias := sv.aliases[name]; isAlias {
+		logName = real
+	}
+	s.logStart(c, sv, logName, args)
+	defer s.logDone(c)
 	switch {
 	case sv.need == 'o' && !c.isOper():
 		s.svcReply(c, sv, sv.user.Nick+" is for IRC operators.")
@@ -148,6 +154,7 @@ func (s *Services) toService(c *Client, sv *service, text string) {
 
 // svcReply sends a notice from a service.
 func (s *Services) svcReply(c *Client, sv *service, text string) {
+	s.logReply(c, text)
 	s.host.Notice(sv.user.UID, c.user.UID, text)
 }
 
@@ -472,6 +479,7 @@ func (s *Services) expireAccounts(now time.Time) {
 		}
 		s.applyFounderChanges(changes, "founder "+a.Name+" expired")
 		s.log.Printf("expired account %s (last seen %s)", a.Name, a.LastSeen.UTC().Format(time.DateOnly))
+		s.logTo(s.nickServ, "EXPIRE: Expiring nickname "+a.Name+" (last seen "+a.LastSeen.UTC().Format(time.DateOnly)+")")
 	}
 }
 

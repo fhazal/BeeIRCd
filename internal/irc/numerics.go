@@ -99,6 +99,7 @@ const (
 	ErrPasswdMismatch    = "464"
 	ErrYoureBannedCreep  = "465"
 	ErrNoPrivileges      = "481"
+	ErrOperOnly          = "520"
 	ErrInvalidModeParam  = "696"
 	RplYoureOper         = "381"
 	ErrUModeUnknownFlag  = "501"

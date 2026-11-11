@@ -62,7 +62,9 @@ func (s *Services) os(c *Client, format string, a ...any) {
 
 // audit notes who changed what, for the log and opers with +s.
 func (s *Services) audit(c *Client, sv *service, format string, a ...any) {
+	s.auditing = true
 	s.snotice("%s used %s: %s", c.user.Nick, sv.user.Nick, fmt.Sprintf(format, a...))
+	s.auditing = false
 }
 
 func durWords(d time.Duration) string {

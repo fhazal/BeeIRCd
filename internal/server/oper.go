@@ -150,6 +150,9 @@ func (s *Server) snotice(format string, a ...any) {
 	text := fmt.Sprintf(format, a...)
 	s.log.Print(text)
 	s.snoticeOnly(text)
+	if s.svc != nil {
+		s.svc.LogEvent(text)
+	}
 }
 
 // snoticeOnly sends a server notice without logging it (for things the

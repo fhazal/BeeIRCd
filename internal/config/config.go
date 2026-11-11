@@ -221,6 +221,12 @@ type Services struct {
 	// (beeircd mkpasswd makes one). Empty: the admin sets it with their
 	// first /oper while identified.
 	AdminPassword string `toml:"admin_password"`
+	// LogChannel is where the service bots log every command they run and
+	// oper events (like Anope's log { target = "#services" }). The bots sit
+	// in it with op and keep it +O (opers only). Empty: no log channel.
+	LogChannel string `toml:"log_channel"`
+	// LogConnects also logs connects and quits there (busy networks: noisy).
+	LogConnects bool `toml:"log_connects"`
 }
 
 func setDur(d *Duration, v time.Duration) {
@@ -252,6 +258,8 @@ func (c *Config) Check() error {
 		return fmt.Errorf("server sid %q must be a digit and two capital letters or digits, like 0BE", c.Server.SID)
 	case c.Server.Prefixes != "@+" && c.Server.Prefixes != "~&@%+":
 		return fmt.Errorf("server prefixes %q must be \"@+\" or \"~&@%%+\"", c.Server.Prefixes)
+	case c.Services.LogChannel != "" && (!strings.HasPrefix(c.Services.LogChannel, "#") || len(c.Services.LogChannel) > 50 || strings.ContainsAny(c.Services.LogChannel, " ,\a")):
+		return fmt.Errorf("services log_channel %q must be a channel like \"#services\" (or empty for none)", c.Services.LogChannel)
 	case len(c.Listen) == 0:
 		return fmt.Errorf("add at least one [[listen]] port")
 	}

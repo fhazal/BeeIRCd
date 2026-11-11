@@ -238,7 +238,9 @@ func (s *Server) tryRegister(c *Client) {
 		s.maxLocal = n
 	}
 	s.log.Printf("connect %s (%s@%s) %s", u.Nick, u.Ident, u.RealHost, c.ip)
-	s.snoticeOnly(fmt.Sprintf("Connect: %s (%s@%s) [%s]", u.Nick, u.Ident, u.RealHost, c.ip))
+	connect := fmt.Sprintf("Connect: %s (%s@%s) [%s]", u.Nick, u.Ident, u.RealHost, c.ip)
+	s.snoticeOnly(connect)
+	s.svc.LogUserConnect(u)
 	s.welcome(c)
 	s.svc.SendNews(c.uid)
 	// Services take it from here (SASL account, nick check) once this
@@ -311,9 +313,9 @@ func (s *Server) rankPrefixes() string {
 
 func (s *Server) channelModes() string {
 	if s.cfg.FullPrefixes() {
-		return "IMRabehiklmnopqrstv"
+		return "IMORabehiklmnopqrstv"
 	}
-	return "IMRbeiklmnoprstv"
+	return "IMORbeiklmnoprstv"
 }
 
 func (s *Server) channelModesWithParam() string {
@@ -329,7 +331,7 @@ func (s *Server) isupport() []string {
 		"AWAYLEN=" + strconv.Itoa(l.AwayLen),
 		"CASEMAPPING=rfc1459",
 		"CHANLIMIT=#:" + strconv.Itoa(l.MaxChannels),
-		"CHANMODES=beI,k,l,MRimnprst",
+		"CHANMODES=beI,k,l,MORimnprst",
 		"CHANNELLEN=" + strconv.Itoa(l.ChannelLen),
 		"CHANTYPES=#",
 		"EXTBAN=~," + irc.ExtbanLetters,

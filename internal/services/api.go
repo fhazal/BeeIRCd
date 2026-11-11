@@ -65,6 +65,9 @@ func (s *Services) MessageAlias(uid, alias, text string) {
 
 // Reply sends a notice from bot to uid.
 func (s *Services) Reply(bot *state.User, uid, text string) {
+	if c := s.clients[uid]; c != nil {
+		s.logReply(c, text)
+	}
 	s.host.Notice(bot.UID, uid, text)
 }
 
@@ -75,7 +78,9 @@ func (s *Services) Audit(uid string, bot *state.User, text string) {
 	if u := s.net.UserByUID(uid); u != nil {
 		nick = u.Nick
 	}
+	s.auditing = true
 	s.snotice("%s used %s: %s", nick, bot.Nick, text)
+	s.auditing = false
 }
 
 // Login identifies uid to account a (after SASL, for example).

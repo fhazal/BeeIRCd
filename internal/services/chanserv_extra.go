@@ -639,6 +639,7 @@ func (s *Services) expireSuspends(now time.Time) {
 		if reg.SuspendedBy != "" && !reg.Suspended(now) {
 			s.unsuspend(reg)
 			s.log.Printf("suspension of %s ran out", reg.Name)
+			s.logTo(s.chanServ, "EXPIRE: Suspension of "+reg.Name+" ran out")
 		}
 	}
 }

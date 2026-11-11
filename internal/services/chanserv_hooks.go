@@ -134,6 +134,7 @@ func (s *Services) applyFounderChanges(changes []store.FounderChange, why string
 	for _, fc := range changes {
 		if fc.NewOwner != "" {
 			s.log.Printf("channel %s now belongs to %s (%s)", fc.Channel, fc.NewOwner, why)
+			s.logTo(s.chanServ, "FOUNDER: "+fc.Channel+" now belongs to "+fc.NewOwner+" ("+why+")")
 			continue
 		}
 		s.log.Printf("dropped channel %s (%s, no successor)", fc.Channel, why)
@@ -162,5 +163,6 @@ func (s *Services) expireChannels(now time.Time) {
 		}
 		s.channelGone(reg.Name)
 		s.log.Printf("expired channel %s (last used %s)", reg.Name, reg.LastUsed.UTC().Format(time.DateOnly))
+		s.logTo(s.chanServ, "EXPIRE: Expiring channel "+reg.Name+" (last used "+reg.LastUsed.UTC().Format(time.DateOnly)+")")
 	}
 }

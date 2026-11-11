@@ -96,6 +96,8 @@ type setting struct {
 	get   func(*config.Config) string
 	apply func(dst, src *config.Config)
 	check func(string) string // extra check for text, returns the problem
+	offOK bool                // text: OFF empties it
+	after func(s *Server, old string)
 }
 
 func limitsApply(dst, src *config.Config)   { dst.Limits = src.Limits }
@@ -158,6 +160,27 @@ func settings() []setting {
 				}
 				return ""
 			}},
+		{name: "log-channel", table: "services", key: "log_channel", help: "services log every command here (OFF for none)", kind: 't', hi: 50, offOK: true,
+			get: func(c *config.Config) string {
+				if c.Services.LogChannel == "" {
+					return "off"
+				}
+				return c.Services.LogChannel
+			}, apply: servicesApply,
+			check: func(v string) string {
+				if !irc.ValidChannel(v, 50) {
+					return "log-channel takes a channel like #services, or OFF."
+				}
+				return ""
+			},
+			after: func(s *Server, old string) {
+				if old == "off" {
+					old = ""
+				}
+				s.svc.SyncLogChannel(old)
+			}},
+		{name: "log-connects", table: "services", key: "log_connects", help: "also log connects and quits there", kind: 'b',
+			get: func(c *config.Config) string { return onoff(c.Services.LogConnects) }, apply: servicesApply},
 	}
 }
 
@@ -193,6 +216,9 @@ func (st setting) tomlValue(value string) (string, string) {
 			return "", st.name + " takes ON or OFF."
 		}
 		return strconv.FormatBool(on), ""
+	}
+	if st.offOK && strings.EqualFold(value, "off") {
+		return `""`, ""
 	}
 	if value == "" || len(value) > int(st.hi) {
 		return "", fmt.Sprintf("%s takes text of up to %d characters.", st.name, st.hi)
@@ -232,6 +258,9 @@ func (s *Server) applySetting(c *Client, sv *state.User, name, value string) {
 		return
 	}
 	st.apply(s.cfg, fresh)
+	if st.after != nil {
+		st.after(s, old)
+	}
 	now := st.get(s.cfg)
 	s.audit(c, sv, "SET %s %s (was %s)", st.name, now, old)
 	s.botReply(c, sv, fmt.Sprintf("%s is now %s (was %s). Saved to %s.", st.name, now, old, filepath.Base(s.cfg.Path)))

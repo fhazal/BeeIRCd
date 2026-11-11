@@ -138,3 +138,28 @@ Ours (Anope leaves these to the IRCd): ZLINE, SHUN, ELINE (as `EXCEPTION
 BAN`), CIDR in every IP mask. An SNLINE mask is one word (spaces as ? or
 `\s` in a /regex/), where Anope uses `mask:reason`. Timed channel bans are
 UnrealIRCd's ~t:minutes:mask, so they work without services too.
+
+## Log channel (built 11 Nov 2026, the user asked)
+
+Like Anope's `log { target = "#services"; commands = "*"; admin = "*";
+users = "connect disconnect nick"; other = "*" }`, set with `[services]
+log_channel` or `/as set log-channel #services`. Lines use Anope's words
+and prefixes, sent by the bot they belong to (as Anope does):
+
+- `COMMAND: nick!ident@host (account) used CMD args → reply` (ADMIN: for
+  OperServ and AdminServ)
+- `USERS: nick!ident@host (vhost) (realname) [ip] connected to the network
+  (server)`, `... disconnected from the network (server) (reason)`, `...
+  changed nick to new` (Global, only with `log-connects on`)
+- `M_SASL: host (ip) identified to account X using SASL PLAIN` (NickServ),
+  and `failed to identify ...` with the reason
+- `EXPIRE:` nicks, channels, suspensions; `FOUNDER:` channel handed on
+- `OPER:` every server notice (opers up/down, failed /oper, kills, ban hits,
+  bans running out), from OperServ
+
+Ours on top: every command shows the bot's first reply after →, so refused
+and failed ones are visible (Anope mostly logs successful ones); quits show
+the reason. Not logged: HELP. Not yet: OVERRIDE (opers using their power on
+channels) and CHANNEL events (join/part/kick/mode; Anope ships them off).
+The bots keep op and +O there and kick non-opers (the lines show real
+hosts). Passwords, drop codes, GETKEY and RESTART/DIE replies are hidden.

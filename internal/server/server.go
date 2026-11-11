@@ -106,6 +106,7 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	svc.Start()
 	s.adminServ = svc.AddBot("AdminServ", "as", "Admin Services",
 		"AdminServ changes the server while it runs; changes are saved to beeircd.conf. Commands:", 'a', s.adminServCommands())
+	svc.SyncLogChannel("")
 	svc.Flush()
 	var tlsConf *tls.Config
 	if cfg.NeedsTLS() {

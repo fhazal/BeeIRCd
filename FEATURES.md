@@ -89,6 +89,8 @@ Last updated: 11 Nov 2026 (Stage 1.5.3).
 | Oper flags a c g h k s | Implemented | |
 | /OPER with a separate oper password per oper | Implemented | identifying never opers; admin password hash in beeircd.conf |
 | /KILL, /WALLOPS, server notices (+s) | Implemented | |
+| Services log channel (`log_channel`, AdminServ `log-channel` / `log-connects`): every bot sits there with op and logs each command with its first reply; oper events from OperServ; connects/quits optional; passwords and codes hidden | Implemented | 1.5.5a-log; like Anope log { target = "#services" } |
+| Channel mode +O (opers only; only opers set it, 520 for others) | Implemented | 1.5.5a-log; UnrealIRCd/InspIRCd; the log channel keeps it set |
 | Oper classes | Planned | phase 4 |
 | Network ban engine: AKILL/G-line (user@host, CIDR), ZLINE (IP/CIDR, before DNS), SQLINE/Q-line (nicks), SNLINE/R-line (realname glob or regex), SHUN, ELINE exemptions, all with expiry | Implemented | 1.5.5a; one list behind OperServ and /GLINE /ZLINE /QLINE /RLINE /SHUN /ELINE; matches real host and IP, never the cloak |
 | Channel extbans ~a ~r ~m (~q) ~t, timed bans, CS BAN +expiry, AKICK extbans | Implemented | 1.5.5a |
