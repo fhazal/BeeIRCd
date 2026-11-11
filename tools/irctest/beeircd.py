@@ -117,10 +117,7 @@ class BeeIRCdController(BaseServerController, DirectoryBasedController):
         cfg = getattr(self, "test_config", None)
         if cfg is None or not getattr(cfg, "chathistory", False):
             return ""
-        return '[history]
-default = "1000:1d"
-playback_lines = 0
-'
+        return '[history]\ndefault = "1000:1d"\nplayback_lines = 0\n'
 
     def wait_for_services(self) -> None:
         # Services are built in: they are up when the port is.

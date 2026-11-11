@@ -118,6 +118,7 @@ func (s *Server) recordHistory(ch *state.Channel, o *outMsg) {
 		MsgID:   o.msgid,
 		Source:  o.msg.Source,
 		Account: o.account,
+		Bot:     o.bot,
 		Verb:    o.msg.Command,
 		Target:  ch.Name,
 		Text:    o.msg.Param(1),
@@ -247,6 +248,7 @@ func historyOut(l *history.Line) *outMsg {
 		tags:    l.Tags,
 		msgid:   l.MsgID,
 		account: l.Account,
+		bot:     l.Bot,
 		at:      l.At,
 	}
 }

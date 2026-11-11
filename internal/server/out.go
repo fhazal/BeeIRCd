@@ -23,6 +23,7 @@ type outMsg struct {
 	tags      map[string]string // client-only tags, sent with message-tags
 	msgid     string
 	account   string
+	bot       bool // from a +B user: IRCv3 bot tag
 	at        time.Time
 	needCap   string // only clients with this capability get it
 
@@ -55,6 +56,7 @@ func (s *Server) out(u *state.User, cmd string, params ...string) *outMsg {
 	return &outMsg{
 		msg:     irc.Message{Source: u.Prefix(), Command: cmd, Params: params},
 		account: u.Account,
+		bot:     u.HasMode('B'),
 		at:      time.Now(),
 	}
 }
@@ -103,6 +105,9 @@ func (c *Client) build(o *outMsg) string {
 	if c.caps["message-tags"] {
 		if o.msgid != "" {
 			add("msgid", o.msgid)
+		}
+		if o.bot {
+			add("bot", "")
 		}
 		for k, v := range o.tags {
 			add(k, v)

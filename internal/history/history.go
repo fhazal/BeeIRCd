@@ -18,6 +18,7 @@ type Line struct {
 	MsgID   string
 	Source  string // nick!ident@host at the time
 	Account string
+	Bot     bool   // sent by a +B user
 	Verb    string // PRIVMSG or NOTICE
 	Target  string // the channel as it was written then
 	Text    string

@@ -41,6 +41,13 @@ func TestUserModesAnyone(t *testing.T) {
 		t.Errorf("WHO flags miss B: %s", l)
 	}
 
+	// Messages from a bot carry the IRCv3 bot tag.
+	tagged := capLogin(t, s, "tina", "message-tags")
+	b.send("PRIVMSG tina :beep")
+	if l := tagged.expect("PRIVMSG tina :beep"); !strings.Contains(strings.SplitN(l, " ", 2)[0], "bot") {
+		t.Errorf("no bot tag: %s", l)
+	}
+
 	// +d: no channel messages, PMs still come.
 	joinAll("#d", a, b)
 	b.send("MODE bob +d")
