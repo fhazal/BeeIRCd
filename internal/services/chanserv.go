@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -14,63 +15,79 @@ import (
 const (
 	maxAkicks         = 100
 	maxChannelsPerAcc = 20
+	maxEntryMsgs      = 5
 	mlockFlags        = "MRimnpst"
 )
+
+// chanServAliases are old or other names HELP doesn't show.
+var chanServAliases = map[string]string{"WHY": "STATUS"}
 
 func chanServCommands() map[string]svcCmd {
 	level := func(l int) svcCmd {
 		n := store.LevelName(l)
-		who := "SOPs and up"
-		switch l {
-		case store.LevelQOP:
-			who = "Only the founder"
-		case store.LevelSOP:
-			who = "QOPs and the founder"
-		}
 		extra := ""
 		if l == store.LevelQOP || l == store.LevelHOP {
 			extra = "\nOnly on servers with ~&@%+ prefixes."
 		}
-		return svcCmd{n + " #chan ADD|DEL|LIST|CLEAR [nick]", "edit the " + n + " list",
-			fmt.Sprintf("%[1]s #chan ADD <nick> [description]   adding someone on another level moves them\n%[1]s #chan DEL {<nick> | <num> | <list>}   numbers from LIST, like 2 or 1-3,5\n%[1]s #chan LIST [<pattern> | <list>]\n%[1]s #chan CLEAR\n%[2]s can change this list; VOP and up can see it.%[3]s\nExample: /cs %[4]s #bchat add ember helps with the wiki", n, who, extra, strings.ToLower(n)),
+		return svcCmd{n + " #chan ADD|DEL|LIST|CLEAR [nick]", fmt.Sprintf("edit the %s list (level %d)", n, l),
+			fmt.Sprintf("%[1]s #chan ADD <nick> [description]   adding someone on another level moves them\n%[1]s #chan DEL {<nick> | <num> | <list>}   numbers from LIST, like 2 or 1-3,5\n%[1]s #chan LIST [<pattern> | <list>]\n%[1]s #chan CLEAR   (founder)\n%[1]s is level %[2]d on the access list. Changing the list needs ACCESS_CHANGE (SOP by\ndefault), and you can only give levels below your own; seeing it needs ACCESS_LIST.%[3]s\nExample: /cs %[4]s #bchat add ember helps with the wiki", n, l, extra, strings.ToLower(n)),
 			csLevelList(l)}
 	}
 	return map[string]svcCmd{
 		"REGISTER": {"REGISTER #chan [description]", "register a channel you op in",
 			"Registers a channel to your account; you become its Founder. You need to be\nidentified and a channel operator in it.\nExample: /cs register #bchat Be kind, stay curious", csRegister},
 		"DROP": {"DROP #chan [code]", "unregister a channel (founder)",
-			"Removes the registration with its access list and AKICKs. You are asked to\nrepeat it with a code first. Opers with flag s may drop any channel.", csDrop},
+			"Removes the registration with its access list, AKICKs and memos. You are asked\nto repeat it with a code first. Opers with flag s may drop any channel.", csDrop},
 		"INFO": {"INFO #chan", "who owns a channel and its settings",
-			"Shows the founder, successor, description, mode lock and options.", csInfo},
-		"QOP":    level(store.LevelQOP),
-		"SOP":    level(store.LevelSOP),
-		"HOP":    level(store.LevelHOP),
-		"AOP":    level(store.LevelAOP),
-		"VOP":    level(store.LevelVOP),
-		"UOP":    level(store.LevelUOP),
-		"ACCESS": {"ACCESS #chan LIST", "every level in one list", "Shows the founder and everyone on the access list. VOP and up can see it.", csAccess},
+			"Shows the founder, successor and description. With the INFO privilege (QOP\nand the founder by default) also the mode lock and options.", csInfo},
+		"QOP": level(store.LevelQOP),
+		"SOP": level(store.LevelSOP),
+		"HOP": level(store.LevelHOP),
+		"AOP": level(store.LevelAOP),
+		"VOP": level(store.LevelVOP),
+		"UOP": level(store.LevelUOP),
+		"ACCESS": {"ACCESS #chan ADD|DEL|LIST|VIEW|CLEAR ...", "the access list with levels",
+			"ACCESS #chan ADD <nick> <level> [description]   level 1-10000, or VOP, AOP, SOP...\nACCESS #chan DEL {<nick> | <num> | <list>}\nACCESS #chan LIST [<pattern> | <list>]\nACCESS #chan VIEW [<pattern> | <list>]   with who added them and when\nACCESS #chan CLEAR   (founder)\nLevels: UOP 1, VOP 3, HOP 4, AOP 5, SOP 10, QOP 10000. What each level may do is\nin LEVELS. ADD and DEL need ACCESS_CHANGE, LIST and VIEW need ACCESS_LIST. You can\nonly give levels below your own.\nExample: /cs access #bchat add ember 5", csAccess},
+		"LEVELS": {"LEVELS #chan SET|DISABLE|LIST|RESET ...", "what each level may do",
+			"LEVELS #chan LIST   every privilege and the level it needs\nLEVELS #chan SET <privilege> {<level> | FOUNDER}   0 = everyone in the channel\nLEVELS #chan DISABLE <privilege>   nobody, not even the founder\nLEVELS #chan RESET   back to the defaults\nSET, DISABLE and RESET are for the founder; LIST needs ACCESS_LIST.\nExample: /cs levels #bchat set autovoice 0   (voice everyone who joins)", csLevels},
+		"STATUS": {"STATUS #chan [nick]", "someone's access and why",
+			"Shows the level you (or nick) have on a channel and the privileges it gives.\nAsking about others needs ACCESS_LIST. WHY does the same.", csStatus},
 		"AKICK": {"AKICK #chan ADD|DEL|LIST|VIEW|ENFORCE|CLEAR ...", "keep someone out for good",
-			"AKICK #chan ADD {<nick> | <mask>} [reason]\nAKICK #chan DEL {<mask> | <num> | <list>}   numbers from LIST, like 2 or 1-3,5\nAKICK #chan LIST [<mask> | <list>]\nAKICK #chan VIEW [<mask> | <list>]        with who added it and when\nAKICK #chan ENFORCE   kick everyone in the channel who matches now\nAKICK #chan CLEAR\nAnyone matching an AKICK is banned and kicked when they join, unless they are\non the access list. SOP and up.\nExample: /cs akick #bchat add *!*@*.badhost.example spamming", csAkick},
-		"OP":        {"OP #chan [nick]", "op someone (or yourself)", "AOP and up. With SECURE on, only AOP and up can be opped.", csModeCmd('o', true)},
-		"DEOP":      {"DEOP #chan [nick]", "deop someone (or yourself)", "AOP and up can deop others; anyone can deop themself.", csModeCmd('o', false)},
-		"VOICE":     {"VOICE #chan [nick]", "voice someone (or yourself)", "HOP and up can voice others; VOP and up can voice themself.", csModeCmd('v', true)},
-		"DEVOICE":   {"DEVOICE #chan [nick]", "devoice someone (or yourself)", "HOP and up can devoice others; anyone can devoice themself.", csModeCmd('v', false)},
-		"HALFOP":    {"HALFOP #chan [nick]", "halfop someone (or yourself)", "AOP and up; HOP and up for themself. Only with ~&@%+ prefixes.", csModeCmd('h', true)},
-		"DEHALFOP":  {"DEHALFOP #chan [nick]", "take halfop away", "AOP and up can dehalfop others; anyone can dehalfop themself.", csModeCmd('h', false)},
-		"PROTECT":   {"PROTECT #chan [nick]", "give admin (&) status", "QOP and up; SOP and up for themself. Only with ~&@%+ prefixes.", csModeCmd('a', true)},
-		"DEPROTECT": {"DEPROTECT #chan [nick]", "take admin (&) status away", "QOP and up can take it from others; anyone from themself.", csModeCmd('a', false)},
-		"OWNER":     {"OWNER #chan [nick]", "give owner (~) status", "The founder; QOP and up for themself. Only with ~&@%+ prefixes.", csModeCmd('q', true)},
-		"DEOWNER":   {"DEOWNER #chan [nick]", "take owner (~) status away", "The founder can take it from others; anyone from themself.", csModeCmd('q', false)},
+			"AKICK #chan ADD {<nick> | <mask>} [reason]\nAKICK #chan DEL {<mask> | <num> | <list>}   numbers from LIST, like 2 or 1-3,5\nAKICK #chan LIST [<mask> | <list>]\nAKICK #chan VIEW [<mask> | <list>]        with who added it and when\nAKICK #chan ENFORCE   kick everyone in the channel who matches now\nAKICK #chan CLEAR\nAnyone matching an AKICK is banned and kicked when they join, unless they are\non the access list. Needs the AKICK privilege (SOP by default).\nExample: /cs akick #bchat add *!*@*.badhost.example spamming", csAkick},
+		"OP":        {"OP #chan [nick]", "op someone (or yourself)", "Needs OP for others, OPME for yourself (AOP by default). With SECUREOPS on,\nonly people allowed @ can be opped.", csModeCmd('o', true)},
+		"DEOP":      {"DEOP #chan [nick]", "deop someone (or yourself)", "Needs OP for others; anyone can deop themself.", csModeCmd('o', false)},
+		"VOICE":     {"VOICE #chan [nick]", "voice someone (or yourself)", "Needs VOICE for others (HOP by default), VOICEME for yourself (VOP).", csModeCmd('v', true)},
+		"DEVOICE":   {"DEVOICE #chan [nick]", "devoice someone (or yourself)", "Needs VOICE for others; anyone can devoice themself.", csModeCmd('v', false)},
+		"HALFOP":    {"HALFOP #chan [nick]", "halfop someone (or yourself)", "Needs HALFOP for others (AOP by default), HALFOPME for yourself (HOP).\nOnly with ~&@%+ prefixes.", csModeCmd('h', true)},
+		"DEHALFOP":  {"DEHALFOP #chan [nick]", "take halfop away", "Needs HALFOP for others; anyone can dehalfop themself.", csModeCmd('h', false)},
+		"PROTECT":   {"PROTECT #chan [nick]", "give admin (&) status", "Needs PROTECT for others (QOP by default), PROTECTME for yourself (SOP).\nOnly with ~&@%+ prefixes.", csModeCmd('a', true)},
+		"DEPROTECT": {"DEPROTECT #chan [nick]", "take admin (&) status away", "Needs PROTECT for others; anyone can take it from themself.", csModeCmd('a', false)},
+		"OWNER":     {"OWNER #chan [nick]", "give owner (~) status", "Needs OWNER for others (the founder by default), OWNERME for yourself (QOP).\nOnly with ~&@%+ prefixes.", csModeCmd('q', true)},
+		"DEOWNER":   {"DEOWNER #chan [nick]", "take owner (~) status away", "Needs OWNER for others; anyone can take it from themself.", csModeCmd('q', false)},
 		"UP":        {"UP #chan", "give yourself every status you earn", "Gives you the modes your level earns, like when you join.", csUp},
 		"DOWN":      {"DOWN #chan", "drop all your channel status", "Takes every status mode you have in the channel.", csDown},
-		"KICK":      {"KICK #chan <nick> [reason]", "kick through ChanServ", "AOP and up. Nobody can kick someone on the same level or above, except the founder.", csKick},
-		"BAN":       {"BAN #chan <nick|mask>", "ban and kick", "AOP and up. A nick bans that person's host.", csBan},
-		"UNBAN":     {"UNBAN #chan [nick|mask]", "remove bans", "Without a nick, removes every ban on you (UOP and up). AOP and up can unban\nothers.", csUnban},
-		"INVITE":    {"INVITE #chan [nick]", "invite yourself or someone", "UOP and up invite themself past +i, +k and +l; AOP and up may invite others.", csInvite},
-		"TOPIC":     {"TOPIC #chan <text>", "set the topic", "AOP and up. Works even with TOPICLOCK on.", csTopic},
-		"CLEAR":     {"CLEAR #chan BANS|MODES|OPS|VOICES", "clean up a channel", "SOP and up. MODES puts the mode lock back afterwards.", csClear},
+		"SYNC":      {"SYNC #chan", "give everyone the status they earn", "Gives everyone in the channel the modes their level earns and, with SECUREOPS\non, takes status from those not allowed it. Needs ACCESS_CHANGE.", csSyncCmd},
+		"KICK":      {"KICK #chan <nick> [reason]", "kick through ChanServ", "Needs KICK (HOP by default). With PEACE on, nobody can kick someone on the\nsame level or above, except the founder.", csKick},
+		"BAN":       {"BAN #chan <nick|mask> [reason]", "ban and kick", "Needs BAN (HOP by default). A nick bans that person's host, the way BANTYPE\nsays.", csBan},
+		"UNBAN":     {"UNBAN #chan [nick|mask]", "remove bans", "Without a nick, removes every ban on you (UNBANME, HOP by default). Unbanning\nothers needs UNBAN.", csUnban},
+		"INVITE":    {"INVITE #chan [nick]", "invite yourself or someone", "Needs INVITE (AOP by default). Without a nick it invites you.", csInvite},
+		"GETKEY":    {"GETKEY #chan", "tell you the channel key", "Needs GETKEY (AOP by default).", csGetKey},
+		"TOPIC": {"TOPIC #chan [SET|APPEND|PREPEND|LOCK|UNLOCK] [text]", "set or lock the topic",
+			"TOPIC #chan <text>           set the topic (SET may come first)\nTOPIC #chan SET              with no text: clear the topic\nTOPIC #chan APPEND <text>    add to the end\nTOPIC #chan PREPEND <text>   add to the front\nTOPIC #chan LOCK|UNLOCK      only those with TOPIC may change it (the old TOPICLOCK)\nNeeds TOPIC (AOP by default); LOCK and UNLOCK need SET.", csTopic},
+		"MODE": {"MODE #chan LOCK|SET|CLEAR ...", "channel modes and the mode lock",
+			"MODE #chan LOCK ADD <modes>    like +nt-s or +k secret; joins the lock\nMODE #chan LOCK DEL <modes>    take letters out of the lock\nMODE #chan LOCK SET <modes>    replace the whole lock\nMODE #chan LOCK LIST\nMODE #chan SET <modes>         set modes now (the lock still wins)\nMODE #chan CLEAR [what]        BANS, EXCEPTS, INVITES, OPS, HALFOPS, VOICES,\n                               PROTECTS, OWNERS, MODES or ALL (the default)\nThe lock can hold M R i m n p s t, k and l. Needs MODE (QOP by default).", csModeCommand},
+		"CLEAR": {"CLEAR #chan <what>", "same as MODE CLEAR", "Kept for ConferenceRoom habits: /cs clear #chan bans is /cs mode #chan clear bans.", csClearOld},
+		"ENTRYMSG": {"ENTRYMSG #chan ADD|DEL|LIST|CLEAR ...", "notices people get when they join",
+			"ENTRYMSG #chan ADD <text>\nENTRYMSG #chan DEL <num>\nENTRYMSG #chan LIST\nENTRYMSG #chan CLEAR\nUp to 5 lines, sent to everyone who joins. Needs SET.", csEntryMsg},
+		"ENFORCE": {"ENFORCE #chan <what>", "apply a rule to everyone in the channel now",
+			"ENFORCE #chan SECUREOPS    take status from those not allowed it\nENFORCE #chan RESTRICTED   kick and ban everyone not on the access list\nENFORCE #chan REGONLY      kick everyone who isn't identified\nENFORCE #chan BANS         kick everyone a ban matches\nENFORCE #chan LIMIT        kick the newest people over the +l limit\nNeeds AKICK (SOP by default).", csEnforce},
+		"LOG": {"LOG #chan [<command> <method> [status]]", "tell the channel when ChanServ is used",
+			"LOG #chan                       show the log settings\nLOG #chan <command> <method>    method is MESSAGE, NOTICE or MEMO\nLOG #chan <command> <method> @  only to those with that status or higher\nLOG #chan <command> NONE        stop logging a command\nExample: /cs log #bchat kick notice @   tells ops whenever someone uses KICK.\nNeeds SET.", csLog},
+		"SUSPEND": {"SUSPEND #chan [+expiry] [reason]", "close a channel, keeping its data (opers)",
+			"Nobody can use a suspended channel: everyone is kicked and kept out, and\nChanServ commands on it are refused. Expiry like +7d; without it the channel\nstays suspended until UNSUSPEND. Opers with flag s.", csSuspend},
+		"UNSUSPEND": {"UNSUSPEND #chan", "open a suspended channel again (opers)", "Opers with flag s.", csUnsuspend},
 		"SET": {"SET <option> #chan <value>", "change channel settings",
-			"SET DESCRIPTION #chan <text>\nSET FOUNDER #chan <nick>            (founder)\nSET SUCCESSOR #chan <nick>|OFF     (founder) gets the channel if the founder's\n                                    account goes\nSET MLOCK #chan <modes>            like +nt-s or +ntk secret\nSET KEEPTOPIC #chan ON|OFF         put the topic back when the channel is reopened (on)\nSET TOPICLOCK #chan ON|OFF         only AOP and up may change the topic\nSET SECURE #chan ON|OFF            only AOP and up may be opped\nSET PRIVATE #chan ON|OFF           hide from /cs list and /cs info for outsiders\nSET ENTRYMSG #chan <text>|OFF      a notice to everyone who joins\nSET URL #chan <url>|OFF\nEverything but FOUNDER and SUCCESSOR: SOP and up. Opers with flag s may set\nthe FOUNDER of any channel. SET #chan <option> works too.", csSet},
+			"SET DESCRIPTION #chan <text>\nSET FOUNDER #chan <nick>        (founder) Opers with flag s too.\nSET SUCCESSOR #chan <nick>|OFF  (founder) gets the channel if the founder's\n                                account goes\nSET SECUREFOUNDER #chan ON|OFF  (founder) only the real founder has founder\n                                rights, not the FOUNDER privilege (on)\nSET KEEPTOPIC #chan ON|OFF      the topic comes back when the channel reopens (on)\nSET KEEPMODES #chan ON|OFF      the modes come back when the channel reopens\nSET PEACE #chan ON|OFF          nobody can kick, ban or deop someone at their\n                                level or above (on)\nSET RESTRICTED #chan ON|OFF     only people on the access list may stay\nSET SECUREOPS #chan ON|OFF      only those allowed a status may hold it\nSET SIGNKICK #chan ON|OFF       kicks show who asked for them (on)\nSET AUTOOP #chan ON|OFF         ChanServ gives status on join (on)\nSET PERSIST #chan ON|OFF        ChanServ keeps the channel open when empty\nSET PRIVATE #chan ON|OFF        hide from /cs list and /cs info for outsiders\nSET BANTYPE #chan 0-3           0 *!user@host, 1 *!*user@host, 2 *!*@host (default),\n                                3 *!*user@*.domain\nSET URL #chan <url>|OFF\nSET NOEXPIRE #chan ON|OFF       (opers with flag s) the channel never expires\nEverything else needs the SET privilege. The mode lock is in MODE, entry\nmessages in ENTRYMSG, the topic lock in TOPIC.\nConferenceRoom shortcuts: MEMOLEVEL <level>, AUTOVOP ON|OFF, LEAVEOPS ON|OFF.", csSet},
 		"LIST": {"LIST <pattern>", "search registered channels", "Lists registered channels matching a pattern, like #bee*. Private ones are\nleft out unless you are on their access list.", csList},
 	}
 }
@@ -79,23 +96,9 @@ func (s *Services) cs(c *Client, format string, a ...any) {
 	s.svcReply(c, s.chanServ, fmt.Sprintf(format, a...))
 }
 
-// csChan loads a registered channel and c's level on it. With need above
-// zero, c must be identified and at least that level.
-// csChanOper is csChan for commands opers with flag s may use on any
-// channel (DROP, SET FOUNDER). asOper reports that the oper right was used.
-func (s *Services) csChanOper(c *Client, name string) (reg *store.Channel, asOper, ok bool) {
-	if c.can('s') {
-		reg, lvl, ok := s.csChan(c, name, 0)
-		if !ok {
-			return nil, false, false
-		}
-		return reg, lvl < store.LevelFounder, true
-	}
-	reg, _, ok = s.csChan(c, name, store.LevelFounder)
-	return reg, false, ok
-}
-
-func (s *Services) csChan(c *Client, name string, need int) (*store.Channel, int, bool) {
+// csLookup loads a registered channel and c's level on it (founder rights
+// included), without any checks.
+func (s *Services) csLookup(c *Client, name string) (*store.Channel, int, bool) {
 	if !irc.IsChannel(name) {
 		s.cs(c, "Give a channel, like #bchat.")
 		return nil, 0, false
@@ -109,9 +112,19 @@ func (s *Services) csChan(c *Client, name string, need int) (*store.Channel, int
 		s.cs(c, "%s isn't registered.", name)
 		return nil, 0, false
 	}
-	lvl, err := s.store.Level(reg, c.accountID)
-	if err != nil {
-		s.dbErr(c, s.chanServ, err)
+	return reg, s.accountLevel(reg, c.accountID), true
+}
+
+// csChan is csLookup for commands: a suspended channel is refused (except
+// to opers with flag s), and with need above zero c must be identified and
+// at least that level.
+func (s *Services) csChan(c *Client, name string, need int) (*store.Channel, int, bool) {
+	reg, lvl, ok := s.csLookup(c, name)
+	if !ok {
+		return nil, 0, false
+	}
+	if reg.Suspended(time.Now()) && !c.can('s') {
+		s.cs(c, "%s is suspended: %s", reg.Name, reg.SuspendReason)
 		return nil, 0, false
 	}
 	if need > 0 {
@@ -123,24 +136,25 @@ func (s *Services) csChan(c *Client, name string, need int) (*store.Channel, int
 			s.cs(c, "Only the founder of %s can do that.", reg.Name)
 			return nil, 0, false
 		case lvl < need:
-			s.cs(c, "You need to be %s or higher on %s for that.", store.LevelName(need), reg.Name)
+			s.cs(c, "You need to be %s on %s for that.", needWords(need), reg.Name)
 			return nil, 0, false
 		}
 	}
 	return reg, lvl, true
 }
 
-// levelOf is a connected user's level on reg.
-func (s *Services) levelOf(reg *store.Channel, u *state.User) int {
-	c := s.clientOf(u)
-	if c == nil || c.accountID == 0 {
-		return store.LevelNone
+// csChanOper is csChan for commands opers with flag s may use on any
+// channel (DROP, SET FOUNDER). asOper reports that the oper right was used.
+func (s *Services) csChanOper(c *Client, name string) (reg *store.Channel, asOper, ok bool) {
+	if c.can('s') {
+		reg, lvl, ok := s.csChan(c, name, 0)
+		if !ok {
+			return nil, false, false
+		}
+		return reg, lvl < store.LevelFounder, true
 	}
-	lvl, err := s.store.Level(reg, c.accountID)
-	if err != nil {
-		return store.LevelNone
-	}
-	return lvl
+	reg, _, ok = s.csChan(c, name, store.LevelFounder)
+	return reg, false, ok
 }
 
 func csRegister(s *Services, c *Client, args []string) {
@@ -202,7 +216,7 @@ func csRegister(s *Services, c *Client, args []string) {
 	s.log.Printf("registered channel %s to %s", reg.Name, a.Name)
 	s.cs(c, "%s is registered to %s. You are its Founder.", reg.Name, a.Name)
 	s.csMode(live, mlockChanges(reg, live))
-	s.csAutoModes(live, u, store.LevelFounder)
+	s.csAutoModes(reg, live, u)
 }
 
 func csDrop(s *Services, c *Client, args []string) {
@@ -227,9 +241,7 @@ func csDrop(s *Services, c *Client, args []string) {
 		s.dbErr(c, s.chanServ, err)
 		return
 	}
-	if live := s.net.Channel(reg.Name); live != nil {
-		s.csMode(live, []modeChange{{false, 'r', ""}})
-	}
+	s.channelGone(reg.Name)
 	s.log.Printf("dropped channel %s (by %s)", reg.Name, c.user.Nick)
 	if asOper {
 		s.audit(c, s.chanServ, "DROP %s (founder %s)", reg.Name, reg.Founder)
@@ -237,12 +249,25 @@ func csDrop(s *Services, c *Client, args []string) {
 	s.cs(c, "%s is no longer registered.", reg.Name)
 }
 
+// channelGone tidies a live channel whose registration went: -r, and
+// ChanServ leaves if it was keeping it open.
+func (s *Services) channelGone(name string) {
+	live := s.net.Channel(name)
+	if live == nil {
+		return
+	}
+	s.csMode(live, []modeChange{{false, 'r', ""}})
+	if live.Member(s.chanServ.user) != nil {
+		s.emit(&state.Part{UID: s.chanServ.user.UID, Channel: live.Name})
+	}
+}
+
 func csInfo(s *Services, c *Client, args []string) {
-	reg, lvl, ok := s.csChan(c, argAt(args, 0), 0)
+	reg, lvl, ok := s.csLookup(c, argAt(args, 0))
 	if !ok {
 		return
 	}
-	if reg.Private && lvl == store.LevelNone && !c.user.HasMode('o') {
+	if reg.Private && lvl == store.LevelNone && !c.isOper() {
 		s.cs(c, "%s is private.", reg.Name)
 		return
 	}
@@ -255,17 +280,30 @@ func csInfo(s *Services, c *Client, args []string) {
 	if reg.URL != "" {
 		s.cs(c, "  URL           %s", reg.URL)
 	}
-	s.cs(c, "  Mode lock     %s", mlockString(reg))
 	if s.channelInUse(reg) {
 		s.cs(c, "  Last used     in use now")
 	} else {
 		s.cs(c, "  Last used     %s (%s)", showTime(reg.LastUsed), ago(reg.LastUsed))
 	}
+	if reg.Suspended(time.Now()) {
+		until := "until UNSUSPEND"
+		if reg.SuspendUntil.Unix() != 0 {
+			until = "until " + showTime(reg.SuspendUntil)
+		}
+		s.cs(c, "  Suspended     by %s, %s, %s: %s", reg.SuspendedBy, showTime(reg.SuspendedAt), until, reg.SuspendReason)
+	}
+	if !s.levelHas(reg, lvl, "INFO") && !c.isOper() {
+		return
+	}
+	s.cs(c, "  Mode lock     %s", mlockString(reg))
 	var opts []string
 	for _, o := range []struct {
 		on   bool
 		name string
-	}{{reg.KeepTopic, "keep topic"}, {reg.TopicLock, "topic lock"}, {reg.Secure, "secure"}, {reg.Private, "private"}} {
+	}{{reg.KeepTopic, "keep topic"}, {reg.TopicLock, "topic lock"}, {reg.KeepModes, "keep modes"}, {reg.Peace, "peace"},
+		{reg.Restricted, "restricted"}, {reg.SecureOps, "secure ops"}, {reg.SecureFounder, "secure founder"},
+		{reg.SignKick, "sign kick"}, {!reg.AutoOp, "no auto-op"}, {reg.Persist, "persist"}, {reg.Private, "private"},
+		{reg.NoExpire, "no expire"}} {
 		if o.on {
 			opts = append(opts, o.name)
 		}
@@ -274,12 +312,17 @@ func csInfo(s *Services, c *Client, args []string) {
 		opts = []string{"none"}
 	}
 	s.cs(c, "  Options       %s", strings.Join(opts, ", "))
-	if reg.EntryMsg != "" {
-		s.cs(c, "  Entry message %s", reg.EntryMsg)
+	s.cs(c, "  Ban type      %d (%s)", reg.BanType, banTypes[reg.BanType])
+	for i, e := range s.store.EntryMsgs(reg) {
+		label := ""
+		if i == 0 {
+			label = "Entry message"
+		}
+		s.cs(c, "  %-13s %s", label, e.Text)
 	}
 }
 
-// csLevelList handles SOP, AOP, VOP and UOP.
+// csLevelList handles QOP, SOP, AOP, HOP, VOP and UOP.
 func csLevelList(level int) func(*Services, *Client, []string) {
 	n := store.LevelName(level)
 	return func(s *Services, c *Client, args []string) {
@@ -288,30 +331,21 @@ func csLevelList(level int) func(*Services, *Client, []string) {
 			s.cs(c, "%s lists are only used on servers with ~&@%%+ prefixes; this one uses @+.", n)
 			return
 		}
-		need := store.LevelSOP
-		switch level {
-		case store.LevelQOP:
-			need = store.LevelFounder
-		case store.LevelSOP:
-			need = store.LevelFounder
-			if s.cfg.FullPrefixes() {
-				need = store.LevelQOP
-			}
-		}
-		if sub == "LIST" {
-			need = store.LevelVOP
-		}
-		if sub == "" {
+		var reg *store.Channel
+		var lvl int
+		var ok bool
+		switch sub {
+		case "":
 			s.cs(c, "Syntax: %s #chan ADD|DEL|LIST|CLEAR [nick]", n)
 			return
+		case "LIST":
+			reg, lvl, ok = s.csPriv(c, name, "ACCESS_LIST")
+		case "CLEAR":
+			reg, lvl, ok = s.csChan(c, name, store.LevelFounder)
+		default:
+			reg, lvl, ok = s.csPriv(c, name, "ACCESS_CHANGE")
 		}
-		reg, lvl, ok := s.csChan(c, name, need)
 		if !ok {
-			return
-		}
-		entries, err := s.store.AccessList(reg, level)
-		if err != nil {
-			s.dbErr(c, s.chanServ, err)
 			return
 		}
 		switch sub {
@@ -320,7 +354,7 @@ func csLevelList(level int) func(*Services, *Client, []string) {
 				s.cs(c, "Syntax: %s %s ADD <nick> [description]", n, reg.Name)
 				return
 			}
-			target, ok := s.csAccessTarget(c, reg, lvl, arg)
+			target, ok := s.csAccount(c, reg, arg)
 			if !ok {
 				return
 			}
@@ -329,68 +363,30 @@ func csLevelList(level int) func(*Services, *Client, []string) {
 				s.cs(c, "%s is on the %s list of %s already.", target.Name, n, reg.Name)
 				return
 			}
+			if !s.accessChange(c, reg, lvl, old, level, target.Name) {
+				return
+			}
 			note := irc.Truncate(strings.Join(args[3:], " "), 100)
 			if _, err := s.store.SetLevel(reg, target, level, c.user.Account, note, time.Now()); err != nil {
 				s.dbErr(c, s.chanServ, err)
 				return
 			}
 			if old == store.LevelNone {
+				s.csUsed(c, reg)
 				s.cs(c, "%s added to the %s list of %s.", target.Name, n, reg.Name)
 			} else {
+				s.csUsed(c, reg)
 				s.cs(c, "%s moved from %s to %s on %s.", target.Name, store.LevelName(old), n, reg.Name)
 			}
-			if live := s.net.Channel(reg.Name); live != nil {
-				for _, oc := range s.onlineClients(target.ID) {
-					if live.Member(oc.user) != nil {
-						s.csAutoModes(live, oc.user, level)
-					}
-				}
-			}
+			s.afterAccessChange(reg, target.ID)
 		case "DEL":
-			if arg == "" {
-				s.cs(c, "Syntax: %s %s DEL {<nick> | <num> | <list>}", n, reg.Name)
+			s.accessDel(c, reg, lvl, level, arg, n)
+		case "LIST":
+			entries, err := s.store.AccessList(reg, level)
+			if err != nil {
+				s.dbErr(c, s.chanServ, err)
 				return
 			}
-			var gone []store.AccessEntry
-			if nums, isList := numList(arg, len(entries)); isList {
-				for _, i := range nums {
-					gone = append(gone, entries[i-1])
-				}
-				if len(gone) == 0 {
-					s.cs(c, "No entry %s on the %s list of %s.", arg, n, reg.Name)
-					return
-				}
-			} else {
-				target, ok := s.csAccessTarget(c, reg, lvl, arg)
-				if !ok {
-					return
-				}
-				for _, e := range entries {
-					if e.AccountID == target.ID {
-						gone = append(gone, e)
-					}
-				}
-				if len(gone) == 0 {
-					s.cs(c, "%s isn't on the %s list of %s.", target.Name, n, reg.Name)
-					return
-				}
-			}
-			var names []string
-			for _, e := range gone {
-				if level >= lvl && lvl != store.LevelFounder {
-					s.cs(c, "You can't change %s: their level is the same as or above yours.", e.Account)
-					continue
-				}
-				if _, err := s.store.RemoveAccess(reg, e.AccountID); err != nil {
-					s.dbErr(c, s.chanServ, err)
-					return
-				}
-				names = append(names, e.Account)
-			}
-			if len(names) > 0 {
-				s.cs(c, "%s removed from the %s list of %s.", strings.Join(names, ", "), n, reg.Name)
-			}
-		case "LIST":
 			if len(entries) == 0 {
 				s.cs(c, "The %s list of %s is empty.", n, reg.Name)
 				return
@@ -415,47 +411,17 @@ func csLevelList(level int) func(*Services, *Client, []string) {
 			}
 			s.cs(c, "%s.", plural(len(show), "entry"))
 		case "CLEAR":
-			if level >= store.LevelSOP && lvl < need {
-				return
-			}
 			removed, err := s.store.ClearLevel(reg, level)
 			if err != nil {
 				s.dbErr(c, s.chanServ, err)
 				return
 			}
+			s.csUsed(c, reg)
 			s.cs(c, "The %s list of %s is now empty (%d removed).", n, reg.Name, removed)
 		default:
 			s.cs(c, "Syntax: %s #chan ADD|DEL|LIST|CLEAR [nick]", n)
 		}
 	}
-}
-
-// csAccessTarget finds the account an access list change is about and
-// checks that c (at level lvl) may change it.
-func (s *Services) csAccessTarget(c *Client, reg *store.Channel, lvl int, nick string) (*store.Account, bool) {
-	target, err := s.store.AccountByNick(nick)
-	if err != nil {
-		s.dbErr(c, s.chanServ, err)
-		return nil, false
-	}
-	if target == nil {
-		s.cs(c, "%s isn't a registered nick.", nick)
-		return nil, false
-	}
-	if target.ID == reg.FounderID {
-		s.cs(c, "%s is the founder of %s.", target.Name, reg.Name)
-		return nil, false
-	}
-	old, err := s.store.Level(reg, target.ID)
-	if err != nil {
-		s.dbErr(c, s.chanServ, err)
-		return nil, false
-	}
-	if old >= lvl && lvl != store.LevelFounder {
-		s.cs(c, "You can't change %s: their level is the same as or above yours.", target.Name)
-		return nil, false
-	}
-	return target, true
 }
 
 // pickEntries returns the indexes (0-based) a LIST shows: all for "", the
@@ -476,52 +442,8 @@ func pickEntries(spec string, n int, name func(int) string) []int {
 	return out
 }
 
-func csAccess(s *Services, c *Client, args []string) {
-	if sub := strings.ToUpper(argAt(args, 1)); sub != "" && sub != "LIST" {
-		s.cs(c, "Syntax: ACCESS #chan LIST. To change it: /cs aop #chan add <nick> (or sop, vop, uop)")
-		return
-	}
-	reg, _, ok := s.csChan(c, argAt(args, 0), store.LevelVOP)
-	if !ok {
-		return
-	}
-	entries, err := s.store.AccessList(reg, 0)
-	if err != nil {
-		s.dbErr(c, s.chanServ, err)
-		return
-	}
-	width := len(reg.Founder)
-	for _, e := range entries {
-		width = max(width, len(e.Account))
-	}
-	width = max(width, 4)
-	also := map[int]string{
-		store.LevelFounder: "everything",
-		store.LevelQOP:     "add/remove SOP and below · akick",
-		store.LevelSOP:     "add/remove AOP and below · akick",
-		store.LevelAOP:     "kick, ban, topic, invite",
-		store.LevelHOP:     "kick and voice people below them",
-		store.LevelVOP:     "voice themself",
-		store.LevelUOP:     "invite and unban themself",
-	}
-	row := func(l int, nick string) {
-		gets := s.levelPrefixes(l)
-		if gets == "" {
-			gets = "–"
-		}
-		s.cs(c, "  %-8s %-*s  %-5s  %s", store.LevelName(l), width, nick, gets, also[l])
-	}
-	s.cs(c, "Access list of %s", reg.Name)
-	s.cs(c, "  %-8s %-*s  %-5s  %s", "Level", width, "Nick", "Gets", "Can also")
-	row(store.LevelFounder, reg.Founder)
-	for _, e := range entries {
-		row(e.Level, e.Account)
-	}
-	s.cs(c, "%s. Change one: /cs aop %s del <nick>", plural(len(entries)+1, "entry"), reg.Name)
-}
-
 func csAkick(s *Services, c *Client, args []string) {
-	reg, _, ok := s.csChan(c, argAt(args, 0), store.LevelSOP)
+	reg, _, ok := s.csPriv(c, argAt(args, 0), "AKICK")
 	if !ok {
 		return
 	}
@@ -573,6 +495,7 @@ func csAkick(s *Services, c *Client, args []string) {
 			s.cs(c, "%s is on the AKICK list of %s already.", mask, reg.Name)
 			return
 		}
+		s.csUsed(c, reg)
 		s.cs(c, "Added %s to the AKICK list of %s.", mask, reg.Name)
 		s.akickEnforce(reg, []store.Akick{{Mask: mask, Reason: reason}})
 	case sub == "DEL":
@@ -599,9 +522,11 @@ func csAkick(s *Services, c *Client, args []string) {
 			s.cs(c, "%s isn't on the AKICK list of %s.", arg, reg.Name)
 			return
 		}
+		s.csUsed(c, reg)
 		s.cs(c, "Removed %s from the AKICK list of %s.", strings.Join(removed, ", "), reg.Name)
 	case sub == "ENFORCE":
 		n := s.akickEnforce(reg, list)
+		s.csUsed(c, reg)
 		s.cs(c, "AKICK enforced on %s: %s.", reg.Name, plural(n, "person")+" kicked")
 	case sub == "CLEAR":
 		for _, k := range list {
@@ -610,6 +535,7 @@ func csAkick(s *Services, c *Client, args []string) {
 				return
 			}
 		}
+		s.csUsed(c, reg)
 		s.cs(c, "The AKICK list of %s is now empty (%d removed).", reg.Name, len(list))
 	default:
 		s.cs(c, "Syntax: AKICK #chan ADD|DEL|LIST|VIEW|ENFORCE|CLEAR ...")
@@ -625,7 +551,7 @@ func (s *Services) akickEnforce(reg *store.Channel, kicks []store.Akick) int {
 	}
 	n := 0
 	for _, m := range live.SortedMembers() {
-		if m.User.Service || s.levelOf(reg, m.User) != store.LevelNone {
+		if m.User.Service || s.userLevel(reg, m.User) != store.LevelNone {
 			continue
 		}
 		for _, k := range kicks {
@@ -667,6 +593,19 @@ func (s *Services) liveTarget(c *Client, reg *store.Channel, nick string) (*stat
 	return live, t, true
 }
 
+// modePrivs are the privileges for giving a status mode to others and to
+// yourself.
+var modePrivs = map[byte][2]string{
+	'q': {"OWNER", "OWNERME"},
+	'a': {"PROTECT", "PROTECTME"},
+	'o': {"OP", "OPME"},
+	'h': {"HALFOP", "HALFOPME"},
+	'v': {"VOICE", "VOICEME"},
+}
+
+// autoPrivs are the privileges that give a status mode on join.
+var autoPrivs = map[byte]string{'q': "AUTOOWNER", 'a': "AUTOPROTECT", 'o': "AUTOOP", 'h': "AUTOHALFOP", 'v': "AUTOVOICE"}
+
 func csModeCmd(mode byte, add bool) func(*Services, *Client, []string) {
 	return func(s *Services, c *Client, args []string) {
 		name := argAt(args, 0)
@@ -679,11 +618,17 @@ func csModeCmd(mode byte, add bool) func(*Services, *Client, []string) {
 			return
 		}
 		self := irc.EqualFold(nick, c.user.Nick)
-		need := csModeNeed(mode, self)
-		if self && !add {
-			need = 0
+		var reg *store.Channel
+		var lvl int
+		var ok bool
+		switch {
+		case self && !add:
+			reg, lvl, ok = s.csChan(c, name, 0)
+		case self:
+			reg, lvl, ok = s.csPriv(c, name, modePrivs[mode][1])
+		default:
+			reg, lvl, ok = s.csPriv(c, name, modePrivs[mode][0])
 		}
-		reg, lvl, ok := s.csChan(c, name, need)
 		if !ok {
 			return
 		}
@@ -691,21 +636,26 @@ func csModeCmd(mode byte, add bool) func(*Services, *Client, []string) {
 		if !ok {
 			return
 		}
-		tl := s.levelOf(reg, t)
-		if add && reg.Secure && tl < csSecureLevel(mode) {
-			s.cs(c, "%s isn't %s or higher on %s, and SECURE is on.", t.Nick, store.LevelName(csSecureLevel(mode)), reg.Name)
+		if t.Service {
+			s.cs(c, "%s is a network service.", t.Nick)
 			return
 		}
-		if !add && !self && tl > lvl && lvl != store.LevelFounder {
-			s.cs(c, "You can't do that to %s: their level is above yours.", t.Nick)
+		tl := s.userLevel(reg, t)
+		if add && reg.SecureOps && !s.secureAllows(reg, tl, mode) {
+			s.cs(c, "%s may not hold +%c on %s: SECUREOPS is on.", t.Nick, mode, reg.Name)
 			return
 		}
+		if !add && !self && reg.Peace && tl >= lvl && lvl != store.LevelFounder {
+			s.cs(c, "You can't do that to %s: their level is the same as or above yours.", t.Nick)
+			return
+		}
+		s.csUsed(c, reg)
 		s.csMode(live, []modeChange{{add, mode, t.Nick}})
 	}
 }
 
 func csKick(s *Services, c *Client, args []string) {
-	reg, lvl, ok := s.csChan(c, argAt(args, 0), store.LevelAOP)
+	reg, lvl, ok := s.csPriv(c, argAt(args, 0), "KICK")
 	if !ok {
 		return
 	}
@@ -717,7 +667,11 @@ func csKick(s *Services, c *Client, args []string) {
 	if !ok {
 		return
 	}
-	if s.levelOf(reg, t) >= lvl && lvl != store.LevelFounder {
+	if t.Service {
+		s.cs(c, "%s is a network service.", t.Nick)
+		return
+	}
+	if reg.Peace && s.userLevel(reg, t) >= lvl && lvl != store.LevelFounder {
 		s.cs(c, "You can't kick %s: their level is the same as or above yours.", t.Nick)
 		return
 	}
@@ -725,7 +679,16 @@ func csKick(s *Services, c *Client, args []string) {
 	if reason == "" {
 		reason = "Requested"
 	}
-	s.csKickUser(live, t, "("+c.user.Nick+") "+reason)
+	s.csUsed(c, reg)
+	s.csKickUser(live, t, s.signed(reg, c, lvl, reason))
+}
+
+// signed puts "(nick) " in front of a kick reason when SIGNKICK says so.
+func (s *Services) signed(reg *store.Channel, c *Client, lvl int, reason string) string {
+	if reg.SignKick && !s.levelHas(reg, lvl, "SIGNKICK") {
+		return "(" + c.user.Nick + ") " + reason
+	}
+	return reason
 }
 
 // csKickUser kicks u from ch as ChanServ.
@@ -738,14 +701,46 @@ func (s *Services) svcKick(sv *service, ch *state.Channel, u *state.User, reason
 	s.emit(&state.Kick{Source: sv.user.UID, UID: u.UID, Channel: ch.Name, Reason: irc.Truncate(reason, s.cfg.Limits.KickLen)})
 }
 
+// banTypes say what each BANTYPE bans.
+var banTypes = []string{"*!user@host", "*!*user@host", "*!*@host", "*!*user@*.domain"}
+
+// banMask is the ban BANTYPE gives for u.
+func banMask(reg *store.Channel, u *state.User) string {
+	user := strings.TrimPrefix(u.Ident, "~")
+	host := u.Host
+	switch reg.BanType {
+	case 0:
+		return "*!" + u.Ident + "@" + host
+	case 1:
+		return "*!*" + user + "@" + host
+	case 3:
+		return "*!*" + user + "@" + wideHost(host)
+	}
+	return "*!*@" + host
+}
+
+// wideHost is host with its first part as *: *.example.org, 1.2.3.*.
+func wideHost(host string) string {
+	if ip := net.ParseIP(host); ip != nil {
+		if v4 := ip.To4(); v4 != nil {
+			return fmt.Sprintf("%d.%d.%d.*", v4[0], v4[1], v4[2])
+		}
+		return host
+	}
+	if i := strings.IndexByte(host, '.'); i > 0 && strings.Count(host, ".") >= 2 {
+		return "*" + host[i:]
+	}
+	return host
+}
+
 func csBan(s *Services, c *Client, args []string) {
-	reg, lvl, ok := s.csChan(c, argAt(args, 0), store.LevelAOP)
+	reg, lvl, ok := s.csPriv(c, argAt(args, 0), "BAN")
 	if !ok {
 		return
 	}
 	arg := argAt(args, 1)
 	if arg == "" {
-		s.cs(c, "Syntax: BAN %s <nick|mask>", reg.Name)
+		s.cs(c, "Syntax: BAN %s <nick|mask> [reason]", reg.Name)
 		return
 	}
 	live := s.net.Channel(reg.Name)
@@ -756,16 +751,21 @@ func csBan(s *Services, c *Client, args []string) {
 	mask := irc.NormalizeMask(arg)
 	t := s.net.UserByNick(arg)
 	if t != nil && !t.Service {
-		if s.levelOf(reg, t) >= lvl && lvl != store.LevelFounder {
+		if reg.Peace && s.userLevel(reg, t) >= lvl && lvl != store.LevelFounder {
 			s.cs(c, "You can't ban %s: their level is the same as or above yours.", t.Nick)
 			return
 		}
-		mask = "*!*@" + t.Host
+		mask = banMask(reg, t)
 	}
+	reason := "Banned by " + c.user.Nick
+	if len(args) > 2 {
+		reason = s.signed(reg, c, lvl, strings.Join(args[2:], " "))
+	}
+	s.csUsed(c, reg)
 	s.csMode(live, []modeChange{{true, 'b', mask}})
 	for _, m := range live.SortedMembers() {
-		if matchesMask(mask, m.User) && s.levelOf(reg, m.User) < lvl {
-			s.csKickUser(live, m.User, "Banned by "+c.user.Nick)
+		if !m.User.Service && matchesMask(mask, m.User) && s.userLevel(reg, m.User) < lvl {
+			s.csKickUser(live, m.User, reason)
 		}
 	}
 }
@@ -773,11 +773,11 @@ func csBan(s *Services, c *Client, args []string) {
 func csUnban(s *Services, c *Client, args []string) {
 	arg := argAt(args, 1)
 	self := arg == "" || irc.EqualFold(arg, c.user.Nick)
-	need := store.LevelAOP
+	priv := "UNBAN"
 	if self {
-		need = store.LevelUOP
+		priv = "UNBANME"
 	}
-	reg, _, ok := s.csChan(c, argAt(args, 0), need)
+	reg, _, ok := s.csPriv(c, argAt(args, 0), priv)
 	if !ok {
 		return
 	}
@@ -806,22 +806,19 @@ func csUnban(s *Services, c *Client, args []string) {
 		}
 		return
 	}
+	s.csUsed(c, reg)
 	s.csMode(live, lift)
 	s.cs(c, "%s removed in %s.", plural(len(lift), "ban"), reg.Name)
 }
 
 func csInvite(s *Services, c *Client, args []string) {
 	nick := argAt(args, 1)
-	need := store.LevelUOP
-	if nick != "" && !irc.EqualFold(nick, c.user.Nick) {
-		need = store.LevelAOP
-	}
-	reg, _, ok := s.csChan(c, argAt(args, 0), need)
+	reg, _, ok := s.csPriv(c, argAt(args, 0), "INVITE")
 	if !ok {
 		return
 	}
 	who := c.user
-	if need == store.LevelAOP {
+	if nick != "" && !irc.EqualFold(nick, c.user.Nick) {
 		if who = s.net.UserByNick(nick); who == nil || who.Service {
 			s.cs(c, "%s isn't online.", nick)
 			return
@@ -836,6 +833,7 @@ func csInvite(s *Services, c *Client, args []string) {
 	case live.Member(who) != nil:
 		s.cs(c, "%s is in %s already.", who.Nick, reg.Name)
 	default:
+		s.csUsed(c, reg)
 		s.emit(&state.Invite{Source: s.chanServ.user.UID, UID: who.UID, Channel: live.Name})
 		if who != c.user {
 			s.cs(c, "%s is invited to %s.", who.Nick, reg.Name)
@@ -843,68 +841,17 @@ func csInvite(s *Services, c *Client, args []string) {
 	}
 }
 
-func csTopic(s *Services, c *Client, args []string) {
-	reg, _, ok := s.csChan(c, argAt(args, 0), store.LevelAOP)
+func csGetKey(s *Services, c *Client, args []string) {
+	reg, _, ok := s.csPriv(c, argAt(args, 0), "GETKEY")
 	if !ok {
 		return
 	}
-	live := s.net.Channel(reg.Name)
-	if live == nil {
-		s.cs(c, "%s is empty right now.", reg.Name)
+	if live := s.net.Channel(reg.Name); live != nil && live.HasMode('k') {
+		s.csUsed(c, reg)
+		s.cs(c, "The key of %s is %s", reg.Name, live.Key)
 		return
 	}
-	topic := irc.Truncate(strings.Join(args[1:], " "), s.cfg.Limits.TopicLen)
-	s.emit(&state.Topic{Source: s.chanServ.user.UID, Channel: live.Name, Text: topic, By: c.user.Nick, At: time.Now()})
-	s.csSaveTopic(reg, live)
-}
-
-func csClear(s *Services, c *Client, args []string) {
-	reg, _, ok := s.csChan(c, argAt(args, 0), store.LevelSOP)
-	if !ok {
-		return
-	}
-	live := s.net.Channel(reg.Name)
-	if live == nil {
-		s.cs(c, "%s is empty right now.", reg.Name)
-		return
-	}
-	var changes []modeChange
-	what := strings.ToUpper(argAt(args, 1))
-	switch what {
-	case "BANS":
-		for _, e := range live.Lists['b'] {
-			changes = append(changes, modeChange{false, 'b', e.Mask})
-		}
-	case "OPS", "VOICES":
-		for _, m := range live.SortedMembers() {
-			for _, r := range state.Ranks {
-				if !m.Has(r.Rank) || (what == "OPS") == (r.Rank == state.RankVoice) {
-					continue
-				}
-				changes = append(changes, modeChange{false, r.Mode, m.User.Nick})
-			}
-		}
-	case "MODES":
-		for m, on := range live.Modes {
-			if on && m != 'r' && m != 'k' && m != 'l' {
-				changes = append(changes, modeChange{false, m, ""})
-			}
-		}
-		if live.Modes['k'] {
-			changes = append(changes, modeChange{false, 'k', live.Key})
-		}
-		if live.Modes['l'] {
-			changes = append(changes, modeChange{false, 'l', ""})
-		}
-	default:
-		s.cs(c, "Syntax: CLEAR #chan BANS|MODES|OPS|VOICES")
-		return
-	}
-	s.csMode(live, changes)
-	if what == "MODES" {
-		s.csMode(live, mlockChanges(reg, live))
-	}
-	s.cs(c, "Cleared %s in %s (%d).", strings.ToLower(what), reg.Name, len(changes))
+	s.cs(c, "%s has no key.", reg.Name)
 }
 
 func csSet(s *Services, c *Client, args []string) {
@@ -914,46 +861,58 @@ func csSet(s *Services, c *Client, args []string) {
 		args = append([]string{args[1], args[0]}, args[2:]...)
 	}
 	what := strings.ToUpper(argAt(args, 1))
-	if what == "DESC" {
+	switch what {
+	case "DESC":
 		what = "DESCRIPTION"
+	case "SECURE":
+		what = "SECUREOPS"
 	}
 	var reg *store.Channel
 	var ok, asOper bool
 	switch what {
 	case "FOUNDER":
 		reg, asOper, ok = s.csChanOper(c, argAt(args, 0))
-	case "SUCCESSOR":
+	case "SUCCESSOR", "SECUREFOUNDER", "MEMOLEVEL", "AUTOVOP":
 		reg, _, ok = s.csChan(c, argAt(args, 0), store.LevelFounder)
+	case "NOEXPIRE":
+		if !c.can('s') {
+			s.cs(c, "SET NOEXPIRE is for IRC operators with flag s.")
+			return
+		}
+		reg, _, ok = s.csChan(c, argAt(args, 0), 0)
 	case "":
 		s.cs(c, "Syntax: SET <option> #chan <value> (see /cs help set)")
 		return
 	default:
-		reg, _, ok = s.csChan(c, argAt(args, 0), store.LevelSOP)
+		reg, _, ok = s.csPriv(c, argAt(args, 0), "SET")
 	}
 	if !ok {
 		return
 	}
 	val := strings.Join(args[min(2, len(args)):], " ")
-	save := func(format string, a ...any) {
+	save := func(format string, a ...any) bool {
 		if err := s.store.SaveChannel(reg); err != nil {
 			s.dbErr(c, s.chanServ, err)
-			return
+			return false
 		}
+		s.csUsed(c, reg)
 		s.cs(c, format, a...)
+		return true
 	}
-	toggle := func(field *bool, label string) {
+	toggle := func(field *bool, label string, invert bool) bool {
 		on, ok := onOff(val)
 		if !ok {
 			s.cs(c, "Syntax: SET %s %s ON|OFF", what, reg.Name)
-			return
+			return false
 		}
-		*field = on
-		state := "off"
-		if on {
-			state = "on"
+		*field = on != invert
+		word := "off"
+		if *field {
+			word = "on"
 		}
-		save("%s is now %s for %s.", label, state, reg.Name)
+		return save("%s is now %s for %s.", label, word, reg.Name)
 	}
+	live := s.net.Channel(reg.Name)
 	switch what {
 	case "DESCRIPTION":
 		if val == "" {
@@ -1000,50 +959,150 @@ func csSet(s *Services, c *Client, args []string) {
 		}
 		save("The founder of %s is now %s.", reg.Name, target.Name)
 	case "MLOCK":
-		if problem := parseMlock(reg, args[min(2, len(args)):]); problem != "" {
-			s.cs(c, "%s", problem)
+		s.mlockSet(c, reg, "SET", args[min(2, len(args)):])
+	case "KEEPTOPIC":
+		toggle(&reg.KeepTopic, "Keep topic", false)
+	case "TOPICLOCK":
+		toggle(&reg.TopicLock, "Topic lock", false)
+	case "SECUREOPS", "LEAVEOPS":
+		if toggle(&reg.SecureOps, "Secure ops", what == "LEAVEOPS") && reg.SecureOps && live != nil {
+			s.csSync(reg)
+		}
+	case "PRIVATE":
+		toggle(&reg.Private, "Private", false)
+	case "RESTRICTED":
+		toggle(&reg.Restricted, "Restricted", false)
+	case "PEACE":
+		toggle(&reg.Peace, "Peace", false)
+	case "SECUREFOUNDER":
+		toggle(&reg.SecureFounder, "Secure founder", false)
+	case "SIGNKICK":
+		toggle(&reg.SignKick, "Sign kick", false)
+	case "AUTOOP":
+		toggle(&reg.AutoOp, "Auto-op", false)
+	case "NOEXPIRE":
+		if toggle(&reg.NoExpire, "No expire", false) {
+			s.audit(c, s.chanServ, "SET NOEXPIRE %s %s", reg.Name, strings.ToUpper(val))
+		}
+	case "KEEPMODES":
+		on, _ := onOff(val)
+		reg.LastModes = ""
+		if on && live != nil {
+			reg.LastModes = liveModes(live)
+		}
+		toggle(&reg.KeepModes, "Keep modes", false)
+	case "PERSIST":
+		if toggle(&reg.Persist, "Persist", false) {
+			if reg.Persist {
+				s.persistJoin(reg)
+			} else {
+				s.persistPart(reg)
+			}
+		}
+	case "BANTYPE":
+		n, err := strconv.Atoi(val)
+		if err != nil || n < 0 || n > 3 {
+			s.cs(c, "Syntax: SET BANTYPE %s 0-3 (0 %s, 1 %s, 2 %s, 3 %s)", reg.Name, banTypes[0], banTypes[1], banTypes[2], banTypes[3])
 			return
 		}
-		save("The mode lock of %s is now %s.", reg.Name, mlockString(reg))
-		if live := s.net.Channel(reg.Name); live != nil {
-			s.csMode(live, mlockChanges(reg, live))
-		}
-	case "KEEPTOPIC":
-		toggle(&reg.KeepTopic, "Keep topic")
-	case "TOPICLOCK":
-		toggle(&reg.TopicLock, "Topic lock")
-	case "SECURE":
-		toggle(&reg.Secure, "Secure")
-	case "PRIVATE":
-		toggle(&reg.Private, "Private")
-	case "ENTRYMSG", "URL":
-		field, label := &reg.EntryMsg, "entry message"
-		if what == "URL" {
-			field, label = &reg.URL, "URL"
-		}
+		reg.BanType = n
+		save("Bans on %s now look like %s.", reg.Name, banTypes[n])
+	case "ENTRYMSG":
 		switch {
 		case val == "":
-			s.cs(c, "Syntax: SET %s %s <text>|OFF", what, reg.Name)
+			s.cs(c, "Syntax: SET ENTRYMSG %s <text>|OFF", reg.Name)
 		case strings.EqualFold(val, "OFF"):
-			*field = ""
-			save("%s has no %s now.", reg.Name, label)
+			if _, err := s.store.ClearEntryMsgs(reg); err != nil {
+				s.dbErr(c, s.chanServ, err)
+				return
+			}
+			s.csUsed(c, reg)
+			s.cs(c, "%s has no entry message now.", reg.Name)
 		default:
-			*field = irc.Truncate(val, 300)
-			save("The %s of %s is now: %s", label, reg.Name, *field)
+			text := irc.Truncate(val, 300)
+			var err error
+			if lines := s.store.EntryMsgs(reg); len(lines) > 0 {
+				err = s.store.SetEntryMsg(reg, lines[0].ID, text)
+			} else {
+				err = s.store.AddEntryMsg(reg, text, c.user.Account, time.Now())
+			}
+			if err != nil {
+				s.dbErr(c, s.chanServ, err)
+				return
+			}
+			s.csUsed(c, reg)
+			s.cs(c, "The entry message of %s is now: %s", reg.Name, text)
+		}
+	case "URL":
+		switch {
+		case val == "":
+			s.cs(c, "Syntax: SET URL %s <url>|OFF", reg.Name)
+		case strings.EqualFold(val, "OFF"):
+			reg.URL = ""
+			save("%s has no URL now.", reg.Name)
+		default:
+			reg.URL = irc.Truncate(val, 300)
+			save("The URL of %s is now: %s", reg.Name, reg.URL)
+		}
+	case "MEMOLEVEL":
+		lvl, ok := parseLevel(val)
+		if !ok {
+			s.cs(c, "Syntax: SET MEMOLEVEL %s <level> (same as /cs levels %s set memo <level>)", reg.Name, reg.Name)
+			return
+		}
+		p, _ := findPrivilege("MEMO")
+		if err := s.setPrivLevel(reg, p, lvl); err != nil {
+			s.dbErr(c, s.chanServ, err)
+			return
+		}
+		s.csUsed(c, reg)
+		s.cs(c, "MEMO on %s now needs level %s.", reg.Name, store.LevelName(lvl))
+	case "AUTOVOP":
+		on, ok := onOff(val)
+		if !ok {
+			s.cs(c, "Syntax: SET AUTOVOP %s ON|OFF", reg.Name)
+			return
+		}
+		p, _ := findPrivilege("AUTOVOICE")
+		lvl := p.def
+		if on {
+			lvl = 0
+		}
+		if err := s.setPrivLevel(reg, p, lvl); err != nil {
+			s.dbErr(c, s.chanServ, err)
+			return
+		}
+		if on {
+			s.csUsed(c, reg)
+			s.cs(c, "Everyone who joins %s is voiced now (AUTOVOICE 0).", reg.Name)
+			s.csSync(reg)
+		} else {
+			s.csUsed(c, reg)
+			s.cs(c, "AUTOVOICE on %s is back to level %d.", reg.Name, lvl)
 		}
 	default:
-		s.cs(c, "Syntax: SET DESCRIPTION|FOUNDER|SUCCESSOR|MLOCK|KEEPTOPIC|TOPICLOCK|SECURE|PRIVATE|ENTRYMSG|URL #chan ...")
+		s.cs(c, "Unknown option %s. See /cs help set", what)
 	}
 }
 
-// parseMlock reads "+ntk-s secret" into reg's lock fields. It returns what
-// was wrong, or "".
-func parseMlock(reg *store.Channel, args []string) string {
+// parseMlock reads "+ntk-s secret" into lock fields, starting from the
+// lock reg has (for ADD) or an empty one (for SET). It returns what was
+// wrong, or "".
+func parseMlock(reg *store.Channel, args []string, merge bool) string {
 	if len(args) == 0 || args[0] == "" {
-		return "Syntax: SET MLOCK #chan <modes>, like +nt-s or +ntk secret"
+		return "Give modes, like +nt-s or +k secret."
 	}
 	on, off := map[byte]bool{}, map[byte]bool{}
 	key, limit := "", 0
+	if merge {
+		for _, m := range []byte(reg.MlockOn) {
+			on[m] = true
+		}
+		for _, m := range []byte(reg.MlockOff) {
+			off[m] = true
+		}
+		key, limit = reg.MlockKey, reg.MlockLimit
+	}
 	params := args[1:]
 	next := func() string {
 		if len(params) == 0 {
@@ -1063,13 +1122,13 @@ func parseMlock(reg *store.Channel, args []string) string {
 			add = false
 		case m == 'k' && add:
 			if key = irc.CleanKey(next()); key == "" {
-				return "+k in a mode lock needs a key: SET #chan MLOCK +k <key>"
+				return "+k in a mode lock needs a key: +k <key>"
 			}
 			delete(off, 'k')
 		case m == 'l' && add:
 			n, err := strconv.Atoi(next())
 			if err != nil || n < 1 {
-				return "+l in a mode lock needs a number: SET #chan MLOCK +l 50"
+				return "+l in a mode lock needs a number: +l 50"
 			}
 			limit = n
 			delete(off, 'l')
@@ -1091,6 +1150,26 @@ func parseMlock(reg *store.Channel, args []string) string {
 		}
 	}
 	reg.MlockOn, reg.MlockOff, reg.MlockKey, reg.MlockLimit = flagString(on), flagString(off), key, limit
+	return ""
+}
+
+// unlockModes takes the letters in modes out of reg's lock.
+func unlockModes(reg *store.Channel, modes string) string {
+	drop := func(set string, m byte) string { return strings.ReplaceAll(set, string(m), "") }
+	for i := 0; i < len(modes); i++ {
+		m := modes[i]
+		switch {
+		case m == '+' || m == '-':
+		case m == 'k':
+			reg.MlockKey, reg.MlockOff = "", drop(reg.MlockOff, 'k')
+		case m == 'l':
+			reg.MlockLimit, reg.MlockOff = 0, drop(reg.MlockOff, 'l')
+		case strings.IndexByte(mlockFlags, m) >= 0:
+			reg.MlockOn, reg.MlockOff = drop(reg.MlockOn, m), drop(reg.MlockOff, m)
+		default:
+			return fmt.Sprintf("A mode lock can hold %s, k and l, not %c.", mlockFlags, m)
+		}
+	}
 	return ""
 }
 
@@ -1172,14 +1251,18 @@ func csList(s *Services, c *Client, args []string) {
 		if !irc.Match(pattern, reg.Name) {
 			continue
 		}
-		if reg.Private && !c.user.HasMode('o') {
+		if reg.Private && !c.isOper() {
 			if lvl, _ := s.store.Level(reg, c.accountID); lvl == store.LevelNone {
 				continue
 			}
 		}
 		n++
 		if n <= 100 {
-			s.cs(c, "  %-20s %s", reg.Name, reg.Description)
+			desc := reg.Description
+			if reg.Suspended(time.Now()) {
+				desc = "[suspended] " + desc
+			}
+			s.cs(c, "  %-20s %s", reg.Name, desc)
 		}
 	}
 	switch {
@@ -1212,29 +1295,31 @@ func (s *Services) csMode(ch *state.Channel, changes []modeChange) {
 	}
 }
 
-// levelModes are the status modes a level earns, highest first. With @+
-// prefixes, owner and admin levels get @ and HOP gets +.
-func (s *Services) levelModes(lvl int) string {
-	full := s.cfg.FullPrefixes()
+// earnedModes are the status modes lvl earns on reg, highest first: owner
+// or admin with op, else op, halfop or voice.
+func (s *Services) earnedModes(reg *store.Channel, lvl int) string {
+	var b []byte
 	switch {
-	case lvl >= store.LevelQOP && full:
-		return "qo"
-	case lvl >= store.LevelSOP && full:
-		return "ao"
-	case lvl >= store.LevelAOP:
-		return "o"
-	case lvl >= store.LevelHOP && full:
-		return "h"
-	case lvl >= store.LevelVOP:
-		return "v"
+	case s.rankEnabled(state.RankOwner) && s.levelHas(reg, lvl, "AUTOOWNER"):
+		b = append(b, 'q')
+	case s.rankEnabled(state.RankAdmin) && s.levelHas(reg, lvl, "AUTOPROTECT"):
+		b = append(b, 'a')
 	}
-	return ""
+	switch {
+	case s.levelHas(reg, lvl, "AUTOOP"):
+		b = append(b, 'o')
+	case s.rankEnabled(state.RankHalfop) && s.levelHas(reg, lvl, "AUTOHALFOP"):
+		b = append(b, 'h')
+	case s.levelHas(reg, lvl, "AUTOVOICE"):
+		b = append(b, 'v')
+	}
+	return string(b)
 }
 
-// levelPrefixes is levelModes as prefixes, like "~@".
-func (s *Services) levelPrefixes(lvl int) string {
+// levelPrefixes is earnedModes as prefixes, like "~@".
+func (s *Services) levelPrefixes(reg *store.Channel, lvl int) string {
 	var b []byte
-	for _, m := range []byte(s.levelModes(lvl)) {
+	for _, m := range []byte(s.earnedModes(reg, lvl)) {
 		for _, r := range state.Ranks {
 			if r.Mode == m {
 				b = append(b, r.Prefix)
@@ -1244,72 +1329,51 @@ func (s *Services) levelPrefixes(lvl int) string {
 	return string(b)
 }
 
-// csAutoModes gives the modes a level earns.
-func (s *Services) csAutoModes(ch *state.Channel, u *state.User, lvl int) {
+// giveModes gives u the modes their level earns in ch.
+func (s *Services) giveModes(reg *store.Channel, ch *state.Channel, u *state.User) {
 	var changes []modeChange
-	for _, m := range []byte(s.levelModes(lvl)) {
+	for _, m := range []byte(s.earnedModes(reg, s.userLevel(reg, u))) {
 		changes = append(changes, modeChange{true, m, u.Nick})
 	}
 	s.csMode(ch, changes)
 }
 
-// csModeNeed is the level needed to give mode to someone (self false) or
-// to yourself.
-func csModeNeed(mode byte, self bool) int {
-	switch mode {
-	case 'q':
-		if self {
-			return store.LevelQOP
-		}
-		return store.LevelFounder
-	case 'a':
-		if self {
-			return store.LevelSOP
-		}
-		return store.LevelQOP
-	case 'h':
-		if self {
-			return store.LevelHOP
-		}
-		return store.LevelAOP
-	case 'v':
-		if self {
-			return store.LevelVOP
-		}
-		return store.LevelHOP
+// csAutoModes is giveModes unless the channel has AUTOOP off.
+func (s *Services) csAutoModes(reg *store.Channel, ch *state.Channel, u *state.User) {
+	if reg.AutoOp {
+		s.giveModes(reg, ch, u)
 	}
-	return store.LevelAOP
 }
 
-// csSecureLevel is the level SECURE asks of someone given mode.
-func csSecureLevel(mode byte) int {
-	switch mode {
-	case 'q':
-		return store.LevelQOP
-	case 'a':
-		return store.LevelSOP
-	case 'h':
-		return store.LevelHOP
-	case 'v':
-		return store.LevelNone
+// secureAllows reports whether someone at lvl may hold status mode on reg
+// with SECUREOPS: they must get it on join or be allowed to give it to
+// themself. Voice is free.
+func (s *Services) secureAllows(reg *store.Channel, lvl int, mode byte) bool {
+	if mode == 'v' {
+		return true
 	}
-	return store.LevelAOP
+	return s.levelHas(reg, lvl, autoPrivs[mode]) || s.levelHas(reg, lvl, modePrivs[mode][1])
 }
 
 func csUp(s *Services, c *Client, args []string) {
-	reg, lvl, ok := s.csChan(c, argAt(args, 0), store.LevelUOP)
+	reg, lvl, ok := s.csChan(c, argAt(args, 0), 0)
 	if !ok {
+		return
+	}
+	if c.accountID == 0 {
+		s.cs(c, "Identify first: /ns identify <password>")
 		return
 	}
 	live, _, ok := s.liveTarget(c, reg, c.user.Nick)
 	if !ok {
 		return
 	}
-	if s.levelModes(lvl) == "" {
+	if s.earnedModes(reg, lvl) == "" {
 		s.cs(c, "Your level on %s (%s) earns no status.", reg.Name, store.LevelName(lvl))
 		return
 	}
-	s.csAutoModes(live, c.user, lvl)
+	s.csUsed(c, reg)
+	s.giveModes(reg, live, c.user)
 }
 
 func csDown(s *Services, c *Client, args []string) {
@@ -1328,6 +1392,7 @@ func csDown(s *Services, c *Client, args []string) {
 			changes = append(changes, modeChange{false, r.Mode, c.user.Nick})
 		}
 	}
+	s.csUsed(c, reg)
 	s.csMode(live, changes)
 }
 
@@ -1349,7 +1414,7 @@ func (s *Services) channelInUse(reg *store.Channel) bool {
 		return false
 	}
 	for _, m := range live.Members {
-		if s.levelOf(reg, m.User) > store.LevelNone {
+		if s.userLevel(reg, m.User) > store.LevelNone {
 			return true
 		}
 	}

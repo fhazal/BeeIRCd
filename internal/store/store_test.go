@@ -166,11 +166,28 @@ func TestLevelsMigration(t *testing.T) {
 	if l, _ := s2.Level(c, ember.ID); l != LevelAOP {
 		t.Fatalf("level after migration = %d, want %d", l, LevelAOP)
 	}
+	// Schema 2 (10 to 50) moves to Anope's numbers too.
+	for old, want := range map[int]int{10: LevelUOP, 20: LevelVOP, 25: LevelHOP, 30: LevelAOP, 40: LevelSOP, 45: LevelQOP} {
+		s2.db.Exec("UPDATE chan_access SET level = ? WHERE account_id = ?", old, ember.ID)
+		s2.db.Exec("UPDATE meta SET value = '2' WHERE key = 'schema'")
+		s2.Close()
+		if s2, err = Open(path); err != nil {
+			t.Fatal(err)
+		}
+		if l, _ := s2.Level(c, ember.ID); l != want {
+			t.Fatalf("schema 2 level %d became %d, want %d", old, l, want)
+		}
+	}
+	// Schema 3: a start must not move levels again (10 is SOP now).
+	s2.db.Exec("UPDATE chan_access SET level = 10 WHERE account_id = ?", ember.ID)
 	s2.Close()
-	s3, _ := Open(path) // a second start must not multiply again
+	s3, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer s3.Close()
-	if l, _ := s3.Level(c, ember.ID); l != LevelAOP {
-		t.Fatalf("level after second start = %d", l)
+	if l, _ := s3.Level(c, ember.ID); l != LevelSOP {
+		t.Fatalf("level after another start = %d", l)
 	}
 }
 

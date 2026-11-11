@@ -67,10 +67,14 @@ Last updated: 11 Nov 2026 (Stage 1.5.3).
 | HELP in Anope's layout: groups, HELP ALL, commands you can't use hidden | Implemented (1.5.3) |
 | NickServ (register, identify, SASL, recover, group, ungroup, alist, set, saset, info, drop, list; SET PROTECT/HIDE) | Implemented |
 | NickServ CERT and SASL EXTERNAL (auto-identify by certificate) | Planned (1.5.6) |
-| ChanServ (levels Founder/QOP/SOP/AOP/HOP/VOP/UOP with notes and number lists, AKICK with VIEW/ENFORCE/CLEAR, op tools incl. OWNER/PROTECT/HALFOP/UP/DOWN, SET options) | Implemented |
-| ChanServ MODE LOCK, TOPIC LOCK/APPEND, ENTRYMSG lists, MODE CLEAR, ACCESS/LEVELS | Planned (1.5.4) |
-| MemoServ (nick and channel memos, number lists, ignore) | Implemented |
-| MemoServ channel memo boxes (Anope keeps one box per channel) | Proposed (today a channel memo goes to each member's own box) |
+| ChanServ access levels as permission sets (Anope numbers 1-10000, xOP names UOP 1/VOP 3/HOP 4/AOP 5/SOP 10/QOP 10000, LEVELS with Anope's 32 privileges and defaults, ACCESS ADD/DEL/LIST/VIEW/CLEAR, STATUS/WHY) | Implemented (1.5.4) |
+| ChanServ (xOP lists with notes and number lists, AKICK with VIEW/ENFORCE/CLEAR, op tools incl. OWNER/PROTECT/HALFOP/UP/DOWN/SYNC, KICK/BAN/UNBAN/INVITE/GETKEY) | Implemented |
+| ChanServ MODE LOCK ADD/DEL/SET/LIST, MODE SET, MODE CLEAR, TOPIC SET/APPEND/PREPEND/LOCK/UNLOCK, ENTRYMSG (5 lines), ENFORCE, LOG (MESSAGE/NOTICE/MEMO, by status), SUSPEND/UNSUSPEND (+expiry) | Implemented (1.5.4) |
+| ChanServ SET: DESCRIPTION FOUNDER SUCCESSOR SECUREFOUNDER KEEPTOPIC KEEPMODES PEACE RESTRICTED SECUREOPS SIGNKICK AUTOOP PERSIST PRIVATE BANTYPE URL NOEXPIRE; CR shortcuts MEMOLEVEL AUTOVOP LEAVEOPS | Implemented (1.5.4) |
+| ChanServ SET OVERFLOW (send people on when full) | Planned (1.5.9, needs +L) |
+| ChanServ FLAGS, CLONE, SEEN; BotServ (ASSIGN, SAY, BADWORDS) | Planned |
+| MemoServ (nick memos, number lists, ignore) | Implemented |
+| MemoServ channel memo boxes (one box per channel like Anope, MEMO privilege, own limit and ignore list, notice on join and identify) | Implemented (1.5.4) |
 | OperServ (stats, global, AKILL with expiry and number lists, kill, mode, kick, FORBID nick/chan/email/register, sessions, exceptions, logon news) | Implemented |
 | AdminServ (settings saved to config, MOTD, ports, opers, restart, die) | Implemented |
 | HostServ (vhosts) | Planned (Stage 1.5) |

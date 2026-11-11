@@ -66,6 +66,7 @@ func (s *Services) startServices() {
 	s.nickServ = s.addService("NickServ", "ns", "Nickname Services", "NickServ keeps your nick yours. Commands:", nickServCommands())
 	s.nickServ.aliases = nickServAliases
 	s.chanServ = s.addService("ChanServ", "cs", "Channel Services", "ChanServ keeps a channel yours. Commands:", chanServCommands())
+	s.chanServ.aliases = chanServAliases
 	s.memoServ = s.addService("MemoServ", "ms", "Memo Services", "MemoServ keeps messages for people who are away. Commands:", memoServCommands())
 	s.operServ = s.addService("OperServ", "os", "Operator Services", "OperServ is the toolbox for IRC operators. Commands:", operServCommands())
 	s.operServ.need = 'o'
@@ -134,7 +135,15 @@ func (s *Services) toService(c *Client, sv *service, text string) {
 		s.svcReply(c, sv, fmt.Sprintf("Unknown command %s. Type /%s help for a list.", fields[0], sv.alias))
 		return
 	}
+	c.csUsedOn = ""
 	cmd.run(s, c, args)
+	if sv == s.chanServ && c.csUsedOn != "" {
+		if real, isAlias := sv.aliases[name]; isAlias {
+			name = real
+		}
+		s.csLogUse(c, name, args)
+		c.csUsedOn = ""
+	}
 }
 
 // svcReply sends a notice from a service.

@@ -4,29 +4,37 @@ import (
 	"database/sql"
 	"errors"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/fhazal/beeircd/internal/irc"
 )
 
-// Channel access levels, spaced out so new ones fit between. The founder
-// isn't stored in the access table. HOP and QOP are used on servers with
-// ~&@%+ prefixes.
+// Channel access levels, Anope's numbers. Any number from 1 to 10000 can be
+// on an access list; these are the xOP names. The founder isn't stored in
+// the access table. HOP and QOP are used on servers with ~&@%+ prefixes.
 const (
 	LevelNone    = 0
-	LevelUOP     = 10
-	LevelVOP     = 20
-	LevelHOP     = 25
-	LevelAOP     = 30
-	LevelSOP     = 40
-	LevelQOP     = 45
-	LevelFounder = 50
+	LevelUOP     = 1
+	LevelVOP     = 3
+	LevelHOP     = 4
+	LevelAOP     = 5
+	LevelSOP     = 10
+	LevelQOP     = 10000
+	LevelFounder = 10001 // also "founder only" in a LEVELS table
+	LevelMax     = 10000 // the highest level an access entry can have
+
+	// LevelDisabled in a LEVELS table means nobody has that privilege,
+	// the founder included.
+	LevelDisabled = -10000
 )
 
-// LevelName is "SOP", "AOP" and so on.
+// LevelName is "SOP", "AOP" and so on, or the number for other levels.
 func LevelName(l int) string {
 	switch l {
+	case LevelNone:
+		return "none"
 	case LevelUOP:
 		return "UOP"
 	case LevelVOP:
@@ -42,17 +50,17 @@ func LevelName(l int) string {
 	case LevelFounder:
 		return "Founder"
 	}
-	return "none"
+	return strconv.Itoa(l)
 }
 
-// migrateLevels moves access levels from the first numbering (1 to 5) to
-// the spaced one (10 to 50), once.
+// migrateLevels moves access levels to Anope's numbers. Schema 1 stored
+// 1 to 5, schema 2 stored 10 to 50; schema 3 is Anope's.
 func migrateLevels(db *sql.DB) error {
 	var v string
 	if err := db.QueryRow("SELECT value FROM meta WHERE key = 'schema'").Scan(&v); err != nil {
 		return err
 	}
-	if v != "1" {
+	if v != "1" && v != "2" {
 		return nil
 	}
 	tx, err := db.Begin()
@@ -60,10 +68,16 @@ func migrateLevels(db *sql.DB) error {
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.Exec("UPDATE chan_access SET level = level * 10 WHERE level BETWEEN 1 AND 5"); err != nil {
+	if v == "1" {
+		if _, err := tx.Exec("UPDATE chan_access SET level = level * 10 WHERE level BETWEEN 1 AND 5"); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(`UPDATE chan_access SET level = CASE level
+		WHEN 10 THEN 1 WHEN 20 THEN 3 WHEN 25 THEN 4 WHEN 30 THEN 5 WHEN 40 THEN 10 WHEN 45 THEN 10000 ELSE level END`); err != nil {
 		return err
 	}
-	if _, err := tx.Exec("UPDATE meta SET value = '2' WHERE key = 'schema'"); err != nil {
+	if _, err := tx.Exec("UPDATE meta SET value = '3' WHERE key = 'schema'"); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -86,13 +100,35 @@ type Channel struct {
 	MlockLimit  int
 	KeepTopic   bool
 	TopicLock   bool
-	Secure      bool
+	SecureOps   bool // only people with the privilege may hold a status mode
 	Private     bool
-	EntryMsg    string
 	URL         string
 	Topic       string
 	TopicBy     string
 	TopicAt     time.Time
+
+	Restricted    bool   // only people on the access list may stay
+	Peace         bool   // nobody can kick, ban or deop someone at their level or above
+	SecureFounder bool   // founder rights only for the real founder, not FOUNDER-privilege holders
+	SignKick      bool   // ChanServ kicks say who asked for them
+	KeepModes     bool   // the modes come back when the channel is reopened
+	Persist       bool   // ChanServ keeps the channel open when everyone leaves
+	AutoOp        bool   // ChanServ gives status on join
+	NoExpire      bool   // never expires (opers)
+	BanType       int    // 0 *!user@host, 1 *!*user@host, 2 *!*@host, 3 *!*user@*.domain
+	LastModes     string // with KeepModes: the modes when last seen, like "+ntk key"
+	MemoLimit     int    // memos the channel box keeps
+
+	SuspendedBy   string // "" when not suspended
+	SuspendReason string
+	SuspendedAt   time.Time
+	SuspendUntil  time.Time // Unix 0 = until UNSUSPEND
+}
+
+// Suspended reports whether an oper suspended the channel (and it hasn't
+// run out at now).
+func (c *Channel) Suspended(now time.Time) bool {
+	return c.SuspendedBy != "" && (c.SuspendUntil.Unix() == 0 || now.Before(c.SuspendUntil))
 }
 
 // AccessEntry is one person on a channel's access list.
@@ -131,7 +167,7 @@ CREATE TABLE IF NOT EXISTS channels (
 	topiclock    INTEGER NOT NULL DEFAULT 0,
 	secure       INTEGER NOT NULL DEFAULT 0,
 	private      INTEGER NOT NULL DEFAULT 0,
-	entrymsg     TEXT NOT NULL DEFAULT '',
+	entrymsg     TEXT NOT NULL DEFAULT '', -- unused since 1.5.4, see chan_entrymsg
 	url          TEXT NOT NULL DEFAULT '',
 	topic        TEXT NOT NULL DEFAULT '',
 	topic_by     TEXT NOT NULL DEFAULT '',
@@ -158,16 +194,20 @@ CREATE TABLE IF NOT EXISTS chan_akick (
 
 const channelCols = `c.id, c.name, c.founder_id, f.name, COALESCE(c.successor_id, 0), COALESCE(s.name, ''),
 	c.description, c.registered, c.last_used, c.mlock_on, c.mlock_off, c.mlock_key, c.mlock_limit,
-	c.keeptopic, c.topiclock, c.secure, c.private, c.entrymsg, c.url, c.topic, c.topic_by, c.topic_at`
+	c.keeptopic, c.topiclock, c.secure, c.private, c.url, c.topic, c.topic_by, c.topic_at,
+	c.restricted, c.peace, c.securefounder, c.signkick, c.keepmodes, c.persist, c.autoop, c.noexpire,
+	c.bantype, c.last_modes, c.memo_limit, c.suspended_by, c.suspend_reason, c.suspended_at, c.suspend_until`
 
 const channelFrom = ` FROM channels c JOIN accounts f ON f.id = c.founder_id LEFT JOIN accounts s ON s.id = c.successor_id`
 
 func scanChannel(row interface{ Scan(...any) error }) (*Channel, error) {
 	var c Channel
-	var reg, used, topicAt int64
+	var reg, used, topicAt, susAt, susUntil int64
 	err := row.Scan(&c.ID, &c.Name, &c.FounderID, &c.Founder, &c.SuccessorID, &c.Successor,
 		&c.Description, &reg, &used, &c.MlockOn, &c.MlockOff, &c.MlockKey, &c.MlockLimit,
-		&c.KeepTopic, &c.TopicLock, &c.Secure, &c.Private, &c.EntryMsg, &c.URL, &c.Topic, &c.TopicBy, &topicAt)
+		&c.KeepTopic, &c.TopicLock, &c.SecureOps, &c.Private, &c.URL, &c.Topic, &c.TopicBy, &topicAt,
+		&c.Restricted, &c.Peace, &c.SecureFounder, &c.SignKick, &c.KeepModes, &c.Persist, &c.AutoOp, &c.NoExpire,
+		&c.BanType, &c.LastModes, &c.MemoLimit, &c.SuspendedBy, &c.SuspendReason, &susAt, &susUntil)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -175,6 +215,7 @@ func scanChannel(row interface{ Scan(...any) error }) (*Channel, error) {
 		return nil, err
 	}
 	c.Registered, c.LastUsed, c.TopicAt = time.Unix(reg, 0), time.Unix(used, 0), time.Unix(topicAt, 0)
+	c.SuspendedAt, c.SuspendUntil = time.Unix(susAt, 0), time.Unix(susUntil, 0)
 	return &c, nil
 }
 
@@ -198,7 +239,9 @@ func (s *Store) CreateChannel(name string, founder *Account, desc string, now ti
 	}
 	// The defaults below are the ones in the schema.
 	s.c.channels[id] = &Channel{ID: id, Name: name, FounderID: founder.ID, Description: desc,
-		Registered: sec(now), LastUsed: sec(now), MlockOn: "nt", KeepTopic: true, TopicAt: time.Unix(0, 0)}
+		Registered: sec(now), LastUsed: sec(now), MlockOn: "nt", KeepTopic: true, TopicAt: time.Unix(0, 0),
+		Peace: true, SecureFounder: true, SignKick: true, AutoOp: true, BanType: 2, MemoLimit: DefaultChanMemoLimit,
+		SuspendedAt: time.Unix(0, 0), SuspendUntil: time.Unix(0, 0)}
 	s.c.chanKeys[key] = id
 	return s.c.channel(id), nil
 }
@@ -217,9 +260,12 @@ func (s *Store) Channels() ([]*Channel, error) {
 	return s.channelsWhere(func(*Channel) bool { return true }), nil
 }
 
-// ExpiredChannels returns channels unused since before.
+// ExpiredChannels returns channels unused since before, except NOEXPIRE
+// and suspended ones.
 func (s *Store) ExpiredChannels(before time.Time) ([]*Channel, error) {
-	return s.channelsWhere(func(c *Channel) bool { return c.LastUsed.Unix() < before.Unix() }), nil
+	return s.channelsWhere(func(c *Channel) bool {
+		return c.LastUsed.Unix() < before.Unix() && !c.NoExpire && c.SuspendedBy == ""
+	}), nil
 }
 
 func (s *Store) channelsWhere(keep func(*Channel) bool) []*Channel {
@@ -244,10 +290,14 @@ func (s *Store) SaveChannel(c *Channel) error {
 		succ = c.SuccessorID
 	}
 	_, err := s.db.Exec(`UPDATE channels SET founder_id=?, successor_id=?, description=?, last_used=?, mlock_on=?, mlock_off=?,
-		mlock_key=?, mlock_limit=?, keeptopic=?, topiclock=?, secure=?, private=?, entrymsg=?, url=?, topic=?, topic_by=?, topic_at=?
+		mlock_key=?, mlock_limit=?, keeptopic=?, topiclock=?, secure=?, private=?, url=?, topic=?, topic_by=?, topic_at=?,
+		restricted=?, peace=?, securefounder=?, signkick=?, keepmodes=?, persist=?, autoop=?, noexpire=?, bantype=?,
+		last_modes=?, memo_limit=?, suspended_by=?, suspend_reason=?, suspended_at=?, suspend_until=?
 		WHERE id=?`,
 		c.FounderID, succ, c.Description, c.LastUsed.Unix(), c.MlockOn, c.MlockOff, c.MlockKey, c.MlockLimit,
-		c.KeepTopic, c.TopicLock, c.Secure, c.Private, c.EntryMsg, c.URL, c.Topic, c.TopicBy, c.TopicAt.Unix(), c.ID)
+		c.KeepTopic, c.TopicLock, c.SecureOps, c.Private, c.URL, c.Topic, c.TopicBy, c.TopicAt.Unix(),
+		c.Restricted, c.Peace, c.SecureFounder, c.SignKick, c.KeepModes, c.Persist, c.AutoOp, c.NoExpire, c.BanType,
+		c.LastModes, c.MemoLimit, c.SuspendedBy, c.SuspendReason, c.SuspendedAt.Unix(), c.SuspendUntil.Unix(), c.ID)
 	if err != nil {
 		return err
 	}
@@ -255,6 +305,7 @@ func (s *Store) SaveChannel(c *Channel) error {
 	cp.Name, cp.Registered = have.Name, have.Registered
 	cp.Founder, cp.Successor = "", ""
 	cp.LastUsed, cp.TopicAt = sec(c.LastUsed), sec(c.TopicAt)
+	cp.SuspendedAt, cp.SuspendUntil = sec(c.SuspendedAt), sec(c.SuspendUntil)
 	*have = cp
 	return nil
 }

@@ -13,7 +13,7 @@ func TestChannelsAndAccess(t *testing.T) {
 	kes, _ := s.CreateAccount("Kestrel", "h", "", now)
 
 	c, err := s.CreateChannel("#BChat", bee, "Be kind", now)
-	if err != nil || c.Founder != "Bee" || c.MlockOn != "nt" || !c.KeepTopic || c.Secure {
+	if err != nil || c.Founder != "Bee" || c.MlockOn != "nt" || !c.KeepTopic || c.SecureOps {
 		t.Fatalf("CreateChannel = %+v, %v", c, err)
 	}
 	if _, err := s.CreateChannel("#bchat", ember, "", now); err != ErrExists {
@@ -41,12 +41,12 @@ func TestChannelsAndAccess(t *testing.T) {
 		t.Error("duplicate akick")
 	}
 
-	c.Successor, c.SuccessorID, c.Secure, c.Topic = "Kestrel", kes.ID, true, "hello"
+	c.Successor, c.SuccessorID, c.SecureOps, c.Topic = "Kestrel", kes.ID, true, "hello"
 	if err := s.SaveChannel(c); err != nil {
 		t.Fatal(err)
 	}
 	again, _ := s.ChannelByName("#bchat")
-	if again.Successor != "Kestrel" || !again.Secure || again.Topic != "hello" {
+	if again.Successor != "Kestrel" || !again.SecureOps || again.Topic != "hello" {
 		t.Errorf("after save: %+v", again)
 	}
 
@@ -72,5 +72,31 @@ func TestChannelsAndAccess(t *testing.T) {
 	}
 	if n, _ := s.ChannelCount(); n != 0 {
 		t.Errorf("ChannelCount = %d", n)
+	}
+}
+
+func TestEntryMsgMigration(t *testing.T) {
+	s, path := open(t)
+	bee, _ := s.CreateAccount("Bee", "x", "", time.Now())
+	c, _ := s.CreateChannel("#bchat", bee, "", time.Now())
+	// A database from before 1.5.4 kept one line in channels.entrymsg.
+	if _, err := s.db.Exec("UPDATE channels SET entrymsg = 'Welcome!' WHERE id = ?", c.ID); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	for i := 0; i < 2; i++ { // a second start must not copy it again
+		s2, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := s2.EntryMsgs(c)
+		if len(got) != 1 || got[0].Text != "Welcome!" || got[0].AddedBy != "Bee" {
+			t.Fatalf("start %d: entry messages = %+v", i, got)
+		}
+		reg, _ := s2.ChannelByName("#bchat")
+		if !reg.Peace || !reg.SecureFounder || !reg.AutoOp || reg.BanType != 2 || reg.MemoLimit != DefaultChanMemoLimit {
+			t.Fatalf("defaults of an old channel: %+v", reg)
+		}
+		s2.Close()
 	}
 }

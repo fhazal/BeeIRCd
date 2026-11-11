@@ -28,6 +28,28 @@ func (h host) Notice(fromUID, toUID, text string) {
 	to.deliver(s.out(from, "NOTICE", to.target(), text).text())
 }
 
+func (h host) ChannelMessage(fromUID, channel string, status byte, privmsg bool, text string) {
+	s := h.s
+	from, ch := s.net.UserByUID(fromUID), s.net.Channel(channel)
+	if from == nil || ch == nil {
+		return
+	}
+	cmd := "NOTICE"
+	if privmsg {
+		cmd = "PRIVMSG"
+	}
+	target, min := ch.Name, state.Rank(0)
+	if r := state.RankForPrefix(status); status != 0 && r != 0 {
+		target, min = string(status)+ch.Name, r
+	}
+	o := s.out(from, cmd, target, text).text()
+	for _, m := range ch.Members {
+		if min == 0 || m.AtLeast(min) {
+			s.deliverTo(m.User, o)
+		}
+	}
+}
+
 func (h host) Numeric(uid, code string, params ...string) {
 	if c := h.s.clients[uid]; c != nil {
 		h.s.reply(c, code, params...)

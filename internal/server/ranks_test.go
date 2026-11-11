@@ -96,7 +96,7 @@ func TestChanServQopHop(t *testing.T) {
 	ember.send("CS SOP #bchat ADD mira")
 	mira.expect(csSrc + "MODE #bchat +ao mira mira")
 	mira.send("CS QOP #bchat ADD mira")
-	mira.expect(csLine("mira", "Only the founder of #bchat can do that."))
+	mira.expect(csLine("mira", "You can't change mira: their level is the same as or above yours."))
 
 	// An admin (&) is protected from ops; only owners take it away.
 	plain := login(t, s, "plain")
@@ -112,16 +112,16 @@ func TestChanServQopHop(t *testing.T) {
 	mira.send("CS UP #bchat")
 	mira.expect(csSrc + "MODE #bchat +ao mira mira")
 	mira.send("CS OWNER #bchat")
-	mira.expect(csLine("mira", "You need to be QOP or higher on #bchat for that."))
+	mira.expect(csLine("mira", "You need to be level 9999 or higher on #bchat for that."))
 	ember.send("CS DEOWNER #bchat")
 	ember.expect(csSrc + "MODE #bchat -q ember")
 	ember.send("CS OWNER #bchat")
 	ember.expect(csSrc + "MODE #bchat +q ember")
 
 	ember.send("CS ACCESS #bchat LIST")
-	ember.expect(csLine("ember", "  Founder  Bee    ~@     everything"))
-	ember.expect(csLine("ember", "  QOP      ember  ~@     add/remove SOP and below · akick"))
-	ember.expect(csLine("ember", "  SOP      mira   &@     add/remove AOP and below · akick"))
+	ember.expect(csLine("ember", "  –   Founder Bee    ~@"))
+	ember.expect(csLine("ember", "  1   QOP     ember  ~@"))
+	ember.expect(csLine("ember", "  2   SOP     mira   &@"))
 }
 
 func contains(s, sub string) bool {

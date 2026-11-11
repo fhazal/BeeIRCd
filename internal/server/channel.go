@@ -134,7 +134,7 @@ func (s *Server) cmdTopic(c *Client, m irc.Message) {
 		s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You're not channel operator")
 		return
 	case s.svc.TopicLocked(c.uid, ch):
-		s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "The topic is locked by ChanServ (AOP and up may change it)")
+		s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "The topic is locked by ChanServ")
 		return
 	}
 	topic := irc.Truncate(m.Params[1], s.cfg.Limits.TopicLen)
@@ -256,6 +256,10 @@ func (s *Server) cmdKick(c *Client, m irc.Message) {
 		tm := ch.Member(t)
 		if tm == nil {
 			s.reply(c, irc.ErrUserNotInChannel, t.Nick, ch.Name, "They aren't on that channel")
+			continue
+		}
+		if t.Service {
+			s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You can't kick "+t.Nick+": it is a network service")
 			continue
 		}
 		if t != u && !canKick(mem, tm) {

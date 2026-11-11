@@ -48,6 +48,9 @@ type Host interface {
 	// ApplyChannelModes runs a mode string on a channel as srcUID with
 	// services rank; errors go to uid.
 	ApplyChannelModes(uid, srcUID, channel, modes string, args []string)
+	// ChannelMessage sends a NOTICE (or PRIVMSG) from fromUID to channel;
+	// with status (a prefix like '@') only to members with that rank or up.
+	ChannelMessage(fromUID, channel string, status byte, privmsg bool, text string)
 	// ApplySetting changes a server setting the way AdminServ SET does,
 	// answering uid as bot.
 	ApplySetting(uid, bot, key, value string)
@@ -103,6 +106,7 @@ type Client struct {
 	pwBusy      bool      // a password check is running
 	dropCode    string    // confirms /ns drop
 	dropUntil   time.Time // dropCode is valid until then
+	csUsedOn    string    // channel a ChanServ command passed its access check on (for LOG)
 }
 
 func (c *Client) isOper() bool    { return c.s.host.OperFlags(c.user.UID) != "" }
@@ -185,6 +189,9 @@ func (s *Services) handle(ev state.Event) {
 		if ch := s.net.Channel(e.Channel); ch != nil && e.Source != s.chanServ.user.UID && len(e.Changes) > 0 {
 			s.csAfterUserModes(ch, fromState(e.Changes))
 		}
+		if ch := s.net.Channel(e.Channel); ch != nil && len(e.Changes) > 0 {
+			s.csModesChanged(ch)
+		}
 	case *state.Topic:
 		if ch := s.net.Channel(e.Channel); ch != nil && e.Source != s.chanServ.user.UID {
 			s.csTopicChanged(ch)
@@ -223,6 +230,7 @@ func (s *Services) Tick(now time.Time) {
 func (s *Services) Expire(now time.Time) {
 	s.expireAccounts(now)
 	s.expireChannels(now)
+	s.expireSuspends(now)
 	s.expireAkills(now)
 	s.Flush()
 }

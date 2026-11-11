@@ -356,7 +356,7 @@ func TestMemoServ(t *testing.T) {
 	bee.send("MS SEND #bchat hello")
 	bee.expect(msLine("Bee", "#bchat isn't registered with ChanServ."))
 	bee.send("MS SET LIMIT 99")
-	bee.expect(msLine("Bee", "Syntax: SET LIMIT <n>, from 1 to 50"))
+	bee.expect(msLine("Bee", "Syntax: SET LIMIT [#chan] <n>, from 1 to 50"))
 	bee.send("MS HELP")
 	bee.expect(msLine("Bee", "MemoServ keeps messages for people who are away. Commands:"))
 }
@@ -442,7 +442,7 @@ func TestMemoRanges(t *testing.T) {
 	bee.send("MS READ 7")
 	bee.expect(msLine("Bee", "You have no memos."))
 	bee.send("MS DEL NEW")
-	bee.expect(msLine("Bee", "Syntax: DEL {<num> | <list> | LAST | READ | ALL}"))
+	bee.expect(msLine("Bee", "Syntax: DEL [#chan] {<num> | <list> | LAST | READ | ALL}"))
 }
 
 func TestHelpLayout(t *testing.T) {
@@ -455,7 +455,7 @@ func TestHelpLayout(t *testing.T) {
 	x.expect(csLine("x", "ChanServ keeps a channel yours. Commands:"))
 	x.expect(csLine("x", "  REGISTER  register a channel you op in"))
 	x.expect(csLine("x", "Access lists"))
-	l := x.expect(csLine("x", "  SOP, AOP"))
+	l := x.expect(csLine("x", "  ACCESS, LEVELS, SOP, AOP"))
 	if strings.Contains(l, "QOP") || strings.Contains(l, "HOP") {
 		t.Errorf("QOP/HOP shown on an @+ server: %q", l)
 	}

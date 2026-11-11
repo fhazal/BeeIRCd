@@ -18,18 +18,18 @@ const (
 
 func memoServCommands() map[string]svcCmd {
 	return map[string]svcCmd{
-		"SEND": {"SEND <nick> <text>", "leave a memo for someone",
-			"Stores a message for a registered nick. They get it at once when online,\nor the next time they identify.\nExample: /ms send nova Meeting about the new leaf, Friday 21:00 in #ops", msSend},
-		"LIST": {"LIST [<list> | NEW]", "your memos",
-			"Lists your memos: number, sender, date and whether you read it.\nLIST NEW shows only unread ones; LIST 2-5 only those.", msList},
-		"READ": {"READ {<num> | <list> | LAST | NEW | ALL}", "read memos",
-			"READ 2 reads memo 2, READ 1-3,5 several, READ NEW all unread ones,\nREAD LAST the newest, READ ALL every one.", msRead},
-		"DEL": {"DEL {<num> | <list> | LAST | READ | ALL}", "delete memos",
-			"DEL 2 deletes memo 2, DEL 1-3,5 several, DEL LAST the newest, DEL READ the\nones you have read, DEL ALL every memo.", msDel},
+		"SEND": {"SEND {<nick> | #chan} <text>", "leave a memo for someone (or a channel)",
+			"Stores a message for a registered nick. They get it at once when online,\nor the next time they identify. A memo to a registered channel goes into its\nmemo box, which those with the MEMO privilege read (SOP by default).\nExample: /ms send nova Meeting about the new leaf, Friday 21:00 in #ops", msSend},
+		"LIST": {"LIST [#chan] [<list> | NEW]", "your memos (or a channel's)",
+			"Lists your memos: number, sender, date and whether you read it.\nLIST NEW shows only unread ones; LIST 2-5 only those. LIST #chan shows the\nchannel's memo box (MEMO privilege).", msList},
+		"READ": {"READ [#chan] {<num> | <list> | LAST | NEW | ALL}", "read memos",
+			"READ 2 reads memo 2, READ 1-3,5 several, READ NEW all unread ones,\nREAD LAST the newest, READ ALL every one. With #chan first: the channel's box.", msRead},
+		"DEL": {"DEL [#chan] {<num> | <list> | LAST | READ | ALL}", "delete memos",
+			"DEL 2 deletes memo 2, DEL 1-3,5 several, DEL LAST the newest, DEL READ the\nones you have read, DEL ALL every memo. With #chan first: the channel's box.", msDel},
 		"SET": {"SET NOTIFY|LIMIT ...", "memo settings",
-			"SET NOTIFY ON|OFF   be told the moment a memo arrives (on)\nSET LIMIT <n>       keep at most n memos, up to 50", msSet},
-		"IGNORE": {"IGNORE ADD|DEL|LIST [nick]", "drop memos from someone",
-			"Memos from a nick on this list are dropped without telling the sender.", msIgnore},
+			"SET NOTIFY ON|OFF          be told the moment a memo arrives (on)\nSET LIMIT [#chan] <n>      keep at most n memos, up to 50 (a channel box\n                           needs the MEMO privilege)", msSet},
+		"IGNORE": {"IGNORE [#chan] ADD|DEL|LIST [nick]", "drop memos from someone",
+			"Memos from a nick on this list are dropped without telling the sender.\nWith #chan first: the channel box's list (MEMO privilege).", msIgnore},
 	}
 }
 
@@ -47,13 +47,82 @@ func (s *Services) msIdentified(c *Client) (*store.Account, bool) {
 	return a, true
 }
 
+// memoBox is someone's own memos or a channel's box.
+type memoBox struct {
+	acct  *store.Account
+	reg   *store.Channel // set for a channel box
+	memos []store.Memo
+}
+
+// owner is how replies name the box: "You have" or "#bchat has".
+func (b *memoBox) has() string {
+	if b.reg != nil {
+		return b.reg.Name + " has"
+	}
+	return "You have"
+}
+
+// cmd is what commands about the box start with: "/ms read" or
+// "/ms read #bchat".
+func (b *memoBox) cmd(verb string) string {
+	if b.reg != nil {
+		return "/ms " + verb + " " + b.reg.Name
+	}
+	return "/ms " + verb
+}
+
+// msBox opens the box a command is about: the channel named first in args,
+// else c's own. It returns the remaining args.
+func (s *Services) msBox(c *Client, args []string) (*memoBox, []string, bool) {
+	a, ok := s.msIdentified(c)
+	if !ok {
+		return nil, nil, false
+	}
+	if len(args) == 0 || !irc.IsChannel(args[0]) {
+		memos, err := s.store.Memos(a)
+		if err != nil {
+			s.dbErr(c, s.memoServ, err)
+			return nil, nil, false
+		}
+		return &memoBox{acct: a, memos: memos}, args, true
+	}
+	reg, err := s.store.ChannelByName(args[0])
+	if err != nil {
+		s.dbErr(c, s.memoServ, err)
+		return nil, nil, false
+	}
+	if reg == nil {
+		s.ms(c, "%s isn't registered with ChanServ.", args[0])
+		return nil, nil, false
+	}
+	if !s.levelHas(reg, s.accountLevel(reg, c.accountID), "MEMO") {
+		s.ms(c, "You need the MEMO privilege on %s for its memo box (%s there).", reg.Name, needWords(s.privLevel(reg, "MEMO")))
+		return nil, nil, false
+	}
+	return &memoBox{acct: a, reg: reg, memos: s.store.ChanMemos(reg)}, args[1:], true
+}
+
+func (s *Services) boxMarkRead(b *memoBox, id int64) error {
+	if b.reg != nil {
+		return s.store.MarkChanMemoRead(id)
+	}
+	return s.store.MarkRead(id)
+}
+
+func (s *Services) boxDelete(b *memoBox, id int64) error {
+	if b.reg != nil {
+		return s.store.DeleteChanMemo(id)
+	}
+	return s.store.DeleteMemo(id)
+}
+
 func msSend(s *Services, c *Client, args []string) {
 	from, ok := s.msIdentified(c)
 	if !ok {
 		return
 	}
 	if len(args) < 2 {
-		s.ms(c, "Syntax: SEND <nick> <text>")
+		s.ms(c, "Syntax: SEND {<nick> | #chan} <text>")
 		return
 	}
 	target, text := args[0], strings.Join(args[1:], " ")
@@ -111,6 +180,66 @@ func msSend(s *Services, c *Client, args []string) {
 	}
 }
 
+// memoToChannel puts a memo in a channel's box (Anope's way) and tells
+// those in the channel who may read it.
+func (s *Services) memoToChannel(c *Client, from *store.Account, name, text string) {
+	reg, err := s.store.ChannelByName(name)
+	if err != nil {
+		s.dbErr(c, s.memoServ, err)
+		return
+	}
+	if reg == nil {
+		s.ms(c, "%s isn't registered with ChanServ.", name)
+		return
+	}
+	if reg.Suspended(time.Now()) {
+		s.ms(c, "%s is suspended.", reg.Name)
+		return
+	}
+	memos := s.store.ChanMemos(reg)
+	ignored := s.store.ChanIgnores(reg, from.Name) || s.store.ChanIgnores(reg, c.user.Nick)
+	if !ignored && len(memos) >= reg.MemoLimit {
+		s.ms(c, "The memo box of %s is full.", reg.Name)
+		return
+	}
+	if !ignored {
+		if err := s.store.AddChanMemo(reg, from.Name, text, time.Now()); err != nil {
+			s.dbErr(c, s.memoServ, err)
+			return
+		}
+		if live := s.net.Channel(reg.Name); live != nil {
+			for _, m := range live.SortedMembers() {
+				oc := s.clientOf(m.User)
+				if oc == nil || oc.accountID == 0 || oc.accountID == from.ID || !s.levelHas(reg, s.accountLevel(reg, oc.accountID), "MEMO") {
+					continue
+				}
+				s.ms(oc, "There is a new memo on %s from %s. Read it: /ms read %s %d", reg.Name, from.Name, reg.Name, len(memos)+1)
+			}
+		}
+	}
+	s.ms(c, "Memo sent to %s.", reg.Name)
+}
+
+// chanMemoNotice tells c about unread memos in reg's box, if c may read it.
+func (s *Services) chanMemoNotice(c *Client, reg *store.Channel) {
+	if c.accountID == 0 || !s.levelHas(reg, s.accountLevel(reg, c.accountID), "MEMO") {
+		return
+	}
+	unread := 0
+	for _, m := range s.store.ChanMemos(reg) {
+		if !m.Read {
+			unread++
+		}
+	}
+	switch unread {
+	case 0:
+	case 1:
+		s.ms(c, "%s has 1 new memo. Read it: /ms list %s", reg.Name, reg.Name)
+	default:
+		s.ms(c, "%s has %d new memos. Read them: /ms list %s", reg.Name, unread, reg.Name)
+	}
+}
+
 // onlineClients returns the connections identified to account id.
 func (s *Services) onlineClients(id int64) []*Client {
 	var out []*Client
@@ -144,17 +273,13 @@ func (s *Services) memoSummary(c *Client, a *store.Account) {
 }
 
 func msList(s *Services, c *Client, args []string) {
-	a, ok := s.msIdentified(c)
+	b, args, ok := s.msBox(c, args)
 	if !ok {
 		return
 	}
-	memos, err := s.store.Memos(a)
-	if err != nil {
-		s.dbErr(c, s.memoServ, err)
-		return
-	}
+	memos := b.memos
 	if len(memos) == 0 {
-		s.ms(c, "You have no memos.")
+		s.ms(c, "%s no memos.", b.has())
 		return
 	}
 	show := make([]int, len(memos))
@@ -163,8 +288,8 @@ func msList(s *Services, c *Client, args []string) {
 	}
 	if arg := argAt(args, 0); arg != "" {
 		var problem string
-		if show, problem = memoPick(memos, arg); problem == "syntax" || strings.EqualFold(arg, "READ") {
-			s.ms(c, "Syntax: LIST [<list> | NEW]")
+		if show, problem = memoPick(b, arg); problem == "syntax" || strings.EqualFold(arg, "READ") {
+			s.ms(c, "Syntax: LIST [#chan] [<list> | NEW]")
 			return
 		} else if problem != "" {
 			s.ms(c, "%s", problem)
@@ -174,6 +299,9 @@ func msList(s *Services, c *Client, args []string) {
 	width := 4
 	for _, m := range memos {
 		width = max(width, len(m.From))
+	}
+	if b.reg != nil {
+		s.ms(c, "Memo box of %s:", b.reg.Name)
 	}
 	s.ms(c, "  %-3s %-*s  %-12s  %s", "#", width, "From", "Sent", "")
 	for _, i := range show {
@@ -191,21 +319,21 @@ func msList(s *Services, c *Client, args []string) {
 		}
 	}
 	if unread == 0 {
-		s.ms(c, "%s, none new. Delete one: /ms del <num>", plural(len(memos), "memo"))
+		s.ms(c, "%s, none new. Delete one: %s <num>", plural(len(memos), "memo"), b.cmd("del"))
 	} else {
-		s.ms(c, "%s, %d new. Read one: /ms read <num>", plural(len(memos), "memo"), unread)
+		s.ms(c, "%s, %d new. Read one: %s <num>", plural(len(memos), "memo"), unread, b.cmd("read"))
 	}
 }
 
-// memoPick turns "2", "NEW", "LAST" into memo positions (0-based).
 // memoPick turns "2", "1-3,5", "NEW", "LAST", "ALL" or "READ" into memo
 // positions (0-based). problem is "syntax" or a sentence for the user.
-func memoPick(memos []store.Memo, arg string) (picks []int, problem string) {
+func memoPick(b *memoBox, arg string) (picks []int, problem string) {
+	memos := b.memos
 	if arg == "" {
 		return nil, "syntax"
 	}
 	if len(memos) == 0 {
-		return nil, "You have no memos."
+		return nil, b.has() + " no memos."
 	}
 	switch strings.ToUpper(arg) {
 	case "LAST":
@@ -223,7 +351,7 @@ func memoPick(memos []store.Memo, arg string) (picks []int, problem string) {
 			}
 		}
 		if len(picks) == 0 && !wantRead {
-			return nil, "You have no new memos."
+			return nil, b.has() + " no new memos."
 		}
 		return picks, ""
 	}
@@ -232,7 +360,7 @@ func memoPick(memos []store.Memo, arg string) (picks []int, problem string) {
 		return nil, "syntax"
 	}
 	if len(nums) == 0 {
-		return nil, fmt.Sprintf("There is no memo %s. You have %s.", arg, plural(len(memos), "memo"))
+		return nil, fmt.Sprintf("There is no memo %s. %s %s.", arg, b.has(), plural(len(memos), "memo"))
 	}
 	for _, n := range nums {
 		picks = append(picks, n-1)
@@ -241,18 +369,13 @@ func memoPick(memos []store.Memo, arg string) (picks []int, problem string) {
 }
 
 func msRead(s *Services, c *Client, args []string) {
-	a, ok := s.msIdentified(c)
+	b, args, ok := s.msBox(c, args)
 	if !ok {
 		return
 	}
-	memos, err := s.store.Memos(a)
-	if err != nil {
-		s.dbErr(c, s.memoServ, err)
-		return
-	}
-	picks, problem := memoPick(memos, argAt(args, 0))
+	picks, problem := memoPick(b, argAt(args, 0))
 	if problem == "syntax" || strings.EqualFold(argAt(args, 0), "READ") {
-		s.ms(c, "Syntax: READ {<num> | <list> | LAST | NEW | ALL}")
+		s.ms(c, "Syntax: READ [#chan] {<num> | <list> | LAST | NEW | ALL}")
 		return
 	}
 	if problem != "" {
@@ -260,11 +383,15 @@ func msRead(s *Services, c *Client, args []string) {
 		return
 	}
 	for _, i := range picks {
-		m := memos[i]
-		s.ms(c, "Memo %d from %s · %s", i+1, m.From, showTime(m.Sent))
+		m := b.memos[i]
+		where := ""
+		if b.reg != nil {
+			where = " on " + b.reg.Name
+		}
+		s.ms(c, "Memo %d%s from %s · %s", i+1, where, m.From, showTime(m.Sent))
 		s.ms(c, "  %s", m.Text)
 		if !m.Read {
-			if err := s.store.MarkRead(m.ID); err != nil {
+			if err := s.boxMarkRead(b, m.ID); err != nil {
 				s.dbErr(c, s.memoServ, err)
 				return
 			}
@@ -273,27 +400,22 @@ func msRead(s *Services, c *Client, args []string) {
 }
 
 func msDel(s *Services, c *Client, args []string) {
-	a, ok := s.msIdentified(c)
+	b, args, ok := s.msBox(c, args)
 	if !ok {
 		return
 	}
-	memos, err := s.store.Memos(a)
-	if err != nil {
-		s.dbErr(c, s.memoServ, err)
-		return
-	}
 	arg := strings.ToUpper(argAt(args, 0))
-	picks, problem := memoPick(memos, arg)
+	picks, problem := memoPick(b, arg)
 	switch {
 	case problem == "syntax" || arg == "NEW":
-		s.ms(c, "Syntax: DEL {<num> | <list> | LAST | READ | ALL}")
+		s.ms(c, "Syntax: DEL [#chan] {<num> | <list> | LAST | READ | ALL}")
 		return
 	case problem != "":
 		s.ms(c, "%s", problem)
 		return
 	}
 	for _, i := range picks {
-		if err := s.store.DeleteMemo(memos[i].ID); err != nil {
+		if err := s.boxDelete(b, b.memos[i].ID); err != nil {
 			s.dbErr(c, s.memoServ, err)
 			return
 		}
@@ -335,13 +457,26 @@ func msSet(s *Services, c *Client, args []string) {
 			s.ms(c, "You'll hear about new memos when you identify.")
 		}
 	case "LIMIT":
+		b, rest, ok := s.msBox(c, args[1:])
+		if !ok {
+			return
+		}
 		top := maxMemoLimit
-		if c.user.HasMode('o') {
+		if c.isOper() {
 			top = maxMemoOperLimit
 		}
-		n, err := strconv.Atoi(argAt(args, 1))
+		n, err := strconv.Atoi(argAt(rest, 0))
 		if err != nil || n < 1 || n > top {
-			s.ms(c, "Syntax: SET LIMIT <n>, from 1 to %d", top)
+			s.ms(c, "Syntax: SET LIMIT [#chan] <n>, from 1 to %d", top)
+			return
+		}
+		if b.reg != nil {
+			b.reg.MemoLimit = n
+			if err := s.store.SaveChannel(b.reg); err != nil {
+				s.dbErr(c, s.memoServ, err)
+				return
+			}
+			s.ms(c, "The memo box of %s now keeps at most %s.", b.reg.Name, plural(n, "memo"))
 			return
 		}
 		a.MemoLimit = n
@@ -356,42 +491,71 @@ func msSet(s *Services, c *Client, args []string) {
 }
 
 func msIgnore(s *Services, c *Client, args []string) {
-	a, ok := s.msIdentified(c)
+	b, args, ok := s.msBox(c, args)
 	if !ok {
 		return
 	}
 	sub, nick := strings.ToUpper(argAt(args, 0)), argAt(args, 1)
+	who := "You ignore"
+	if b.reg != nil {
+		who = "The memo box of " + b.reg.Name + " ignores"
+	}
 	switch {
 	case sub == "LIST":
-		list, err := s.store.MemoIgnores(a)
-		if err != nil {
-			s.dbErr(c, s.memoServ, err)
-			return
+		var list []string
+		if b.reg != nil {
+			list = s.store.ChanMemoIgnores(b.reg)
+		} else {
+			var err error
+			if list, err = s.store.MemoIgnores(b.acct); err != nil {
+				s.dbErr(c, s.memoServ, err)
+				return
+			}
 		}
 		if len(list) == 0 {
-			s.ms(c, "You ignore nobody.")
+			s.ms(c, "%s nobody.", who)
 			return
 		}
 		s.ms(c, "Memos from these nicks are dropped: %s", strings.Join(list, ", "))
 	case (sub == "ADD" || sub == "DEL") && nick == "":
-		s.ms(c, "Syntax: IGNORE %s <nick>", sub)
+		s.ms(c, "Syntax: IGNORE [#chan] %s <nick>", sub)
 	case sub == "ADD":
-		if added, err := s.store.AddMemoIgnore(a, nick); err != nil {
-			s.dbErr(c, s.memoServ, err)
-		} else if !added {
-			s.ms(c, "You ignore %s already.", nick)
+		var added bool
+		var err error
+		if b.reg != nil {
+			added, err = s.store.AddChanMemoIgnore(b.reg, nick)
 		} else {
+			added, err = s.store.AddMemoIgnore(b.acct, nick)
+		}
+		switch {
+		case err != nil:
+			s.dbErr(c, s.memoServ, err)
+		case !added:
+			s.ms(c, "%s %s already.", who, nick)
+		default:
 			s.ms(c, "Memos from %s are now dropped.", nick)
 		}
 	case sub == "DEL":
-		if removed, err := s.store.DelMemoIgnore(a, nick); err != nil {
-			s.dbErr(c, s.memoServ, err)
-		} else if !removed {
-			s.ms(c, "You don't ignore %s.", nick)
+		var removed bool
+		var err error
+		if b.reg != nil {
+			removed, err = s.store.DelChanMemoIgnore(b.reg, nick)
 		} else {
+			removed, err = s.store.DelMemoIgnore(b.acct, nick)
+		}
+		switch {
+		case err != nil:
+			s.dbErr(c, s.memoServ, err)
+		case !removed:
+			if b.reg != nil {
+				s.ms(c, "The memo box of %s doesn't ignore %s.", b.reg.Name, nick)
+			} else {
+				s.ms(c, "You don't ignore %s.", nick)
+			}
+		default:
 			s.ms(c, "Memos from %s arrive again.", nick)
 		}
 	default:
-		s.ms(c, "Syntax: IGNORE ADD|DEL|LIST [nick]")
+		s.ms(c, "Syntax: IGNORE [#chan] ADD|DEL|LIST [nick]")
 	}
 }

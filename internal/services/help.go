@@ -136,11 +136,14 @@ func (s *Services) helpSetup() {
 
 	cs := s.chanServ
 	cs.groups = []helpGroup{
-		{"Access lists", []string{"QOP", "SOP", "AOP", "HOP", "VOP", "UOP", "ACCESS"}},
-		{"Channel status", []string{"OWNER", "DEOWNER", "PROTECT", "DEPROTECT", "OP", "DEOP", "HALFOP", "DEHALFOP", "VOICE", "DEVOICE", "UP", "DOWN"}},
-		{"Channel management", []string{"SET", "AKICK", "BAN", "UNBAN", "KICK", "TOPIC", "CLEAR"}},
+		{"Access lists", []string{"ACCESS", "LEVELS", "QOP", "SOP", "AOP", "HOP", "VOP", "UOP", "STATUS"}},
+		{"Channel status", []string{"OWNER", "DEOWNER", "PROTECT", "DEPROTECT", "OP", "DEOP", "HALFOP", "DEHALFOP", "VOICE", "DEVOICE", "UP", "DOWN", "SYNC"}},
+		{"Channel management", []string{"SET", "MODE", "TOPIC", "ENTRYMSG", "AKICK", "BAN", "UNBAN", "KICK", "ENFORCE", "GETKEY", "LOG"}},
+		{"Commands for IRC operators", []string{"SUSPEND", "UNSUSPEND"}},
 	}
-	cs.cmdShown = map[string]func() bool{}
+	cs.cmdNeed = map[string]byte{"SUSPEND": 's', "UNSUSPEND": 's'}
+	never := func() bool { return false }
+	cs.cmdShown = map[string]func() bool{"CLEAR": never}
 	for _, n := range []string{"QOP", "HOP", "OWNER", "DEOWNER", "PROTECT", "DEPROTECT", "HALFOP", "DEHALFOP"} {
 		cs.cmdShown[n] = full
 	}

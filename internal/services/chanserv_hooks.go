@@ -11,17 +11,16 @@ import (
 // themselves.
 
 // csJoinLevel is u's level on channel name, before joining (0 when the
-// channel isn't registered). UOP and up get past +i and +k.
+// channel isn't registered). Anyone on the access list gets past +i and +k.
 func (s *Services) csJoinLevel(c *Client, name string) int {
 	if c.accountID == 0 {
 		return store.LevelNone
 	}
 	reg, err := s.store.ChannelByName(name)
-	if err != nil || reg == nil {
+	if err != nil || reg == nil || reg.Suspended(time.Now()) {
 		return store.LevelNone
 	}
-	lvl, _ := s.store.Level(reg, c.accountID)
-	return lvl
+	return s.accountLevel(reg, c.accountID)
 }
 
 // csJoin runs after u joined ch. created means u opened the channel.
@@ -31,15 +30,21 @@ func (s *Services) csJoin(c *Client, ch *state.Channel, created bool) {
 		return
 	}
 	u := c.user
-	lvl, _ := s.store.Level(reg, c.accountID)
-	if created {
-		if reg.KeepTopic && reg.Topic != "" {
-			s.emit(&state.Topic{Source: s.chanServ.user.UID, Channel: ch.Name, Text: reg.Topic, By: reg.TopicBy, At: reg.TopicAt})
+	if reg.Suspended(time.Now()) {
+		if !c.isOper() {
+			s.csKickUser(ch, u, "This channel is suspended: "+reg.SuspendReason)
 		}
-		s.csMode(ch, mlockChanges(reg, ch))
-		if lvl < store.LevelAOP {
+		return
+	}
+	lvl := s.accountLevel(reg, c.accountID)
+	if created {
+		s.restoreChannel(reg, ch)
+		if !s.secureAllows(reg, lvl, 'o') {
 			// Opening an empty registered channel doesn't make you its op.
 			s.csMode(ch, []modeChange{{false, 'o', u.Nick}})
+		}
+		if reg.Persist {
+			s.persistJoin(reg)
 		}
 	}
 	if lvl == store.LevelNone {
@@ -54,45 +59,52 @@ func (s *Services) csJoin(c *Client, ch *state.Channel, created bool) {
 				return
 			}
 		}
-	} else {
+	}
+	if reg.Restricted && !s.levelHas(reg, lvl, "NOKICK") {
+		s.csMode(ch, []modeChange{{true, 'b', banMask(reg, u)}})
+		s.csKickUser(ch, u, "This channel is for its access list only.")
+		return
+	}
+	if lvl > store.LevelNone {
 		reg.LastUsed = time.Now()
 		s.store.SaveChannel(reg)
-		s.csAutoModes(ch, u, lvl)
 	}
-	if reg.EntryMsg != "" {
-		s.cs(c, "[%s] %s", ch.Name, reg.EntryMsg)
+	s.csAutoModes(reg, ch, u)
+	for _, e := range s.store.EntryMsgs(reg) {
+		s.cs(c, "[%s] %s", ch.Name, e.Text)
 	}
+	s.chanMemoNotice(c, reg)
 }
 
 // csOnIdentify gives a user who just identified the modes they earn in the
-// channels they are already in.
+// channels they are already in, and tells them about channel memos there.
 func (s *Services) csOnIdentify(c *Client) {
 	for _, ch := range c.user.Channels {
 		reg, err := s.store.ChannelByName(ch.Name)
-		if err != nil || reg == nil {
+		if err != nil || reg == nil || reg.Suspended(time.Now()) {
 			continue
 		}
-		lvl, _ := s.store.Level(reg, c.accountID)
-		if lvl > store.LevelNone {
+		if s.accountLevel(reg, c.accountID) > store.LevelNone {
 			reg.LastUsed = time.Now()
 			s.store.SaveChannel(reg)
-			s.csAutoModes(ch, c.user, lvl)
+			s.csAutoModes(reg, ch, c.user)
 		}
+		s.chanMemoNotice(c, reg)
 	}
 }
 
-// csAfterUserModes puts the mode lock back and, with SECURE, takes ops
-// from people below AOP.
+// csAfterUserModes puts the mode lock back and, with SECUREOPS, takes
+// status from people not allowed it.
 func (s *Services) csAfterUserModes(ch *state.Channel, changes []modeChange) {
 	reg, err := s.store.ChannelByName(ch.Name)
 	if err != nil || reg == nil {
 		return
 	}
 	fix := mlockChanges(reg, ch)
-	if reg.Secure {
+	if reg.SecureOps {
 		for _, m := range changes {
-			if m.add && m.mode != 'v' && state.RankForMode(m.mode) != 0 {
-				if t := s.net.UserByNick(m.arg); t != nil && s.levelOf(reg, t) < csSecureLevel(m.mode) {
+			if m.add && state.RankForMode(m.mode) != 0 {
+				if t := s.net.UserByNick(m.arg); t != nil && !t.Service && !s.secureAllows(reg, s.userLevel(reg, t), m.mode) {
 					fix = append(fix, modeChange{false, m.mode, t.Nick})
 				}
 			}
@@ -101,14 +113,13 @@ func (s *Services) csAfterUserModes(ch *state.Channel, changes []modeChange) {
 	s.csMode(ch, fix)
 }
 
-// csTopicLocked reports whether TOPICLOCK stops c changing ch's topic.
+// csTopicLocked reports whether a topic lock stops c changing ch's topic.
 func (s *Services) csTopicLocked(c *Client, ch *state.Channel) bool {
 	reg, err := s.store.ChannelByName(ch.Name)
 	if err != nil || reg == nil || !reg.TopicLock {
 		return false
 	}
-	lvl, _ := s.store.Level(reg, c.accountID)
-	return lvl < store.LevelAOP
+	return !s.levelHas(reg, s.accountLevel(reg, c.accountID), "TOPIC")
 }
 
 // csTopicChanged keeps a new topic for KEEPTOPIC.
@@ -126,14 +137,13 @@ func (s *Services) applyFounderChanges(changes []store.FounderChange, why string
 			continue
 		}
 		s.log.Printf("dropped channel %s (%s, no successor)", fc.Channel, why)
-		if live := s.net.Channel(fc.Channel); live != nil {
-			s.csMode(live, []modeChange{{false, 'r', ""}})
-		}
+		s.channelGone(fc.Channel)
 	}
 }
 
 // expireChannels drops channels nobody on their access list joined for
-// chan_expire, except those in use right now.
+// chan_expire, except those in use right now (NOEXPIRE and suspended
+// channels never expire).
 func (s *Services) expireChannels(now time.Time) {
 	old, err := s.store.ExpiredChannels(now.Add(-s.cfg.Services.ChanExpire.Duration))
 	if err != nil {
@@ -150,55 +160,7 @@ func (s *Services) expireChannels(now time.Time) {
 			s.log.Printf("services database: %v", err)
 			continue
 		}
-		if live := s.net.Channel(reg.Name); live != nil {
-			s.csMode(live, []modeChange{{false, 'r', ""}})
-		}
+		s.channelGone(reg.Name)
 		s.log.Printf("expired channel %s (last used %s)", reg.Name, reg.LastUsed.UTC().Format(time.DateOnly))
 	}
-}
-
-// memoToChannel sends a memo to a channel's founder and SOPs.
-func (s *Services) memoToChannel(c *Client, from *store.Account, name, text string) {
-	reg, err := s.store.ChannelByName(name)
-	if err != nil {
-		s.dbErr(c, s.memoServ, err)
-		return
-	}
-	if reg == nil {
-		s.ms(c, "%s isn't registered with ChanServ.", name)
-		return
-	}
-	ids := []int64{reg.FounderID}
-	sops, err := s.store.AccessList(reg, store.LevelSOP)
-	if err != nil {
-		s.dbErr(c, s.memoServ, err)
-		return
-	}
-	for _, e := range sops {
-		ids = append(ids, e.AccountID)
-	}
-	sent := 0
-	for _, id := range ids {
-		to, err := s.store.AccountByID(id)
-		if err != nil || to == nil || to.ID == from.ID {
-			continue
-		}
-		if ig, _ := s.store.Ignores(to, from.Name); ig {
-			continue
-		}
-		memos, err := s.store.Memos(to)
-		if err != nil || len(memos) >= to.MemoLimit {
-			continue
-		}
-		if err := s.store.AddMemo(to, from.Name, "["+reg.Name+"] "+text, time.Now()); err != nil {
-			continue
-		}
-		sent++
-		if to.MemoNotify {
-			for _, oc := range s.onlineClients(to.ID) {
-				s.ms(oc, "You have a new memo from %s. Read it: /ms read %d", from.Name, len(memos)+1)
-			}
-		}
-	}
-	s.ms(c, "Memo sent to the founder and SOPs of %s (%s).", reg.Name, plural(sent, "person"))
 }

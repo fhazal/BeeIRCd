@@ -29,6 +29,13 @@ type cache struct {
 	levels    map[int64]map[int64]*level // channel -> account -> entry
 	akicks    map[int64][]Akick          // channel -> AKICKs, by time and mask
 	opers     map[int64]*Oper            // by account ID; Account is filled in on read
+
+	chanLevels    map[int64]map[string]int // channel -> privilege -> level (only changed ones)
+	entryMsgs     map[int64][]EntryMsg     // channel -> lines, by ID
+	chanLogs      map[int64][]LogSetting   // channel -> LOG entries, by command and method
+	chanMemos     map[int64][]Memo         // channel -> memo box, by ID
+	chanMemoOwner map[int64]int64          // channel memo ID -> channel
+	chanIgnores   map[int64][]ignoreRow    // channel -> ignored nicks, by key
 }
 
 type nickRow struct {
@@ -60,6 +67,13 @@ func newCache() *cache {
 		levels:    make(map[int64]map[int64]*level),
 		akicks:    make(map[int64][]Akick),
 		opers:     make(map[int64]*Oper),
+
+		chanLevels:    make(map[int64]map[string]int),
+		entryMsgs:     make(map[int64][]EntryMsg),
+		chanLogs:      make(map[int64][]LogSetting),
+		chanMemos:     make(map[int64][]Memo),
+		chanMemoOwner: make(map[int64]int64),
+		chanIgnores:   make(map[int64][]ignoreRow),
 	}
 }
 
@@ -161,6 +175,9 @@ func loadCache(db *sql.DB) (*cache, error) {
 			return nil, err
 		}
 	}
+	if err := loadChanExtra(db, c); err != nil {
+		return nil, err
+	}
 	return c, nil
 }
 
@@ -256,6 +273,14 @@ func (c *cache) dropChannel(id int64) {
 	delete(c.channels, id)
 	delete(c.levels, id)
 	delete(c.akicks, id)
+	delete(c.chanLevels, id)
+	delete(c.entryMsgs, id)
+	delete(c.chanLogs, id)
+	for _, m := range c.chanMemos[id] {
+		delete(c.chanMemoOwner, m.ID)
+	}
+	delete(c.chanMemos, id)
+	delete(c.chanIgnores, id)
 }
 
 // dropAccount forgets an account and what hangs off it. Channels it
@@ -314,6 +339,9 @@ func (s *Store) VerifyCache() error {
 		{"memo ignores", have.ignores, want.ignores}, {"channels", have.channels, want.channels},
 		{"channel names", have.chanKeys, want.chanKeys}, {"levels", have.levels, want.levels},
 		{"akicks", have.akicks, want.akicks}, {"opers", have.opers, want.opers},
+		{"channel levels", have.chanLevels, want.chanLevels}, {"entry messages", have.entryMsgs, want.entryMsgs},
+		{"channel logs", have.chanLogs, want.chanLogs}, {"channel memos", have.chanMemos, want.chanMemos},
+		{"channel memo owners", have.chanMemoOwner, want.chanMemoOwner}, {"channel memo ignores", have.chanIgnores, want.chanIgnores},
 	}
 	for _, p := range parts {
 		if !reflect.DeepEqual(p.have, p.want) {
@@ -333,6 +361,11 @@ func (c *cache) trimmed() *cache {
 	cp.ignores = trimMap(c.ignores)
 	cp.levels = trimMap(c.levels)
 	cp.akicks = trimMap(c.akicks)
+	cp.chanLevels = trimMap(c.chanLevels)
+	cp.entryMsgs = trimMap(c.entryMsgs)
+	cp.chanLogs = trimMap(c.chanLogs)
+	cp.chanMemos = trimMap(c.chanMemos)
+	cp.chanIgnores = trimMap(c.chanIgnores)
 	return &cp
 }
 

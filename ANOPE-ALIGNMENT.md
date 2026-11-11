@@ -3,9 +3,9 @@
 Rule (agreed 11 Nov 2026): services follow Anope for commands, syntax and
 behaviour wherever Anope has the feature; ConferenceRoom extras sit on
 top. This list compares what BeeIRCd had with Anope 2.1 (source d2eadd8) and
-says what changes. Status 11 Nov 2026: every item not marked "in 1.5.4",
-"1.5.5" or "1.5.6" is built (Stage 1.5.3), except M1's channel memo boxes
-(see below).
+says what changes. Status 11 Nov 2026: every item not marked "1.5.5" or
+"1.5.6" is built (Stage 1.5.3, and the "in 1.5.4" items plus M1's channel
+memo boxes in Stage 1.5.4).
 
 Marks: **Change** = we switch to Anope's way. **Keep** = ours stays (a
 CR extra or a deliberate choice). **Ask** = needs your decision.
@@ -76,16 +76,49 @@ Hidden aliases never show up.
 
 ## Built differently than planned
 
-- M1: channel memo boxes are not built. A memo to #chan still goes to the
-  own box of everyone on its access list; Anope keeps one box per channel.
-  Open question for the user.
 - O2: forbids have no +expiry yet (the store has no expiry for them).
 - O4: exceptions have no +expiry yet; SESSION LIMIT now points to
   /as set session-limit.
-- O6: MODE on users and MODE #chan CLEAR come in 1.5.4/1.5.5.
+- O6: MODE on users comes in 1.5.5 (ChanServ MODE #chan CLEAR is built).
 - O7: STATS ALL adds forbids, exceptions, news, memory and goroutines.
 
 ## Decisions
 
 N2 decided 11 Nov 2026: host ACCESS goes, as in Anope 2.1. Everything else
-follows the agreed rule. Items marked "in 1.5.4" wait for that step.
+follows the agreed rule.
+
+## Stage 1.5.4 (built 11 Nov 2026)
+
+Decided by the user: Anope's level numbers (UOP 1, VOP 3, HOP 4, AOP 5,
+SOP 10, QOP 10000, founder above; old databases move over at start),
+Anope's channel memo boxes (M1), OVERFLOW moved to 1.5.9 (needs +L).
+
+Built as Anope: ACCESS with levels, LEVELS with Anope's 32 privileges and
+their defaults, STATUS/WHY, MODE LOCK/SET/CLEAR, TOPIC
+SET/APPEND/PREPEND/LOCK/UNLOCK, ENTRYMSG, ENFORCE, GETKEY, LOG, SUSPEND,
+UNSUSPEND, SYNC, SET RESTRICTED PEACE SECUREOPS SECUREFOUNDER SIGNKICK
+KEEPMODES PERSIST AUTOOP BANTYPE NOEXPIRE, MemoServ [#chan] on LIST READ
+DEL SET LIMIT IGNORE (M2).
+
+Where we differ from Anope, on purpose:
+
+- A privilege at level 0 belongs to everyone in the channel, also those
+  not on the list (Anope only counts list entries). That is how AUTOVOP
+  (voice everyone) works.
+- Everyone on the access list still gets past +i and +k when joining
+  (our CR habit); Anope has no such pass.
+- LEVELS LIST needs ACCESS_LIST, not FOUNDER: anyone who can see the list
+  can see what the levels mean.
+- INFO shows mode lock and options only with the INFO privilege, as in
+  Anope (it used to show them to everyone).
+- Hidden aliases: SET MLOCK (= MODE LOCK SET), SET TOPICLOCK (= TOPIC
+  LOCK), SET SECURE (= SECUREOPS), CLEAR (CR: OPS takes every status but
+  voice), WHY (= STATUS). CR shortcuts MEMOLEVEL, AUTOVOP and LEAVEOPS
+  map onto LEVELS and SECUREOPS.
+- With Anope's defaults UOP (1) only has NOKICK and the join pass; INVITE,
+  UNBANME and GETKEY start at HOP/AOP. A founder who wants the old CR UOP
+  sets `/cs levels #chan set invite 1` and `set unbanme 1`.
+- ENFORCE has no SSLONLY yet (no +z until 1.5.9). LIMIT kicks people with
+  no status and no access first (we don't keep join order).
+- Not built: FLAGS, CLONE, SEEN, SET EMAIL; BotServ's ASSIGN, SAY,
+  BADWORDS, FANTASY.

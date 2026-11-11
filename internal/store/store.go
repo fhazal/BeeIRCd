@@ -142,7 +142,7 @@ func Open(path string) (*Store, error) {
 		}
 		return fail(err)
 	}
-	if _, err := db.Exec(schema + channelSchema + operSchema); err != nil {
+	if _, err := db.Exec(schema + channelSchema + operSchema + chanExtraSchema); err != nil {
 		return fail(err)
 	}
 	if err := migrateLevels(db); err != nil {
@@ -152,6 +152,9 @@ func Open(path string) (*Store, error) {
 		return fail(err)
 	}
 	if err := migrateAccounts(db); err != nil {
+		return fail(err)
+	}
+	if err := migrateChannels(db); err != nil {
 		return fail(err)
 	}
 	c, err := loadCache(db)

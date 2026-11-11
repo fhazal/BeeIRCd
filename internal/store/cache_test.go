@@ -69,8 +69,41 @@ func TestCacheMatchesDatabase(t *testing.T) {
 	ok(err)
 	_, err = s.DelAkick(ch, "*!*@bad")
 	ok(err)
-	ch.SuccessorID, ch.MlockOn, ch.Topic, ch.TopicAt, ch.Secure = c.ID, "ntR", "buzz", now, true
+	ch.SuccessorID, ch.MlockOn, ch.Topic, ch.TopicAt, ch.SecureOps = c.ID, "ntR", "buzz", now, true
+	ch.Restricted, ch.Peace, ch.BanType, ch.LastModes, ch.MemoLimit = true, false, 3, "+ntk key", 5
+	ch.SuspendedBy, ch.SuspendReason, ch.SuspendedAt, ch.SuspendUntil = "Bee", "spam", now, now.Add(time.Hour)
 	ok(s.SaveChannel(ch))
+	ok(s.SetChanLevel(ch, "KICK", 10))
+	ok(s.SetChanLevel(ch, "TOPIC", LevelDisabled))
+	ok(s.SetChanLevel(ch, "KICK", 5)) // change
+	ok(s.SetChanLevel(ch2, "MEMO", 3))
+	ok(s.ResetChanLevels(ch2))
+	ok(s.AddEntryMsg(ch, "welcome", "Bee", now))
+	ok(s.AddEntryMsg(ch, "be kind", "Bee", now))
+	ok(s.AddEntryMsg(ch2, "nest", "Wasp", now))
+	ok(s.SetEntryMsg(ch, s.EntryMsgs(ch)[0].ID, "welcome!"))
+	ok(s.DelEntryMsg(ch, s.EntryMsgs(ch)[1].ID))
+	ok(s.SetLog(ch, LogSetting{"KICK", "NOTICE", "@"}))
+	ok(s.SetLog(ch, LogSetting{"BAN", "MEMO", ""}))
+	ok(s.SetLog(ch, LogSetting{"KICK", "NOTICE", ""})) // change
+	_, err = s.DelLog(ch, "BAN", "MEMO")
+	ok(err)
+	ok(s.SetLog(ch2, LogSetting{"TOPIC", "MESSAGE", ""}))
+	ok(s.AddChanMemo(ch, "Wasp", "meeting friday", now))
+	ok(s.AddChanMemo(ch, "Ant", "ok", now))
+	ok(s.AddChanMemo(ch2, "Bee", "nest memo", now))
+	cm := s.ChanMemos(ch)
+	ok(s.MarkChanMemoRead(cm[0].ID))
+	ok(s.DeleteChanMemo(cm[1].ID))
+	_, err = s.AddChanMemoIgnore(ch, "Spam")
+	ok(err)
+	_, err = s.AddChanMemoIgnore(ch, "Junk")
+	ok(err)
+	_, err = s.DelChanMemoIgnore(ch, "SPAM")
+	ok(err)
+	if !s.ChanIgnores(ch, "junk") || s.ChanIgnores(ch, "spam") {
+		t.Error("channel memo ignores wrong")
+	}
 	ok(s.SaveOper(&Oper{AccountID: b.ID, Flags: "ck", Hosts: []string{"*@a", "*@b"}, AddedBy: "Bee", AddedAt: now}))
 	ok(s.SaveOper(&Oper{AccountID: c.ID, Flags: "c", AddedBy: "Bee", AddedAt: now}))
 	ok(s.SaveOper(&Oper{AccountID: b.ID, Flags: "ckg", Title: "Guard", AddedBy: "x", AddedAt: now.Add(time.Hour)}))
@@ -106,6 +139,9 @@ func TestCacheMatchesDatabase(t *testing.T) {
 	ok(err)
 	ok(s.DeleteChannel(ch3.ID))
 
+	if got, _ := s.ChannelByName("#hive"); len(s.ChanMemos(got)) != 1 || len(s.EntryMsgs(got)) != 1 || s.ChanLevels(got)["KICK"] != 5 {
+		t.Errorf("#Hive extras lost")
+	}
 	accounts, nicks, nMemos, _ := s.Counts()
 	if accounts != 1 || nicks != 2 || nMemos != 1 {
 		t.Errorf("counts = %d %d %d", accounts, nicks, nMemos)
@@ -122,6 +158,11 @@ func TestCacheMatchesDatabase(t *testing.T) {
 	again, _ := s2.AccountByNick("bee_")
 	if again == nil || again.MemoLimit != 10 || again.LastSeen.Unix() != now.Add(time.Hour).Unix() {
 		t.Errorf("after reopen: %+v", again)
+	}
+	hive, _ := s2.ChannelByName("#hive")
+	if hive == nil || !hive.Restricted || hive.Peace || hive.BanType != 3 || hive.SuspendedBy != "Bee" || !hive.Suspended(now) ||
+		hive.Suspended(now.Add(2*time.Hour)) || s2.ChanLevels(hive)["TOPIC"] != LevelDisabled || s2.LogSettings(hive)[0].Status != "" {
+		t.Errorf("#hive after reopen: %+v", hive)
 	}
 }
 

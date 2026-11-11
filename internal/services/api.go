@@ -12,7 +12,11 @@ import (
 
 // Start creates the service bots. AdminServ is added by the server with
 // AddBot.
-func (s *Services) Start() { s.startServices() }
+func (s *Services) Start() {
+	s.startServices()
+	s.startPersist()
+	s.Flush()
+}
 
 // BotCommand is one command of a bot the server adds (AdminServ).
 type BotCommand struct {
@@ -92,7 +96,7 @@ func RoundUp(d time.Duration) string { return roundUp(d) }
 func IsReserved(nick string) bool { return isReserved(nick) }
 
 // JoinLevel is uid's ChanServ level on channel before joining (0 when the
-// channel isn't registered). UOP and up get past +i and +k.
+// channel isn't registered). Anyone on the access list gets past +i and +k.
 func (s *Services) JoinLevel(uid, channel string) int {
 	if c := s.clients[uid]; c != nil {
 		return s.csJoinLevel(c, channel)
