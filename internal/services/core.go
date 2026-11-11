@@ -61,6 +61,12 @@ type Host interface {
 	Stats() HostStats
 	// ResetPeak makes the people peak the number online now (STATS RESET).
 	ResetPeak()
+	// ForceJoin joins uid to channel past every mode and ban (SVSJOIN),
+	// as if they had typed JOIN.
+	ForceJoin(uid, channel string)
+	// SetUserModes changes uid's user modes as MODE allows them, sent by
+	// srcUID (UMODE). It reports an unknown mode letter.
+	SetUserModes(uid, srcUID, modes string) bool
 }
 
 // HostStats are server figures for OperServ STATS.
@@ -68,6 +74,7 @@ type HostStats struct {
 	Started   time.Time
 	PeakUsers int
 	Loop      string
+	DNSBL     string // hits per DNSBL list, "" when none is set up
 }
 
 // Services is the running services.
@@ -96,6 +103,14 @@ type Services struct {
 	news           []store.News
 	sessionExcepts []store.SessionExcept
 	forbids        map[string][]store.Forbid // by kind
+	randNews       int                       // the RANDOMNEWS line the next connection gets
+	ignores        []store.Ignore            // OperServ IGNORE
+
+	// SEEN, kept in memory and saved every minute (see SaveSeen).
+	seen      map[string]*store.Seen // by folded nick
+	seenDirty map[string]bool
+	seenGone  []string
+	seenSaved time.Time
 }
 
 // Client is services' record of one person on the network.
@@ -130,8 +145,14 @@ func New(host Host, cfg *config.Config, logger *log.Logger, net *state.Network, 
 		hashSem:  make(chan struct{}, 2),
 
 		banRegexps: make(map[string]*regexp.Regexp),
+		seen:       make(map[string]*store.Seen),
+		seenDirty:  make(map[string]bool),
+		seenSaved:  time.Now(),
 	}
 	if err := s.loadOperData(); err != nil {
+		return nil, err
+	}
+	if err := s.loadSeen(); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -170,6 +191,7 @@ func (s *Services) Flush() {
 }
 
 func (s *Services) handle(ev state.Event) {
+	s.seenEvent(ev)
 	switch e := ev.(type) {
 	case *state.UserAdd:
 		if c := s.clients[e.User.UID]; c != nil && !c.closed {
@@ -230,6 +252,9 @@ func (s *Services) Tick(now time.Time) {
 			s.enforce(c)
 		}
 	}
+	if now.Sub(s.seenSaved) >= seenSaveEach {
+		s.SaveSeen()
+	}
 	s.Flush()
 }
 
@@ -239,6 +264,8 @@ func (s *Services) Expire(now time.Time) {
 	s.expireChannels(now)
 	s.expireSuspends(now)
 	s.expireBans(now)
+	s.expireSeen(now)
+	s.liveIgnores()
 	s.Flush()
 }
 

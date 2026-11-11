@@ -66,6 +66,11 @@ type Server struct {
 
 	// resolve looks up a hostname for an IP; replaceable in tests.
 	resolve func(ctx context.Context, ip string) (string, bool)
+	// lookupA answers DNSBL queries; replaceable in tests.
+	lookupA func(ctx context.Context, name string) ([]string, error)
+	// dnsblSkip says which IPs are never looked up; replaceable in tests.
+	dnsblSkip func(ip string) bool
+	dnsbl     dnsblState
 }
 
 type listener struct {
@@ -85,16 +90,19 @@ var ErrRestart = errors.New("restart requested")
 // New opens the configured ports. Call Serve to start answering.
 func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	s := &Server{
-		cfg:     cfg,
-		log:     logger,
-		net:     state.NewNetwork(cfg.Server.SID),
-		clients: make(map[string]*Client),
-		perIP:   make(map[string]int),
-		opers:   make(map[*Client]bool),
-		events:  make(chan func(), 1024),
-		done:    make(chan struct{}),
-		created: time.Now(),
-		resolve: lookupHost,
+		cfg:       cfg,
+		log:       logger,
+		net:       state.NewNetwork(cfg.Server.SID),
+		clients:   make(map[string]*Client),
+		perIP:     make(map[string]int),
+		opers:     make(map[*Client]bool),
+		events:    make(chan func(), 1024),
+		done:      make(chan struct{}),
+		created:   time.Now(),
+		resolve:   lookupHost,
+		lookupA:   lookupA,
+		dnsblSkip: dnsblSkipped,
+		dnsbl:     dnsblState{cache: make(map[string]dnsblResult), hits: make(map[string]int), off: make(map[string]bool)},
 	}
 	if err := os.MkdirAll(filepath.Dir(cfg.Services.Database), 0o750); err != nil {
 		return nil, err
@@ -310,6 +318,7 @@ func (s *Server) shutdown(reason string) {
 	case <-time.After(3 * time.Second):
 		s.log.Printf("some connections did not close in time")
 	}
+	s.svc.SaveSeen()
 	if err := s.store.Close(); err != nil {
 		s.log.Printf("closing services database: %v", err)
 	}

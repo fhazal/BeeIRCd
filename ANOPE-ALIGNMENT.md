@@ -219,3 +219,36 @@ Where we differ from 2.0.20, on purpose:
 - STATS with no option shows our one-page overview (Anope: uptime only).
 - Defaults that are config in both: nick_expire 90 days (Anope 21),
   chan_expire 60 days (Anope 90); the owner's live Anope uses 365 for both.
+
+## Stage 1.5.5b (built 11 Nov 2026, Anope 2.0.20)
+
+Built as Anope 2.0.20 (os_chankill, os_svs, os_mode, os_list, os_info,
+os_ignore, os_news, cs_seen), with its log lines:
+
+- CHANKILL [+expiry] #chan reason: an AKILL on *@real host of everyone in
+  the channel but opers and services; 30 days without +expiry.
+- SVSNICK nick newnick, SVSJOIN nick #chan, SVSPART nick #chan [reason],
+  UMODE nick modes (the person is told who changed their modes).
+- USERLIST [pattern|#chan [INVISIBLE]], CHANLIST [pattern|nick [SECRET]].
+- INFO ADD|DEL|CLEAR nick|#chan text: up to 10 notes, shown to opers in
+  NS and CS INFO; a nick's notes belong to its account.
+- IGNORE ADD time nick|mask [reason] (bare number = seconds, 0 = for good)
+  / DEL / LIST / CLEAR; never applies to opers; expiry logged.
+- LOGONNEWS / OPERNEWS / RANDOMNEWS: the newest 3 logon lines at connect
+  and oper lines at /oper, one random line per connection in turn, as
+  "[Logon News - time] text" from Global (oper news from OperServ).
+- ChanServ SEEN nick (connect, nick change both ways, join, part, kick,
+  quit; secret channels stay secret), OperServ SEEN STATS | CLEAR time;
+  kept 30 days (purgetime).
+
+Where we differ, on purpose:
+
+- Anope's USERLIST INVISIBLE and CHANLIST SECRET filters don't work in
+  2.0.20 (a `continue` inside the inner loop); ours do what HELP says.
+- SEEN is kept in memory and written to the database once a minute and at
+  shutdown (it changes on every join and nick change).
+- Oper flags: CHANKILL and IGNORE need k, SVS*, UMODE and OS SEEN need s,
+  USERLIST, CHANLIST and INFO any oper, the news commands g.
+- DNSBL: Anope's m_dnsbl always AKILLs (4h in the owner's commented-out
+  block); ours does what each list says, reject by default (decided for
+  1.5.5). Reasons take Anope's %i %n %u %h %g %N %r, plus %b for the list.

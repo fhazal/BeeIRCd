@@ -113,7 +113,7 @@ func (h host) ApplySetting(uid, botUID, key, value string) {
 func (h host) Post(f func()) { h.s.post(f) }
 
 func (h host) Stats() services.HostStats {
-	return services.HostStats{Started: h.s.created, PeakUsers: h.s.maxLocal, Loop: h.s.loop.summary()}
+	return services.HostStats{Started: h.s.created, PeakUsers: h.s.maxLocal, Loop: h.s.loop.summary(), DNSBL: h.s.dnsblSummary()}
 }
 
 // botReply sends a notice from a service bot to c.
@@ -142,3 +142,28 @@ func (s *Server) toAlias(c *Client, alias string, m irc.Message) {
 func (s *Server) lockedFor(key int64) time.Duration { return s.svc.LockedFor(key) }
 
 func (h host) ResetPeak() { h.s.maxLocal = h.s.localUsers() }
+
+func (h host) ForceJoin(uid, channel string) {
+	s := h.s
+	c := s.clients[uid]
+	if c == nil || c.user == nil {
+		return
+	}
+	if s.emit(&state.Join{UID: uid, Channel: channel, TS: time.Now().Unix()}) != nil {
+		return
+	}
+	if ch := s.net.Channel(channel); ch != nil {
+		if ch.Topic != "" {
+			s.sendTopic(c, ch)
+		}
+		s.sendNames(c, ch)
+	}
+}
+
+func (h host) SetUserModes(uid, srcUID, modes string) bool {
+	c := h.s.clients[uid]
+	if c == nil || c.user == nil {
+		return false
+	}
+	return h.s.setUserModes(c, srcUID, modes)
+}

@@ -30,7 +30,11 @@ func (s *Services) loadOperData() error {
 		}
 		forbids[kind] = list
 	}
-	s.netbans, s.news, s.sessionExcepts, s.forbids = bans, news, ex, forbids
+	ignores, err := s.store.SvcIgnores()
+	if err != nil {
+		return err
+	}
+	s.netbans, s.news, s.sessionExcepts, s.forbids, s.ignores = bans, news, ex, forbids, ignores
 	return nil
 }
 

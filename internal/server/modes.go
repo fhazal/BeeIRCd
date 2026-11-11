@@ -59,6 +59,16 @@ func (s *Server) userMode(c *Client, m irc.Message) {
 		s.replyBare(c, irc.RplUModeIs, u.ModeString())
 		return
 	}
+	if s.setUserModes(c, u.UID, m.Params[1]) {
+		s.reply(c, irc.ErrUModeUnknownFlag, "Unknown MODE flag")
+	}
+}
+
+// setUserModes changes c's user modes as the MODE command allows (+o only
+// ever goes; +s needs an oper; +r is for services), sent by srcUID (the
+// user, or OperServ for UMODE). It reports an unknown mode letter.
+func (s *Server) setUserModes(c *Client, srcUID, modeStr string) bool {
+	u := c.user
 	// cur is the modes as they will be; the event changes the real ones.
 	cur := make(map[byte]bool, len(u.Modes))
 	for k, v := range u.Modes {
@@ -70,8 +80,8 @@ func (s *Server) userMode(c *Client, m irc.Message) {
 		setFlag(cur, mc, on)
 		changes = append(changes, state.ModeChange{Add: on, Mode: mc})
 	}
-	for i := 0; i < len(m.Params[1]); i++ {
-		mc := m.Params[1][i]
+	for i := 0; i < len(modeStr); i++ {
+		mc := modeStr[i]
 		switch mc {
 		case '+':
 			add = true
@@ -103,11 +113,8 @@ func (s *Server) userMode(c *Client, m irc.Message) {
 			unknown = true
 		}
 	}
-	if unknown {
-		s.reply(c, irc.ErrUModeUnknownFlag, "Unknown MODE flag")
-	}
 	if len(changes) > 0 {
-		s.emit(&state.UserMode{Source: u.UID, UID: u.UID, Changes: changes})
+		s.emit(&state.UserMode{Source: srcUID, UID: u.UID, Changes: changes})
 	}
 	if deopered {
 		c.operFlags, c.operTitle, c.operAccount = "", "", 0
@@ -121,6 +128,7 @@ func (s *Server) userMode(c *Client, m irc.Message) {
 		}
 		s.setHost(c, host)
 	}
+	return unknown
 }
 
 func setFlag(m map[byte]bool, f byte, on bool) {

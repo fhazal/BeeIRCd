@@ -52,7 +52,11 @@ func operServCommands() map[string]svcCmd {
 		"EXCEPTION": {"EXCEPTION ADD|DEL|LIST|VIEW ...", "IPs allowed more connections",
 			"EXCEPTION ADD [+expiry] <ip-mask> <limit> [reason]   the mask may be CIDR\nEXCEPTION DEL {<ip-mask> | <num> | <list>}\nEXCEPTION LIST [<ip-mask> | <list>]\nEXCEPTION VIEW [<ip-mask> | <list>]   with who set it and when\nEXCEPTION BAN ADD|DEL|LIST|VIEW|CLEAR ...   ELINEs: user@host masks no AKILL,\n    ZLINE, SNLINE or SHUN applies to (and no DNSBL). /ELINE does the same.\nExample: /os exception add 192.168.50.0/24 20 home network", osException},
 		"LOGONNEWS": {"LOGONNEWS ADD|DEL|LIST ...", "lines shown after the MOTD",
-			"LOGONNEWS ADD <text>\nLOGONNEWS DEL {<num> | ALL}\nLOGONNEWS LIST\nEveryone sees the news when they connect, from Global.", osNews},
+			"LOGONNEWS ADD <text>\nLOGONNEWS DEL {<num> | ALL}\nLOGONNEWS LIST\nEveryone sees the newest 3 when they connect, from Global.", osNews},
+		"OPERNEWS": {"OPERNEWS ADD|DEL|LIST ...", "lines shown to opers when they oper up",
+			"OPERNEWS ADD <text>\nOPERNEWS DEL {<num> | ALL}\nOPERNEWS LIST\nOpers see the newest 3 when they oper up, from OperServ.", osNews},
+		"RANDOMNEWS": {"RANDOMNEWS ADD|DEL|LIST ...", "one line, in turn, for each connection",
+			"RANDOMNEWS ADD <text>\nRANDOMNEWS DEL {<num> | ALL}\nRANDOMNEWS LIST\nEveryone gets one of these when they connect, the next one each time, from\nGlobal.", osNews},
 	}
 }
 
@@ -135,6 +139,9 @@ func osStats(s *Services, c *Client, args []string) {
 		s.os(c, "  Forbids    %d", nForbid)
 		s.os(c, "  Exceptions %d (session limit %d)", len(s.sessionExcepts), s.cfg.Limits.SessionLimit)
 		s.os(c, "  News       %s", plural(len(s.news), "line"))
+		if hs.DNSBL != "" {
+			s.os(c, "  DNSBL hits %s", hs.DNSBL)
+		}
 		s.os(c, "  Memory     %.1f MiB in use, %d goroutines", float64(mem.HeapAlloc)/(1<<20), runtime.NumGoroutine())
 		s.os(c, "  Started    %s", showTime(hs.Started))
 	}
@@ -673,38 +680,75 @@ func osException(s *Services, c *Client, args []string) {
 	}
 }
 
+// newsKinds are the three news lists (Anope's os_news), by command.
+var newsKinds = map[string]struct{ kind, word, when string }{
+	"LOGONNEWS":  {store.NewsLogon, "logon", "Everyone sees the newest 3 when they connect, from Global."},
+	"OPERNEWS":   {store.NewsOper, "oper", "Opers see the newest 3 when they oper up, from OperServ."},
+	"RANDOMNEWS": {store.NewsRandom, "random", "Everyone gets one of these when they connect (in turn), from Global."},
+}
+
+// newsShown is how many logon and oper news lines people get (Anope's
+// newscount).
+const newsShown = 3
+
+// newsOf returns the news lines of one kind, oldest first.
+func (s *Services) newsOf(kind string) []store.News {
+	var out []store.News
+	for _, n := range s.news {
+		if n.Kind == kind {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
 func osNews(s *Services, c *Client, args []string) {
 	if !s.needFlag(c, s.operServ, 'g') {
 		return
 	}
+	cmd := strings.ToUpper(c.cmdName)
+	if real, ok := s.operServ.aliases[cmd]; ok {
+		cmd = real
+	}
+	k, ok := newsKinds[cmd]
+	if !ok {
+		k = newsKinds["LOGONNEWS"]
+		cmd = "LOGONNEWS"
+	}
+	list := s.newsOf(k.kind)
+	low := strings.ToLower(cmd)
 	switch strings.ToUpper(argAt(args, 0)) {
 	case "ADD":
 		text := strings.Join(args[1:], " ")
 		if text == "" {
-			s.os(c, "Syntax: LOGONNEWS ADD <text>")
+			s.os(c, "Syntax: %s ADD <text>", cmd)
 			return
 		}
-		if len(s.news) >= maxNews {
-			s.os(c, "There are %d news lines already, the most. Remove one first: /os logonnews del <num>", maxNews)
+		if len(list) >= maxNews {
+			s.os(c, "There are %d %s news lines already, the most. Remove one first: /os %s del <num>", maxNews, k.word, low)
 			return
 		}
-		if err := s.store.AddNews(irc.Truncate(text, 300), c.user.Nick, time.Now()); err != nil {
+		if err := s.store.AddNews(k.kind, irc.Truncate(text, 300), c.user.Nick, time.Now()); err != nil {
 			s.dbErr(c, s.operServ, err)
 			return
 		}
 		s.reloadOperData()
-		s.audit(c, s.operServ, "LOGONNEWS ADD %s", text)
+		s.audit(c, s.operServ, "%s ADD %s", cmd, text)
 		s.osLog(c, "to add a news item")
-		s.os(c, "News added. Everyone sees it when they connect.")
+		s.os(c, "Added new %s news item. %s", k.word, k.when)
 	case "DEL":
 		arg := argAt(args, 1)
 		var picks []store.News
 		if strings.EqualFold(arg, "ALL") {
-			picks = s.news
-		} else if n, err := strconv.Atoi(arg); err == nil && n >= 1 && n <= len(s.news) {
-			picks = []store.News{s.news[n-1]}
+			picks = list
+		} else if n, err := strconv.Atoi(arg); err == nil && n >= 1 && n <= len(list) {
+			picks = []store.News{list[n-1]}
 		} else {
-			s.os(c, "Syntax: LOGONNEWS DEL {<num> | ALL} (see /os logonnews list)")
+			s.os(c, "Syntax: %s DEL {<num> | ALL} (see /os %s list)", cmd, low)
+			return
+		}
+		if len(picks) == 0 {
+			s.os(c, "No %s news items to delete.", k.word)
 			return
 		}
 		for _, n := range picks {
@@ -712,30 +756,55 @@ func osNews(s *Services, c *Client, args []string) {
 				s.dbErr(c, s.operServ, err)
 				return
 			}
-			s.audit(c, s.operServ, "LOGONNEWS DEL %s", n.Text)
+			s.audit(c, s.operServ, "%s DEL %s", cmd, n.Text)
 		}
 		s.reloadOperData()
 		if strings.EqualFold(arg, "ALL") {
 			s.osLog(c, "to delete all news items")
+			s.os(c, "All %s news items deleted (%d).", k.word, len(picks))
 		} else {
 			s.osLog(c, "to delete a news item")
+			s.os(c, "%s news item #%s deleted.", upperFirst(k.word), arg)
 		}
-		if len(picks) == 1 && !strings.EqualFold(arg, "ALL") {
-			s.os(c, "News line %s removed.", arg)
-		} else {
-			s.os(c, "All news removed (%s).", plural(len(picks), "line"))
-		}
-	case "LIST":
-		if len(s.news) == 0 {
-			s.os(c, "No news.")
+	case "LIST", "":
+		if len(list) == 0 {
+			s.os(c, "There is no %s news.", k.word)
 			return
 		}
-		s.os(c, "News:")
-		for i, n := range s.news {
+		s.os(c, "%s news items:", upperFirst(k.word))
+		for i, n := range list {
 			s.os(c, "  %-3d %s  by %s, %s", i+1, n.Text, n.SetBy, n.SetAt.UTC().Format("2 Jan 2006"))
 		}
-		s.os(c, "%s.", plural(len(s.news), "line"))
+		s.os(c, "%s.", plural(len(list), "line"))
 	default:
-		s.os(c, "Syntax: LOGONNEWS ADD|DEL|LIST ...")
+		s.os(c, "Syntax: %s ADD|DEL|LIST ...", cmd)
+	}
+}
+
+func upperFirst(w string) string {
+	if w == "" {
+		return w
+	}
+	return strings.ToUpper(w[:1]) + w[1:]
+}
+
+// showNews sends the newest newsShown lines of kind (all for random: one
+// in turn) to uid from bot, Anope's way: [Logon News - time] text.
+func (s *Services) showNews(uid string, bot *service, kind, label string) {
+	list := s.newsOf(kind)
+	if len(list) == 0 {
+		return
+	}
+	if kind == store.NewsRandom {
+		n := list[s.randNews%len(list)]
+		s.randNews = (s.randNews + 1) % len(list)
+		s.host.Notice(bot.user.UID, uid, "[\x02"+label+"\x02 - "+showTime(n.SetAt)+"] "+n.Text)
+		return
+	}
+	if len(list) > newsShown {
+		list = list[len(list)-newsShown:]
+	}
+	for _, n := range list {
+		s.host.Notice(bot.user.UID, uid, "[\x02"+label+"\x02 - "+showTime(n.SetAt)+"] "+n.Text)
 	}
 }

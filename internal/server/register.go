@@ -189,8 +189,14 @@ func (s *Server) cmdQuit(c *Client, m irc.Message) {
 // tryRegister finishes registration once NICK, USER, CAP and the host
 // lookup are all done.
 func (s *Server) tryRegister(c *Client) {
-	if c.registered || c.closed || c.nick == "" || c.ident == "" || !c.hostDone || c.capBusy || c.saslBusy {
+	if c.registered || c.closed || c.nick == "" || c.ident == "" || !c.hostDone || c.dnsblBusy || c.capBusy || c.saslBusy {
 		return
+	}
+	if r := c.dnsblListed; r != nil {
+		c.dnsblListed = nil
+		if s.dnsblHit(c, *r) {
+			return
+		}
 	}
 	now := time.Now()
 	u := &state.User{

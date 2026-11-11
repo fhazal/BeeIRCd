@@ -33,7 +33,7 @@ Last updated: 11 Nov 2026 (Stage 1.5.3).
 | Server linking | Planned | Stage 2 |
 | WebSocket | Planned | Stage 4 |
 | PROXY protocol | Planned | |
-| DNS blacklists (DroneBL, EFnetRBL) | Planned | 1.5.5b: reply codes per list, reject/zline/akill/shun, ban time |
+| DNS blocklists (`[[dnsbl]]`: DroneBL, EFnetRBL, any list) | Implemented | 1.5.5b: answers per list, reject (default) / zline / akill / shun for ban_time, IPv4 + IPv6, lookups off the loop, registration waits at most 2 s, cache (hit 1 h, clean 10 min), LAN IPs never looked up, ELINE + session exceptions skip it, AdminServ DNSBL LIST/CHECK/ENABLE/DISABLE, hits in OS STATS ALL, Anope M_DNSBL log line |
 | REHASH | Planned | step 7 |
 | Module system | Proposed | after Stage 4 |
 
@@ -76,7 +76,7 @@ Last updated: 11 Nov 2026 (Stage 1.5.3).
 | MemoServ (nick memos, number lists, ignore) | Implemented |
 | MemoServ channel memo boxes (one box per channel like Anope, MEMO privilege, own limit and ignore list, notice on join and identify) | Implemented (1.5.4) |
 | OperServ (STATS AKILL/HASH/UPLINK/UPTIME/ALL/RESET, global, AKILL ZLINE SNLINE SHUN SQLINE with expiry (30 days by default, `ban_expiry`; +0 for good) and number lists, SNLINE mask:reason, EXCEPTION BAN (ELINE), kill, MODE incl. CLEAR [ALL], kick, FORBID nick/chan/email/register with expiry, sessions, exceptions with expiry and CIDR, logon news) | Implemented (ban engine 1.5.5a, 2.0.20 shape 11 Nov 2026) |
-| OperServ CHANKILL SVSNICK SVSJOIN SVSPART UMODE USERLIST CHANLIST INFO IGNORE OPERNEWS RANDOMNEWS, ChanServ SEEN | Planned (1.5.5b) |
+| OperServ CHANKILL SVSNICK SVSJOIN SVSPART UMODE USERLIST CHANLIST INFO IGNORE OPERNEWS RANDOMNEWS SEEN, ChanServ SEEN (Anope 2.0.20) | Implemented (1.5.5b) |
 | AdminServ (settings saved to config, MOTD, ports, opers, restart, die) | Implemented |
 | HostServ (vhosts) | Planned (Stage 1.5) |
 | HelpServ | Planned (phase 6) |
@@ -95,4 +95,4 @@ Last updated: 11 Nov 2026 (Stage 1.5.3).
 | Network ban engine: AKILL/G-line (user@host, CIDR), ZLINE (IP/CIDR, before DNS), SQLINE/Q-line (nicks), SNLINE/R-line (realname glob or regex), SHUN, ELINE exemptions, all with expiry | Implemented | 1.5.5a; one list behind OperServ and /GLINE /ZLINE /QLINE /RLINE /SHUN /ELINE; matches real host and IP, never the cloak |
 | Channel extbans ~a ~r ~m (~q) ~t, timed bans, CS BAN +expiry, AKICK extbans | Implemented | 1.5.5a |
 | K-line (this server only) | Planned | with linking (Stage 2) |
-| DNSBL, content filter | Planned | |
+| Content filter (spamfilter) | Planned | |

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -45,10 +46,33 @@ type Config struct {
 	Cloak    Cloak    `toml:"cloak"`
 	Services Services `toml:"services"`
 	Limits   Limits   `toml:"limits"`
+	DNSBL    []DNSBL  `toml:"dnsbl"`
 
 	// Path is the file this was read from; AdminServ writes changes there.
 	Path string `toml:"-"`
 }
+
+// DNSBL is one DNS blocklist new connections are looked up in, like
+// UnrealIRCd's blacklist{} and Anope's m_dnsbl.
+type DNSBL struct {
+	// Name is the list's DNS zone, like "dnsbl.dronebl.org".
+	Name string `toml:"name"`
+	// Replies are the answers (127.0.0.N) that count; empty = every answer.
+	Replies []int `toml:"replies"`
+	// Action: "reject" (refuse this connection, the default), "zline",
+	// "akill" or "shun" (a network ban for ban_time).
+	Action string `toml:"action"`
+	// BanTime is how long a zline/akill/shun lasts (24h by default).
+	BanTime Duration `toml:"ban_time"`
+	// Reason is shown to the person; %i is their IP, %b the list, %r the
+	// answer, %n %u %h their nick, ident and host, %N the network.
+	Reason string `toml:"reason"`
+	// Enabled is on by default.
+	Enabled *bool `toml:"enabled"`
+}
+
+// DNSBLActions are the actions a [[dnsbl]] list may take.
+var DNSBLActions = []string{"reject", "zline", "akill", "shun"}
 
 // Cloak hides people's IPs and hostnames (user mode +x).
 type Cloak struct {
@@ -202,6 +226,16 @@ func (c *Config) SetDefaults() {
 	if sv.GuestPrefix == "" {
 		sv.GuestPrefix = "Guest"
 	}
+	for i := range c.DNSBL {
+		d := &c.DNSBL[i]
+		if d.Action == "" {
+			d.Action = "reject"
+		}
+		setDur(&d.BanTime, 24*time.Hour)
+		if d.Reason == "" {
+			d.Reason = "Your IP %i is listed in %b (%r)"
+		}
+	}
 }
 
 // Services holds NickServ, ChanServ and MemoServ settings.
@@ -296,6 +330,24 @@ func (c *Config) Check() error {
 	}
 	if c.Limits.NickLen > 50 || c.Limits.ChannelLen > 64 {
 		return fmt.Errorf("nick_length is at most 50 and channel_length at most 64")
+	}
+	seen := make(map[string]bool)
+	for _, d := range c.DNSBL {
+		name := strings.ToLower(strings.Trim(d.Name, "."))
+		switch {
+		case !serverRe.MatchString(name):
+			return fmt.Errorf("[[dnsbl]] name %q must be a DNS zone like \"dnsbl.dronebl.org\"", d.Name)
+		case seen[name]:
+			return fmt.Errorf("[[dnsbl]] %s is in the file twice", name)
+		case !slices.Contains(DNSBLActions, d.Action):
+			return fmt.Errorf("[[dnsbl]] %s: action %q must be reject, zline, akill or shun", name, d.Action)
+		}
+		for _, r := range d.Replies {
+			if r < 1 || r > 255 {
+				return fmt.Errorf("[[dnsbl]] %s: reply %d must be 1 to 255", name, r)
+			}
+		}
+		seen[name] = true
 	}
 	return nil
 }

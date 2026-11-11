@@ -149,8 +149,9 @@ func (s *Services) helpSetup() {
 	}
 
 	s.operServ.cmdNeed = map[string]byte{
-		"GLOBAL": 'g', "LOGONNEWS": 'g', "AKILL": 'k', "ZLINE": 'k', "SNLINE": 'k', "SHUN": 'k', "SQLINE": 's', "KILL": 'k', "SESSION": 'k', "EXCEPTION": 'k',
+		"GLOBAL": 'g', "LOGONNEWS": 'g', "OPERNEWS": 'g', "RANDOMNEWS": 'g', "AKILL": 'k', "ZLINE": 'k', "SNLINE": 'k', "SHUN": 'k', "SQLINE": 's', "KILL": 'k', "SESSION": 'k', "EXCEPTION": 'k',
 		"MODE": 's', "KICK": 's', "FORBID": 's',
+		"CHANKILL": 'k', "SVSNICK": 's', "SVSJOIN": 's', "SVSPART": 's', "UMODE": 's', "IGNORE": 'k', "SEEN": 's',
 	}
 	for _, sv := range s.services {
 		sort.Strings(sv.order)

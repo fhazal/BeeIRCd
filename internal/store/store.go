@@ -174,6 +174,9 @@ func Open(path string) (*Store, error) {
 	if err := migrateNetbans(db); err != nil {
 		return fail(err)
 	}
+	if err := migrate155b(db); err != nil {
+		return fail(err)
+	}
 	c, err := loadCache(db)
 	if err != nil {
 		return fail(err)

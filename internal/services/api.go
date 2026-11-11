@@ -2,8 +2,10 @@ package services
 
 import (
 	"sort"
+	"strings"
 	"time"
 
+	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
 )
@@ -115,9 +117,13 @@ func (s *Services) TopicLocked(uid string, ch *state.Channel) bool {
 
 // SendNews shows the news lines (after the MOTD).
 func (s *Services) SendNews(uid string) {
-	for _, n := range s.news {
-		s.host.Notice(s.global.user.UID, uid, "[News "+n.SetAt.UTC().Format("2 Jan")+"] "+n.Text)
-	}
+	s.showNews(uid, s.global, store.NewsLogon, "Logon News")
+	s.showNews(uid, s.global, store.NewsRandom, "Random News")
+}
+
+// SendOperNews sends the oper news to someone who just opered up.
+func (s *Services) SendOperNews(uid string) {
+	s.showNews(uid, s.operServ, store.NewsOper, "Oper News")
 }
 
 // Forbidden returns the forbid on a nick or channel (kind store.ForbidNick
@@ -175,3 +181,50 @@ func (s *Services) ClearLockout(key int64) { delete(s.lockouts, key) }
 // ReloadBans rereads network bans, forbids, news and session exceptions
 // from the store (after something outside services changed them).
 func (s *Services) ReloadBans() { s.reloadOperData() }
+
+// DnsblExempt reports whether ip skips the DNSBL check: an ELINE or a
+// session exception covers it.
+func (s *Services) DnsblExempt(ip string) bool {
+	if s.exempt("", "", ip) {
+		return true
+	}
+	now := time.Now()
+	for _, e := range s.sessionExcepts {
+		if (e.Expires.IsZero() || now.Before(e.Expires)) && irc.MatchHost(e.Mask, ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// DnsblBan adds the network ban a DNSBL list asks for (kind is
+// store.BanZline, BanAkill or BanShun) on ip, set by "DNSBL", unless one
+// is there already.
+func (s *Services) DnsblBan(kind, ip, reason string, life time.Duration) {
+	mask := ip
+	if kind != store.BanZline {
+		mask = "*@" + ip
+	}
+	mask, problem := s.netbanMask(kind, mask)
+	if problem != "" {
+		return
+	}
+	for _, b := range s.liveBans(kind) {
+		if strings.EqualFold(b.Mask, mask) {
+			return
+		}
+	}
+	now := time.Now()
+	b := store.NetBan{Kind: kind, Mask: mask, Reason: irc.Truncate(reason, 200), SetBy: "DNSBL", SetAt: now, Expires: now.Add(life)}
+	if err := s.store.AddNetBan(b); err != nil {
+		s.log.Printf("services database: %v", err)
+		return
+	}
+	s.reloadOperData()
+}
+
+// LogDNSBL posts Anope's m_dnsbl line to the log channel, from OperServ:
+// "M_DNSBL: nick!ident@host (ip) appears in list".
+func (s *Services) LogDNSBL(mask, ip, list string) {
+	s.logTo(s.operServ, "M_DNSBL: "+mask+" ("+ip+") appears in "+list)
+}

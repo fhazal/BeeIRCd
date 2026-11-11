@@ -35,6 +35,8 @@ type Client struct {
 	registered            bool
 	capBusy               bool // CAP negotiation not finished
 	hostDone              bool
+	dnsblBusy             bool         // a DNSBL lookup is running
+	dnsblListed           *dnsblResult // a DNSBL hit, acted on once NICK and USER are in
 	closed                bool
 	caps                  map[string]bool // IRCv3 capabilities this client asked for
 	capture               *[]string       // lines held back for labeled-response
@@ -98,6 +100,10 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 	if n, max := s.sessions(ip), s.svc.SessionLimit(ip); n > max {
 		s.snotice("Too many connections from %s (%d, the limit is %d)", ip, n, max)
 		s.quit(c, fmt.Sprintf("Too many connections from your IP (the limit is %d)", max))
+		return
+	}
+	s.dnsblStart(c)
+	if c.closed {
 		return
 	}
 

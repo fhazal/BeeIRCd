@@ -354,3 +354,56 @@ func TestSplitAndRename(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestOper155bTables(t *testing.T) {
+	s, path := open(t)
+	now := time.Unix(1_800_000_000, 0)
+	a, _ := s.CreateAccount("Bee", "h", "", now)
+	ch, _ := s.CreateChannel("#hive", a, "", now)
+	if err := s.AddOperInfo(false, a.ID, "watch", "Boss", now); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddOperInfo(true, ch.ID, "chan note", "Boss", now); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetSvcIgnore(Ignore{Mask: "*!*@Bad.Example", SetBy: "Boss", SetAt: now, Expires: now.Add(time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetSvcIgnore(Ignore{Mask: "*!*@bad.example", Reason: "again", SetBy: "Boss", SetAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddNews(NewsOper, "opers", "Boss", now); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveSeen([]Seen{{Nick: "Bee", Mask: "~b@h", Kind: SeenQuit, Message: "bye", Last: now}, {Nick: "x", Kind: SeenJoin, Last: now}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveSeen(nil, []string{"x"}); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	s2, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s2.Close()
+	if n, _ := s2.OperInfos(false, a.ID); len(n) != 1 || n[0].Text != "watch" {
+		t.Errorf("account info %+v", n)
+	}
+	if g, _ := s2.SvcIgnores(); len(g) != 1 || g[0].Reason != "again" || g[0].Expires.Unix() != 0 {
+		t.Errorf("ignores %+v (same mask in other case replaces it)", g)
+	}
+	if news, _ := s2.AllNews(); len(news) != 1 || news[0].Kind != NewsOper {
+		t.Errorf("news %+v", news)
+	}
+	if seen, _ := s2.AllSeen(); len(seen) != 1 || seen[0].Message != "bye" || !seen[0].Last.Equal(now) {
+		t.Errorf("seen %+v", seen)
+	}
+	// Notes go with their account or channel.
+	if err := s2.DeleteChannel(ch.ID); err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := s2.OperInfos(true, ch.ID); len(n) != 0 {
+		t.Errorf("channel notes outlived the channel: %+v", n)
+	}
+}

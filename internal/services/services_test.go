@@ -52,6 +52,8 @@ func (h *fakeHost) ApplySetting(uid, bot, key, value string) {}
 func (h *fakeHost) Post(f func())                            { h.posts <- f }
 func (h *fakeHost) Stats() HostStats                         { return HostStats{Started: time.Now()} }
 func (h *fakeHost) ResetPeak()                               {}
+func (h *fakeHost) ForceJoin(uid, channel string)            {}
+func (h *fakeHost) SetUserModes(uid, src, modes string) bool { return false }
 
 // waitFor runs posted work (finished password checks) until a notice to
 // nick contains want.

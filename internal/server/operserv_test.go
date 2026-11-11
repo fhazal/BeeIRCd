@@ -59,6 +59,12 @@ admin = "Boss"
 // channel that gets Serve's result.
 func fileServer(t *testing.T, extra string) (*Server, string, chan error) {
 	t.Helper()
+	return fileServerWith(t, extra, nil)
+}
+
+// fileServerWith also lets setup change the server before it starts.
+func fileServerWith(t *testing.T, extra string, setup func(*Server)) (*Server, string, chan error) {
+	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "beeircd.conf")
 	if err := os.WriteFile(path, []byte(fileConf+extra), 0o600); err != nil {
@@ -71,6 +77,9 @@ func fileServer(t *testing.T, extra string) (*Server, string, chan error) {
 	s, err := New(cfg, log.New(io.Discard, "", 0))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if setup != nil {
+		setup(s)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	result := make(chan error, 1)
@@ -278,16 +287,18 @@ func TestKillWallopsGlobalNews(t *testing.T) {
 	b.expect(osLine("Boss", "Sent to everyone online (2 people)."))
 
 	b.send("OS NEWS ADD Welcome to the new server") // NEWS is the old name of LOGONNEWS
-	b.expect(osLine("Boss", "News added. Everyone sees it when they connect."))
+	b.expect(osLine("Boss", "Added new logon news item. Everyone sees the newest 3 when they connect, from Global."))
 	late := raw(t, s)
 	late.send("NICK late")
 	late.send("USER late 0 * :Late")
 	late.expect(" 376 late ")
-	late.expect(":Global!services@irc.test.local NOTICE late :[News ")
+	if l := late.expect(":Global!services@irc.test.local NOTICE late :["); !strings.Contains(l, "Logon News") || !strings.HasSuffix(l, "] Welcome to the new server") {
+		t.Fatalf("logon news line: %q", l)
+	}
 	b.send("OS LOGONNEWS LIST")
 	b.expect("  1   Welcome to the new server  by Boss")
 	b.send("OS LOGONNEWS DEL 1")
-	b.expect(osLine("Boss", "News line 1 removed."))
+	b.expect(osLine("Boss", "Logon news item #1 deleted."))
 
 	victim2 := login(t, s, "victim2")
 	b.send("OS KILL victim2 flooding")

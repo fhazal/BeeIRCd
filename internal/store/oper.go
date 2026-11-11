@@ -35,6 +35,7 @@ type Forbid struct {
 // News is one line shown to everyone after the MOTD.
 type News struct {
 	ID    int64
+	Kind  string // NewsLogon, NewsOper or NewsRandom
 	Text  string
 	SetBy string
 	SetAt time.Time
@@ -199,7 +200,7 @@ func (s *Store) DelForbid(kind, name string) (bool, error) {
 
 // AllNews returns the news lines, oldest first.
 func (s *Store) AllNews() ([]News, error) {
-	rows, err := s.db.Query("SELECT id, body, set_by, set_at FROM news ORDER BY id")
+	rows, err := s.db.Query("SELECT id, kind, body, set_by, set_at FROM news ORDER BY id")
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +209,7 @@ func (s *Store) AllNews() ([]News, error) {
 	for rows.Next() {
 		var n News
 		var at int64
-		if err := rows.Scan(&n.ID, &n.Text, &n.SetBy, &at); err != nil {
+		if err := rows.Scan(&n.ID, &n.Kind, &n.Text, &n.SetBy, &at); err != nil {
 			return nil, err
 		}
 		n.SetAt = time.Unix(at, 0)
@@ -217,9 +218,9 @@ func (s *Store) AllNews() ([]News, error) {
 	return out, rows.Err()
 }
 
-// AddNews adds a news line.
-func (s *Store) AddNews(text, by string, now time.Time) error {
-	_, err := s.db.Exec("INSERT INTO news (body, set_by, set_at) VALUES (?, ?, ?)", text, by, now.Unix())
+// AddNews adds a news line of a kind (NewsLogon, NewsOper, NewsRandom).
+func (s *Store) AddNews(kind, text, by string, now time.Time) error {
+	_, err := s.db.Exec("INSERT INTO news (kind, body, set_by, set_at) VALUES (?, ?, ?, ?)", kind, text, by, now.Unix())
 	return err
 }
 

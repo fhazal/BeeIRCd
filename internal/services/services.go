@@ -68,7 +68,11 @@ func (s *Services) startServices() {
 	s.chanServ = s.addService("ChanServ", "cs", "Channel Services", "ChanServ keeps a channel yours. Commands:", chanServCommands())
 	s.chanServ.aliases = chanServAliases
 	s.memoServ = s.addService("MemoServ", "ms", "Memo Services", "MemoServ keeps messages for people who are away. Commands:", memoServCommands())
-	s.operServ = s.addService("OperServ", "os", "Operator Services", "OperServ is the toolbox for IRC operators. Commands:", operServCommands())
+	osCmds := operServCommands()
+	for name, cmd := range operServ155bCommands() {
+		osCmds[name] = cmd
+	}
+	s.operServ = s.addService("OperServ", "os", "Operator Services", "OperServ is the toolbox for IRC operators. Commands:", osCmds)
 	s.operServ.need = 'o'
 	s.operServ.aliases = operServAliases
 	s.global = s.addService("Global", "", "Network Announcements", "Global sends network notices. It takes no commands.", map[string]svcCmd{})
@@ -111,6 +115,9 @@ func (s *Services) serviceFor(u *state.User) *service {
 func (s *Services) toService(c *Client, sv *service, text string) {
 	fields := strings.Fields(text)
 	if len(fields) == 0 {
+		return
+	}
+	if s.ignored(c) { // OperServ IGNORE: dropped without a word
 		return
 	}
 	name := strings.ToUpper(fields[0])

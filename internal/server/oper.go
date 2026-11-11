@@ -107,6 +107,7 @@ func (s *Server) operUp(c *Client, o *store.Oper) {
 	s.reply(c, irc.RplYoureOper, "You are now an IRC operator")
 	s.notice(c, "*** Oper flags: "+describeFlags(o.Flags))
 	s.snotice("%s (%s@%s) is now an operator as %s: %s", u.Nick, u.Ident, u.RealHost, o.Account, o.Flags)
+	s.svc.SendOperNews(c.uid)
 }
 
 // deoper takes oper status away. why "" means quietly.

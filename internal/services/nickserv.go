@@ -702,6 +702,7 @@ func nsInfo(s *Services, c *Client, args []string) {
 		opts = []string{"none"}
 	}
 	s.ns(c, "  Options       %s", strings.Join(opts, ", "))
+	s.showOperInfo(c, s.nickServ, false, a.ID)
 }
 
 func nsDrop(s *Services, c *Client, args []string) {
