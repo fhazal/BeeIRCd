@@ -246,3 +246,20 @@ table.bans td{height:48px}
 fieldset.plain{border:0;margin:0;padding:0;min-width:0}
 fieldset.plain legend{padding:0 0 6px}
 table.opers{min-width:620px}
+
+/* Linked servers (3e) */
+.map{display:flex;flex-direction:column;padding:2px 0}
+.node{display:flex;align-items:center;gap:10px;min-height:36px;flex-wrap:wrap}
+.kid{margin-left:15px;padding-left:20px;border-left:1px solid #3a3a3a}
+.kid > .node::before{content:"";width:14px;border-top:1px solid #3a3a3a;margin-left:-20px;margin-right:-4px}
+.fp{font-family:var(--mono);font-size:12px;word-break:break-all;padding:10px 12px;border-radius:4px;background:#121212;border:1px solid #262626;color:var(--ink);user-select:all}
+.ck{display:flex;gap:10px;align-items:center;min-height:36px;color:var(--ink);font-size:14px}
+.ck input{accent-color:var(--honey);width:16px;height:16px;margin:0}
+.stack{display:flex;flex-direction:column;gap:14px;min-width:0}
+table.links{min-width:600px}
+.cell-acts{text-align:right;white-space:nowrap}
+.cell-acts .btn{min-height:32px;padding:0 10px;font-size:13px}
+.split-ask{display:inline-flex;gap:6px;align-items:center}
+.split-ask .in{min-height:32px;width:160px;font-size:13px}
+.dl1{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 14px;align-items:center}
+.in[readonly]{background:#151515;color:var(--muted);cursor:default}

@@ -306,6 +306,16 @@ func (s *Server) panelControl(req control.Request, setDeadline func(time.Duratio
 		return run('a', func(po *control.PanelOper) { resp = s.panelOperSave(po, req.IP, req, hash) }), true
 	case control.CmdOperDel:
 		return run('a', func(po *control.PanelOper) { resp = s.panelOperDel(po, req.IP, req.Name) }), true
+	case control.CmdLinks:
+		return run('c', func(*control.PanelOper) { resp.Links = s.panelLinks() }), true
+	case control.CmdLinkConnect:
+		return run('c', func(po *control.PanelOper) { resp = s.panelLinkConnect(po, req.IP, req.Name) }), true
+	case control.CmdLinkSplit:
+		return run('c', func(po *control.PanelOper) { resp = s.panelLinkSplit(po, req.IP, req.Name, req.Reason) }), true
+	case control.CmdLinkSave:
+		return run('c', func(po *control.PanelOper) { resp = s.panelLinkSave(po, req.IP, req.Block, req.New) }), true
+	case control.CmdLinkDel:
+		return run('c', func(po *control.PanelOper) { resp = s.panelLinkDel(po, req.IP, req.Name) }), true
 	}
 	if req.As == "" {
 		return resp, false

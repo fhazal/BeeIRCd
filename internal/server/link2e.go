@@ -137,7 +137,10 @@ func (s *Server) cmdConnect(c *Client, m irc.Message) {
 }
 
 // linkNow connects to block name now; the result is a sentence for opers.
-func (s *Server) linkNow(c *Client, name string) string {
+func (s *Server) linkNow(c *Client, name string) string { return s.linkNowBy(c.user.Nick, name) }
+
+// linkNowBy is linkNow asked by who (a nick, or an oper in the Hive Panel).
+func (s *Server) linkNowBy(who, name string) string {
 	b := s.cfg.Link.Server(name)
 	switch {
 	case !s.cfg.Link.Linked():
@@ -161,7 +164,7 @@ func (s *Server) linkNow(c *Client, name string) string {
 	r.dialing, r.next = true, time.Now().Add(linkRetryMin)
 	s.wg.Add(1)
 	go s.dialLink(*b)
-	s.snotice("%s asked to connect to %s", c.user.Nick, b.Name)
+	s.snotice("%s asked to connect to %s", who, b.Name)
 	return fmt.Sprintf("Connecting to %s (%s:%d). Opers with +s see how it goes.", b.Name, b.Host, b.Port)
 }
 
@@ -180,26 +183,36 @@ func (s *Server) cmdSquit(c *Client, m irc.Message) {
 	if len(m.Params) > 1 && m.Params[len(m.Params)-1] != "" {
 		reason = m.Params[len(m.Params)-1]
 	}
+	switch text, ok := s.squitBy(c.user.Nick, c.uid, name, reason); {
+	case !ok:
+		s.reply(c, errNoSuchSrv, name, "No such server")
+	case text != "":
+		s.notice(c, "*** "+text)
+	}
+}
+
+// squitBy splits server name off, asked by who (from source: a UID or our
+// SID). ok is false when there is no such server; text is for the asker.
+func (s *Server) squitBy(who, source, name, reason string) (text string, ok bool) {
 	if j := s.jupeFor(name); j != nil {
 		delete(s.links.jupes, strings.ToLower(j.name))
 		s.linkBroadcast(nil, fmt.Sprintf(":%s SQUIT %s :%s", s.cfg.Server.SID, j.name, reason))
-		s.notice(c, "*** The jupe on "+j.name+" is lifted.")
-		return
+		return "The jupe on " + j.name + " is lifted.", true
 	}
 	r := s.serverByName(name)
 	if r == nil || r.via == nil {
-		s.reply(c, errNoSuchSrv, name, "No such server")
-		return
+		return "", false
 	}
-	s.snotice("%s used SQUIT on %s (%s)", c.user.Nick, r.name, reason)
+	s.snotice("%s used SQUIT on %s (%s)", who, r.name, reason)
 	if r.sid == r.via.peer.SID {
 		s.dropLink(r.via, reason)
-		return
+		return "", true
 	}
-	r.via.send(fmt.Sprintf(":%s SQUIT %s :%s", c.uid, r.name, reason))
+	r.via.send(fmt.Sprintf(":%s SQUIT %s :%s", source, r.name, reason))
 	gone := s.splitOff(r.sid, s.links.servers[r.uplink].nameOr(r.uplink), r.name)
 	s.linkBroadcast(r.via, fmt.Sprintf(":%s SQUIT %s :%s", r.uplink, r.name, reason))
 	s.snotice("Server %s split (%s)%s", r.name, reason, splitCount(gone))
+	return "", true
 }
 
 // cmdStats is STATS <letter> [server]: l links, c link blocks, k

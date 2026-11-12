@@ -52,6 +52,13 @@ func (f *fakeServer) ask(r control.Request, _ time.Duration) (*control.Response,
 			return &control.Response{Changed: &control.Changed{Name: "ember", New: "g", ID: 9}}, nil
 		}
 		return &control.Response{Error: "unexpected"}, nil
+	case control.CmdLinkSave:
+		if r.Block == nil || r.Block.Name != "leaf.example.net" || r.Block.Port != 7001 || !r.Block.Autoconnect || !r.New {
+			return &control.Response{Error: "unexpected"}, nil
+		}
+		return &control.Response{Done: &control.Done{Text: "Saved and applied."}}, nil
+	case control.CmdLinkSplit:
+		return &control.Response{Done: &control.Done{Text: "split " + r.Name + " " + r.Reason}}, nil
 	case control.CmdBanAdd, control.CmdBanDel:
 		return &control.Response{Done: &control.Done{Text: r.Cmd + " " + r.Kind + " " + r.Mask + " " + r.Reason + " " + r.Life}}, nil
 	case control.CmdBanMatch:
@@ -338,5 +345,20 @@ func TestOperRoutes(t *testing.T) {
 	}
 	if w := rg.do("POST", "/api/oper-del", `{}`, tok, nil); w.Code != 400 {
 		t.Errorf("oper-del without name: %d", w.Code)
+	}
+}
+
+func TestLinkRoutes(t *testing.T) {
+	rg := newRig(t)
+	tok := rg.login()
+	w := rg.do("POST", "/api/link-save", `{"name":"leaf.example.net","host":"10.0.0.2","port":7001,"fingerprint":"x","autoconnect":true,"new":true}`, tok, nil)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "Saved and applied") {
+		t.Errorf("link-save: %d %s", w.Code, w.Body)
+	}
+	if w := rg.do("POST", "/api/link-split", `{"name":"leaf.example.net","reason":"maintenance"}`, tok, nil); w.Code != 200 || !strings.Contains(w.Body.String(), "split leaf.example.net maintenance") {
+		t.Errorf("link-split: %d %s", w.Code, w.Body)
+	}
+	if w := rg.do("POST", "/api/link-connect", `{}`, tok, nil); w.Code != 400 {
+		t.Errorf("link-connect without name: %d", w.Code)
 	}
 }

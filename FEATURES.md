@@ -136,4 +136,5 @@ Last updated: 12 Nov 2026 (Stage 1.5.9b).
 | People: everyone on every server, search, filters, paging; one person's details (real host only with h), notice, disconnect (k), ban = AKILL on their address (k) | Implemented (3b) | |
 | Bans: AKILL / ZLINE / SHUN / exceptions, newest first, add (live "matches N online", OperServ's checks) and remove (asks first), flag k | Implemented (3c) | |
 | Opers: list (flags, hosts, online), add / change class, flags, hosts, password / remove, AdminServ's rules, owner locked, no self-lockout, Undo via HISTORY, flag a | Implemented (3d) | |
-| Linked servers, Services pages | Planned (3e, 3f) | |
+| Linked servers: network map (people per server), link blocks with state, Connect / Split, add / change / remove [[link.server]] blocks (saved + rehash), our fingerprint for the other side, flag c | Implemented (3e) | |
+| Services page | Planned (3f) | |

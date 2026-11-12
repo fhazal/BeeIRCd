@@ -134,6 +134,7 @@
     { id: 'people', label: 'People', icon: 'people', make: peoplePage },
     { id: 'bans', label: 'Bans', icon: 'bans', need: 'k', make: bansPage },
     { id: 'opers', label: 'Opers', icon: 'opers', need: 'a', make: opersPage },
+    { id: 'servers', label: 'Linked servers', icon: 'servers', need: 'c', make: serversPage },
     { id: 'settings', label: 'Settings', icon: 'settings', need: 'a', make: settingsPage },
   ];
 
@@ -1018,6 +1019,172 @@
     document.addEventListener('keydown', onKey);
     load();
     return { el, leave() { document.removeEventListener('keydown', onKey); } };
+  }
+
+  // ---------- Linked servers ----------
+  function serversPage() {
+    let data = null, open = null, timer = 0; // open: block name, or '+' when adding
+    const sub = h('span', { class: 'sub' });
+    const addBtn = h('button', { type: 'button', class: 'btn', text: 'Add a server', hidden: true });
+    addBtn.addEventListener('click', () => { open = '+'; drawForm(); });
+    const mapBox = h('div', { class: 'map' });
+    const tbody = h('tbody');
+    const form = h('section', { class: 'card' });
+    const mine = h('section', { class: 'card' });
+    const left = h('div', { class: 'stack' },
+      h('section', { class: 'card' }, h('h2', { text: 'Map' }), mapBox),
+      h('section', { class: 'card list-card' }, h('div', { class: 'ch tools' }, h('h2', { text: 'Link blocks' })),
+        h('div', { class: 'wrap' }, h('table', { class: 'links' },
+          h('thead', {}, h('tr', {}, ['Server', 'State', 'Up since', 'Software'].map(t => h('th', { scope: 'col', text: t })), h('th', { scope: 'col' }, h('span', { class: 'sr', text: 'Actions' })))),
+          tbody))));
+    const body = h('div', { class: 'band21' }, left, h('div', { class: 'stack' }, form, mine));
+    const el = h('div', { class: 'main-stack' },
+      h('header', { class: 'head' }, h('div', { class: 'head-text' }, h('h1', { text: 'Linked servers' }), sub), addBtn),
+      body);
+
+    async function load() {
+      try {
+        data = (await api('GET', '/api/links')).links;
+        draw();
+      } catch (e) { put(mapBox, h('p', { class: 'empty', text: e.message })); }
+    }
+    function draw() {
+      const d = data;
+      if (d.role === 'standalone') {
+        sub.textContent = 'This server runs alone';
+        put(body, h('section', { class: 'card' }, h('h2', { text: 'Not linked' }),
+          h('p', { class: 'note', text: 'This server runs alone ([link] role = standalone). To link servers, run beeircd install on the new server and answer the hub questions, or set [link] role = hub in beeircd.conf and restart. Then link blocks are added here.' })));
+        return;
+      }
+      addBtn.hidden = false;
+      const st = Object.fromEntries((d.status || []).map(s => [s.name.toLowerCase(), s]));
+      const up = (d.status || []).filter(s => s.state === 'up');
+      const lags = up.filter(s => s.lag_ms).map(s => s.lag_ms);
+      sub.textContent = d.map.length + (d.map.length === 1 ? ' server' : ' servers') + (lags.length ? ' · slowest ping ' + Math.round(Math.max(...lags)) + ' ms' : '') + ' · this one is the ' + d.role;
+
+      // map: a tree from the uplinks
+      const kids = {};
+      for (const m of d.map.slice(1)) (kids[(m.uplink || d.self).toLowerCase()] ||= []).push(m);
+      const node = (m, top) => {
+        const s = st[m.name.toLowerCase()];
+        const cls = m.self ? 'warn' : '';
+        const parts = [m.self ? 'this one' : null, plural(m.users, 'person', 'people'), m.lag_ms ? Math.round(m.lag_ms) + ' ms' : null].filter(Boolean).join(' · ');
+        const line = h('div', { class: 'node' }, h('span', { class: 'dot ' + cls }), h('span', { class: 'mono', text: m.name }), h('span', { class: 'lbl', text: parts }));
+        const below = (kids[m.name.toLowerCase()] || []).map(k => node(k, false));
+        return [line, below.length ? h('div', { class: 'kid' }, below) : null];
+      };
+      // blocks that are down show under us, red
+      const down = (d.status || []).filter(s => s.state !== 'up').map(s => h('div', { class: 'node' },
+        h('span', { class: 'dot ' + (s.state === 'down' ? 'bad' : 'warn') }), h('span', { class: 'mono', text: s.name }),
+        h('span', { class: 'lbl', text: s.state === 'down' ? 'down' + (s.retry ? ' · tries again ' + ends(s.retry).replace('in ', 'in ') : '') : s.state })));
+      const tree = node(d.map[0], true);
+      const kidBox = tree[1] || h('div', { class: 'kid' });
+      add(kidBox, down);
+      put(mapBox, tree[0], down.length || tree[1] ? kidBox : null);
+
+      // link blocks with their state
+      if (!d.blocks.length) {
+        put(tbody, h('tr', {}, h('td', { colspan: 5, class: 'empty', text: 'No link blocks yet. Add a server.' })));
+      } else put(tbody, ...d.blocks.map(b => {
+        const s = st[b.name.toLowerCase()] || { state: 'down' };
+        const state = h('span', { class: 'row-state' }, h('span', { class: 'dot ' + (s.state === 'up' ? '' : s.state === 'down' ? 'bad' : 'warn') }), ' ', s.state === 'up' ? 'linked' : s.state);
+        const acts = h('td', { class: 'cell-acts' });
+        const btnFor = (label, cls, f) => { const x = h('button', { type: 'button', class: 'btn ' + cls, text: label }); x.addEventListener('click', e => { e.stopPropagation(); f(x); }); return x; };
+        const conn = btnFor('Connect', '', x => busy(x, async () => {
+          try { toast([(await api('POST', '/api/link-connect', { name: b.name })).done.text]); setTimeout(load, 2500); } catch (e) { toastErr(e.message); }
+        }));
+        const split = btnFor('Split', 'bad', () => {
+          const reason = h('input', { class: 'in', type: 'text', placeholder: 'Reason', 'aria-label': 'Reason' });
+          reason.addEventListener('click', e => e.stopPropagation());
+          const yes = btnFor('Split ' + b.name, 'bad', x => busy(x, async () => {
+            try { toast([(await api('POST', '/api/link-split', { name: b.name, reason: reason.value })).done.text]); await load(); } catch (e) { toastErr(e.message); }
+          }));
+          const no = btnFor('Keep', 'ghost', () => draw());
+          put(acts, h('span', { class: 'split-ask' }, reason, yes, no));
+          reason.focus();
+        });
+        if (s.state === 'up') acts.append(split);
+        else if (b.host && s.state === 'down') acts.append(conn);
+        const tr = h('tr', { class: 'person' + (open === b.name ? ' open' : '') },
+          h('td', {}, h('button', { type: 'button', class: 'rowbtn mono', 'aria-expanded': open === b.name ? 'true' : 'false', text: b.name })),
+          h('td', {}, state),
+          h('td', { class: 'lbl', text: s.state === 'up' ? since(s.since) : s.error || (b.host ? '—' : 'connects to us') }),
+          h('td', { class: 'lbl', text: s.software || '—' }),
+          acts);
+        tr.addEventListener('click', () => { open = open === b.name ? null : b.name; draw(); });
+        return tr;
+      }));
+
+      put(mine, h('h2', { text: 'This server, for the other side' }),
+        h('div', { class: 'dl1' },
+          h('span', { class: 'lbl', text: 'Name' }), h('span', { class: 'mono', text: d.self }),
+          h('span', { class: 'lbl', text: 'Link port' }), h('span', { class: 'mono', text: String(d.link_port || '') }),
+          h('span', { class: 'lbl', text: 'Fingerprint' }), h('span', { class: 'fp', text: d.fingerprint || '' })),
+        h('p', { class: 'note', text: 'The other server\'s link block needs these. On a BeeIRCd, beeircd link-info prints them too.' }));
+      if (!form.dataset.dirty) drawForm();
+    }
+
+    function drawForm() {
+      form.dataset.dirty = '';
+      if (!open) {
+        put(form, h('h2', { text: 'Link block' }), h('p', { class: 'form-empty', text: 'Click a server to change its link block, or Add a server.' }));
+        return;
+      }
+      const adding = open === '+';
+      const found = adding ? {} : data.blocks.find(b => b.name === open);
+      if (!found) { open = null; drawForm(); return; }
+      const b = Object.assign({ name: '', host: '', port: 0, fingerprint: '', autoconnect: false, has_password: false }, found);
+      const name = h('input', { class: 'in mono', id: 'lk-name', type: 'text', value: b.name, autocomplete: 'off', placeholder: 'leaf2.example.net', readonly: adding ? null : true });
+      const host = h('input', { class: 'in mono', id: 'lk-host', type: 'text', value: b.host, autocomplete: 'off', placeholder: 'Empty: it connects to us' });
+      const port = h('input', { class: 'in mono', id: 'lk-port', type: 'text', inputmode: 'numeric', value: b.port ? String(b.port) : '', placeholder: String(data.link_port || 7000) });
+      const fp = h('input', { class: 'in mono', id: 'lk-fp', type: 'text', value: b.fingerprint, autocomplete: 'off', spellcheck: 'false', placeholder: '44 characters, ends with =' });
+      const pw = h('input', { class: 'in', id: 'lk-pw', type: 'password', autocomplete: 'new-password', placeholder: b.has_password ? 'Leave empty to keep' : 'Optional' });
+      const nopw = b.has_password ? h('input', { type: 'checkbox', id: 'lk-nopw' }) : null;
+      const auto = h('input', { type: 'checkbox', id: 'lk-auto' });
+      auto.checked = b.autoconnect;
+      for (const x of [name, host, port, fp, pw]) x.addEventListener('input', () => { form.dataset.dirty = '1'; });
+      const err = h('span', { class: 'err', role: 'alert' });
+      const save = h('button', { type: 'button', class: 'btn main', text: adding ? 'Add server' : 'Save' });
+      save.addEventListener('click', () => busy(save, async () => {
+        err.textContent = '';
+        const portN = port.value.trim() ? Number(port.value.trim()) : 0;
+        if (adding && !name.value.trim()) { err.textContent = 'Type the other server\'s name.'; name.focus(); return; }
+        if (port.value.trim() && !(Number.isInteger(portN) && portN > 0 && portN < 65536)) { err.textContent = 'The port is a number from 1 to 65535.'; port.focus(); return; }
+        if (!fp.value.trim()) { err.textContent = 'Paste the other server\'s fingerprint.'; fp.focus(); return; }
+        try {
+          const d = await api('POST', '/api/link-save', { name: name.value.trim(), host: host.value.trim(), port: portN, fingerprint: fp.value.trim(),
+            password: pw.value, no_password: nopw ? nopw.checked : false, autoconnect: auto.checked, new: adding });
+          open = adding ? name.value.trim() : open;
+          form.dataset.dirty = '';
+          toast([d.done.text]);
+          await load();
+        } catch (e) { err.textContent = e.message; }
+      }));
+      const rm = adding ? null : h('button', { type: 'button', class: 'btn bad', text: 'Remove' });
+      if (rm) rm.addEventListener('click', () => {
+        if (rm.dataset.sure !== '1') { rm.dataset.sure = '1'; rm.textContent = 'Sure? It unlinks'; return; }
+        busy(rm, async () => {
+          try { toast([(await api('POST', '/api/link-del', { name: b.name })).done.text]); open = null; await load(); }
+          catch (e) { err.textContent = e.message; rm.dataset.sure = ''; rm.textContent = 'Remove'; }
+        });
+      });
+      put(form,
+        h('h2', { text: adding ? 'Add a server' : b.name }),
+        h('label', { class: 'f', for: 'lk-name' }, 'Server name', name),
+        h('div', { class: 'grid2' }, h('label', { class: 'f', for: 'lk-host' }, 'Address', host), h('label', { class: 'f', for: 'lk-port' }, 'Port', port)),
+        h('label', { class: 'f', for: 'lk-fp' }, 'Fingerprint', fp),
+        h('span', { class: 'note', text: 'The fingerprint locks the link: get it with beeircd link-info on the other server (or ./unrealircd spkifp).' }),
+        h('label', { class: 'f', for: 'lk-pw' }, 'Link password', pw),
+        nopw ? h('label', { class: 'ck', for: 'lk-nopw' }, nopw, 'Remove the password') : null,
+        h('label', { class: 'ck', for: 'lk-auto' }, auto, 'Connect by itself (needs an address)'),
+        err,
+        h('div', { class: 'btns' }, save, rm));
+      (adding ? name : host).focus({ preventScroll: true });
+    }
+
+    load();
+    timer = setInterval(() => { if (!document.hidden && !el.querySelector('.split-ask')) load(); }, 10000);
+    return { el, leave() { clearInterval(timer); } };
   }
 
   // ---------- boot ----------

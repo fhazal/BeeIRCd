@@ -39,6 +39,14 @@ legend fixed: k = disconnect + network bans, s = other OperServ tools.
 Not in the panel yet: DISABLE/ENABLE, title, vhost, swhois (AdminServ).
 UI: one put() helper for every content swap (two "null" text slips were
 found in 3b/3d).
+3e built 12 Nov 2026 (branch stage3): Linked servers page (internal/
+server/panel3e.go; /CONNECT and /SQUIT now share linkNowBy/squitBy with
+the panel). Blocks are written to beeircd.conf with config.Edit and
+applied with a rehash (no Undo: edit again); passwords never leave the
+server. Standalone servers get a short "how to link" note instead.
+Empty times in the status answer are now left out (omitzero), which
+also fixes a "tries again" shown for blocks that never retry. Tested
+with a real hub + leaf pair: add, edit, split, connect, remove.
 
 ## What it is
 Hive Panel = the web admin for BeeIRCd. A separate program

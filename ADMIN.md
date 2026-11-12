@@ -208,6 +208,14 @@ the control socket): `beeircd-web -config /etc/beeircd/beeircd.conf`.
   can't remove yourself or take your own flag `a` in the panel. Every
   change is in AdminServ HISTORY; the panel's Undo puts it back (a
   removed oper comes back with their password).
+- **Linked servers** (flag `c`, like /CONNECT and /SQUIT): a map of the
+  network with people per server, every link block with its state,
+  Connect (for blocks with an address) and Split (asks first, optional
+  reason). Add, change or remove `[[link.server]]` blocks: saved to
+  beeircd.conf and applied with a rehash at once; the link password is
+  never shown (leave it empty to keep it). The card "This server, for the
+  other side" shows the name, link port and fingerprint the other
+  server's block needs (the same as `beeircd link-info`).
 - Settings changed in the panel are saved to `beeircd.conf`, applied at
   once and kept in AdminServ HISTORY (Undo works there too). The panel's
   own "What happened" list keeps sign-ins and changes with who and from

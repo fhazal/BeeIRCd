@@ -49,6 +49,13 @@ const (
 	CmdOpers    = "opers"     // -> Opers
 	CmdOperSave = "oper-save" // Name + Class + Flags + Hosts + Password + New -> Changed
 	CmdOperDel  = "oper-del"  // Name -> Changed
+
+	// Linked servers page (3e), flag c like /CONNECT and /SQUIT.
+	CmdLinks       = "links"        // -> Links
+	CmdLinkConnect = "link-connect" // Name -> Done
+	CmdLinkSplit   = "link-split"   // Name + Reason -> Done
+	CmdLinkSave    = "link-save"    // Block + New -> Done
+	CmdLinkDel     = "link-del"     // Name -> Done
 )
 
 // MaxRequest is the most bytes one request may be.
@@ -72,19 +79,20 @@ type Request struct {
 	Value    string `json:"value,omitempty"`    // set
 	ID       int64  `json:"id,omitempty"`       // undo
 
-	Query  string `json:"query,omitempty"`  // people: search text
-	Filter string `json:"filter,omitempty"` // people: all, in, guests, opers
-	Offset int    `json:"offset,omitempty"`
-	Limit  int    `json:"limit,omitempty"`
-	UID    string `json:"uid,omitempty"`  // person, notice, kill, ban
-	Life   string `json:"life,omitempty"` // ban: "7d", "0" = until removed, "" = default
-	Kind   string `json:"kind,omitempty"` // bans: akill, zline, shun, eline
-	Mask   string `json:"mask,omitempty"`
-	Reason string `json:"reason,omitempty"`
-	Class  string `json:"class,omitempty"` // oper-save
-	Flags  string `json:"flags,omitempty"` // oper-save: flags on top of the class
-	Hosts  string `json:"hosts,omitempty"` // oper-save: masks, space or comma between
-	New    bool   `json:"new,omitempty"`   // oper-save: add, not change
+	Query  string     `json:"query,omitempty"`  // people: search text
+	Filter string     `json:"filter,omitempty"` // people: all, in, guests, opers
+	Offset int        `json:"offset,omitempty"`
+	Limit  int        `json:"limit,omitempty"`
+	UID    string     `json:"uid,omitempty"`  // person, notice, kill, ban
+	Life   string     `json:"life,omitempty"` // ban: "7d", "0" = until removed, "" = default
+	Kind   string     `json:"kind,omitempty"` // bans: akill, zline, shun, eline
+	Mask   string     `json:"mask,omitempty"`
+	Reason string     `json:"reason,omitempty"`
+	Class  string     `json:"class,omitempty"` // oper-save
+	Flags  string     `json:"flags,omitempty"` // oper-save: flags on top of the class
+	Hosts  string     `json:"hosts,omitempty"` // oper-save: masks, space or comma between
+	New    bool       `json:"new,omitempty"`   // oper-save, link-save: add, not change
+	Block  *LinkBlock `json:"block,omitempty"` // link-save
 }
 
 // Response carries the answer to one Request; Error is set when it failed.
@@ -105,6 +113,7 @@ type Response struct {
 	Bans     *Bans      `json:"bans,omitempty"`
 	Match    *Match     `json:"match,omitempty"`
 	Opers    *Opers     `json:"opers,omitempty"`
+	Links    *Links     `json:"links,omitempty"`
 	// Denied is set (with Error) when the oper may not do this: signed
 	// out, or missing a flag. The panel then signs them out or says so.
 	Denied string `json:"denied,omitempty"` // "signin" or "flag"
@@ -223,6 +232,42 @@ type OperClass struct {
 	Flags string `json:"flags"`
 }
 
+// Links is the Linked servers page.
+type Links struct {
+	Role        string      `json:"role"` // standalone, hub, leaf
+	Self        string      `json:"self"`
+	Fingerprint string      `json:"fingerprint,omitempty"` // ours, for the other side's block
+	LinkPort    int         `json:"link_port,omitempty"`
+	Map         []MapServer `json:"map"`
+	Blocks      []LinkBlock `json:"blocks"`
+	Status      []Link      `json:"status"`
+}
+
+// MapServer is one server of the network, for the map.
+type MapServer struct {
+	Name   string  `json:"name"`
+	SID    string  `json:"sid,omitempty"`
+	Uplink string  `json:"uplink,omitempty"` // name of the server it hangs off ("" = us)
+	Users  int     `json:"users"`
+	LagMS  float64 `json:"lag_ms,omitempty"`
+	Self   bool    `json:"self,omitempty"`
+	Desc   string  `json:"desc,omitempty"`
+}
+
+// LinkBlock is one [[link.server]] block. Password is never sent to the
+// panel; HasPassword says whether one is set, and a save with Password ""
+// keeps it.
+type LinkBlock struct {
+	Name        string `json:"name"`
+	Host        string `json:"host,omitempty"`
+	Port        int    `json:"port,omitempty"`
+	Fingerprint string `json:"fingerprint"`
+	Autoconnect bool   `json:"autoconnect"`
+	HasPassword bool   `json:"has_password,omitempty"`
+	Password    string `json:"password,omitempty"`
+	NoPassword  bool   `json:"no_password,omitempty"` // save: remove the password
+}
+
 // Done is what an action did, in words.
 type Done struct {
 	Text string `json:"text"`
@@ -315,12 +360,12 @@ type Link struct {
 	SID      string    `json:"sid,omitempty"`
 	State    string    `json:"state"` // up, linking, connecting, down
 	Out      bool      `json:"out"`   // we connect (autoconnect) / we connected
-	Since    time.Time `json:"since,omitempty"`
+	Since    time.Time `json:"since,omitzero"`
 	LagMS    float64   `json:"lag_ms,omitempty"`
 	Software string    `json:"software,omitempty"`
 	Behind   int       `json:"behind,omitempty"` // servers behind it
 	Error    string    `json:"error,omitempty"`  // last connect error
-	Retry    time.Time `json:"retry,omitempty"`  // next autoconnect try
+	Retry    time.Time `json:"retry,omitzero"`   // next autoconnect try
 }
 
 // Check is what only the running server can check: its own database

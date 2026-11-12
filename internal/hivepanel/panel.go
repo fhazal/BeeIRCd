@@ -138,6 +138,11 @@ func New(o Options) *Panel {
 	m.HandleFunc("GET /api/opers", p.withOper(p.simple(control.CmdOpers)))
 	m.HandleFunc("POST /api/oper-save", p.withOper(p.operSave))
 	m.HandleFunc("POST /api/oper-del", p.withOper(p.operDel))
+	m.HandleFunc("GET /api/links", p.withOper(p.simple(control.CmdLinks)))
+	m.HandleFunc("POST /api/link-connect", p.withOper(p.linkAct(control.CmdLinkConnect)))
+	m.HandleFunc("POST /api/link-split", p.withOper(p.linkAct(control.CmdLinkSplit)))
+	m.HandleFunc("POST /api/link-del", p.withOper(p.linkAct(control.CmdLinkDel)))
+	m.HandleFunc("POST /api/link-save", p.withOper(p.linkSave))
 	m.HandleFunc("GET /api/live", p.live)
 	p.mux = m
 	return p
@@ -422,6 +427,31 @@ func (p *Panel) operDel(w http.ResponseWriter, r *http.Request, oc operCtx) {
 		return
 	}
 	p.send(w, oc, control.Request{Cmd: control.CmdOperDel, Name: in.Name}, 10*time.Second)
+}
+
+// linkAct is connect, split or remove: {"name", "reason"}.
+func (p *Panel) linkAct(cmd string) func(http.ResponseWriter, *http.Request, operCtx) {
+	return func(w http.ResponseWriter, r *http.Request, oc operCtx) {
+		var in struct{ Name, Reason string }
+		if json.NewDecoder(r.Body).Decode(&in) != nil || in.Name == "" {
+			writeErr(w, http.StatusBadRequest, "Bad request.")
+			return
+		}
+		p.send(w, oc, control.Request{Cmd: cmd, Name: in.Name, Reason: in.Reason}, 15*time.Second)
+	}
+}
+
+func (p *Panel) linkSave(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	var in struct {
+		control.LinkBlock
+		New bool `json:"new"`
+	}
+	if json.NewDecoder(r.Body).Decode(&in) != nil || in.Name == "" {
+		writeErr(w, http.StatusBadRequest, "Bad request.")
+		return
+	}
+	b := in.LinkBlock
+	p.send(w, oc, control.Request{Cmd: control.CmdLinkSave, Block: &b, New: in.New}, 15*time.Second)
 }
 
 // ipLocked reports how long ip must still wait after wrong sign-ins.
