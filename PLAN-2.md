@@ -173,6 +173,10 @@ the config, the installer opens the link port.
   channel, services from a leaf, split + rejoin with collisions).
 
 ### 2g - gates for v1.1
+- Live oper-entry changes on leaves (user OK 12 Nov): when an oper entry
+  is changed, disabled or deleted on the services server, it tells the
+  leaves, and anyone opered there with it gets the new flags or loses
+  oper (today that waits until their next /oper there).
 - race x3, fuzz the link parser (new fuzz targets: burst, SJOIN, UID),
   bench: 3 servers 5k users with a split every 2 minutes for 1 h (state
   equal on all servers after each rejoin = hash check), 24 h soak of the
