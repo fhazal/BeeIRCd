@@ -332,7 +332,7 @@ tr.bk-detail td{background:var(--honey-tint);box-shadow:inset 3px 0 0 var(--hone
 .nm-zoom button:last-child{border-bottom:0}
 .nm-zoom button:hover{background:#222}
 .nm-zoom button:focus-visible{outline:2px solid var(--honey);outline-offset:-2px}
-.nm-legend{position:absolute;left:12px;top:12px;display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:4px;background:rgba(13,13,13,.82);border:1px solid var(--line);font-size:12px;color:var(--muted);pointer-events:none;z-index:1}
+.nm-legend{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;font-size:12px;color:var(--muted)}
 .nm-legend span{display:flex;gap:8px;align-items:center}
 .nm-i{width:14px;height:14px;border-radius:3px;border:1.2px solid var(--honey);background:#181818;display:inline-flex;align-items:center;justify-content:center;font-style:normal;font-size:10px;color:var(--ink)}
 .nm-i.hub{background:var(--honey)}
@@ -354,4 +354,4 @@ tr.bk-detail td{background:var(--honey-tint);box-shadow:inset 3px 0 0 var(--hone
 .nm-unplaced{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .nm-unplaced[hidden]{display:none}
 .nm-u{font-size:12px}
-@media (max-width:700px){.nm-legend,.nm-hint{display:none}.nm-search{width:100%}.nm-find{flex:1 1 100%}}
+@media (max-width:700px){.nm-hint{display:none}.nm-search{width:100%}.nm-find{flex:1 1 100%}}

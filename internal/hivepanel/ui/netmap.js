@@ -66,13 +66,13 @@ window.HiveNetMap = function (env) {
     const legend = h('div', { class: 'nm-legend', 'aria-hidden': 'true' },
       h('span', {}, h('i', { class: 'nm-i hub' }), 'hub'), h('span', {}, h('i', { class: 'nm-i' }), 'server'),
       h('span', {}, h('i', { class: 'nm-i split' }), 'split'), h('span', {}, h('i', { class: 'nm-i group', text: '3' }), 'close together'));
-    const stage = h('div', { class: 'nm-stage' }, landC, base, top, legend, h('div', { class: 'nm-zoom' }, zin, zout, zfit), hint, card);
+    const stage = h('div', { class: 'nm-stage' }, landC, base, top, h('div', { class: 'nm-zoom' }, zin, zout, zfit), hint, card);
     const unplaced = h('div', { class: 'nm-unplaced' });
     const el = h('section', { class: 'card nm' },
       h('div', { class: 'nm-bar' },
         h('div', { class: 'nm-grp' }, h('h2', { text: 'Network map' }), count),
         h('div', { class: 'nm-grp' }, h('div', { class: 'nm-find' }, search, found), chips, liteBtn)),
-      placing, stage, unplaced);
+      placing, stage, legend, unplaced);
 
     // ---------- geometry ----------
     const scale = () => st.cw / 360 * st.view.z; // px per degree
