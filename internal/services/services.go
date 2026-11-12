@@ -107,7 +107,9 @@ func (s *Services) addService(nick, alias, realname, intro string, cmds map[stri
 		SignOn:   s.host.Stats().Started,
 		Service:  true,
 	}
-	if err := s.emit(&state.UserAdd{User: u}); err != nil {
+	if s.off {
+		u.UID = "" // never on the network: another server runs services
+	} else if err := s.emit(&state.UserAdd{User: u}); err != nil {
 		panic("service nick taken at start: " + nick)
 	}
 	sv := &service{user: u, alias: alias, intro: intro, cmds: cmds}

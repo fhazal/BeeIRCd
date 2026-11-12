@@ -13,6 +13,8 @@ type Local struct {
 	UserModes                       string // every user mode letter
 	Prefix                          string // ISUPPORT PREFIX value, like "(ov)@+"
 	CloakHash                       string // short hash of the cloak secret (NETINFO)
+	Casemapping                     string // "ascii" or "rfc1459" (2c)
+	Services                        bool   // this server runs the built-in services (2c)
 	Booted                          int64  // start time, unix
 	MaxGlobal                       int    // most users seen (NETINFO)
 	Now                             func() int64

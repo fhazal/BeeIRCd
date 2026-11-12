@@ -37,10 +37,13 @@ type User struct {
 	TLS       bool
 	CertFP    string // SHA-256 of the TLS client certificate, lower case hex ("" = none)
 	Service   bool   // NickServ and the other built-in services
-	SignOn    time.Time
-	NickTS    int64
-	Modes     map[byte]bool
-	Channels  map[string]*Channel // by folded name
+	// Cloak is the host +x shows, for users on other servers: their
+	// server made it (2c). Ours are made on the spot (cloakFor).
+	Cloak    string
+	SignOn   time.Time
+	NickTS   int64
+	Modes    map[byte]bool
+	Channels map[string]*Channel // by folded name
 }
 
 // TrueIdent is the ident the user connected with.

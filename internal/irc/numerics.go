@@ -86,6 +86,7 @@ const (
 	ErrNoNicknameGiven   = "431"
 	ErrErroneusNickname  = "432"
 	ErrNicknameInUse     = "433"
+	ErrServicesDown      = "440"
 	ErrUserNotInChannel  = "441"
 	ErrNotOnChannel      = "442"
 	ErrUserOnChannel     = "443"

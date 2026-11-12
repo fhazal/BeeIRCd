@@ -74,11 +74,20 @@ func TestTruncate(t *testing.T) {
 }
 
 func TestFold(t *testing.T) {
-	if Fold("Bee[]\\~") != "bee{}|^" {
-		t.Errorf("Fold = %q", Fold("Bee[]\\~"))
+	// ascii (the default): only A-Z fold.
+	if Casemapping() != CaseASCII || Fold(`Bee[]\~`) != `bee[]\~` {
+		t.Errorf("ascii: %s Fold = %q", Casemapping(), Fold(`Bee[]\~`))
 	}
-	if !EqualFold("Nick[a]", "nick{A}") {
-		t.Error("EqualFold failed")
+	if !EqualFold("Belon", "bELON") || EqualFold("Nick[a]", "nick{A}") {
+		t.Error("ascii EqualFold wrong")
+	}
+	SetCasemapping(CaseRFC1459)
+	defer SetCasemapping(CaseASCII)
+	if Fold(`Bee[]\~`) != "bee{}|^" {
+		t.Errorf("rfc1459: Fold = %q", Fold(`Bee[]\~`))
+	}
+	if !EqualFold("Nick[a]", "nick{A}") || !Match("[x]!*@*", "{X}!a@b") {
+		t.Error("rfc1459 EqualFold/Match failed")
 	}
 }
 
@@ -124,7 +133,8 @@ func TestMatch(t *testing.T) {
 		{"*", "", true},
 		{"a*b*c", "aXXbYYc", true},
 		{"a*b*c", "aXXbYY", false},
-		{"[x]!*@*", "{X}!a@b", true},
+		{"[x]!*@*", "{X}!a@b", false}, // ascii: [ and { differ
+		{"[x]!*@*", "[X]!a@b", true},
 	}
 	for _, c := range cases {
 		if got := Match(c.p, c.s); got != c.want {

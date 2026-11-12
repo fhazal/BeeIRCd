@@ -94,11 +94,13 @@ func (h *unreal) serversLine(response bool) string {
 }
 
 // protoLines are send_proto's three lines. BEE=1 tells another BeeIRCd
-// that our extras (rename instead of kill on nick collisions, L5) are on.
+// that our extras (rename instead of kill on nick collisions, L5) are on;
+// BEECASE and BEESVC carry the casemapping and whether we run services.
 func (h *unreal) protoLines() []string {
 	now := h.me.Now()
 	return []string{
-		"PROTOCTL NOQUIT NICKv2 SJOIN SJOIN2 UMODE2 VL SJ3 TKLEXT TKLEXT2 NICKIP ESVID NEXTBANS SJSBY MTAGS BEE=1",
+		"PROTOCTL NOQUIT NICKv2 SJOIN SJOIN2 UMODE2 VL SJ3 TKLEXT TKLEXT2 NICKIP ESVID NEXTBANS SJSBY MTAGS BEE=1 " +
+			fmt.Sprintf("BEECASE=%s BEESVC=%d", h.me.casemapping(), boolInt(h.me.Services)),
 		fmt.Sprintf("PROTOCTL CHANMODES=%s USERMODES=%s BOOTED=%d PREFIX=%s SID=%s MLOCK TS=%d EXTSWHOIS",
 			h.me.ChanModes, h.me.UserModes, h.me.Booted, h.me.Prefix, h.me.SID, now),
 		"PROTOCTL NICKCHARS= CHANNELCHARS=utf8 BIGLINES",
@@ -274,6 +276,9 @@ func (h *unreal) server(m irc.Message) ([]string, error) {
 	if h.blk.Password != "" && subtle.ConstantTimeCompare([]byte(h.pass), []byte(h.blk.Password)) != 1 {
 		return nil, refuse("Link denied: wrong password")
 	}
+	if err := h.agree(); err != nil {
+		return nil, err
+	}
 	h.peer.Description = vlInfo(m.Params[len(m.Params)-1])
 	h.done = true
 	if h.out {
@@ -284,6 +289,45 @@ func (h *unreal) server(m irc.Message) ([]string, error) {
 		out = append(out, h.serverLine())
 	}
 	return out, nil
+}
+
+// agree checks the network-wide settings both sides must share (2c):
+// the casemapping, and that only one server runs services. UnrealIRCd 6
+// always folds ascii and runs no services of its own (a services server
+// behind it is caught in the burst, by its NickServ).
+func (h *unreal) agree() error {
+	mine := h.me.casemapping()
+	theirs := "ascii"
+	if h.peer.Bee {
+		theirs = h.peer.Tokens["BEECASE"]
+		if theirs == "" {
+			theirs = "rfc1459" // BeeIRCd from before 2c
+		}
+	}
+	if theirs != mine {
+		if !h.peer.Bee {
+			return refuse(fmt.Sprintf("Link denied: UnrealIRCd uses casemapping ascii, this server %s; set [server] casemapping = \"ascii\" on %s", mine, h.me.Name))
+		}
+		return refuse(fmt.Sprintf("Link denied: casemapping differs (%s here, %s on %s); every server needs the same [server] casemapping", mine, theirs, h.peer.Name))
+	}
+	if h.peer.Bee && h.me.Services && h.peer.Tokens["BEESVC"] != "0" {
+		return refuse(fmt.Sprintf("Link denied: both %s and %s run services; only one server per network may, set [services] enabled = false on the other", h.me.Name, h.peer.Name))
+	}
+	return nil
+}
+
+func (l Local) casemapping() string {
+	if l.Casemapping == "" {
+		return "ascii"
+	}
+	return l.Casemapping
+}
+
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 // vlInfo strips the "U6100-flags-SID " version part UnrealIRCd puts in

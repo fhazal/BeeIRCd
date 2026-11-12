@@ -1,17 +1,53 @@
 package irc
 
-import "unicode/utf8"
+import (
+	"strings"
+	"sync/atomic"
+	"unicode/utf8"
+)
 
-import "strings"
+// Casemappings: how nicks and channel names ignore case.
+const (
+	// CaseASCII folds only A-Z (UnrealIRCd 6, InspIRCd 4): the default.
+	CaseASCII = "ascii"
+	// CaseRFC1459 also folds []\~ to {}|^ (the old Scandinavian rule).
+	CaseRFC1459 = "rfc1459"
+)
 
-// Fold lower-cases s with the rfc1459 casemapping, where []\~ are the upper
-// case of {}|^. Use it for every nick and channel comparison.
+// rfc1459 is the casemapping in use. It is set once at start, before
+// anything compares names (SetCasemapping), and never changes after;
+// atomic because tests run several servers in one process.
+var rfc1459 atomic.Bool
+
+// SetCasemapping chooses the casemapping (CaseASCII or CaseRFC1459). Call
+// it before any name is stored or compared.
+func SetCasemapping(name string) {
+	rfc1459.Store(name == CaseRFC1459)
+}
+
+// Casemapping is the casemapping in use, as ISUPPORT names it.
+func Casemapping() string {
+	if rfc1459.Load() {
+		return CaseRFC1459
+	}
+	return CaseASCII
+}
+
+// Fold lower-cases s with the casemapping in use. Use it for every nick
+// and channel comparison.
 func Fold(s string) string {
+	return FoldWith(rfc1459.Load(), s)
+}
+
+// FoldWith lower-cases s with ascii or (rfc true) rfc1459, whatever is in
+// use (for moving stored names from one to the other).
+func FoldWith(rfc bool, s string) string {
 	b := []byte(s)
 	for i, c := range b {
 		switch {
 		case c >= 'A' && c <= 'Z':
 			b[i] = c + 32
+		case !rfc:
 		case c == '[':
 			b[i] = '{'
 		case c == ']':
@@ -71,7 +107,7 @@ func ValidChannel(name string, maxLen int) bool {
 }
 
 // Match reports whether s matches the glob pattern (* and ?), ignoring case
-// the rfc1459 way.
+// with the casemapping in use.
 func Match(pattern, s string) bool {
 	p, t := Fold(pattern), Fold(s)
 	pi, ti := 0, 0

@@ -102,6 +102,7 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 				}
 				s.deliverTo(mem.User, o)
 			}
+			s.routeChannel(nil, u.UID, ch, status, verb, text, linkTags(tags, o.msgid))
 			if c.caps["echo-message"] {
 				c.deliver(o)
 			}
@@ -143,7 +144,11 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 			c.capture = held
 			continue
 		}
-		s.deliverTo(t, o)
+		if !s.ours(t.UID) {
+			s.routeUser(u.UID, t, verb, text, linkTags(tags, o.msgid))
+		} else {
+			s.deliverTo(t, o)
+		}
 		if verb == "PRIVMSG" && t.Away != "" {
 			s.reply(c, irc.RplAway, t.Nick, t.Away)
 		}

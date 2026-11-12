@@ -17,6 +17,9 @@ import (
 // AddBot.
 func (s *Services) Start() {
 	s.startServices()
+	if s.off {
+		return
+	}
 	s.startPersist()
 	s.Flush()
 }
@@ -42,6 +45,10 @@ func (s *Services) AddBot(nick, alias, realname, intro string, need byte, cmds m
 	sort.Strings(sv.order)
 	return sv.user
 }
+
+// Off reports whether services are switched off here ([services]
+// enabled = false): another server runs them.
+func (s *Services) Off() bool { return s.off }
 
 // IsBot reports whether u is one of the service bots.
 func (s *Services) IsBot(u *state.User) bool { return s.serviceFor(u) != nil }

@@ -19,6 +19,9 @@ type unrealCodec struct {
 	// paramModes are the other side's channel modes that take a
 	// parameter when set (CHANMODES groups B and C).
 	paramModes string
+	// For live MODE lines (2c): CHANMODES groups A (lists), B (always an
+	// argument), C (an argument when set), and the PREFIX rank letters.
+	listModes, alwaysModes, setModes, rankModes string
 }
 
 // Codec returns the codec for the protocol the handshake agreed on.
@@ -27,8 +30,16 @@ func (h *unreal) Codec() Codec {
 	groups := strings.Split(h.peer.Tokens["CHANMODES"], ",")
 	if len(groups) >= 3 {
 		c.paramModes = groups[1] + groups[2]
+		c.listModes, c.alwaysModes, c.setModes = groups[0], groups[1], groups[2]
 	} else {
 		c.paramModes = "kfLlFH" // UnrealIRCd 6 defaults
+		c.listModes, c.alwaysModes, c.setModes = "beI", "kLf", "lFH"
+	}
+	c.rankModes = "qaohv"
+	if p := h.peer.Tokens["PREFIX"]; strings.HasPrefix(p, "(") {
+		if end := strings.IndexByte(p, ')'); end > 0 {
+			c.rankModes = p[1:end]
+		}
 	}
 	return c
 }
@@ -92,19 +103,26 @@ func (c *unrealCodec) User(u User, sid string) []string {
 		account = "0"
 	}
 	modes := u.Modes
-	cloak := u.Host
 	if u.Host != u.RealHost && !strings.Contains(modes, "x") {
-		modes += "x" // the host others see travels as the cloaked host
+		modes += "x" // the host others see is a cloak or vhost
 	}
-	if u.Host == u.RealHost {
-		cloak = u.RealHost
+	cloak, vhost := orStar(u.Cloak), "*"
+	switch {
+	case u.Host == u.RealHost:
+		if u.Cloak == "" {
+			cloak = u.RealHost
+		}
+	case u.Cloak == "":
+		cloak = u.Host
+	case u.Host != u.Cloak:
+		vhost = u.Host
 	}
 	hops := u.Hops
 	if hops < 1 {
 		hops = 1
 	}
-	return []string{fmt.Sprintf(":%s UID %s %d %d %s %s %s %s %s * %s %s :%s",
-		sid, u.Nick, hops, u.NickTS, u.Ident, u.RealHost, u.UID, account, sendUserModes(modes), cloak, encodeIP(u.IP), u.Realname)}
+	return []string{fmt.Sprintf(":%s UID %s %d %d %s %s %s %s %s %s %s %s :%s",
+		sid, u.Nick, hops, u.NickTS, u.Ident, u.RealHost, u.UID, account, sendUserModes(modes), vhost, cloak, encodeIP(u.IP), u.Realname)}
 }
 
 func (c *unrealCodec) Away(uid, message string) string {
@@ -180,6 +198,9 @@ func (c *unrealCodec) Decode(m irc.Message) any {
 		if a := p[6]; a != "0" && a != "*" {
 			u.Account = a
 		}
+		if p[9] != "*" && p[9] != "" {
+			u.Cloak = p[9]
+		}
 		if strings.Contains(u.Modes, "x") {
 			switch {
 			case p[8] != "*" && p[8] != "":
@@ -217,7 +238,7 @@ func (c *unrealCodec) Decode(m irc.Message) any {
 		}
 		return &Kill{Source: m.Source, UID: p[0], Reason: reason}
 	}
-	return nil
+	return c.decodeLive(m)
 }
 
 // decodeSJoin reads "SJOIN ts #chan [+modes params...] :items".

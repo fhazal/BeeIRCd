@@ -28,7 +28,8 @@ func TestUnrealCodecUser(t *testing.T) {
 		t.Fatalf("got %q\nwant %q", lines, want)
 	}
 	got := decode(t, c, lines[0]).(*User)
-	u.Modes = "iwx" // s doesn't travel in UID
+	u.Modes = "iwx"  // s doesn't travel in UID
+	u.Cloak = u.Host // the cloak field comes back as the cloak
 	if !reflect.DeepEqual(*got, u) {
 		t.Errorf("round trip:\n got %+v\nwant %+v", *got, u)
 	}

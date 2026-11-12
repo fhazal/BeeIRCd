@@ -196,6 +196,7 @@ Unknown settings are refused, so a typo shows up in `beeircd check`.
 | `sid` | – | Server ID for linking: a digit and two capitals or digits, like `0EX` (restart) |
 | `resolve_hosts` | `true` | Look up hostnames of connecting IPs |
 | `prefixes` | `"@+"` | `"@+"` or `"~&@%+"` (owner, admin, op, halfop, voice) (restart) |
+| `casemapping` | `"ascii"` | How nicks and channels ignore case: `"ascii"` (only A-Z: `Belon` = `belon`, but `[` and `{` differ, like UnrealIRCd 6 and InspIRCd) or `"rfc1459"` (also `[]\~` = `{}|^`). Every linked server needs the same; UnrealIRCd links need ascii. Changing it moves the stored nicks and channels to the new rule at the next start; going to rfc1459 is refused when two stored names would become one (restart) |
 
 ### [[listen]]
 
@@ -234,13 +235,20 @@ One block per port.
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `enabled` | `true` | Hide people's IPs and hosts (user mode +x) |
-| `secret` | – | At least 16 random characters; needed when enabled. Changing it changes every cloak; linked servers need the same one |
+| `secret` | – | At least 16 random characters; needed when enabled with method `beeircd`. Changing it changes every cloak; linked servers need the same one |
+| `method` | `"beeircd"` | `"beeircd"` (our own cloaks) or `"unreal"`: exactly UnrealIRCd 6's cloaks (cloak_sha256), for a network that mixes in UnrealIRCd servers, so a person has one cloak everywhere and bans on cloaks work on every server (restart) |
+| `keys` | – | With `method = "unreal"`: the three `set::cloak-keys` of your UnrealIRCd servers, in the same order, like `keys = ["...", "...", "..."]` (80+ characters each, a-z A-Z 0-9 mixed) |
+| `prefix` | `"Clk"` | With `method = "unreal"`: UnrealIRCd's `set::cloak-prefix`, the start of hostname cloaks |
+
+Linked servers compare their cloak keys when they link (NETINFO); a
+difference is a warning to opers, not a refusal.
 
 ### [services]
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `database` | `/var/lib/beeircd/services.db` | Accounts, nicks, channels, memos, bans (restart) |
+| `enabled` | `true` | Run NickServ, ChanServ and the other bots here. A network has **one** services server: set `false` on every other BeeIRCd; their users reach the services server's bots over the link (`/ns`, `/cs` ... work as before). Two linked servers that both run services are refused, and so is a link to an UnrealIRCd network that has its own services (Anope) while ours run (restart) |
+| `database` | `/var/lib/beeircd/services.db` | Accounts, nicks, channels, memos, bans (restart). With services off it still keeps the network bans that arrive over links |
 | `admin` | – | The admin's account: every oper flag, can't be changed from IRC |
 | `admin_password` | – | argon2id hash from `beeircd mkpasswd`. Empty: the admin sets it with the first `/oper` while identified |
 | `admin_hosts` | anywhere | `user@host` masks or CIDRs the admin may /oper from |

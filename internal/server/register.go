@@ -300,6 +300,10 @@ func (s *Server) welcome(c *Client) {
 
 // cloakFor is u's cloaked host.
 func (s *Server) cloakFor(u *state.User) string {
+	if s.cfg.UnrealCloak() {
+		k := s.cfg.Cloak.Keys
+		return cloak.UnrealHost([3]string{k[0], k[1], k[2]}, s.cfg.Cloak.Prefix, u.RealHost)
+	}
 	return cloak.Host(s.cfg.Cloak.Secret, s.cfg.Server.Network, u.RealHost, u.IP, u.RealHost == irc.DisplayIP(u.IP))
 }
 
@@ -378,7 +382,7 @@ func (s *Server) isupport() []string {
 		"ACCOUNTEXTBAN=a",
 		"AWAYLEN=" + strconv.Itoa(l.AwayLen),
 		"BOT=B",
-		"CASEMAPPING=rfc1459",
+		"CASEMAPPING=" + irc.Casemapping(),
 		"CHANLIMIT=#:" + strconv.Itoa(l.MaxChannels),
 		"CHANMODES=" + chanModesList + "," + chanModesKey + "," + chanModesParam + "," + chanModesFlags,
 		"CHANNELLEN=" + strconv.Itoa(l.ChannelLen),

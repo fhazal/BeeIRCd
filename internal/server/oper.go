@@ -324,10 +324,13 @@ func (s *Server) cmdKill(c *Client, m irc.Message) {
 // killUser disconnects u, as by is the oper or service doing it.
 func (s *Server) killUser(u *state.User, by, reason string) {
 	tc := s.clientOf(u)
+	reason = irc.Truncate(reason, s.cfg.Limits.KickLen)
 	if tc == nil {
+		if s.linkOf(u.UID) != nil {
+			s.killRemote(u, by, reason)
+		}
 		return
 	}
-	reason = irc.Truncate(reason, s.cfg.Limits.KickLen)
 	tc.send(irc.Message{Source: by, Command: "KILL", Params: []string{u.Nick, reason}, Trailing: true}.String())
 	s.snotice("%s killed %s (%s@%s): %s", by, u.Nick, u.Ident, u.RealHost, reason)
 	s.quit(tc, "Killed ("+by+" ("+reason+"))")

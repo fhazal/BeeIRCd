@@ -94,7 +94,20 @@ type Cloak struct {
 	// Secret makes cloaks impossible to reverse. Every linked server
 	// needs the same one, and changing it changes everyone's cloak.
 	Secret string `toml:"secret"`
+	// Method is "beeircd" (the default) or "unreal": UnrealIRCd 6's
+	// cloak_sha256, for networks that mix in UnrealIRCd servers. Every
+	// server needs the same method and keys.
+	Method string `toml:"method"`
+	// Keys are UnrealIRCd's three set::cloak-keys (method "unreal"):
+	// copy them from unrealircd.conf, in the same order.
+	Keys []string `toml:"keys"`
+	// Prefix starts hostname cloaks with method "unreal" (UnrealIRCd's
+	// set::cloak-prefix, "Clk" by default).
+	Prefix string `toml:"prefix"`
 }
+
+// UnrealCloak reports whether cloaks are UnrealIRCd's.
+func (c *Config) UnrealCloak() bool { return c.Cloak.Method == "unreal" }
 
 // Server names this server and its network.
 type Server struct {
@@ -109,6 +122,11 @@ type Server struct {
 	// default) or "~&@%+" (owner, admin, op, halfop, voice). Changing it
 	// needs a restart.
 	Prefixes string `toml:"prefixes"`
+	// Casemapping is how nicks and channel names ignore case: "ascii"
+	// (the default, like UnrealIRCd 6 and InspIRCd: only A-Z) or
+	// "rfc1459" (also []\~ = {}|^). Every linked server needs the same,
+	// and links to UnrealIRCd need ascii. Changing it needs a restart.
+	Casemapping string `toml:"casemapping"`
 }
 
 // FullPrefixes reports whether owner, admin and halfop exist.
@@ -289,6 +307,15 @@ func (c *Config) SetDefaults() {
 	if c.Server.Prefixes == "" {
 		c.Server.Prefixes = "@+"
 	}
+	if c.Server.Casemapping == "" {
+		c.Server.Casemapping = "ascii"
+	}
+	if c.Cloak.Method == "" {
+		c.Cloak.Method = "beeircd"
+	}
+	if c.Cloak.Prefix == "" {
+		c.Cloak.Prefix = "Clk"
+	}
 	l := &c.Limits
 	setDur(&l.PingInterval, 90*time.Second)
 	setDur(&l.PingTimeout, 90*time.Second)
@@ -346,6 +373,10 @@ func (c *Config) SetDefaults() {
 
 // Services holds NickServ, ChanServ and MemoServ settings.
 type Services struct {
+	// Enabled runs NickServ, ChanServ and the other bots on this server
+	// (on by default). A network has one services server: set false on
+	// the others, they use the hub's over the link (Stage 2c/2d).
+	Enabled *bool `toml:"enabled"`
 	// Database is the SQLite file with accounts, nicks and memos.
 	Database string `toml:"database"`
 	// NickExpire drops accounts nobody identified to for this long.
@@ -407,6 +438,9 @@ type Services struct {
 	// (senddelay, 3 s; opers don't wait). "0s" switches it off.
 	MemoSendDelay *Duration `toml:"memo_send_delay"`
 }
+
+// On reports whether this server runs services (default on).
+func (s Services) On() bool { return s.Enabled == nil || *s.Enabled }
 
 // ForceEmailOn reports whether REGISTER needs an email (default on).
 func (s Services) ForceEmailOn() bool { return s.ForceEmail == nil || *s.ForceEmail }
@@ -485,6 +519,8 @@ func (c *Config) Check() error {
 		return fmt.Errorf("network name %q must be one word (letters, digits, dot, dash or underscore)", c.Server.Network)
 	case !sidRe.MatchString(c.Server.SID):
 		return fmt.Errorf("server sid %q must be a digit and two capital letters or digits, like 0BE", c.Server.SID)
+	case c.Server.Casemapping != "ascii" && c.Server.Casemapping != "rfc1459":
+		return fmt.Errorf("server casemapping %q must be \"ascii\" or \"rfc1459\"", c.Server.Casemapping)
 	case c.Server.Prefixes != "@+" && c.Server.Prefixes != "~&@%+":
 		return fmt.Errorf("server prefixes %q must be \"@+\" or \"~&@%%+\"", c.Server.Prefixes)
 	case c.Services.LogChannel != "" && (!strings.HasPrefix(c.Services.LogChannel, "#") || len(c.Services.LogChannel) > 50 || strings.ContainsAny(c.Services.LogChannel, " ,\a")):
@@ -509,7 +545,10 @@ func (c *Config) Check() error {
 	if err := c.checkACME(); err != nil {
 		return err
 	}
-	if c.CloakEnabled() && len(c.Cloak.Secret) < 16 {
+	if err := c.checkCloak(); err != nil {
+		return err
+	}
+	if c.CloakEnabled() && !c.UnrealCloak() && len(c.Cloak.Secret) < 16 {
 		return fmt.Errorf("[cloak] secret must be at least 16 characters of random text (or set enabled = false)")
 	}
 	if p := c.Services.AdminPassword; p != "" && !strings.HasPrefix(p, "$argon2id$") {
@@ -614,6 +653,65 @@ func validHostPort(a string) bool {
 
 // ValidServerName reports whether name may be a server name.
 func ValidServerName(name string) bool { return serverRe.MatchString(name) && len(name) <= 63 }
+
+// checkCloak checks [cloak] method, keys and prefix (Stage 2c), with
+// UnrealIRCd's own rules for the keys.
+func (c *Config) checkCloak() error {
+	k := c.Cloak
+	switch k.Method {
+	case "beeircd":
+		if len(k.Keys) > 0 {
+			return fmt.Errorf("[cloak] keys are for method = \"unreal\"; method \"beeircd\" uses secret")
+		}
+		return nil
+	case "unreal":
+	default:
+		return fmt.Errorf("[cloak] method %q must be \"beeircd\" or \"unreal\"", k.Method)
+	}
+	if !c.CloakEnabled() {
+		return nil
+	}
+	if len(k.Keys) != 3 {
+		return fmt.Errorf("[cloak] method \"unreal\" needs keys = [three keys], the set::cloak-keys of your UnrealIRCd servers in the same order")
+	}
+	for i, key := range k.Keys {
+		lower, upper, digit := false, false, false
+		for _, r := range key {
+			switch {
+			case r >= 'a' && r <= 'z':
+				lower = true
+			case r >= 'A' && r <= 'Z':
+				upper = true
+			case r >= '0' && r <= '9':
+				digit = true
+			}
+		}
+		if len(key) < 80 || len(key) > 1000 || !lower || !upper || !digit {
+			return fmt.Errorf("[cloak] key %d must be 80 to 1000 characters mixing a-z, A-Z and 0-9 (UnrealIRCd's rule)", i+1)
+		}
+	}
+	if k.Keys[0] == k.Keys[1] || k.Keys[1] == k.Keys[2] {
+		return fmt.Errorf("[cloak] the three keys must differ")
+	}
+	if !ValidHostPart(k.Prefix) {
+		return fmt.Errorf("[cloak] prefix %q must be letters, digits or '-'", k.Prefix)
+	}
+	return nil
+}
+
+// ValidHostPart reports whether p may start a hostname.
+func ValidHostPart(p string) bool {
+	if p == "" || len(p) > 20 || p[0] == '-' {
+		return false
+	}
+	for i := 0; i < len(p); i++ {
+		c := p[i]
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-') {
+			return false
+		}
+	}
+	return true
+}
 
 // ValidNetwork reports whether name may be a network name.
 func ValidNetwork(name string) bool { return networkRe.MatchString(name) }

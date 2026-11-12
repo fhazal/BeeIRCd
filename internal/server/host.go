@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/fhazal/beeircd/internal/irc"
+	"github.com/fhazal/beeircd/internal/link"
 	"github.com/fhazal/beeircd/internal/services"
 	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
@@ -22,6 +23,10 @@ func (h host) Emit(ev state.Event) error { return h.s.emit(ev) }
 func (h host) Notice(fromUID, toUID, text string) {
 	s := h.s
 	from, to := s.net.UserByUID(fromUID), s.clients[toUID]
+	if from != nil && to == nil {
+		s.sendRemote(toUID, &link.Message{Source: fromUID, Verb: "NOTICE", Target: toUID, Text: text})
+		return
+	}
 	if from == nil || to == nil || to.user == nil {
 		return
 	}
@@ -48,18 +53,30 @@ func (h host) ChannelMessage(fromUID, channel string, status byte, privmsg bool,
 			s.deliverTo(m.User, o)
 		}
 	}
+	prefix := ""
+	if min != 0 {
+		prefix = string(status)
+	}
+	s.routeChannel(nil, fromUID, ch, prefix, cmd, text, nil)
 }
 
 func (h host) Numeric(uid, code string, params ...string) {
 	if c := h.s.clients[uid]; c != nil {
 		h.s.reply(c, code, params...)
+		return
 	}
+	if (code == irc.RplLoggedIn || code == irc.RplLoggedOut) && !h.s.beeLink(uid) {
+		return // UnrealIRCd says it itself when SVSLOGIN arrives
+	}
+	h.s.sendRemote(uid, &link.Numeric{Source: h.s.cfg.Server.SID, Code: code, Params: append([]string{uid}, params...)})
 }
 
 func (h host) ServerNotice(uid, text string) {
 	if c := h.s.clients[uid]; c != nil {
 		h.s.notice(c, text)
+		return
 	}
+	h.s.sendRemote(uid, &link.Message{Source: h.s.cfg.Server.SID, Verb: "NOTICE", Target: uid, Text: text})
 }
 
 func (h host) Snotice(text string) { h.s.snotice("%s", text) }
@@ -67,6 +84,10 @@ func (h host) Snotice(text string) { h.s.snotice("%s", text) }
 func (h host) Disconnect(uid, reason string) {
 	if c := h.s.clients[uid]; c != nil {
 		h.s.quit(c, reason)
+		return
+	}
+	if u := h.s.net.UserByUID(uid); u != nil && h.s.linkOf(uid) != nil {
+		h.s.killRemote(u, h.s.cfg.Server.Name, reason)
 	}
 }
 
@@ -151,8 +172,23 @@ func (h host) DefaultHost(uid string) string {
 }
 
 func (s *Server) toAlias(c *Client, alias string, m irc.Message) {
-	s.svc.MessageAlias(c.uid, alias, strings.Join(m.Params, " "))
+	text := strings.Join(m.Params, " ")
+	if s.svc.Off() {
+		// Services run on another server: the line goes to its bot.
+		nick := aliasBots[alias]
+		bot := s.net.UserByNick(nick)
+		if bot == nil || s.ours(bot.UID) || strings.TrimSpace(text) == "" {
+			s.reply(c, irc.ErrServicesDown, nick, "Services are not available right now")
+			return
+		}
+		s.routeUser(c.uid, bot, "PRIVMSG", text, nil)
+		return
+	}
+	s.svc.MessageAlias(c.uid, alias, text)
 }
+
+// aliasBots are the bots behind /ns, /cs ...
+var aliasBots = map[string]string{"ns": "NickServ", "cs": "ChanServ", "ms": "MemoServ", "os": "OperServ", "hs": "HostServ", "as": "AdminServ"}
 
 // lockedFor and friends keep the oper password code short.
 func (s *Server) lockedFor(key int64) time.Duration { return s.svc.LockedFor(key) }

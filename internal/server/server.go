@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/fhazal/beeircd/internal/config"
+	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/services"
 	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
@@ -79,6 +80,8 @@ type Server struct {
 	loop        loopStats                   // how long each piece of loop work took
 	links       linkState                   // Stage 2 server links
 	netjoin     *netjoinBatch               // set while a link's burst is handled
+	origin      *linkOrigin                 // where the next emitted event came from (2c)
+	banFrom     *linkConn                   // the link a ban change came from, while it is applied
 	wg          sync.WaitGroup
 
 	// Services. The store is shared: the server reads oper entries and
@@ -147,6 +150,7 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	if err := os.MkdirAll(filepath.Dir(cfg.Services.Database), 0o750); err != nil {
 		return nil, err
 	}
+	irc.SetCasemapping(cfg.Server.Casemapping) // before any name is stored
 	s.setupHistory()
 	db, err := store.Open(cfg.Services.Database)
 	if err != nil {
@@ -163,6 +167,7 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	}
 	s.svc = svc
 	svc.OnSecretDone(s.releaseHeld)
+	svc.OnBanChange(s.linkBanChanged)
 	s.sinks = append(s.sinks, svc.Event)
 	svc.Start()
 	s.adminServ = svc.AddBot("AdminServ", "as", "Admin Services",

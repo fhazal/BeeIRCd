@@ -32,6 +32,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/fhazal/beeircd/internal/cloak"
 	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/control"
 	"github.com/fhazal/beeircd/internal/irc"
@@ -291,14 +292,25 @@ func (s *Server) newLink(conn net.Conn, outgoing bool, b *config.LinkServer, fp 
 }
 
 // linkLocal is what the handshake says about us.
-func (s *Server) linkLocal() link.Local {
+// cloakHash is what NETINFO shows of our cloak keys: UnrealIRCd's
+// checksum with method "unreal", else a short hash of the secret.
+func (s *Server) cloakHash() string {
+	if s.cfg.UnrealCloak() && len(s.cfg.Cloak.Keys) == 3 {
+		k := s.cfg.Cloak.Keys
+		return cloak.UnrealChecksum([3]string{k[0], k[1], k[2]})
+	}
 	sum := sha256.Sum256([]byte("beeircd-cloak:" + s.cfg.Cloak.Secret))
+	return hex.EncodeToString(sum[:8])
+}
+
+func (s *Server) linkLocal() link.Local {
 	return link.Local{
 		Name: s.cfg.Server.Name, SID: s.cfg.Server.SID, Description: s.cfg.Server.Description,
 		Network: s.cfg.Server.Network, Version: version.Version,
 		ChanModes: chanModesList + "," + chanModesKey + "," + chanModesParam + "," + chanModesFlags,
 		UserModes: userModes, Prefix: "(" + s.rankModes() + ")" + s.rankPrefixes(),
-		CloakHash: hex.EncodeToString(sum[:8]), Booted: s.created.Unix(), MaxGlobal: s.maxLocal,
+		Casemapping: s.cfg.Server.Casemapping, Services: s.cfg.Services.On(),
+		CloakHash: s.cloakHash(), Booted: s.created.Unix(), MaxGlobal: s.maxLocal,
 		Now:   func() int64 { return time.Now().Unix() },
 		Known: s.linkKnown,
 		Block: func(name string) *config.LinkServer {
@@ -505,16 +517,16 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		s.dropLink(l, "they closed the link: "+param(len(m.Params)-1))
 	case "NETINFO":
 		s.linkNetinfo(l, m)
-	case "SINFO", "SMOD", "MD", "NOTICE", "GLOBOPS", "SENDUMODE", "SENDSNO", "SLOG":
-		// Server info, module lists and notices for opers: nothing to do
-		// until 2c, and nothing worth a log line.
+	case "SINFO", "SMOD", "MD", "GLOBOPS", "SENDUMODE", "SENDSNO", "SLOG", "SWHOIS", "BOTMOTD", "REPUTATION":
+		// Server info, module lists and notices for opers: nothing to do,
+		// and nothing worth a log line.
 	default:
 		if s.linkItem(l, m) {
 			return
 		}
 		if !l.ignored[m.Command] {
 			l.ignored[m.Command] = true
-			s.log.Printf("link %s: %s not handled yet (users and channels over links arrive in Stage 2b/2c)", l.peer.Name, m.Command)
+			s.log.Printf("link %s: %s not handled (skipped)", l.peer.Name, m.Command)
 		}
 	}
 }
@@ -617,7 +629,13 @@ func (s *Server) linkNetinfo(l *linkConn, m irc.Message) {
 	if net := m.Params[len(m.Params)-1]; net != s.cfg.Server.Network {
 		why = append(why, fmt.Sprintf("its network name is %q, ours %q", net, s.cfg.Server.Network))
 	}
-	if l.peer.Bee && m.Params[3] != s.linkLocal().CloakHash {
+	switch theirs := m.Params[3]; {
+	case theirs == s.cloakHash():
+	case !l.peer.Bee && !s.cfg.UnrealCloak():
+		why = append(why, "UnrealIRCd makes its own cloaks, so people get different cloaks there and bans on cloaks miss (set [cloak] method = \"unreal\" with its three cloak-keys)")
+	case s.cfg.UnrealCloak():
+		why = append(why, "its cloak keys differ from ours, so the same person gets a different cloak there (copy the same three keys to every server)")
+	default:
 		why = append(why, "its [cloak] secret differs from ours, so the same person gets a different cloak there (set the same secret on every server)")
 	}
 	if len(why) > 0 {

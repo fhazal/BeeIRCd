@@ -11,6 +11,8 @@ import (
 // own numerics; everything others see comes from here, so a change that
 // arrives over a link later reaches local clients the same way.
 func (s *Server) emit(ev state.Event) error {
+	org := s.origin // for this event only, not what it sets off
+	s.origin = nil
 	if s.beforeEmit != nil {
 		s.beforeEmit(ev)
 	}
@@ -32,6 +34,7 @@ func (s *Server) emit(ev state.Event) error {
 		s.historyModeChanged(cm)
 	}
 	s.dropGoneHistory(histGone)
+	s.linkOut(ev, org)
 	for _, sink := range s.sinks {
 		sink(ev)
 	}

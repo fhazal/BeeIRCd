@@ -46,6 +46,9 @@ func (s *Services) logBots() []*service {
 // them out of old (the log channel before a change). People who aren't
 // opers are kicked: the lines show real hosts.
 func (s *Services) SyncLogChannel(old string) {
+	if s.off {
+		return
+	}
 	defer s.Flush()
 	if old != "" && !s.IsLogChannel(old) {
 		if ch := s.net.Channel(old); ch != nil {

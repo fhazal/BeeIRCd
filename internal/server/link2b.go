@@ -7,7 +7,7 @@ package server
 // behind it off the network.
 //
 // Live changes after the burst (NICK, JOIN, PRIVMSG ... over links) are
-// Stage 2c.
+// in link2c.go.
 
 import (
 	"fmt"
@@ -69,7 +69,7 @@ func (s *Server) burstBody(l *linkConn) []string {
 		if r := s.links.servers[sid]; r != nil {
 			hops = r.hops + 1
 		}
-		out = append(out, cd.User(linkUser(u, hops), sid)...)
+		out = append(out, cd.User(s.linkUser(u, hops), sid)...)
 		if u.Away != "" {
 			out = append(out, cd.Away(u.UID, u.Away))
 		}
@@ -109,15 +109,27 @@ func (s *Server) burstBody(l *linkConn) []string {
 			out = append(out, cd.Topic(link.Topic{Channel: ch.Name, Text: ch.Topic, By: orStr(ch.TopicBy, s.cfg.Server.Name), At: ch.TopicAt.Unix()}, s.cfg.Server.SID))
 		}
 	}
-	return out
+	return append(out, s.banBurst(l)...)
 }
 
-func linkUser(u *state.User, hops int) link.User {
+func (s *Server) linkUser(u *state.User, hops int) link.User {
 	return link.User{
 		UID: u.UID, Nick: u.Nick, NickTS: u.NickTS, Hops: hops,
-		Ident: u.Ident, RealHost: u.RealHost, Host: u.Host, IP: u.IP,
+		Ident: u.Ident, RealHost: u.RealHost, Host: u.Host, Cloak: s.userCloak(u), IP: u.IP,
 		Account: u.Account, Modes: link.SortedModes(u.Modes), Realname: u.Realname,
 	}
+}
+
+// userCloak is the host +x gives u: ours made here, others' from their
+// server; "" when cloaks are off (or a service).
+func (s *Server) userCloak(u *state.User) string {
+	switch {
+	case u.Cloak != "":
+		return u.Cloak
+	case !s.ours(u.UID) || u.Service || !s.cfg.CloakEnabled():
+		return ""
+	}
+	return s.cloakFor(u)
 }
 
 // rankLetters writes ranks as mode letters, highest first ("ov").
@@ -141,15 +153,15 @@ func (s *Server) linkItem(l *linkConn, m irc.Message) bool {
 	case *link.Channel:
 		s.remoteSJoin(l, m.Source, it)
 	case *link.Topic:
-		s.remoteTopic(l, it)
+		s.remoteTopic(l, m.Source, it)
 	case *link.Away:
-		if u := s.net.UserByUID(it.UID); u != nil && s.behind(l, uidServer(u.UID)) {
-			s.emit(&state.Away{UID: u.UID, Message: it.Message})
+		if u := s.net.UserByUID(it.UID); u != nil && s.behind(l, uidServer(u.UID)) && u.Away != it.Message {
+			s.emitFrom(l, m.Source, &state.Away{UID: u.UID, Message: it.Message})
 		}
 	case *link.Kill:
 		s.remoteKill(l, it)
 	default:
-		return false
+		return s.linkLive(l, m, it)
 	}
 	return true
 }
@@ -184,6 +196,12 @@ func (s *Server) remoteUser(l *linkConn, source string, in *link.User) {
 		in.Nick = in.UID
 	}
 	if ex := s.net.UserByNick(in.Nick); ex != nil {
+		if ex.Service && s.ours(ex.UID) {
+			// A services server behind the link (Anope on UnrealIRCd):
+			// one network, one set of services.
+			s.dropLink(l, fmt.Sprintf("the network behind %s has its own services (%s on %s); only one server may run them, set [services] enabled = false here", l.peer.Name, in.Nick, home.name))
+			return
+		}
 		keep, ok := s.collide(l, ex, in, home.name)
 		if !ok {
 			return // the newcomer was killed
@@ -201,10 +219,10 @@ func (s *Server) remoteUser(l *linkConn, source string, in *link.User) {
 	u := &state.User{
 		UID: in.UID, Nick: in.Nick, Ident: in.Ident, Host: in.Host, RealHost: in.RealHost,
 		IP: in.IP, Realname: in.Realname, Server: home.name, Account: in.Account,
-		SignOn: time.Unix(in.NickTS, 0), NickTS: in.NickTS, Modes: modes, TLS: modes['z'],
+		SignOn: time.Unix(in.NickTS, 0), NickTS: in.NickTS, Modes: modes, TLS: modes['z'], Cloak: in.Cloak,
 		Channels: map[string]*state.Channel{},
 	}
-	if err := s.emit(&state.UserAdd{User: u}); err != nil {
+	if err := s.emitFrom(l, source, &state.UserAdd{User: u}); err != nil {
 		s.dropLink(l, fmt.Sprintf("could not add %s (%s): %v", in.Nick, in.UID, err))
 	}
 }
@@ -306,17 +324,14 @@ func (s *Server) renameToUID(u *state.User) {
 
 // killForCollision removes u (UnrealIRCd's rule) here and tells every link.
 func (s *Server) killForCollision(u *state.User, comment string) {
-	for o := range s.links.conns {
-		if o.up && !o.closed {
-			o.send(o.codecOf().Kill(s.cfg.Server.SID, u.UID, comment))
-		}
-	}
+	s.linkBroadcastKill(nil, s.cfg.Server.SID, u.UID, comment)
 	if c := s.clientOf(u); c != nil {
 		c.send(irc.Message{Source: s.cfg.Server.Name, Command: "KILL", Params: []string{u.Nick, comment}, Trailing: true}.String())
+		s.origin = &linkOrigin{quiet: true} // every link has the KILL
 		s.quit(c, "Killed ("+s.cfg.Server.Name+" ("+comment+"))")
 		return
 	}
-	s.emit(&state.UserQuit{UID: u.UID, Reason: "Killed (" + s.cfg.Server.Name + " (" + comment + "))"})
+	s.emitQuiet(&state.UserQuit{UID: u.UID, Reason: "Killed (" + s.cfg.Server.Name + " (" + comment + "))"})
 }
 
 // remoteKill is a KILL from l for a user anywhere.
@@ -332,12 +347,14 @@ func (s *Server) remoteKill(l *linkConn, k *link.Kill) {
 		by = v.Nick
 	}
 	reason := "Killed (" + by + " (" + k.Reason + "))"
+	s.linkBroadcastKill(l, k.Source, u.UID, k.Reason) // on to the rest of the network
 	if c := s.clientOf(u); c != nil {
 		c.send(irc.Message{Source: by, Command: "KILL", Params: []string{u.Nick, k.Reason}, Trailing: true}.String())
+		s.origin = &linkOrigin{quiet: true}
 		s.quit(c, reason)
 		return
 	}
-	s.emit(&state.UserQuit{UID: u.UID, Reason: reason})
+	s.emitQuiet(&state.UserQuit{UID: u.UID, Reason: reason})
 }
 
 // supportedRank turns a rank letter from another server into one this
@@ -376,8 +393,8 @@ func (s *Server) remoteSJoin(l *linkConn, source string, c *link.Channel) {
 		switch {
 		case c.TS < ch.TS:
 			s.snotice("Channel %s: %s has it from %s, older than ours; our modes and ranks are dropped", ch.Name, src.name, time.Unix(c.TS, 0).UTC().Format(time.DateTime))
-			s.clearChannel(ch, src.name)
-			s.emit(&state.ChannelTS{Channel: ch.Name, TS: c.TS})
+			s.clearChannel(l, ch, src.name)
+			s.emitFrom(l, src.sid, &state.ChannelTS{Channel: ch.Name, TS: c.TS})
 		case c.TS == ch.TS:
 			merge = true
 		default:
@@ -404,11 +421,11 @@ func (s *Server) remoteSJoin(l *linkConn, source string, c *link.Channel) {
 						chg = append(chg, state.ModeChange{Add: true, Mode: ri.Mode, UID: u.UID, Arg: u.Nick})
 					}
 				}
-				s.emit(&state.ChannelMode{Channel: ch.Name, By: src.name, At: time.Now(), Changes: chg})
+				s.emitFrom(l, src.sid, &state.ChannelMode{Channel: ch.Name, By: src.name, At: time.Now(), Changes: chg})
 			}
 			continue
 		}
-		s.emit(&state.Join{UID: u.UID, Channel: c.Name, TS: c.TS, Ranks: ranks, Burst: true})
+		s.emitFrom(l, src.sid, &state.Join{UID: u.UID, Channel: c.Name, TS: c.TS, Ranks: ranks, Burst: true})
 	}
 	ch = s.net.Channel(c.Name)
 	if ch == nil || removeTheirs {
@@ -434,7 +451,7 @@ func (s *Server) remoteSJoin(l *linkConn, source string, c *link.Channel) {
 		chg = append(chg, state.ModeChange{Add: true, Mode: m, Arg: arg})
 	}
 	if len(chg) > 0 {
-		s.emit(&state.ChannelMode{Channel: ch.Name, By: src.name, At: time.Now(), Changes: chg})
+		s.emitFrom(l, src.sid, &state.ChannelMode{Channel: ch.Name, By: src.name, At: time.Now(), Changes: chg})
 	}
 	// Lists keep who set them and when: one event per setter and time.
 	for i := 0; i < len(c.Lists); {
@@ -450,14 +467,14 @@ func (s *Server) remoteSJoin(l *linkConn, source string, c *link.Channel) {
 		if c.Lists[i].SetAt == 0 {
 			at = time.Now()
 		}
-		s.emit(&state.ChannelMode{Channel: ch.Name, By: orStr(c.Lists[i].SetBy, src.name), At: at, Changes: lc})
+		s.emitFrom(l, src.sid, &state.ChannelMode{Channel: ch.Name, By: orStr(c.Lists[i].SetBy, src.name), At: at, Changes: lc})
 		i = j
 	}
 }
 
 // clearChannel takes away every mode, list entry and rank of ch: an older
 // copy of it came over a link.
-func (s *Server) clearChannel(ch *state.Channel, by string) {
+func (s *Server) clearChannel(l *linkConn, ch *state.Channel, by string) {
 	var chg []state.ModeChange
 	for _, m := range link.SortedModes(ch.Modes) {
 		switch b := byte(m); {
@@ -486,20 +503,30 @@ func (s *Server) clearChannel(ch *state.Channel, by string) {
 		}
 	}
 	if len(chg) > 0 {
-		s.emit(&state.ChannelMode{Channel: ch.Name, By: by, At: time.Now(), Changes: chg})
+		// The other links lose them too; l never had them.
+		s.emitFrom(l, "", &state.ChannelMode{Channel: ch.Name, By: by, At: time.Now(), Changes: chg})
 	}
 }
 
-// remoteTopic: the newer topic wins (UnrealIRCd's rule for servers).
-func (s *Server) remoteTopic(l *linkConn, t *link.Topic) {
+// remoteTopic: from a server (a burst) the newer topic wins (UnrealIRCd's
+// rule); a person changing it always does.
+func (s *Server) remoteTopic(l *linkConn, src string, t *link.Topic) {
 	ch := s.net.Channel(t.Channel)
 	if ch == nil {
 		return
 	}
-	if ch.Topic != "" && t.At <= ch.TopicAt.Unix() {
+	user := s.net.UserByUID(src)
+	if user == nil && ch.Topic != "" && t.At <= ch.TopicAt.Unix() {
 		return
 	}
-	s.emit(&state.Topic{Channel: ch.Name, Text: t.Text, By: t.By, At: time.Unix(t.At, 0)})
+	if ch.Topic == t.Text && ch.TopicBy == t.By {
+		return
+	}
+	source := ""
+	if user != nil {
+		source = user.UID
+	}
+	s.emitFrom(l, src, &state.Topic{Source: source, Channel: ch.Name, Text: t.Text, By: t.By, At: time.Unix(t.At, 0)})
 }
 
 // ---- splits ----
@@ -515,7 +542,7 @@ func (s *Server) quitSplit(gone map[string]bool, near, far string) {
 	}
 	sort.Strings(uids)
 	for _, uid := range uids {
-		s.emit(&state.UserQuit{UID: uid, Reason: near + " " + far})
+		s.emitQuiet(&state.UserQuit{UID: uid, Reason: near + " " + far}) // every server sees the SQUIT
 	}
 }
 

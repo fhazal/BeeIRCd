@@ -41,6 +41,7 @@ type linkNode struct {
 	cert, key string
 	fp        string
 	blocks    []config.LinkServer
+	services  bool // runs services (one server per network, 2c)
 	s         *Server
 	log       *syncBuf
 }
@@ -74,7 +75,7 @@ func newLinkNode(t *testing.T, name, sid, role string) *linkNode {
 		linkLeakCheck(t)
 	}
 	dir := t.TempDir()
-	n := &linkNode{name: name, sid: sid, role: role, port: freePort(t), cert: filepath.Join(dir, "link-cert.pem"), key: filepath.Join(dir, "link-key.pem")}
+	n := &linkNode{name: name, sid: sid, role: role, services: role == "hub", port: freePort(t), cert: filepath.Join(dir, "link-cert.pem"), key: filepath.Join(dir, "link-key.pem")}
 	_, fp, err := link.LoadOrCreate(n.cert, n.key, name)
 	if err != nil {
 		t.Fatal(err)
@@ -98,6 +99,8 @@ func (n *linkNode) start(t *testing.T) {
 	n.s = testServerWith(t, func(c *config.Config) {
 		c.Server.Name, c.Server.SID, c.Server.Description = n.name, n.sid, "test "+n.name
 		c.Link = config.Link{Role: n.role, Port: n.port, Cert: n.cert, Key: n.key, Servers: n.blocks}
+		on := n.services
+		c.Services.Enabled = &on
 	}, func(s *Server) { s.log = log.New(n.log, "", 0) })
 	t.Cleanup(func() {
 		if t.Failed() {
@@ -279,6 +282,7 @@ func TestLinkLoop(t *testing.T) {
 	x := newLinkNode(t, "x.test.local", "0XA", "hub")
 	y := newLinkNode(t, "y.test.local", "0YA", "hub")
 	z := newLinkNode(t, "z.test.local", "0ZA", "hub")
+	y.services, z.services = false, false
 	x.expects(y, true, "")
 	y.expects(x, false, "")
 	y.expects(z, true, "")

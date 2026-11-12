@@ -89,6 +89,12 @@ type HostStats struct {
 
 // Services is the running services.
 type Services struct {
+	// off: [services] enabled = false. The bots are made but never put
+	// on the network, events are ignored and nobody is tracked; only the
+	// network ban list (bans that arrive over links) stays in force.
+	// People use the services server's bots over the link (Stage 2c).
+	off bool
+
 	host  Host
 	cfg   *config.Config
 	log   *log.Logger
@@ -115,7 +121,9 @@ type Services struct {
 
 	// Oper data, kept in memory.
 	netbans        []store.NetBan
-	banRegexps     map[string]*regexp.Regexp // compiled SNLINE /regex/ masks
+	bansLoaded     bool                           // the first load is no change
+	banHook        func(b store.NetBan, add bool) // see OnBanChange
+	banRegexps     map[string]*regexp.Regexp      // compiled SNLINE /regex/ masks
 	news           []store.News
 	sessionExcepts []store.SessionExcept
 	forbids        map[string][]store.Forbid // by kind
@@ -172,6 +180,7 @@ func New(host Host, cfg *config.Config, logger *log.Logger, net *state.Network, 
 		seen:       make(map[string]*store.Seen),
 		seenDirty:  make(map[string]bool),
 		seenSaved:  time.Now(),
+		off:        !cfg.Services.On(),
 	}
 	if err := s.loadOperData(); err != nil {
 		return nil, err
@@ -186,6 +195,9 @@ func New(host Host, cfg *config.Config, logger *log.Logger, net *state.Network, 
 // command that caused it has finished (see Flush), so their notices and
 // modes come after the server's own replies, as clients expect.
 func (s *Services) Event(ev state.Event) {
+	if s.off {
+		return
+	}
 	switch e := ev.(type) {
 	case *state.UserAdd:
 		if !e.User.Service {
@@ -287,6 +299,9 @@ func (s *Services) connected(c *Client) {
 // Tick runs the timers: identify deadlines every second, expiry hourly
 // (the server decides when).
 func (s *Services) Tick(now time.Time) {
+	if s.off {
+		return
+	}
 	for _, c := range s.clients {
 		if !c.closed && !c.enforceAt.IsZero() && now.After(c.enforceAt) {
 			s.enforce(c)
@@ -300,6 +315,10 @@ func (s *Services) Tick(now time.Time) {
 
 // Expire drops accounts, channels and AKILLs that ran out.
 func (s *Services) Expire(now time.Time) {
+	if s.off {
+		s.expireBans(now)
+		return
+	}
 	s.expireAccountSuspends(now)
 	s.expireAccounts(now)
 	s.expireChannels(now)

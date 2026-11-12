@@ -13,6 +13,7 @@ type User struct {
 	Ident     string
 	RealHost  string
 	Host      string // the host others see (cloak or vhost)
+	Cloak     string // the host +x shows ("" = not known)
 	IP        string // "" when not known
 	Account   string // "" = not identified
 	Modes     string // user mode letters, no '+'
@@ -69,10 +70,14 @@ type Codec interface {
 	Topic(t Topic, sid string) string
 	// Kill removes a user, from server sid.
 	Kill(sid, uid, reason string) string
-	// Decode reads one line: *User, *Channel, *Topic, *Away, *Kill, or
-	// nil when it isn't one of those. The sender's SID or UID is in
+	// Decode reads one line: *User, *Channel, *Topic, *Away, *Kill, a
+	// live change (see Encode), or nil when it isn't one of those. The sender's SID or UID is in
 	// m.Source.
 	Decode(m irc.Message) any
+	// Encode writes a live change (2c: *Nick, *Quit, *Part, *Kick,
+	// *Mode, *UMode, *Login, *Host, *Ident, *Realname, *Invite,
+	// *ForceNick, *Message, *Numeric, *Ban); nil when it has no form.
+	Encode(item any) []string
 	// Rename reports whether nick collisions rename the loser to its UID
 	// (both sides BeeIRCd) instead of killing it (UnrealIRCd's rule).
 	Rename() bool

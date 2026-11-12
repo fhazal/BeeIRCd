@@ -34,7 +34,12 @@ func (s *Services) loadOperData() error {
 	if err != nil {
 		return err
 	}
+	old := s.netbans
 	s.netbans, s.news, s.sessionExcepts, s.forbids, s.ignores = bans, news, ex, forbids, ignores
+	if s.bansLoaded {
+		s.banChanges(old, bans)
+	}
+	s.bansLoaded = true
 	return nil
 }
 

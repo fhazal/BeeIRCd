@@ -18,6 +18,21 @@ merge, netjoin batch, split quits; tested against a real UnrealIRCd 6.2.7.
 Moved: network bans as TKL go to 2d (they are OperServ data on the hub).
 Until 2c/2d services act on remote users but those changes stay on the
 server that made them, and every BeeIRCd still runs its own services.
+2c built 12 Nov 2026 (branch stage2), with the owner's 2c decisions:
+casemapping `ascii` by default network-wide (`rfc1459` a setting, stored
+names move at start, links refused when it differs; UnrealIRCd = ascii);
+UnrealIRCd-compatible cloaks (`[cloak] method = "unreal"` + its three
+keys, NETINFO checksum the same as UnrealIRCd's); network bans moved
+back INTO 2c (AKILL/ZLINE/SHUN/ELINE = TKL G/Z/s/E, burst + live, each
+server enforces); one services server per network (`[services] enabled`,
+refused when both run, or when an UnrealIRCd network brings its own
+NickServ). Live: NICK QUIT PART KICK MODE UMODE2/SVS2MODE SVSLOGIN
+SETHOST/CHGHOST CHGIDENT SETNAME/CHGNAME INVITE SVSNICK, PRIVMSG/NOTICE/
+TAGMSG routed to the target's server, numerics routed, KILL both ways,
+three-server trees; services on the hub serve leaf users (replies,
+numerics, +r, account, kills). Tested against a real UnrealIRCd 6.2.7.
+Left for 2d: SVSJOIN/SVSPART (services joining people elsewhere, AJOIN),
+SASL over the link, remote WHOIS (idle time), SQLINE/SNLINE network-wide.
 
 Stage 2 links BeeIRCd servers into one network: a hub with leaves (and
 later hubs under hubs), one set of services on the hub, splits and rejoins
