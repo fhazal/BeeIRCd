@@ -120,6 +120,7 @@ h2{margin:0;font-family:var(--display);font-weight:600;font-size:16px}
 /* toast */
 .toasts{position:fixed;right:24px;bottom:24px;display:flex;flex-direction:column;gap:10px;z-index:10;max-width:calc(100% - 48px)}
 .toast{display:flex;gap:14px;align-items:center;padding:10px 12px 10px 16px;border-radius:4px;background:#1f1f1f;border:1px solid var(--btn-line);box-shadow:0 8px 24px rgba(0,0,0,.45);animation:up .2s ease}
+.toast>span:not(.dot){min-width:0;overflow-wrap:anywhere}
 .toast b{font-weight:600}
 .toast .btn{min-height:32px;padding:0 10px;color:var(--honey)}
 @keyframes up{from{transform:translateY(8px);opacity:0}}
