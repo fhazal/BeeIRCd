@@ -9,6 +9,8 @@ package server
 // flag the oper lacks is refused here whatever the page showed.
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -74,7 +76,14 @@ func (s *Server) panelOper(account, ip string) (po *control.PanelOper, a *store.
 	if v.flags == "" {
 		return nil, a, o, "the oper entry has no flags"
 	}
-	return &control.PanelOper{Account: o.Account, Class: v.class, Flags: v.flags, Owner: s.isAdminAccount(a)}, a, o, ""
+	return &control.PanelOper{Account: o.Account, Class: v.class, Flags: v.flags, Owner: s.isAdminAccount(a), Seal: passSeal(o.PassHash)}, a, o, ""
+}
+
+// passSeal is a short fingerprint of an oper password hash (see
+// control.PanelOper.Seal).
+func passSeal(hash string) string {
+	sum := sha256.Sum256([]byte("hive panel seal:" + hash))
+	return hex.EncodeToString(sum[:8])
 }
 
 // panelLogin checks a sign-in and calls done with the answer (on the loop).
@@ -129,6 +138,8 @@ func (s *Server) panelAllowed(req control.Request, need byte) (*control.PanelOpe
 		return nil, &control.Response{Error: problem, Denied: "signin"}
 	}
 	switch {
+	case req.Seal != po.Seal:
+		return nil, &control.Response{Error: "Your oper password changed. Please sign in again.", Denied: "signin"}
 	case need == 'O' && !po.Owner:
 		return po, &control.Response{Error: "Only the owner can do that.", Denied: "flag"}
 	case need != 0 && need != 'O' && strings.IndexByte(po.Flags, need) < 0:

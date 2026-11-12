@@ -13,6 +13,14 @@ import (
 
 func panelAsk(t *testing.T, s *Server, req control.Request) *control.Response {
 	t.Helper()
+	if req.As != "" && req.Seal == "" {
+		// As the panel does: the seal it got at sign-in.
+		s.onLoop(func() {
+			if po, _, _, _ := s.panelOper(req.As, req.IP); po != nil {
+				req.Seal = po.Seal
+			}
+		})
+	}
 	resp, err := control.Ask(s.cfg.Control.Socket, req, 25*time.Second)
 	if resp == nil {
 		t.Fatalf("%s: %v", req.Cmd, err)
@@ -124,5 +132,31 @@ func TestPanelLockout(t *testing.T) {
 	r := panelAsk(t, s, control.Request{Cmd: control.CmdPanelLogin, Nick: "Boss", Password: operPW, IP: "127.0.0.1"})
 	if r.Oper != nil || !strings.Contains(r.Error, "Too many wrong passwords") {
 		t.Errorf("not locked: %+v", r)
+	}
+}
+
+// A new oper password ends the sessions made with the old one.
+func TestPanelSealChangesWithPassword(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	e := registered(t, s, "ember")
+	_ = e
+	b.send("AS OPER ember ADD CLASS helper HOST *@127.0.0.0/8 PASSWORD " + emberPW)
+	b.expect("ember is an oper now")
+	r := panelAsk(t, s, control.Request{Cmd: control.CmdPanelLogin, Nick: "ember", Password: emberPW, IP: "127.0.0.1"})
+	if r.Oper == nil || r.Oper.Seal == "" {
+		t.Fatalf("login: %+v", r)
+	}
+	seal := r.Oper.Seal
+	ask := func() *control.Response {
+		return panelAsk(t, s, control.Request{Cmd: control.CmdStatus, As: "ember", IP: "127.0.0.1", Seal: seal})
+	}
+	if r := ask(); r.Status == nil {
+		t.Fatalf("status with seal: %+v", r)
+	}
+	b.send("AS OPER ember SET PASSWORD New-Ember-2026")
+	b.expect("ember has a new oper password.")
+	if r := ask(); r.Denied != "signin" || !strings.Contains(r.Error, "password changed") {
+		t.Errorf("old session still works after a new password: %+v", r)
 	}
 }

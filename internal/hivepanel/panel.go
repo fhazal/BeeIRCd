@@ -302,7 +302,7 @@ func (p *Panel) withOper(f func(http.ResponseWriter, *http.Request, operCtx)) ht
 // the answer when it went well.
 func (p *Panel) send(w http.ResponseWriter, oc operCtx, req control.Request, timeout time.Duration) *control.Response {
 	p.mu.Lock()
-	req.As, req.IP = oc.s.oper.Account, oc.ip
+	req.As, req.IP, req.Seal = oc.s.oper.Account, oc.ip, oc.s.oper.Seal
 	p.mu.Unlock()
 	resp, err := p.ask(req, timeout)
 	switch {
@@ -327,6 +327,12 @@ func (p *Panel) send(w http.ResponseWriter, oc operCtx, req control.Request, tim
 		p.mu.Lock()
 		oc.s.oper = *resp.Oper
 		p.mu.Unlock()
+		out := *resp
+		o := *resp.Oper
+		o.Seal = "" // stays between the panel and the server
+		out.Oper = &o
+		writeJSON(w, http.StatusOK, &out)
+		return resp
 	}
 	writeJSON(w, http.StatusOK, resp)
 	return resp
@@ -554,7 +560,9 @@ func (p *Panel) login(w http.ResponseWriter, r *http.Request) {
 	p.mu.Unlock()
 	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: tok, Path: "/", HttpOnly: true,
 		SameSite: http.SameSiteStrictMode, Secure: p.secure(r), MaxAge: int(maxSession / time.Second)})
-	writeJSON(w, http.StatusOK, map[string]any{"oper": resp.Oper})
+	o := *resp.Oper
+	o.Seal = "" // stays between the panel and the server
+	writeJSON(w, http.StatusOK, map[string]any{"oper": &o})
 }
 
 func (p *Panel) logout(w http.ResponseWriter, r *http.Request) {
@@ -608,9 +616,9 @@ func (p *Panel) live(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		p.mu.Lock()
-		as, ip := s.oper.Account, s.ip
+		as, ip, seal := s.oper.Account, s.ip, s.oper.Seal
 		p.mu.Unlock()
-		resp, err := p.ask(control.Request{Cmd: control.CmdStatus, As: as, IP: ip}, 5*time.Second)
+		resp, err := p.ask(control.Request{Cmd: control.CmdStatus, As: as, IP: ip, Seal: seal}, 5*time.Second)
 		switch {
 		case err != nil && resp == nil:
 			sendEv("offline", map[string]any{"error": "The server isn't answering."})
@@ -621,7 +629,7 @@ func (p *Panel) live(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		sendEv("status", resp.Status)
-		ev, err := p.ask(control.Request{Cmd: control.CmdPanelLog, As: as, IP: ip}, 5*time.Second)
+		ev, err := p.ask(control.Request{Cmd: control.CmdPanelLog, As: as, IP: ip, Seal: seal}, 5*time.Second)
 		if err == nil && ev != nil {
 			b, _ := json.Marshal(ev.Events)
 			if first || string(b) != lastEvents {

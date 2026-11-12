@@ -31,11 +31,11 @@ func (f *fakeServer) ask(r control.Request, _ time.Duration) (*control.Response,
 	}
 	if r.Cmd == control.CmdPanelLogin {
 		if r.Nick == "Bee" && r.Password == "pw" && r.IP != "" {
-			return &control.Response{Oper: &control.PanelOper{Account: "Bee", Flags: "acghks", Owner: true}}, nil
+			return &control.Response{Oper: &control.PanelOper{Account: "Bee", Flags: "acghks", Owner: true, Seal: "s1"}}, nil
 		}
 		return &control.Response{Error: "Wrong nick or password.", Denied: "signin"}, nil
 	}
-	if r.As != "Bee" || f.gone {
+	if r.As != "Bee" || r.Seal != "s1" || f.gone {
 		return &control.Response{Error: "Please sign in again.", Denied: "signin"}, nil
 	}
 	switch r.Cmd {
@@ -44,7 +44,7 @@ func (f *fakeServer) ask(r control.Request, _ time.Duration) (*control.Response,
 	case control.CmdPanelLog:
 		return &control.Response{Events: []control.Event{{Who: "Bee", What: "signed in"}}}, nil
 	case control.CmdPanelWho:
-		return &control.Response{Oper: &control.PanelOper{Account: "Bee", Flags: "acghks", Owner: true}}, nil
+		return &control.Response{Oper: &control.PanelOper{Account: "Bee", Flags: "acghks", Owner: true, Seal: "s1"}}, nil
 	case control.CmdPeople:
 		return &control.Response{People: &control.People{Online: 2, Matched: 1, Rows: []control.PersonBrief{{UID: "0BEAAAAAB", Nick: r.Query}}}}, nil
 	case control.CmdOperSave:
@@ -360,5 +360,20 @@ func TestLinkRoutes(t *testing.T) {
 	}
 	if w := rg.do("POST", "/api/link-connect", `{}`, tok, nil); w.Code != 400 {
 		t.Errorf("link-connect without name: %d", w.Code)
+	}
+}
+
+func TestSealNeverReachesBrowser(t *testing.T) {
+	rg := newRig(t)
+	w := rg.do("POST", "/api/login", `{"nick":"Bee","password":"pw"}`, "", nil)
+	if strings.Contains(w.Body.String(), "seal") || strings.Contains(w.Body.String(), "s1") {
+		t.Errorf("login answer: %s", w.Body)
+	}
+	tok := ""
+	for _, c := range w.Result().Cookies() {
+		tok = c.Value
+	}
+	if w := rg.do("GET", "/api/me", "", tok, nil); w.Code != 200 || strings.Contains(w.Body.String(), "seal") {
+		t.Errorf("me: %d %s", w.Code, w.Body)
 	}
 }

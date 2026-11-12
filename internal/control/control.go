@@ -72,6 +72,7 @@ type Request struct {
 
 	// Hive Panel fields.
 	As       string `json:"as,omitempty"`       // the signed-in oper's account
+	Seal     string `json:"seal,omitempty"`     // PanelOper.Seal from sign-in
 	IP       string `json:"ip,omitempty"`       // their web address
 	Nick     string `json:"nick,omitempty"`     // panel-login
 	Password string `json:"password,omitempty"` // panel-login
@@ -125,6 +126,10 @@ type PanelOper struct {
 	Class   string `json:"class,omitempty"`
 	Flags   string `json:"flags"`
 	Owner   bool   `json:"owner,omitempty"`
+	// Seal changes when the oper password does; the panel keeps it from
+	// sign-in and sends it back, so a new password ends old sessions. It
+	// stays between the panel and the server (never sent to browsers).
+	Seal string `json:"seal,omitempty"`
 }
 
 // Setting is one setting the panel can change (AdminServ SET's list).
