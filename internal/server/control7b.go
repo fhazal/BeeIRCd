@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -111,6 +112,10 @@ func (s *Server) controlConn(conn net.Conn) {
 		json.NewEncoder(conn).Encode(control.Response{Error: "bad request"})
 		return
 	}
+	if r, ok := s.panelControl(req, func(d time.Duration) { conn.SetDeadline(time.Now().Add(d)) }); ok {
+		json.NewEncoder(conn).Encode(r)
+		return
+	}
 	var resp control.Response
 	stopping := func() { resp = control.Response{Error: "the server is stopping"} }
 	switch req.Cmd {
@@ -176,7 +181,20 @@ func (s *Server) statusInfo() *control.Status {
 		Safety:          *s.safety(),
 		Update:          s.upd.latest,
 		Links:           s.linkStatus(),
+		MaxUsers:        s.cfg.Limits.MaxUsers,
+		ServicesOn:      !s.svc.Off(),
 	}
+	sum := s.store.Summary()
+	st.Nicks, st.RegChans, st.Memos = sum.Nicks, sum.Channels, sum.Memos
+	if t, ok := control.LastBackup(s.cfg.Backup.Dir); ok {
+		st.LastBackup = t
+	}
+	for c := range s.opers {
+		if c.user != nil {
+			st.OperNicks = append(st.OperNicks, c.user.Nick)
+		}
+	}
+	sort.Strings(st.OperNicks)
 	s.lmu.Lock()
 	for _, l := range s.listeners {
 		st.Ports = append(st.Ports, control.Port{Address: l.addr, TLS: l.tls, Proxy: l.proxy})

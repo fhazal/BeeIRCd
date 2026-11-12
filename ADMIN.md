@@ -166,6 +166,40 @@ Options: `--yes` asks no questions (for scripts), `--rc` also takes test
 versions (release candidates), `--rollback` goes back to the kept
 `beeircd.old`.
 
+## Hive Panel (web admin)
+
+`beeircd-web` is the Hive Panel: the web admin. It talks to the running
+server only through the control socket and answers only on this machine
+(`127.0.0.1:8787` by default). Reach it from your computer with an SSH
+tunnel:
+
+```sh
+ssh -N -L 8787:127.0.0.1:8787 you@your-server
+```
+
+then open <http://127.0.0.1:8787>. Run it as the beeircd user (it needs
+the control socket): `beeircd-web -config /etc/beeircd/beeircd.conf`.
+
+- **Sign in** with your oper nick and oper password, the same as `/oper`.
+  Only opers can sign in. The oper entry's hosts are checked against the
+  address you come from (`*@*` and `*@127.0.0.1` work through a tunnel;
+  hostname masks don't, the panel only knows the address).
+- Wrong passwords count toward the same lock as `/oper` (5 wrong: 10
+  minutes), and the panel also locks an address after 5 wrong tries.
+- **Every click is checked by the server** against your oper entry and
+  flags. Settings, Check and Rehash need flag `a`; Backup is for the
+  owner (the `[services] admin`). Take an oper entry away and that oper is
+  signed out at their next click.
+- Settings changed in the panel are saved to `beeircd.conf`, applied at
+  once and kept in AdminServ HISTORY (Undo works there too). The panel's
+  own "What happened" list keeps sign-ins and changes with who and from
+  where.
+- A session ends after `session_idle` without a click (30 minutes) and
+  after 12 hours in any case.
+- Behind a reverse proxy on the same machine, list the proxy in
+  `[web] trusted_proxy` so the panel believes its `X-Forwarded-For` and
+  `X-Forwarded-Proto` (https makes the session cookie Secure).
+
 ## Linking servers
 
 Servers on one network share users, channels, bans and one set of
@@ -437,6 +471,20 @@ that class.
 | `check` | `true` | Look once a day for a newer release |
 | `url` | GitHub releases | Folder holding `release.json` |
 | `rc_url` | GitHub releases | Where `update --rc` looks |
+
+### [web]
+
+The Hive Panel (`beeircd-web`); the server itself doesn't use it.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `listen` | `127.0.0.1:8787` | Where the panel answers; a loopback address only |
+| `trusted_proxy` | none | Reverse proxies (IP addresses) whose forwarded address and https the panel believes |
+| `session_idle` | `30m` | Signed out after this long without a click (1m to 24h) |
+
+The panel's fonts (Inter, Space Grotesk, JetBrains Mono) are bundled
+under the SIL Open Font License; the licences are in
+`internal/hivepanel/ui/fonts`.
 
 ### [link]
 

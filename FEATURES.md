@@ -123,3 +123,14 @@ Last updated: 12 Nov 2026 (Stage 1.5.9b).
 | Channel extbans ~a ~r ~m (~q) ~t, timed bans, CS BAN +expiry, AKICK extbans | Implemented | 1.5.5a |
 | K-line (this server only) | Implemented (Stage 2e, branch stage2) | /KLINE /UNKLINE, STATS k |
 | Content filter (spamfilter) | Planned | |
+
+## Hive Panel (web admin)
+
+| Feature | Status | Notes |
+| --- | --- | --- |
+| `beeircd-web`: loopback only, SSH tunnel or reverse proxy, page loads once and every action is AJAX, live numbers over Server-Sent Events | Implemented (Stage 3a, branch stage3) | strict CSP, bundled fonts, no outside requests |
+| Sign in with oper nick + oper password (/oper's entry, hosts and lockout) + a per-address lock | Implemented (3a) | |
+| Every request re-checked by the server (entry, host, flags); removed opers signed out at their next click | Implemented (3a) | |
+| Overview: people online ring, channels, opers, servers, reply time, health, linked servers, services, What happened | Implemented (3a) | |
+| Settings (AdminServ SET's limits, saved + applied, Undo via HISTORY), Check, Rehash, Backup (owner) | Implemented (3a) | |
+| People, Bans, Opers, Linked servers, Services pages | Planned (3b to 3f) | |

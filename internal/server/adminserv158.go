@@ -17,9 +17,18 @@ import (
 // record notes a change for HISTORY. Old and New are as UNDO reads them
 // for kind (see undo).
 func (s *Server) record(c *Client, kind, key, old, new string) {
-	if _, err := s.store.AddChange(store.Change{At: time.Now(), By: c.user.Nick, Kind: kind, Key: key, Old: old, New: new}); err != nil {
+	s.recordBy(c.user.Nick, kind, key, old, new)
+}
+
+// recordBy is record for a change made by who (a nick, or an oper in the
+// Hive Panel). It returns the change's id (0 when it wasn't recorded).
+func (s *Server) recordBy(who, kind, key, old, new string) int64 {
+	id, err := s.store.AddChange(store.Change{At: time.Now(), By: who, Kind: kind, Key: key, Old: old, New: new})
+	if err != nil {
 		s.log.Printf("AdminServ history: %v", err)
+		return 0
 	}
+	return id
 }
 
 // operRecord is an oper entry as HISTORY keeps it (never the password).

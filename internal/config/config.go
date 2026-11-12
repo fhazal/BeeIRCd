@@ -58,6 +58,7 @@ type Config struct {
 	Backup   Backup   `toml:"backup"`
 	Link     Link     `toml:"link"`
 	Update   Update   `toml:"update"`
+	Web      Web      `toml:"web"`
 	// OperClasses are the [[operclass]] blocks (see Classes).
 	OperClasses []OperClass `toml:"operclass"`
 
@@ -309,6 +310,7 @@ func Load(path string) (*Config, error) {
 
 // SetDefaults fills in every value left empty.
 func (c *Config) SetDefaults() {
+	c.Web.setDefaults()
 	if c.Server.Description == "" {
 		c.Server.Description = c.Server.Network + " IRC"
 	}
@@ -499,6 +501,9 @@ var (
 // Check reports the first thing wrong, in words a person can act on.
 func (c *Config) Check() error {
 	if err := c.checkClasses(); err != nil {
+		return err
+	}
+	if err := c.Web.check(); err != nil {
 		return err
 	}
 	if err := c.History.check(); err != nil {

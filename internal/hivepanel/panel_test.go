@@ -1,0 +1,280 @@
+package hivepanel
+
+import (
+	"bufio"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/fhazal/beeircd/internal/control"
+)
+
+// fakeServer answers like BeeIRCd would for oper "Bee" (password "pw").
+type fakeServer struct {
+	mu      sync.Mutex
+	gone    bool // the oper entry was removed
+	reqs    []control.Request
+	offline bool
+}
+
+func (f *fakeServer) ask(r control.Request, _ time.Duration) (*control.Response, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.reqs = append(f.reqs, r)
+	if f.offline {
+		return nil, control.ErrNotRunning
+	}
+	if r.Cmd == control.CmdPanelLogin {
+		if r.Nick == "Bee" && r.Password == "pw" && r.IP != "" {
+			return &control.Response{Oper: &control.PanelOper{Account: "Bee", Flags: "acghks", Owner: true}}, nil
+		}
+		return &control.Response{Error: "Wrong nick or password.", Denied: "signin"}, nil
+	}
+	if r.As != "Bee" || f.gone {
+		return &control.Response{Error: "Please sign in again.", Denied: "signin"}, nil
+	}
+	switch r.Cmd {
+	case control.CmdStatus:
+		return &control.Response{Status: &control.Status{Server: "irc.test", Online: 3, MaxUsers: 10}}, nil
+	case control.CmdPanelLog:
+		return &control.Response{Events: []control.Event{{Who: "Bee", What: "signed in"}}}, nil
+	case control.CmdPanelWho:
+		return &control.Response{Oper: &control.PanelOper{Account: "Bee", Flags: "acghks", Owner: true}}, nil
+	case control.CmdSet:
+		return &control.Response{Changed: &control.Changed{Name: r.Name, Old: "5", New: r.Value, ID: 7}}, nil
+	}
+	return &control.Response{Error: "nope"}, nil
+}
+
+type rig struct {
+	t   *testing.T
+	p   *Panel
+	f   *fakeServer
+	now time.Time
+}
+
+func newRig(t *testing.T) *rig {
+	rg := &rig{t: t, f: &fakeServer{}, now: time.Date(2026, 11, 12, 20, 0, 0, 0, time.UTC)}
+	rg.p = New(Options{Ask: rg.f.ask, Idle: 30 * time.Minute, Now: func() time.Time { return rg.now }, TrustedProxy: []string{"10.0.0.1"}})
+	return rg
+}
+
+// do sends a request as if from a browser at 127.0.0.1.
+func (rg *rig) do(method, path, body, cookie string, hdr map[string]string) *httptest.ResponseRecorder {
+	r := httptest.NewRequest(method, "http://127.0.0.1:8787"+path, strings.NewReader(body))
+	r.RemoteAddr = "127.0.0.1:50000"
+	if method == http.MethodPost {
+		r.Header.Set("X-Hive", "1")
+		r.Header.Set("Content-Type", "application/json")
+	}
+	if cookie != "" {
+		r.AddCookie(&http.Cookie{Name: cookieName, Value: cookie})
+	}
+	for k, v := range hdr {
+		if v == "" {
+			r.Header.Del(k)
+		} else {
+			r.Header.Set(k, v)
+		}
+	}
+	w := httptest.NewRecorder()
+	rg.p.ServeHTTP(w, r)
+	return w
+}
+
+func (rg *rig) login() string {
+	w := rg.do("POST", "/api/login", `{"nick":"Bee","password":"pw"}`, "", nil)
+	if w.Code != 200 {
+		rg.t.Fatalf("login: %d %s", w.Code, w.Body)
+	}
+	for _, c := range w.Result().Cookies() {
+		if c.Name == cookieName {
+			if !c.HttpOnly || c.SameSite != http.SameSiteStrictMode || c.Secure {
+				rg.t.Errorf("cookie flags: %+v", c)
+			}
+			return c.Value
+		}
+	}
+	rg.t.Fatal("no session cookie")
+	return ""
+}
+
+func TestPageAndHeaders(t *testing.T) {
+	rg := newRig(t)
+	w := rg.do("GET", "/", "", "", nil)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `<script src="app.js" defer>`) {
+		t.Fatalf("page: %d", w.Code)
+	}
+	csp := w.Header().Get("Content-Security-Policy")
+	if !strings.Contains(csp, "script-src 'self'") || strings.Contains(csp, "unsafe") || w.Header().Get("X-Frame-Options") != "DENY" {
+		t.Errorf("headers: %v", w.Header())
+	}
+	for _, f := range []string{"/app.js", "/app.css", "/fonts/inter.woff2", "/fonts/space-grotesk.woff2", "/fonts/jetbrains-mono.woff2"} {
+		if w := rg.do("GET", f, "", "", nil); w.Code != 200 || w.Body.Len() < 1000 {
+			t.Errorf("%s: %d %d bytes", f, w.Code, w.Body.Len())
+		}
+	}
+	if w := rg.do("GET", "/fonts/", "", "", nil); w.Code == 200 && strings.Contains(w.Body.String(), "<a href") {
+		t.Errorf("font folder lists its files")
+	}
+	// DNS rebinding: another name pointing at 127.0.0.1 gets nothing.
+	r := httptest.NewRequest("GET", "http://evil.example:8787/", nil)
+	r.RemoteAddr = "127.0.0.1:50000"
+	w = httptest.NewRecorder()
+	rg.p.ServeHTTP(w, r)
+	if w.Code != http.StatusMisdirectedRequest {
+		t.Errorf("foreign host name: %d", w.Code)
+	}
+}
+
+func TestLoginSessionAndCSRF(t *testing.T) {
+	rg := newRig(t)
+	if w := rg.do("GET", "/api/status", "", "", nil); w.Code != 401 || !strings.Contains(w.Body.String(), `"signin":true`) {
+		t.Errorf("no session: %d %s", w.Code, w.Body)
+	}
+	tok := rg.login()
+	if w := rg.do("GET", "/api/status", "", tok, nil); w.Code != 200 || !strings.Contains(w.Body.String(), `"online":3`) {
+		t.Errorf("status: %d %s", w.Code, w.Body)
+	}
+	last := rg.f.reqs[len(rg.f.reqs)-1]
+	if last.As != "Bee" || last.IP != "127.0.0.1" {
+		t.Errorf("request to the server doesn't name the oper: %+v", last)
+	}
+	// Cross-site: no X-Hive header, or another Origin.
+	if w := rg.do("POST", "/api/set", `{"name":"max-users","value":"9"}`, tok, map[string]string{"X-Hive": ""}); w.Code != 403 {
+		t.Errorf("POST without X-Hive: %d", w.Code)
+	}
+	if w := rg.do("POST", "/api/set", `{"name":"max-users","value":"9"}`, tok, map[string]string{"Origin": "http://evil.example"}); w.Code != 403 {
+		t.Errorf("POST from another origin: %d", w.Code)
+	}
+	if w := rg.do("POST", "/api/set", `{"name":"max-users","value":"9"}`, tok, map[string]string{"Origin": "http://127.0.0.1:8787"}); w.Code != 200 || !strings.Contains(w.Body.String(), `"new":"9"`) {
+		t.Errorf("POST from the panel: %d %s", w.Code, w.Body)
+	}
+	// Same cookie from another address: not this session.
+	r := httptest.NewRequest("GET", "http://127.0.0.1:8787/api/status", nil)
+	r.RemoteAddr = "127.0.0.2:5000"
+	r.AddCookie(&http.Cookie{Name: cookieName, Value: tok})
+	w := httptest.NewRecorder()
+	rg.p.ServeHTTP(w, r)
+	if w.Code != 401 {
+		t.Errorf("cookie from another address: %d", w.Code)
+	}
+	// Idle too long.
+	tok = rg.login()
+	rg.now = rg.now.Add(31 * time.Minute)
+	if w := rg.do("GET", "/api/status", "", tok, nil); w.Code != 401 {
+		t.Errorf("after 31 idle minutes: %d", w.Code)
+	}
+	// Sign out.
+	tok = rg.login()
+	rg.do("POST", "/api/logout", "", tok, nil)
+	if w := rg.do("GET", "/api/status", "", tok, nil); w.Code != 401 {
+		t.Errorf("after sign out: %d", w.Code)
+	}
+	// The server says the oper is gone: signed out at once.
+	tok = rg.login()
+	rg.f.gone = true
+	if w := rg.do("GET", "/api/status", "", tok, nil); w.Code != 401 {
+		t.Errorf("removed oper: %d", w.Code)
+	}
+	rg.f.gone = false
+	if w := rg.do("GET", "/api/status", "", tok, nil); w.Code != 401 {
+		t.Errorf("session survived the server's sign-out: %d", w.Code)
+	}
+	// Server down.
+	tok = rg.login()
+	rg.f.offline = true
+	if w := rg.do("GET", "/api/status", "", tok, nil); w.Code != 503 || !strings.Contains(w.Body.String(), `"offline":true`) {
+		t.Errorf("offline: %d %s", w.Code, w.Body)
+	}
+}
+
+func TestLoginLimitPerAddress(t *testing.T) {
+	rg := newRig(t)
+	var last string
+	for i := 0; i < 5; i++ {
+		w := rg.do("POST", "/api/login", `{"nick":"Bee","password":"bad"}`, "", nil)
+		last = w.Body.String()
+		if w.Code != 401 {
+			t.Fatalf("try %d: %d", i, w.Code)
+		}
+		if i == 0 && !strings.Contains(last, "4 tries left") {
+			t.Errorf("first wrong try: %s", last)
+		}
+	}
+	if !strings.Contains(last, "wait 10 minutes") {
+		t.Errorf("fifth wrong try: %s", last)
+	}
+	n := len(rg.f.reqs)
+	if w := rg.do("POST", "/api/login", `{"nick":"Bee","password":"pw"}`, "", nil); w.Code != 429 || len(rg.f.reqs) != n {
+		t.Errorf("locked address still asks the server: %d", w.Code)
+	}
+	rg.now = rg.now.Add(11 * time.Minute)
+	rg.login()
+}
+
+func TestProxyAddress(t *testing.T) {
+	rg := newRig(t)
+	r := httptest.NewRequest("POST", "https://panel.example/api/login", strings.NewReader(`{"nick":"Bee","password":"pw"}`))
+	r.RemoteAddr = "10.0.0.1:443"
+	r.Header.Set("X-Hive", "1")
+	r.Header.Set("X-Forwarded-For", "198.51.100.7")
+	r.Header.Set("X-Forwarded-Proto", "https")
+	w := httptest.NewRecorder()
+	rg.p.ServeHTTP(w, r)
+	if w.Code != 200 {
+		t.Fatalf("login via proxy: %d %s", w.Code, w.Body)
+	}
+	if ip := rg.f.reqs[len(rg.f.reqs)-1].IP; ip != "198.51.100.7" {
+		t.Errorf("address via proxy: %s", ip)
+	}
+	if c := w.Result().Cookies(); len(c) == 0 || !c[0].Secure {
+		t.Errorf("cookie not Secure behind https proxy: %+v", c)
+	}
+	// Anyone else can't claim an address.
+	r = httptest.NewRequest("GET", "http://127.0.0.1:8787/", nil)
+	r.RemoteAddr = "127.0.0.1:5"
+	r.Header.Set("X-Forwarded-For", "198.51.100.7")
+	if ip := rg.p.clientIP(r); ip != "127.0.0.1" {
+		t.Errorf("untrusted X-Forwarded-For believed: %s", ip)
+	}
+}
+
+func TestLiveStream(t *testing.T) {
+	rg := newRig(t)
+	tok := rg.login()
+	srv := httptest.NewServer(rg.p)
+	defer srv.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, "GET", srv.URL+"/api/live", nil)
+	req.AddCookie(&http.Cookie{Name: cookieName, Value: tok})
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.Header.Get("Content-Type") != "text/event-stream" {
+		t.Fatalf("content type %q", resp.Header.Get("Content-Type"))
+	}
+	sc := bufio.NewScanner(resp.Body)
+	got := map[string]string{}
+	var ev string
+	for sc.Scan() && len(got) < 2 {
+		line := sc.Text()
+		if strings.HasPrefix(line, "event: ") {
+			ev = line[7:]
+		} else if strings.HasPrefix(line, "data: ") {
+			got[ev] = line[6:]
+		}
+	}
+	var st control.Status
+	if json.Unmarshal([]byte(got["status"]), &st) != nil || st.Online != 3 || !strings.Contains(got["events"], "signed in") {
+		t.Errorf("live: %v", got)
+	}
+}

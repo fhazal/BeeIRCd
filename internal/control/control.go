@@ -21,6 +21,16 @@ const (
 	// CmdQuitReason sets the quit message for the next stop (Path holds
 	// the text), so `beeircd update` can say why everyone is leaving.
 	CmdQuitReason = "quit-reason"
+
+	// Hive Panel (Stage 3). Every panel request names the oper it acts for
+	// (As) and the web address they come from (IP); the server checks that
+	// oper again each time, so a removed or changed oper is stopped at once.
+	CmdPanelLogin = "panel-login" // Nick + Password + IP -> Oper
+	CmdPanelWho   = "panel-who"   // the oper's current flags -> Oper
+	CmdSettings   = "settings"    // -> Settings (flag a)
+	CmdSet        = "set"         // Name + Value -> Changed (flag a)
+	CmdUndo       = "undo"        // ID (a HISTORY entry) -> Changed (flag a)
+	CmdPanelLog   = "panel-log"   // -> Events
 )
 
 // MaxRequest is the most bytes one request may be.
@@ -34,6 +44,15 @@ const MaxRequest = 4096
 type Request struct {
 	Cmd  string `json:"cmd"`
 	Path string `json:"path,omitempty"`
+
+	// Hive Panel fields.
+	As       string `json:"as,omitempty"`       // the signed-in oper's account
+	IP       string `json:"ip,omitempty"`       // their web address
+	Nick     string `json:"nick,omitempty"`     // panel-login
+	Password string `json:"password,omitempty"` // panel-login
+	Name     string `json:"name,omitempty"`     // set
+	Value    string `json:"value,omitempty"`    // set
+	ID       int64  `json:"id,omitempty"`       // undo
 }
 
 // Response carries the answer to one Request; Error is set when it failed.
@@ -43,6 +62,50 @@ type Response struct {
 	Check  *Check  `json:"check,omitempty"`
 	Backup *Backup `json:"backup,omitempty"`
 	Rehash *Rehash `json:"rehash,omitempty"`
+
+	Oper     *PanelOper `json:"oper,omitempty"`
+	Settings []Setting  `json:"settings,omitempty"`
+	Changed  *Changed   `json:"changed,omitempty"`
+	Events   []Event    `json:"events,omitempty"`
+	// Denied is set (with Error) when the oper may not do this: signed
+	// out, or missing a flag. The panel then signs them out or says so.
+	Denied string `json:"denied,omitempty"` // "signin" or "flag"
+}
+
+// PanelOper is a signed-in oper as the panel shows them.
+type PanelOper struct {
+	Account string `json:"account"`
+	Class   string `json:"class,omitempty"`
+	Flags   string `json:"flags"`
+	Owner   bool   `json:"owner,omitempty"`
+}
+
+// Setting is one setting the panel can change (AdminServ SET's list).
+type Setting struct {
+	Name  string `json:"name"`
+	Table string `json:"table"`
+	Key   string `json:"key"`
+	Help  string `json:"help,omitempty"`
+	Kind  string `json:"kind"` // number, time, onoff, text
+	Min   int64  `json:"min,omitempty"`
+	Max   int64  `json:"max,omitempty"`
+	Value string `json:"value"`
+}
+
+// Changed is what one set or undo did.
+type Changed struct {
+	Name string `json:"name"`
+	Old  string `json:"old"`
+	New  string `json:"new"`
+	ID   int64  `json:"id,omitempty"` // HISTORY entry, for undo
+}
+
+// Event is one line of "What happened".
+type Event struct {
+	At   time.Time `json:"at"`
+	Who  string    `json:"who"`
+	IP   string    `json:"ip,omitempty"`
+	What string    `json:"what"`
 }
 
 // Port is one open port.
@@ -99,6 +162,15 @@ type Status struct {
 	Update *UpdateInfo `json:"update,omitempty"`
 	// Links are the server links (hub and leaf only; Stage 2).
 	Links []Link `json:"links,omitempty"`
+
+	// Stage 3 (Hive Panel overview).
+	MaxUsers   int       `json:"max_users"`
+	OperNicks  []string  `json:"oper_nicks,omitempty"` // opers on this server
+	Nicks      int       `json:"nicks"`                // registered
+	RegChans   int       `json:"reg_channels"`
+	Memos      int       `json:"memos"`
+	LastBackup time.Time `json:"last_backup,omitzero"`
+	ServicesOn bool      `json:"services_on"`
 }
 
 // Link is one server link for the status screen.

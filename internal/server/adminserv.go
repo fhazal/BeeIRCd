@@ -286,15 +286,27 @@ func (s *Server) applySetting(c *Client, sv *state.User, name, value string) {
 		s.botReply(c, sv, fmt.Sprintf("There is no setting %s. See them all: /as show", name))
 		return
 	}
-	lit, problem := st.tomlValue(value)
+	old, now, _, problem := s.setSetting(c.user.Nick, st, value)
 	if problem != "" {
 		s.botReply(c, sv, problem)
 		return
 	}
-	old := st.get(s.cfg)
+	s.audit(c, sv, "SET %s %s (was %s)", st.name, now, old)
+	s.svc.LogAdmin(c.uid, sv, fmt.Sprintf("to change the configuration value of %s:%s to %s", st.table, st.key, now)) // os_config
+	s.botReply(c, sv, fmt.Sprintf("%s is now %s (was %s). Saved to %s.", st.name, now, old, filepath.Base(s.cfg.Path)))
+}
+
+// setSetting checks value for st, saves it to beeircd.conf, applies it and
+// records it for HISTORY as made by who. problem says (in words for the
+// person) why nothing changed; id is the HISTORY entry.
+func (s *Server) setSetting(who string, st setting, value string) (old, now string, id int64, problem string) {
+	lit, problem := st.tomlValue(value)
+	if problem != "" {
+		return "", "", 0, problem
+	}
+	old = st.get(s.cfg)
 	if s.cfg.Path == "" {
-		s.botReply(c, sv, "This server wasn't started from a config file, so settings can't be saved.")
-		return
+		return "", "", 0, "This server wasn't started from a config file, so settings can't be saved."
 	}
 	fresh, err := config.Edit(s.cfg.Path, func(d *config.Doc) error {
 		d.Set(st.table, st.key, lit)
@@ -302,18 +314,15 @@ func (s *Server) applySetting(c *Client, sv *state.User, name, value string) {
 	})
 	if err != nil {
 		s.log.Printf("AdminServ: %v", err)
-		s.botReply(c, sv, "Not saved: "+err.Error())
-		return
+		return "", "", 0, "Not saved: " + err.Error()
 	}
 	st.apply(s.cfg, fresh)
 	if st.after != nil {
 		st.after(s, old)
 	}
-	now := st.get(s.cfg)
-	s.record(c, "set", st.name, old, now)
-	s.audit(c, sv, "SET %s %s (was %s)", st.name, now, old)
-	s.svc.LogAdmin(c.uid, sv, fmt.Sprintf("to change the configuration value of %s:%s to %s", st.table, st.key, now)) // os_config
-	s.botReply(c, sv, fmt.Sprintf("%s is now %s (was %s). Saved to %s.", st.name, now, old, filepath.Base(s.cfg.Path)))
+	now = st.get(s.cfg)
+	id = s.recordBy(who, "set", st.name, old, now)
+	return old, now, id, ""
 }
 
 func asShow(s *Server, c *Client, args []string) {
