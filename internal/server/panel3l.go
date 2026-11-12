@@ -27,6 +27,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/control"
 	"github.com/fhazal/beeircd/internal/tzplace"
 	"github.com/fhazal/beeircd/internal/version"
@@ -266,3 +267,11 @@ func lookupIPPlace(file, url string, now time.Time) (*control.MapPlace, error) {
 type placeErr struct{ s string }
 
 func (e *placeErr) Error() string { return e.s }
+
+// samePlace reports whether two [[map.place]] entries (or none) agree.
+func samePlace(a, b *config.MapPlace) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
+}

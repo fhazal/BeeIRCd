@@ -146,3 +146,39 @@ func TestMapPlaceFromIP(t *testing.T) {
 		t.Error("links says IP places are on")
 	}
 }
+
+// Taking the owner's place off (panel or rehash) starts the IP lookup the
+// owner's place had held back, and the server keeps a place.
+func TestMapPlaceOwnerOffFindsIP(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"city":"Nuremberg","country":"DE","loc":"49.4521,11.0767"}`))
+	}))
+	defer srv.Close()
+	placeLookupURL = srv.URL + "/json"
+	defer func() { placeLookupURL = "" }()
+	s, path, _ := fileServer(t, "\n[[map.place]]\nserver = \"irc.test.local\"\nname = \"Kuala Lumpur\"\nlat = 3.139\nlon = 101.6869\n")
+	name := s.cfg.Server.Name
+	po := &control.PanelOper{Account: "Boss", Flags: allFlags, Owner: true}
+	var r control.Response
+	s.onLoop(func() { s.links.zone = "UTC" })
+	if p, _ := placeOf(s, name); p.Name != "Kuala Lumpur" {
+		t.Fatalf("owner place: %+v", p)
+	}
+	s.onLoop(func() { r = s.panelMapPlace(po, "127.0.0.1", control.Request{Name: name}) })
+	if r.Done == nil || !strings.Contains(r.Done.Text, "until its IP address") {
+		t.Errorf("take off: %+v", r)
+	}
+	waitLink(t, "IP place after take off", func() bool { p, _ := placeOf(s, name); return p.Name == "Nuremberg" })
+
+	// Rehash: owner's place back in the file wins, gone again -> the IP place.
+	raw, _ := os.ReadFile(path)
+	conf := string(raw) + "\n[[map.place]]\nserver = \"" + name + "\"\nname = \"Penang\"\nlat = 5.4\nlon = 100.3\n"
+	os.WriteFile(path, []byte(conf), 0o600)
+	s.onLoop(func() { _, _ = s.rehash("test") })
+	if p, _ := placeOf(s, name); p.Name != "Penang" {
+		t.Errorf("after rehash with place: %+v", p)
+	}
+	os.WriteFile(path, raw, 0o600)
+	s.onLoop(func() { s.links.ipAsked, s.links.ipPlace = false, nil; _, _ = s.rehash("test") })
+	waitLink(t, "IP place after rehash", func() bool { p, _ := placeOf(s, name); return p.Name == "Nuremberg" })
+}

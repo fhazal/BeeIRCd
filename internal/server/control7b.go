@@ -380,6 +380,10 @@ func (s *Server) rehash(by string) (*control.Rehash, error) {
 		s.svc.SyncLogChannel(old.Services.LogChannel)
 	}
 	s.linkRehash()
+	if !samePlace(old.Map.Place(old.Server.Name), fresh.Map.Place(fresh.Server.Name)) || old.FindPlaceByIP() != fresh.FindPlaceByIP() {
+		s.startPlaceLookup() // the owner's place may be gone: find one from the IP
+		s.announcePlace()
+	}
 	clear(s.floodCache)
 	s.hist.store.SetMax(int64(fresh.History.MaxMemoryMB) << 20)
 	s.net.NewChannelParams = nil

@@ -60,13 +60,21 @@ func (s *Server) panelMapPlace(po *control.PanelOper, ip string, req control.Req
 		}
 		s.cfg.Map.Places = kept
 		s.panelEvent(po.Account, ip, "took "+name+" off the map")
+		looking := false
 		if strings.EqualFold(name, s.cfg.Server.Name) {
+			// The owner's place kept the IP lookup from starting: start it now.
+			asked := s.links.ipAsked
+			s.startPlaceLookup()
+			looking = !asked && s.links.ipAsked
 			s.announcePlace()
 		}
 		for _, p := range s.mapPlaces() {
 			if strings.EqualFold(p.Server, name) {
 				return control.Response{Done: &control.Done{Text: name + " is back where " + p.From + " puts it: " + p.Name + "."}}
 			}
+		}
+		if looking {
+			return control.Response{Done: &control.Done{Text: name + " is off the map until its IP address gives a place."}}
 		}
 		return control.Response{Done: &control.Done{Text: name + " is off the map."}}
 	}
