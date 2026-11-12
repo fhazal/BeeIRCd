@@ -23,7 +23,7 @@ for image in "$@"; do
 	lxc exec "$name" -- sh -c 'command -v ufw >/dev/null && ufw --force enable >/dev/null && echo "ufw enabled"' || true
 	# Answers: name, network, admin, password x2, oper-from, ports,
 	# certificate (self-signed: no network here), prefixes, role hub +
-	# link port 7000, confirm, start.
+	# link port 7000, Hive Panel yes, confirm, start.
 	answers="irc.clean.test
 CleanNet
 Bee
@@ -35,6 +35,7 @@ $pw
 1
 2
 
+y
 y
 y
 "
@@ -51,6 +52,11 @@ y
 	run_checks
 	echo "--- files and service"
 	lxc exec "$name" -- sh -c 'ls -ld /etc/beeircd /var/lib/beeircd /run/beeircd; ls -l /etc/beeircd /var/lib/beeircd; grep -F -A6 "[link]" /etc/beeircd/beeircd.conf | grep -v "^#"; id beeircd; systemctl is-enabled beeircd beeircd-backup.timer; systemd-analyze security beeircd 2>/dev/null | tail -1'
+	echo "--- Hive Panel (service beeircd-web on 127.0.0.1:8787)"
+	lxc exec "$name" -- sh -c 'for i in $(seq 20); do systemctl is-active -q beeircd-web && break; sleep 1; done; systemctl is-enabled beeircd-web && systemctl is-active beeircd-web && grep -F -A4 "[web]" /etc/beeircd/beeircd.conf | grep "^listen" && systemd-analyze security beeircd-web 2>/dev/null | tail -1' || { echo "FAIL hive panel service"; fail=1; }
+	# No curl in the images: plain HTTP over bash's /dev/tcp.
+	lxc exec "$name" -- bash -c 'get() { exec 3<>/dev/tcp/127.0.0.1/8787; printf "GET %s HTTP/1.0\r\nHost: 127.0.0.1:8787\r\n\r\n" "$1" >&3; cat <&3; exec 3<&-; }
+		get / | grep -q "<title>Hive Panel</title>" && get /api/status | head -1 | grep -q " 401 " && echo "panel answers, its API needs a sign-in"' || { echo "FAIL hive panel http"; fail=1; }
 	echo "--- backup timer runs"
 	lxc exec "$name" -- sh -c 'systemctl start beeircd-backup.service && ls /var/lib/beeircd/backups' || fail=1
 	echo "--- backup to a path of your own (the locked-down server can't write /root)"

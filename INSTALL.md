@@ -51,6 +51,10 @@ nothing is written before you say yes to the summary.
 | 8 | Channel prefixes | 1) `@+` op and voice, 2) `~&@%+` owner, admin, op, halfop, voice |
 | 9 | This server is | 1) on its own, 2) a hub, 3) a leaf. A hub or leaf also gets a link port (7000). A leaf is asked for its hub: name, address (`host` or `host:port`) and fingerprint (`beeircd link-info` on the hub; Enter adds it later). At the end a hub or leaf prints the block the other server pastes, see [Linking servers](ADMIN.md#linking-servers) |
 
+Then one yes/no: **Set up the Hive Panel too?** (default no). Yes adds the
+web admin as the `beeircd-web` service on `127.0.0.1:8787`; see
+[Hive Panel](ADMIN.md#hive-panel-web-admin).
+
 ### What the installer sets up
 
 | What | Where |
@@ -64,6 +68,7 @@ nothing is written before you say yes to the summary.
 | The service | `beeircd.service`, running as the `beeircd` user |
 | Daily backup at 04:00 server time, newest 7 kept | `beeircd-backup.timer` |
 | Logs | journald: `journalctl -u beeircd` |
+| The Hive Panel, if you said yes | `beeircd-web.service` (`beeircd web`), on `127.0.0.1:8787` only |
 
 The service is locked down by systemd: no new privileges, a read-only
 system except `/etc/beeircd` and `/var/lib/beeircd`, no access to home

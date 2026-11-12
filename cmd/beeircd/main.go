@@ -17,6 +17,7 @@ import (
 	"syscall"
 
 	"github.com/fhazal/beeircd/internal/config"
+	"github.com/fhazal/beeircd/internal/hivepanel"
 	"github.com/fhazal/beeircd/internal/passwd"
 	"github.com/fhazal/beeircd/internal/server"
 	"github.com/fhazal/beeircd/internal/version"
@@ -40,6 +41,8 @@ const usage = `Usage: beeircd <command>
   rehash    read beeircd.conf again, apply what is safe live
   link-info show this server's link fingerprint and the blocks
             another BeeIRCd or UnrealIRCd server needs to link
+  web       run the Hive Panel, the web admin (used by the
+            beeircd-web service; reach it with an SSH tunnel)
   version   show the version
   mkpasswd  read a password on standard input, print its hash
             (for admin_password in beeircd.conf)
@@ -78,6 +81,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdBackup(args[1:], stdout, stderr)
 	case cmd == "link-info":
 		return cmdLinkInfo(args[1:], stdout, stderr)
+	case cmd == "web":
+		return cmdWeb(args[1:], stderr)
 	case cmd == "rehash":
 		return cmdRehash(args[1:], stdout, stderr)
 	case cmd == "update":
@@ -154,6 +159,25 @@ func runServer(args []string, stderr io.Writer) int {
 	}
 	if err != nil {
 		logger.Print(err)
+		return 1
+	}
+	return 0
+}
+
+// cmdWeb runs the Hive Panel in the foreground (the beeircd-web service).
+func cmdWeb(args []string, stderr io.Writer) int {
+	fs := flag.NewFlagSet("web", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	path := fs.String("config", defaultConfig, "config file")
+	listen := fs.String("listen", "", "address to answer on (default: [web] listen, 127.0.0.1:8787)")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	logf := func(format string, a ...any) { fmt.Fprintf(stderr, format+"\n", a...) }
+	if err := hivepanel.Run(ctx, *path, *listen, "", logf); err != nil {
+		fmt.Fprintln(stderr, err)
 		return 1
 	}
 	return 0

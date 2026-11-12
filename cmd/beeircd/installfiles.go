@@ -18,6 +18,7 @@ const (
 	instUnit    = "/etc/systemd/system/beeircd.service"
 	instBkUnit  = "/etc/systemd/system/beeircd-backup.service"
 	instBkTimer = "/etc/systemd/system/beeircd-backup.timer"
+	instWebUnit = "/etc/systemd/system/beeircd-web.service"
 	instLEHook  = "/etc/letsencrypt/renewal-hooks/deploy/beeircd"
 	instUser    = "beeircd"
 )
@@ -167,6 +168,14 @@ check = true
 # at 04:00 ({{.TimeZone}}). The newest 7 are kept.
 dir = {{q .BackupDir}}
 keep = 7
+{{- if .Web}}
+
+[web]
+# The Hive Panel (service beeircd-web). It answers only on this machine:
+# from your computer, ssh -N -L 8787:127.0.0.1:8787 you@this-server, then
+# open http://127.0.0.1:8787. Opers sign in with their oper password.
+listen = "127.0.0.1:8787"
+{{- end}}
 `))
 
 var motdText = `Welcome to {{.Network}}!
@@ -242,6 +251,42 @@ ProtectSystem=strict
 ReadWritePaths=/var/lib/beeircd
 ProtectHome=yes
 PrivateTmp=yes
+`
+
+const webUnit = `# Written by beeircd install: the Hive Panel, the web admin.
+[Unit]
+Description=BeeIRCd Hive Panel (web admin, this machine only)
+After=network.target beeircd.service
+
+[Service]
+User=beeircd
+Group=beeircd
+ExecStart=/opt/beeircd/beeircd web -config /etc/beeircd/beeircd.conf
+Restart=on-failure
+RestartSec=5
+UMask=0077
+CapabilityBoundingSet=
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target
 `
 
 const backupTimer = `# Written by beeircd install.

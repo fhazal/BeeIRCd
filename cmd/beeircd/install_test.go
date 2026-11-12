@@ -64,6 +64,7 @@ func TestInstallSelfSigned(t *testing.T) {
 		"2",                     // 9 hub
 		"6697",                  //   link port = a client port: asked again
 		"",                      //   7000
+		"y",                     // Hive Panel
 		"y",                     // install
 	}, "\n") + "\n"
 	in, out := testInstaller(t, answers, &ran)
@@ -136,7 +137,7 @@ func TestInstallSelfSigned(t *testing.T) {
 
 func TestInstallLetsEncryptAndTLSOnly(t *testing.T) {
 	var ran []string
-	answers := "irc.example.org\nExampleNet\nBee\npassword1\npassword1\n\n6697\n1\nadmin@example.org\n2\n\ny\n"
+	answers := "irc.example.org\nExampleNet\nBee\npassword1\npassword1\n\n6697\n1\nadmin@example.org\n2\n\n\ny\n"
 	in, out := testInstaller(t, answers, &ran)
 	p, err := in.ask()
 	if err != nil {
@@ -170,7 +171,7 @@ func TestInstallCertbotFiles(t *testing.T) {
 	}
 	// Let's Encrypt is refused while port 80 is busy; then own files.
 	in.portFree = func(port int) bool { return port != 80 }
-	in.in = bufio.NewReader(strings.NewReader("irc.example.org\n\nBee\npassword1\npassword1\n\n\n1\n3\n" + live + "/fullchain.pem\n" + live + "/privkey.pem\n\n\ny\n"))
+	in.in = bufio.NewReader(strings.NewReader("irc.example.org\n\nBee\npassword1\npassword1\n\n\n1\n3\n" + live + "/fullchain.pem\n" + live + "/privkey.pem\n\n\n\ny\n"))
 	p, err := in.ask()
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
@@ -200,7 +201,7 @@ func TestInstallStopsWithoutChanges(t *testing.T) {
 	if _, err := in.ask(); err != errStopped {
 		t.Errorf("err = %v", err)
 	}
-	in, _ = testInstaller(t, "irc.example.org\n\nBee\npassword1\npassword1\n\n\n2\n\n\nn\n", &ran)
+	in, _ = testInstaller(t, "irc.example.org\n\nBee\npassword1\npassword1\n\n\n2\n\n\n\nn\n", &ran)
 	if _, err := in.ask(); err != errStopped {
 		t.Errorf("answering n: %v", err)
 	}
@@ -225,5 +226,49 @@ func TestInstallHelpers(t *testing.T) {
 	}
 	if s := makeSID("irc.beenet.org"); len(s) != 3 || s[0] < '0' || s[0] > '9' || s != makeSID("IRC.beenet.org") {
 		t.Errorf("makeSID = %q", s)
+	}
+}
+
+// Answering yes to the Hive Panel question writes its service and [web];
+// no writes neither.
+func TestInstallHivePanel(t *testing.T) {
+	for _, yes := range []bool{true, false} {
+		var ran []string
+		panel := "n"
+		if yes {
+			panel = "y"
+		}
+		in, out := testInstaller(t, "irc.example.org\nExampleNet\nBee\npassword1\npassword1\n\n6697\n2\n\n1\n"+panel+"\ny\n", &ran)
+		p, err := in.ask()
+		if err != nil {
+			t.Fatalf("%v\n%s", err, out)
+		}
+		if err := in.apply(p); err != nil {
+			t.Fatalf("%v\n%s", err, out)
+		}
+		unit, uerr := os.ReadFile(in.path(instWebUnit))
+		cfg, cerr := config.Load(in.path(instConf))
+		if cerr != nil {
+			t.Fatalf("config: %v", cerr)
+		}
+		raw, _ := os.ReadFile(in.path(instConf))
+		enabled := strings.Contains(strings.Join(ran, "\n"), "systemctl enable beeircd-web.service")
+		if yes {
+			if uerr != nil || !strings.Contains(string(unit), "ExecStart=/opt/beeircd/beeircd web -config /etc/beeircd/beeircd.conf") ||
+				!strings.Contains(string(unit), "User=beeircd") || !strings.Contains(string(unit), "ProtectSystem=strict") {
+				t.Errorf("unit: %v\n%s", uerr, unit)
+			}
+			if !strings.Contains(string(raw), "[web]") || cfg.Web.Listen != "127.0.0.1:8787" || !enabled {
+				t.Errorf("web config %q enabled=%v", cfg.Web.Listen, enabled)
+			}
+			if !strings.Contains(out.String(), "Hive Panel  on 127.0.0.1:8787") {
+				t.Errorf("summary:\n%s", out)
+			}
+			if !strings.Contains(webSteps("irc.example.org"), "ssh -N -L 8787:127.0.0.1:8787 you@irc.example.org") {
+				t.Error("web steps")
+			}
+		} else if uerr == nil || strings.Contains(string(raw), "[web]") || enabled {
+			t.Errorf("panel set up after no: unit %v, enabled %v", uerr, enabled)
+		}
 	}
 }

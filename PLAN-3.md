@@ -53,6 +53,17 @@ and the bot list): the nine [services] settings in four groups, time
 fields range-checked in the page too, save + Undo through HISTORY.
 A leaf (services off) can't sign in to its own panel, so the page's
 "services run on the hub" note is only a fallback.
+3g 12 Nov 2026 (branch stage3): BUG SWEEP first (owner's rule), four
+bugs found and fixed in their own commits: a new oper password didn't
+end panel sessions (seal), sign-in timing showed oper nicks (dummy
+check), wrong-try records never forgotten, requests over 4 KB failed
+(control socket 16 KB now). Gates: flag matrix (26 commands x owner + 6
+single-flag opers), FuzzPanel (6.2M runs), govulncheck (0 reachable),
+race on homelab, clean-machine install with the panel. Installer:
+"Set up the Hive Panel too?" (default no) -> [web] block, locked-down
+beeircd-web.service running `beeircd web` (the panel is now inside the
+main program; cmd/beeircd-web stays for development), SSH-tunnel hint at
+the end, uninstall removes it.
 
 ## What it is
 Hive Panel = the web admin for BeeIRCd. A separate program

@@ -71,6 +71,7 @@ type plan struct {
 	Admin, AdminHash                                string
 	AdminHosts                                      []string
 	HistorySecret, Socket, BackupDir, TimeZone      string
+	Web                                             bool // the Hive Panel (beeircd-web service)
 }
 
 func cmdInstall(args []string, stdout, stderr io.Writer) int {
@@ -354,6 +355,11 @@ func (in *installer) ask() (*plan, error) {
 			return nil, err
 		}
 	}
+	web, err := in.yesNo("Set up the Hive Panel too (the web admin, reached through an SSH tunnel)?", false)
+	if err != nil {
+		return nil, err
+	}
+	p.Web = web
 	p.SID = makeSID(p.Name)
 	if p.CloakSecret == "" {
 		p.CloakSecret = randomSecret()
@@ -571,6 +577,9 @@ func (in *installer) summary(p *plan) {
 	fmt.Fprintf(w, "  %-11s %s\n", "Role", p.roleText())
 	fmt.Fprintf(w, "  %-11s %s\n", "Certificate", cert)
 	fmt.Fprintf(w, "  %-11s daily 04:00 %s, 7 kept\n", "Backup", p.TimeZone)
+	if p.Web {
+		fmt.Fprintf(w, "  %-11s on 127.0.0.1:8787 (service beeircd-web), opers sign in with their oper password\n", "Hive Panel")
+	}
 	fmt.Fprintf(w, "  %-11s /opt/beeircd   config /etc/beeircd   data /var/lib/beeircd   logs journalctl -u beeircd\n\n", "Files")
 }
 
@@ -788,21 +797,31 @@ func (in *installer) writeUnits(p *plan) error {
 	if err != nil {
 		return err
 	}
-	for _, f := range []struct {
+	type file struct {
 		path string
 		body []byte
-	}{{instUnit, unit}, {instBkUnit, []byte(backupUnit)}, {instBkTimer, []byte(backupTimer)}} {
+	}
+	files := []file{{instUnit, unit}, {instBkUnit, []byte(backupUnit)}, {instBkTimer, []byte(backupTimer)}}
+	steps := [][]string{{"daemon-reload"}, {"enable", "beeircd.service"}, {"enable", "--now", "beeircd-backup.timer"}}
+	if p.Web {
+		files = append(files, file{instWebUnit, []byte(webUnit)})
+		steps = append(steps, []string{"enable", "beeircd-web.service"})
+	}
+	for _, f := range files {
 		if err := in.write(f.path, f.body, 0o644, false); err != nil {
 			return err
 		}
 	}
-	for _, args := range [][]string{{"daemon-reload"}, {"enable", "beeircd.service"}, {"enable", "--now", "beeircd-backup.timer"}} {
+	for _, args := range steps {
 		if out, err := in.run("systemctl", args...); err != nil {
 			return fmt.Errorf("systemctl %s: %s", strings.Join(args, " "), or(out, err.Error()))
 		}
 	}
 	in.c.ok("service beeircd enabled, starts with the machine, restarts if it stops")
 	in.c.ok("daily backup at 04:00 (beeircd-backup.timer)")
+	if p.Web {
+		in.c.ok("Hive Panel service beeircd-web enabled (127.0.0.1:8787, this machine only)")
+	}
 	return nil
 }
 
@@ -859,7 +878,14 @@ func (in *installer) finish(p *plan) int {
 	if p.Cert == "acme" {
 		in.waitACME()
 	}
-	fmt.Fprintf(in.out, "\n  Connect with:  %s  port %d (TLS)\n%s  beeircd status shows how it runs.\n\n", p.Name, p.TLSPort, firstSteps(p.Admin))
+	fmt.Fprintf(in.out, "\n  Connect with:  %s  port %d (TLS)\n%s  beeircd status shows how it runs.\n", p.Name, p.TLSPort, firstSteps(p.Admin))
+	if p.Web {
+		if out, err := in.run("systemctl", "start", "beeircd-web.service"); err != nil {
+			in.c.warn("systemctl start beeircd-web: " + or(out, err.Error()))
+		}
+		fmt.Fprint(in.out, webSteps(p.Name))
+	}
+	fmt.Fprintln(in.out)
 	return 0
 }
 
@@ -881,6 +907,13 @@ func (in *installer) linkSteps(p *plan) {
 	if p.CloakLater {
 		fmt.Fprintf(in.out, "  %s\n", in.c.p.warn("! Copy [cloak] secret from the hub's beeircd.conf into "+instConf+" and restart, or people's cloaks differ per server."))
 	}
+}
+
+// webSteps tells the admin how to reach the Hive Panel from their computer.
+func webSteps(name string) string {
+	return "\n  Hive Panel (the web admin), from your computer:\n" +
+		"    ssh -N -L 8787:127.0.0.1:8787 you@" + name + "\n" +
+		"    then open http://127.0.0.1:8787 and sign in with your oper nick and oper password\n"
 }
 
 // firstSteps tells the admin how to get opered on a new server: the oper
@@ -1015,8 +1048,8 @@ func (in *installer) uninstall(purge bool) int {
 		fmt.Fprintln(in.out, "  Nothing changed.")
 		return 0
 	}
-	in.run("systemctl", "disable", "--now", "beeircd.service", "beeircd-backup.timer")
-	for _, f := range []string{instUnit, instBkUnit, instBkTimer, instLink, instLEHook} {
+	in.run("systemctl", "disable", "--now", "beeircd.service", "beeircd-backup.timer", "beeircd-web.service")
+	for _, f := range []string{instUnit, instBkUnit, instBkTimer, instWebUnit, instLink, instLEHook} {
 		os.Remove(in.path(f))
 	}
 	os.RemoveAll(in.path(path.Dir(instBin)))

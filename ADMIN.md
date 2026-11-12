@@ -177,8 +177,10 @@ tunnel:
 ssh -N -L 8787:127.0.0.1:8787 you@your-server
 ```
 
-then open <http://127.0.0.1:8787>. Run it as the beeircd user (it needs
-the control socket): `beeircd-web -config /etc/beeircd/beeircd.conf`.
+then open <http://127.0.0.1:8787>. `beeircd install` sets it up as the
+`beeircd-web` service when you answer yes; by hand it is
+`beeircd web -config /etc/beeircd/beeircd.conf`, run as the beeircd user
+(it needs the control socket).
 
 - **Sign in** with your oper nick and oper password, the same as `/oper`.
   Only opers can sign in. The oper entry's hosts are checked against the
@@ -505,7 +507,7 @@ that class.
 
 ### [web]
 
-The Hive Panel (`beeircd-web`); the server itself doesn't use it.
+The Hive Panel (`beeircd web`, the `beeircd-web` service); the server itself doesn't use it.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |

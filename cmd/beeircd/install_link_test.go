@@ -15,7 +15,7 @@ func leafAnswers(hubName, hubAddr, hubFP string) string {
 	return strings.Join([]string{
 		"leaf1.beenet.org", "", "Bee", "correct horse battery", "correct horse battery", "",
 		"", "2", "", "3", "", // 9 leaf, link port 7000
-		hubName, hubAddr, hubFP, "", "y", // "" = cloak secret later
+		hubName, hubAddr, hubFP, "", "", "y", // "" = cloak secret later, no Hive Panel
 	}, "\n") + "\n"
 }
 
@@ -34,7 +34,7 @@ func TestInstallLeafWithHub(t *testing.T) {
 		"not-a-fingerprint",    // asked again
 		hubFP,
 		"too-short", // cloak secret: asked again
-		"hub-cloak-secret-0123456789", "y",
+		"hub-cloak-secret-0123456789", "", "y",
 	}, "\n")+"\n", &ran)
 	p, err := in.ask()
 	if err != nil {
