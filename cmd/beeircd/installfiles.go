@@ -51,7 +51,7 @@ var confTemplate = template.Must(template.New("conf").Funcs(tmplFuncs).Parse(`# 
 name = {{q .Name}}
 network = {{q .Network}}
 description = {{q .Description}}
-# Server ID for linking servers later (Stage 2): a digit and two capital
+# Server ID for linking servers: a digit and two capital
 # letters or digits, unique on the network.
 sid = {{q .SID}}
 # Channel status style: "@+" (op and voice) or "~&@%+" (owner, admin, op,
@@ -102,6 +102,11 @@ file = {{q .MOTDFile}}
 secret = {{q .CloakSecret}}
 
 [services]
+{{- if eq .Role "leaf"}}
+# A leaf uses the hub's services (NickServ, ChanServ ...), so its own are
+# off. Accounts live on the hub; the admin below still opers here.
+enabled = false
+{{- end}}
 database = {{q .Database}}
 # The admin has every oper flag: /oper {{.Admin}} <password>.
 admin = {{q .Admin}}
@@ -122,11 +127,33 @@ socket = {{q .Socket}}
 
 [link]
 # This server's place in a network: "standalone", "hub" (other servers link
-# to it) or "leaf" (it links to a hub). Server linking arrives in Stage 2;
-# until then this is only stored. The link port is TLS only.
+# to it) or "leaf" (it links to a hub). The link port is TLS only.
+# ` + "`beeircd link-info`" + ` prints what the other server needs; ADMIN.md
+# "Linking servers" has the whole walk-through.
 role = {{q .Role}}
 {{- if .LinkPort}}
 port = {{.LinkPort}}
+{{- end}}
+{{- if .UplinkName}}
+
+# The hub this leaf links to. The fingerprint is the hub's (beeircd
+# link-info there): only a server with that key is accepted.
+{{- if .UplinkFP}}
+[[link.server]]
+name = {{q .UplinkName}}
+host = {{q .UplinkHost}}
+port = {{.UplinkPort}}
+fingerprint = {{q .UplinkFP}}
+autoconnect = true
+{{- else}}
+# Add the fingerprint and remove the # signs, then: beeircd rehash
+#[[link.server]]
+#name = {{q .UplinkName}}
+#host = {{q .UplinkHost}}
+#port = {{.UplinkPort}}
+#fingerprint = ""
+#autoconnect = true
+{{- end}}
 {{- end}}
 
 [update]

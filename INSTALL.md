@@ -49,7 +49,7 @@ nothing is written before you say yes to the summary.
 | 6 | Ports | Default `6667 plain, 6697 TLS`. Answer `6697` alone for TLS only |
 | 7 | TLS certificate | 1) Let's Encrypt, 2) self-signed, 3) your own files (see [Certificates](#certificates)) |
 | 8 | Channel prefixes | 1) `@+` op and voice, 2) `~&@%+` owner, admin, op, halfop, voice |
-| 9 | This server is | 1) on its own, 2) a hub, 3) a leaf. Linking comes in Stage 2; a hub or leaf also gets a link port (7000) |
+| 9 | This server is | 1) on its own, 2) a hub, 3) a leaf. A hub or leaf also gets a link port (7000). A leaf is asked for its hub: name, address (`host` or `host:port`) and fingerprint (`beeircd link-info` on the hub; Enter adds it later). At the end a hub or leaf prints the block the other server pastes, see [Linking servers](ADMIN.md#linking-servers) |
 
 ### What the installer sets up
 
@@ -96,7 +96,8 @@ Then open the ports in your provider's firewall (the cloud panel) yourself:
 - 6697/tcp (TLS) and 6667/tcp (plain), or the ports you chose;
 - 80/tcp if you use Let's Encrypt (BeeIRCd listens there only for the few
   seconds a certificate is asked for);
-- 7000/tcp on a hub or leaf, later, for server links.
+- 7000/tcp on a hub, for server links (a leaf connects out to its hub; open
+  it on a leaf only if the hub should be able to connect to it).
 
 `beeircd uninstall` leaves firewall rules alone.
 

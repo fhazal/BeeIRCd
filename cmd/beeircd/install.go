@@ -27,6 +27,7 @@ import (
 	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/control"
 	"github.com/fhazal/beeircd/internal/irc"
+	"github.com/fhazal/beeircd/internal/link"
 	"github.com/fhazal/beeircd/internal/passwd"
 	"github.com/fhazal/beeircd/internal/services"
 	"github.com/fhazal/beeircd/internal/tlsutil"
@@ -60,6 +61,9 @@ type plan struct {
 	Date, Name, Network, Description, SID, Prefixes string
 	PlainPort, TLSPort, LinkPort                    int
 	Role                                            string // standalone, hub, leaf
+	UplinkName, UplinkHost, UplinkFP, LinkFP        string // leaf: the hub; LinkFP = ours, made at install
+	UplinkPort                                      int
+	CloakLater                                      bool   // leaf: hub's cloak secret still to copy
 	Cert                                            string // "acme", "self" or "own"
 	ACMEEmail, CertFile, KeyFile                    string
 	OwnCert, OwnKey, LELive                         string // own files as given; LELive = certbot folder
@@ -345,14 +349,96 @@ func (in *installer) ask() (*plan, error) {
 		}
 		p.LinkPort, _ = strconv.Atoi(lp)
 	}
+	if p.Role == "leaf" {
+		if err := in.askUplink(p); err != nil {
+			return nil, err
+		}
+	}
 	p.SID = makeSID(p.Name)
-	p.CloakSecret, p.HistorySecret = randomSecret(), randomSecret()
+	if p.CloakSecret == "" {
+		p.CloakSecret = randomSecret()
+	}
+	p.HistorySecret = randomSecret()
 	in.summary(p)
 	if ok, err := in.yesNo("Install with these settings?", true); err != nil || !ok {
 		return nil, errStopped
 	}
 	fmt.Fprintln(in.out)
 	return p, nil
+}
+
+// askUplink asks a leaf for its hub: name, address and fingerprint. The
+// fingerprint may wait (Enter): the block is then written commented out.
+func (in *installer) askUplink(p *plan) error {
+	var err error
+	if p.UplinkName, err = in.question(9, "Hub's server name", "", func(a string) string {
+		switch {
+		case !config.ValidServerName(a):
+			return "the hub's name, like hub.example.org"
+		case strings.EqualFold(a, p.Name):
+			return "that is this server's own name"
+		}
+		return ""
+	}); err != nil {
+		return err
+	}
+	addr, err := in.question(9, "Hub's address", p.UplinkName+":7000", func(a string) string {
+		if _, _, why := splitHostPort(a); why != "" {
+			return why
+		}
+		return ""
+	})
+	if err != nil {
+		return err
+	}
+	p.UplinkHost, p.UplinkPort, _ = splitHostPort(addr)
+	p.UplinkFP, err = in.question(9, "Hub's fingerprint", "", func(a string) string {
+		if a != "" && !config.ValidFingerprint(a) {
+			return "44 characters from beeircd link-info (or ./unrealircd spkifp) on the hub; Enter adds it later"
+		}
+		return ""
+	})
+	if err != nil {
+		return err
+	}
+	// Every server needs the hub's cloak secret, or a user's cloak differs
+	// per server. It is a secret, so it is not shown while typed.
+	for {
+		fmt.Fprintf(in.out, "  %d/9  %-22s  ", 9, "Hub's cloak secret")
+		a, err := in.readSecret()
+		if err != nil {
+			return errStopped
+		}
+		if !in.tty { // typed text is never echoed back
+			fmt.Fprintln(in.out, map[bool]string{true: "", false: "••••••••"}[a == ""])
+		}
+		switch {
+		case a == "":
+			p.CloakLater = true
+			return nil
+		case len(a) < 16 || strings.ContainsAny(a, "\"\\"):
+			fmt.Fprintln(in.out, "        "+in.c.p.warn("! [cloak] secret from the hub's beeircd.conf (16+ characters); Enter adds it later"))
+			continue
+		}
+		p.CloakSecret = a
+		return nil
+	}
+}
+
+// splitHostPort reads "host" or "host:port" (port 7000 when left out).
+func splitHostPort(a string) (string, int, string) {
+	host, port := a, 7000
+	if h, ps, err := net.SplitHostPort(a); err == nil {
+		n, err := strconv.Atoi(ps)
+		if err != nil || n < 1 || n > 65535 {
+			return "", 0, "a port number after the colon"
+		}
+		host, port = h, n
+	}
+	if host == "" || strings.ContainsAny(host, " /") {
+		return "", 0, "a name or IP address, optionally with :port"
+	}
+	return host, port, ""
 }
 
 func (in *installer) password() (string, error) {
@@ -621,6 +707,18 @@ func (in *installer) writeConfig(p *plan) error {
 		return fmt.Errorf("the written config doesn't load (please report this): %w", err)
 	}
 	in.c.ok("program in /opt/beeircd, config written to " + instConf)
+	if p.Role == "standalone" {
+		return nil
+	}
+	// The link certificate is made now, so its fingerprint can be shown
+	// at the end and pasted on the other server before the first start.
+	cert, key := in.path(path.Join(instData, "link-cert.pem")), in.path(path.Join(instData, "link-key.pem"))
+	if _, p.LinkFP, err = link.LoadOrCreate(cert, key, p.Name); err != nil {
+		return err
+	}
+	in.chown(cert)
+	in.chown(key)
+	in.c.ok("link certificate made (fingerprint " + p.LinkFP + ")")
 	return nil
 }
 
@@ -667,7 +765,17 @@ func (p *plan) roleText() string {
 	if p.Role == "standalone" {
 		return "on its own"
 	}
-	return fmt.Sprintf("%s, link port %d (TLS; server linking arrives in Stage 2)", p.Role, p.LinkPort)
+	text := fmt.Sprintf("%s, link port %d (TLS)", p.Role, p.LinkPort)
+	if p.UplinkName != "" {
+		text += fmt.Sprintf(", hub %s at %s:%d", p.UplinkName, p.UplinkHost, p.UplinkPort)
+		if p.UplinkFP == "" {
+			text += " (fingerprint later)"
+		}
+		if p.CloakLater {
+			text += " (cloak secret later)"
+		}
+	}
+	return text
 }
 
 // lowPorts says whether the server needs CAP_NET_BIND_SERVICE.
@@ -739,6 +847,7 @@ func (in *installer) firewall(p *plan) {
 
 // finish offers to start the server and shows where to connect.
 func (in *installer) finish(p *plan) int {
+	in.linkSteps(p)
 	start, err := in.yesNo("\n  Start BeeIRCd now?", true)
 	if err != nil || !start {
 		fmt.Fprintf(in.out, "\n  Start it later with:  beeircd start\n%s\n", firstSteps(p.Admin))
@@ -752,6 +861,26 @@ func (in *installer) finish(p *plan) int {
 	}
 	fmt.Fprintf(in.out, "\n  Connect with:  %s  port %d (TLS)\n%s  beeircd status shows how it runs.\n\n", p.Name, p.TLSPort, firstSteps(p.Admin))
 	return 0
+}
+
+// linkSteps prints, for a hub or leaf, the block the other server pastes
+// (the same text as beeircd link-info).
+func (in *installer) linkSteps(p *plan) {
+	if p.Role == "standalone" || p.LinkFP == "" {
+		return
+	}
+	var servers []config.LinkServer
+	if p.UplinkName != "" {
+		servers = append(servers, config.LinkServer{Name: p.UplinkName, Host: p.UplinkHost, Port: p.UplinkPort, Fingerprint: p.UplinkFP})
+	}
+	fmt.Fprint(in.out, "\n  Linking (beeircd link-info shows this again)")
+	fmt.Fprint(in.out, linkInfoText(p.Name, p.SID, p.Role, p.LinkPort, p.LinkFP, servers))
+	if p.UplinkName != "" && p.UplinkFP == "" {
+		fmt.Fprintf(in.out, "  The [[link.server]] block for %s is in %s, commented out:\n  add the hub's fingerprint, remove the # signs, then beeircd rehash.\n", p.UplinkName, instConf)
+	}
+	if p.CloakLater {
+		fmt.Fprintf(in.out, "  %s\n", in.c.p.warn("! Copy [cloak] secret from the hub's beeircd.conf into "+instConf+" and restart, or people's cloaks differ per server."))
+	}
 }
 
 // firstSteps tells the admin how to get opered on a new server: the oper

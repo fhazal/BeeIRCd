@@ -166,6 +166,50 @@ Options: `--yes` asks no questions (for scripts), `--rc` also takes test
 versions (release candidates), `--rollback` goes back to the kept
 `beeircd.old`.
 
+## Linking servers
+
+Servers on one network share users, channels, bans and one set of
+services. One server is the **hub**; each **leaf** keeps one link to it.
+A link is TLS on its own port (7000) and is locked by **fingerprint**:
+each server has its own link certificate, and a server only links with
+one holding the key it expects. No passwords are needed.
+
+1. **The hub.** Install it as a hub (question 9, answer 2). It runs the
+   services. At the end it prints its fingerprint and the block a leaf
+   needs; `sudo beeircd link-info` prints it again any time.
+2. **Each leaf.** Install it as a leaf (answer 3) and give the hub's
+   name, address, fingerprint and cloak secret (`[cloak] secret` in the
+   hub's beeircd.conf; not shown while typed; every server needs the same
+   one or cloaks differ per server). The installer writes the hub's
+   `[[link.server]]` block with `autoconnect = true`, turns the leaf's
+   own services off (it uses the hub's) and prints the block the hub
+   needs. The admin from the leaf's beeircd.conf opers there with its
+   admin password once identified to the account of that name (it lives
+   on the hub). Other oper entries are on the hub, so other opers /oper
+   on the hub for now.
+3. **Back on the hub,** paste the leaf's block into
+   `/etc/beeircd/beeircd.conf` and run `sudo beeircd rehash`:
+
+        [[link.server]]
+        name = "leaf1.example.net"
+        fingerprint = "the leaf's fingerprint"
+        # no host: this leaf connects to the hub
+
+4. **Start the leaf** (`sudo beeircd start`). Within seconds `beeircd
+   status` on both shows the link `● up` with its lag, and `/MAP` shows
+   the tree. If it stays down, the Links row says why (wrong fingerprint,
+   port closed, name mismatch) and when it tries again.
+
+Every server needs its own server name and SID (`[server] sid`, a digit
+and two capitals; the installer makes one from the name, check the
+others don't have it). The hub's port 7000 must be open to the leaves.
+
+Linking a server already installed as standalone: set `[link] role`,
+restart once (the link certificate is made then), and follow steps 3–4
+with `beeircd link-info` on each side. For an UnrealIRCd 6 server on
+the other end, `link-info` also prints the `link { }` block for
+unrealircd.conf; see [link] below for services and SASL there.
+
 ## Security notes
 
 - Connections are throttled per IP: 5 connects per 60 s (`connect_rate`),
@@ -392,10 +436,9 @@ that class.
 
 ### [link]
 
-Server linking is being built (Stage 2, v1.1). Servers link, keep the
-server tree and exchange every user and channel when they link (2b),
-pass on every change and the network bans (2c), and share one set of
-services (2d). BeeIRCd speaks the UnrealIRCd 6 server protocol, so it
+Server linking (v1.1; walk-through in [Linking servers](#linking-servers)).
+Linked servers share users, channels, every change, network bans and one
+set of services. BeeIRCd speaks the UnrealIRCd 6 server protocol, so it
 links with BeeIRCd and UnrealIRCd 6.
 
 | Setting | Default | Meaning |

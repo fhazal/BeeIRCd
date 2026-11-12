@@ -162,7 +162,7 @@ the config, the installer opens the link port.
 - `/CONNECT`, `/SQUIT`, `/LINKS`, `/MAP`, STATS l/c, remote WHOIS/
   VERSION/ADMIN/MOTD (L12). K-line (local) + `beeircd status` link lines.
 
-### 2f - installer, docs, test network
+### 2f - installer, docs, test network (done 12 Nov 2026)
 - Installer: for hub/leaf ask the uplink (leaf) and print the block the
   other side needs (name, fingerprint, password) so linking two servers is
   copy and paste. `beeircd link-info` prints this server's block again.

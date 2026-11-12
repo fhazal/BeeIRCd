@@ -78,7 +78,7 @@ func TestInstallSelfSigned(t *testing.T) {
 	for _, want := range []string{"a DNS name like", "belongs to the services", "at least 8", "port 7777 is in use",
 		"Server      irc.beenet.org   on network Beenet", "then /oper, from *@203.0.113.5", "6667 plain · 6697 TLS",
 		"daily 04:00 Asia/Kuala_Lumpur", "service beeircd enabled", "firewall (ufw): 6667, 6697, 7000 open",
-		"already for clients", "hub, link port 7000 (TLS; server linking arrives in Stage 2)"} {
+		"already for clients", "hub, link port 7000 (TLS)"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("output lacks %q:\n%s", want, text)
 		}

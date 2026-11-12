@@ -42,39 +42,76 @@ func cmdLinkInfo(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "link certificate:", err)
 		return 1
 	}
-	name, port := cfg.Server.Name, strconv.Itoa(cfg.Link.Port)
-	fmt.Fprintf(stdout, `
-  This server   %s (SID %s), %s, link port %s (TLS)
-  Fingerprint   %s
+	fmt.Fprint(stdout, linkInfoText(cfg.Server.Name, cfg.Server.SID, cfg.Link.Role, cfg.Link.Port, fp, cfg.Link.Servers))
+	return 0
+}
 
-  On another BeeIRCd server, add to beeircd.conf (then: beeircd rehash):
+// linkInfoText is what `beeircd link-info` and the installer print: this
+// server's fingerprint and the block the other side pastes. A hub's block
+// tells leaves where to connect; a leaf's block tells its hub to wait for
+// it. servers are the [[link.server]] blocks this server already has.
+func linkInfoText(name, sid, role string, port int, fp string, servers []config.LinkServer) string {
+	var b strings.Builder
+	ps := strconv.Itoa(port)
+	fmt.Fprintf(&b, "\n  This server   %s (SID %s), %s, link port %s (TLS)\n  Fingerprint   %s\n", name, sid, role, ps, fp)
+	for _, s := range servers {
+		state := "fingerprint set"
+		if s.Fingerprint == "" {
+			state = "fingerprint MISSING: add it to beeircd.conf, then beeircd rehash"
+		}
+		where := "it connects here"
+		if s.Host != "" {
+			where = fmt.Sprintf("connects to %s:%d", s.Host, s.Port)
+		}
+		fmt.Fprintf(&b, "  Links to      %s (%s; %s)\n", s.Name, where, state)
+	}
+	if role == "leaf" {
+		fmt.Fprintf(&b, `
+  On the hub (BeeIRCd), add to beeircd.conf, then: beeircd rehash
 
     [[link.server]]
     name = "%s"
-    host = "<this server's address>"   # leave out on a hub this server connects to
-    port = %s
     fingerprint = "%s"
-    autoconnect = true
-    # password = "..."   # optional; the fingerprint is what proves who links
+    # no host: this leaf connects to the hub
 
-  The fingerprint is the lock: the other server must hold this server's
-  private key. A password adds little; leave it out unless the other side
-  needs one (Anope, an UnrealIRCd link block with a plain password).
-
-  On UnrealIRCd 6, add to unrealircd.conf (then: ./unrealircd rehash):
+  On an UnrealIRCd 6 hub, add to unrealircd.conf, then: ./unrealircd rehash
 
     link %s {
         incoming { mask *; }
-        outgoing { hostname <this server's address>; port %s; options { tls; autoconnect; } }
         password "%s" { spkifp; }
         class servers;
     }
+`, name, fp, name, fp)
+	} else {
+		fmt.Fprintf(&b, `
+  On each leaf (BeeIRCd), add to beeircd.conf, then: beeircd rehash
 
-  And here, a [[link.server]] block for the other server with its
-  fingerprint (beeircd link-info there, or ./unrealircd spkifp).
+    [[link.server]]
+    name = "%s"
+    host = "%s"   # or this server's IP address
+    port = %s
+    fingerprint = "%s"
+    autoconnect = true
 
-`, name, cfg.Server.SID, cfg.Link.Role, port, fp, name, port, fp, name, port, fp)
-	return 0
+  On an UnrealIRCd 6 leaf, add to unrealircd.conf, then: ./unrealircd rehash
+
+    link %s {
+        incoming { mask *; }
+        outgoing { hostname %s; port %s; options { tls; autoconnect; } }
+        password "%s" { spkifp; }
+        class servers;
+    }
+`, name, name, ps, fp, name, name, ps, fp)
+	}
+	b.WriteString(`
+  The fingerprint is the lock: only a server holding this server's private
+  key can link as it. No password is needed (add password = "..." on both
+  sides only if the other side wants one). Every server on a network needs
+  its own SID. And here, add a [[link.server]] block for the other server
+  with its fingerprint (beeircd link-info there, or ./unrealircd spkifp).
+
+`)
+	return b.String()
 }
 
 // checkLinks adds the link lines to beeircd check.

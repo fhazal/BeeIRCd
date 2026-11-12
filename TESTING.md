@@ -116,6 +116,36 @@ go run ./tools/livecheck -addr 192.168.50.76:26667 -tls 192.168.50.76:26697 \
 - Replaces the Python `live157.py`, `live158.py` and `live159a.py` with the same checks.
 - Tell the owner before running it while they are on the server.
 
+### Linked servers (Stage 2f)
+
+**3-server test network** (`deploy/testnet/testnet.sh`, homelab): a hub
+with services and two leaves, each a container with its own network
+namespace. Links run on an internal Docker network (10.77.77.0/24), clients
+come in on 127.0.0.1:27011-27013. `cut` / `heal` drop leaf2's link with
+iptables inside its namespace (open link reset first), so it looks like a
+real fault while leaf2's clients stay connected.
+
+```
+sh testnet.sh up       # image, link certs, configs, start; waits for both links
+sh testnet.sh check    # livecheck -suites net
+sh testnet.sh down     # removes containers, networks and data
+```
+
+The `net` suite (22 checks): one channel across three servers, messages
+over two hops, PMs, remote WHOIS and LINKS; NickServ and ChanServ used
+from a leaf (services on the hub); split (netsplit batch, quit reason with
+both server names, seen on every side); changes during the split (topic,
+the same nick taken on both sides); rejoin by autoconnect, the topic
+arrives, the newer nick is renamed and both users stay, all three servers
+show the same channel; clean-up.
+
+**Two-machine install** (`scripts/linkmachines.sh <beeircd> <installcheck>
+[image]`, LXD): installs a hub, then a leaf with only what the hub's
+installer printed (fingerprint) and its cloak secret, pastes the block the
+leaf prints on the hub, rehash. Checks the link is up on both, the cloak
+secret is never shown, and the admin registers (NickServ on the hub) and
+opers on the leaf. No internet; removes everything.
+
 ## 4. Performance (homelab only)
 
 - `bench2.sh bee|insp`: 1 core + 512 MB, 5,000 bots, compared with InspIRCd
