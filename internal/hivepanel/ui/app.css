@@ -175,7 +175,7 @@ h2{margin:0;font-family:var(--display);font-weight:600;font-size:16px}
 .seg button{min-height:38px;padding:0 14px;border:0;background:#161616;color:var(--muted);font:inherit;cursor:pointer}
 .seg button:hover{color:var(--ink)}
 .seg button[aria-pressed="true"]{background:rgba(242,179,61,.12);color:var(--ink);box-shadow:inset 0 -2px 0 var(--honey)}
-.wrap{overflow-x:auto}
+.wrap{overflow-x:auto;position:relative}
 table{width:100%;border-collapse:collapse;min-width:720px}
 th{text-align:left;font-weight:500;color:var(--muted);font-size:13px;padding:8px 12px;border-bottom:1px solid var(--line)}
 td{padding:0 12px;height:46px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
