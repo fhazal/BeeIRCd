@@ -103,6 +103,10 @@ type Server struct {
 	// dnsblSkip says which IPs are never looked up; replaceable in tests.
 	dnsblSkip func(ip string) bool
 	dnsbl     dnsblState
+
+	// panelGone keeps the password hash of oper entries the Hive Panel
+	// removed, so its Undo brings the password back too (3d).
+	panelGone map[int64]string
 }
 
 type listener struct {

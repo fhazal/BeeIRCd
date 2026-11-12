@@ -135,4 +135,5 @@ Last updated: 12 Nov 2026 (Stage 1.5.9b).
 | Settings (AdminServ SET's limits, saved + applied, Undo via HISTORY), Check, Rehash, Backup (owner) | Implemented (3a) | |
 | People: everyone on every server, search, filters, paging; one person's details (real host only with h), notice, disconnect (k), ban = AKILL on their address (k) | Implemented (3b) | |
 | Bans: AKILL / ZLINE / SHUN / exceptions, newest first, add (live "matches N online", OperServ's checks) and remove (asks first), flag k | Implemented (3c) | |
-| Opers, Linked servers, Services pages | Planned (3d to 3f) | |
+| Opers: list (flags, hosts, online), add / change class, flags, hosts, password / remove, AdminServ's rules, owner locked, no self-lockout, Undo via HISTORY, flag a | Implemented (3d) | |
+| Linked servers, Services pages | Planned (3e, 3f) | |

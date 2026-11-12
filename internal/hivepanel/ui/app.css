@@ -223,3 +223,26 @@ table.bans{min-width:640px}
 table.bans td{height:48px}
 @media (max-width:1000px){.band21{grid-template-columns:minmax(0,1fr)}}
 .btn.full{width:100%}
+
+/* Opers (3d) */
+.fl{display:inline-flex;gap:4px;flex-wrap:wrap}
+.c{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:3px;background:var(--honey-soft);color:var(--honey);font-family:var(--mono);font-size:12px}
+.c.no{background:#1f1f1f;color:#77776f}
+.picks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.pk{display:flex;gap:8px;align-items:center;min-height:40px;padding:0 10px;border:1px solid var(--btn-line);border-radius:4px;background:#141414;color:var(--ink);font-size:13px;cursor:pointer}
+.pk:has(input:checked){border-color:#5a4520;background:var(--honey-tint)}
+.pk.locked{opacity:.5;cursor:not-allowed}
+.pk input{accent-color:var(--honey);width:16px;height:16px;margin:0}
+.pk .mono{color:var(--honey)}
+.leg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 18px}
+.leg div{display:flex;gap:10px;align-items:center}
+.lock{width:14px;height:14px;color:var(--muted)}
+.form-empty{color:var(--muted);padding:6px 0}
+.note{font-size:13px;color:var(--muted)}
+.btns{display:flex;gap:10px;flex-wrap:wrap}
+.btns .btn{flex:1 1 120px}
+@media (max-width:1000px){.leg{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:700px){.picks{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+fieldset.plain{border:0;margin:0;padding:0;min-width:0}
+fieldset.plain legend{padding:0 0 6px}
+table.opers{min-width:620px}

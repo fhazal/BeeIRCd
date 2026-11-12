@@ -135,6 +135,9 @@ func New(o Options) *Panel {
 	m.HandleFunc("GET /api/ban-match", p.withOper(p.banMatch))
 	m.HandleFunc("POST /api/ban-add", p.withOper(p.banChange(control.CmdBanAdd)))
 	m.HandleFunc("POST /api/ban-del", p.withOper(p.banChange(control.CmdBanDel)))
+	m.HandleFunc("GET /api/opers", p.withOper(p.simple(control.CmdOpers)))
+	m.HandleFunc("POST /api/oper-save", p.withOper(p.operSave))
+	m.HandleFunc("POST /api/oper-del", p.withOper(p.operDel))
 	m.HandleFunc("GET /api/live", p.live)
 	p.mux = m
 	return p
@@ -397,6 +400,28 @@ func (p *Panel) banChange(cmd string) func(http.ResponseWriter, *http.Request, o
 		}
 		p.send(w, oc, control.Request{Cmd: cmd, Kind: in.Kind, Mask: in.Mask, Reason: in.Reason, Life: in.Life}, 10*time.Second)
 	}
+}
+
+func (p *Panel) operSave(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	var in struct {
+		Name, Class, Flags, Hosts, Password string
+		New                                 bool
+	}
+	if json.NewDecoder(r.Body).Decode(&in) != nil || in.Name == "" {
+		writeErr(w, http.StatusBadRequest, "Bad request.")
+		return
+	}
+	p.send(w, oc, control.Request{Cmd: control.CmdOperSave, Name: in.Name, Class: in.Class, Flags: in.Flags,
+		Hosts: in.Hosts, Password: in.Password, New: in.New}, 20*time.Second)
+}
+
+func (p *Panel) operDel(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	var in struct{ Name string }
+	if json.NewDecoder(r.Body).Decode(&in) != nil || in.Name == "" {
+		writeErr(w, http.StatusBadRequest, "Bad request.")
+		return
+	}
+	p.send(w, oc, control.Request{Cmd: control.CmdOperDel, Name: in.Name}, 10*time.Second)
 }
 
 // ipLocked reports how long ip must still wait after wrong sign-ins.

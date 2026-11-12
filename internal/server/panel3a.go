@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/fhazal/beeircd/internal/control"
+	"github.com/fhazal/beeircd/internal/passwd"
 	"github.com/fhazal/beeircd/internal/services"
 	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
@@ -176,6 +177,9 @@ func (s *Server) panelUndo(po *control.PanelOper, ip string, id int64) control.R
 		s.log.Printf("services database: %v", err)
 		return control.Response{Error: "Something went wrong on the server. Please try again in a moment."}
 	}
+	if ok && ch.Kind == "oper" {
+		return s.panelOperUndo(po, ip, ch)
+	}
 	if !ok || ch.Kind != "set" {
 		return control.Response{Error: "That change can't be undone here any more."}
 	}
@@ -280,6 +284,28 @@ func (s *Server) panelControl(req control.Request, setDeadline func(time.Duratio
 		return run('k', func(po *control.PanelOper) { resp = s.panelBanDel(po, req.IP, req) }), true
 	case control.CmdBanMatch:
 		return run('k', func(*control.PanelOper) { resp = s.panelBanMatch(req) }), true
+	case control.CmdOpers:
+		return run('a', func(*control.PanelOper) {
+			o, problem := s.panelOpers()
+			resp.Opers, resp.Error = o, problem
+		}), true
+	case control.CmdOperSave:
+		hash := ""
+		if req.Password != "" {
+			// Hashed here, off the loop (argon2id takes a moment).
+			if len(req.Password) < minOperPassword {
+				return control.Response{Error: fmt.Sprintf("An oper password needs at least %d characters.", minOperPassword)}, true
+			}
+			h, err := passwd.Hash(req.Password)
+			if err != nil {
+				s.log.Printf("hashing a password: %v", err)
+				return control.Response{Error: "Something went wrong on the server."}, true
+			}
+			hash = h
+		}
+		return run('a', func(po *control.PanelOper) { resp = s.panelOperSave(po, req.IP, req, hash) }), true
+	case control.CmdOperDel:
+		return run('a', func(po *control.PanelOper) { resp = s.panelOperDel(po, req.IP, req.Name) }), true
 	}
 	if req.As == "" {
 		return resp, false

@@ -47,6 +47,11 @@ func (f *fakeServer) ask(r control.Request, _ time.Duration) (*control.Response,
 		return &control.Response{Oper: &control.PanelOper{Account: "Bee", Flags: "acghks", Owner: true}}, nil
 	case control.CmdPeople:
 		return &control.Response{People: &control.People{Online: 2, Matched: 1, Rows: []control.PersonBrief{{UID: "0BEAAAAAB", Nick: r.Query}}}}, nil
+	case control.CmdOperSave:
+		if r.Password != "" && r.Name == "ember" && r.New && r.Hosts == "*@*" && r.Flags == "g" {
+			return &control.Response{Changed: &control.Changed{Name: "ember", New: "g", ID: 9}}, nil
+		}
+		return &control.Response{Error: "unexpected"}, nil
 	case control.CmdBanAdd, control.CmdBanDel:
 		return &control.Response{Done: &control.Done{Text: r.Cmd + " " + r.Kind + " " + r.Mask + " " + r.Reason + " " + r.Life}}, nil
 	case control.CmdBanMatch:
@@ -321,5 +326,17 @@ func TestBanRoutes(t *testing.T) {
 	}
 	if w := rg.do("GET", "/api/ban-match?kind=akill&mask=x", "", tok, nil); w.Code != 200 || !strings.Contains(w.Body.String(), `"people":2`) {
 		t.Errorf("ban-match: %d %s", w.Code, w.Body)
+	}
+}
+
+func TestOperRoutes(t *testing.T) {
+	rg := newRig(t)
+	tok := rg.login()
+	w := rg.do("POST", "/api/oper-save", `{"name":"ember","flags":"g","hosts":"*@*","password":"Secret-123","new":true}`, tok, nil)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"id":9`) {
+		t.Errorf("oper-save: %d %s", w.Code, w.Body)
+	}
+	if w := rg.do("POST", "/api/oper-del", `{}`, tok, nil); w.Code != 400 {
+		t.Errorf("oper-del without name: %d", w.Code)
 	}
 }

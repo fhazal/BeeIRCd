@@ -30,6 +30,15 @@ panel3c.go, services PanelBan/PanelBanDel/PanelBanMatch): AKILL, ZLINE,
 SHUN, exceptions (the panel calls ELINE "Exception"); flag k for the
 whole page (OperServ's rule; s does not give bans, decided with the
 owner 12 Nov). SQLINE/SNLINE stay in OperServ for now.
+3d built 12 Nov 2026 (branch stage3): Opers page (internal/server/
+panel3d.go): AdminServ OPER's rules (give/take only own flags, remove
+only with all their flags, owner locked) plus no self-removal and no
+dropping your own a; Undo through HISTORY (oper kind added to the panel's
+undo; a removed entry's password is kept in memory for that). Flag
+legend fixed: k = disconnect + network bans, s = other OperServ tools.
+Not in the panel yet: DISABLE/ENABLE, title, vhost, swhois (AdminServ).
+UI: one put() helper for every content swap (two "null" text slips were
+found in 3b/3d).
 
 ## What it is
 Hive Panel = the web admin for BeeIRCd. A separate program

@@ -44,6 +44,11 @@ const (
 	CmdBanAdd   = "ban-add"   // Kind + Mask + Reason + Life -> Done
 	CmdBanDel   = "ban-del"   // Kind + Mask -> Done
 	CmdBanMatch = "ban-match" // Kind + Mask -> Match (who it would hit now)
+
+	// Opers page (3d), flag a like AdminServ OPER. Undo is CmdUndo.
+	CmdOpers    = "opers"     // -> Opers
+	CmdOperSave = "oper-save" // Name + Class + Flags + Hosts + Password + New -> Changed
+	CmdOperDel  = "oper-del"  // Name -> Changed
 )
 
 // MaxRequest is the most bytes one request may be.
@@ -76,6 +81,10 @@ type Request struct {
 	Kind   string `json:"kind,omitempty"` // bans: akill, zline, shun, eline
 	Mask   string `json:"mask,omitempty"`
 	Reason string `json:"reason,omitempty"`
+	Class  string `json:"class,omitempty"` // oper-save
+	Flags  string `json:"flags,omitempty"` // oper-save: flags on top of the class
+	Hosts  string `json:"hosts,omitempty"` // oper-save: masks, space or comma between
+	New    bool   `json:"new,omitempty"`   // oper-save: add, not change
 }
 
 // Response carries the answer to one Request; Error is set when it failed.
@@ -95,6 +104,7 @@ type Response struct {
 	Done     *Done      `json:"done,omitempty"`
 	Bans     *Bans      `json:"bans,omitempty"`
 	Match    *Match     `json:"match,omitempty"`
+	Opers    *Opers     `json:"opers,omitempty"`
 	// Denied is set (with Error) when the oper may not do this: signed
 	// out, or missing a flag. The panel then signs them out or says so.
 	Denied string `json:"denied,omitempty"` // "signin" or "flag"
@@ -182,6 +192,35 @@ type Ban struct {
 type Match struct {
 	Mask   string `json:"mask"`
 	People int    `json:"people"`
+}
+
+// Opers is the Opers page.
+type Opers struct {
+	Rows    []OperRow   `json:"rows"`
+	Classes []OperClass `json:"classes"`
+}
+
+// OperRow is one oper entry. The owner (the [services] admin) comes first
+// and can't be changed here.
+type OperRow struct {
+	Account  string    `json:"account"`
+	Class    string    `json:"class,omitempty"`
+	Flags    string    `json:"flags,omitempty"` // their own, on top of the class
+	All      string    `json:"all"`             // class + own: what they can do
+	Hosts    []string  `json:"hosts"`
+	Title    string    `json:"title,omitempty"`
+	Online   bool      `json:"online"`
+	Password bool      `json:"password"` // an oper password is set
+	Disabled string    `json:"disabled,omitempty"`
+	Owner    bool      `json:"owner,omitempty"`
+	AddedBy  string    `json:"added_by,omitempty"`
+	AddedAt  time.Time `json:"added_at,omitzero"`
+}
+
+// OperClass is an oper class to pick.
+type OperClass struct {
+	Name  string `json:"name"`
+	Flags string `json:"flags"`
 }
 
 // Done is what an action did, in words.

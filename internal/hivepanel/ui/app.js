@@ -27,6 +27,12 @@
     }
     return el;
   }
+  // put replaces el's contents, skipping null/false like h() does
+  // (replaceChildren itself would print them as text).
+  function put(el, ...kids) {
+    el.replaceChildren();
+    return add(el, kids);
+  }
   function icon(name, cls) {
     const s = document.createElementNS(SVG, 'svg');
     s.setAttribute('class', 'ic' + (cls ? ' ' + cls : ''));
@@ -127,6 +133,7 @@
     { id: 'overview', label: 'Overview', icon: 'overview', make: overviewPage },
     { id: 'people', label: 'People', icon: 'people', make: peoplePage },
     { id: 'bans', label: 'Bans', icon: 'bans', need: 'k', make: bansPage },
+    { id: 'opers', label: 'Opers', icon: 'opers', need: 'a', make: opersPage },
     { id: 'settings', label: 'Settings', icon: 'settings', need: 'a', make: settingsPage },
   ];
 
@@ -144,7 +151,7 @@
       const show = pw.type === 'password';
       pw.type = show ? 'text' : 'password';
       eye.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
-      eye.replaceChildren(icon(show ? 'eye-off' : 'eye'));
+      put(eye, icon(show ? 'eye-off' : 'eye'));
       pw.focus();
     });
     const err = h('span', { class: 'err', id: 'err', role: 'alert', text: msg && msg !== 'Please sign in.' ? msg : '' });
@@ -174,7 +181,7 @@
         }
       });
     });
-    app.replaceChildren(h('div', { class: 'signin' }, form));
+    put(app, h('div', { class: 'signin' }, form));
     document.title = 'Sign in · Hive Panel';
     nick.focus();
   }
@@ -195,13 +202,13 @@
         h('div', { class: 'me-text' }, h('b', { text: me.account }), h('span', { class: 'lbl', text: me.owner ? 'Owner' : (me.class || 'Oper') })),
         out));
     mainEl = h('main', { class: 'content', id: 'main', tabindex: '-1' });
-    app.replaceChildren(h('div', { class: 'hp' }, side, mainEl));
+    put(app, h('div', { class: 'hp' }, side, mainEl));
     drawNav();
     route();
     startLive();
   }
   function drawNav() {
-    navEl.replaceChildren(...pages.filter(p => !p.need || has(p.need)).map(p =>
+    put(navEl, ...pages.filter(p => !p.need || has(p.need)).map(p =>
       h('a', { href: '#/' + p.id, 'data-page': p.id, class: page && page.id === p.id ? 'on' : null,
         'aria-current': page && page.id === p.id ? 'page' : null }, icon(p.icon), p.label)));
   }
@@ -213,7 +220,7 @@
     if (page && page.leave) page.leave();
     page = p.make();
     page.id = p.id;
-    mainEl.replaceChildren(page.el);
+    put(mainEl, page.el);
     document.title = p.label + ' · Hive Panel';
     drawNav();
     if (status && page.status) page.status(status);
@@ -341,10 +348,10 @@
       tOpers.l.textContent = (s.oper_nicks || []).join(', ') || 'None on this server';
       const ls = s.links || [];
       const down = ls.filter(l => l.state !== 'up').length;
-      tServers.n.replaceChildren(String(ls.length + 1), ' ', h('small', { text: ls.length === 0 ? 'this one' : down ? down + ' not linked' : 'all linked' }));
+      put(tServers.n, String(ls.length + 1), ' ', h('small', { text: ls.length === 0 ? 'this one' : down ? down + ' not linked' : 'all linked' }));
       const lags = ls.filter(l => l.state === 'up' && l.lag_ms).map(l => l.lag_ms);
       tServers.l.textContent = lags.length ? 'Slowest ping ' + Math.round(Math.max(...lags)) + ' ms' : ls.length ? '' : 'No links set up';
-      tLag.n.replaceChildren(String(Math.max(0, Math.round(s.lag_avg_ms))), ' ', h('small', { text: 'ms' }));
+      put(tLag.n, String(Math.max(0, Math.round(s.lag_avg_ms))), ' ', h('small', { text: 'ms' }));
       tLag.l.textContent = 'Memory ' + Math.round(s.memory_mb) + ' MB';
 
       // Health
@@ -368,7 +375,7 @@
       const sf = s.safety || {};
       const guards = (sf.throttled || 0) + (sf.zlined || 0) + (sf.dnsbl_hits || 0);
       rows.push(row(mark(0), 'Guards today', guards ? fmt(guards) + ' stopped' : 'quiet'));
-      health.replaceChildren(...rows);
+      put(health, ...rows);
       healthWord.className = ['okword', 'warnword', 'badword'][worst];
       healthWord.textContent = ['All fine', 'Look at this', 'Needs you'][worst];
 
@@ -379,25 +386,25 @@
         const end = l.state === 'up' ? (l.lag_ms ? Math.round(l.lag_ms) + ' ms' : 'linked') : l.state;
         lrows.push(row(cls, l.name, end, null, true));
       }
-      links.replaceChildren(...lrows);
+      put(links, ...lrows);
 
       // Services
       if (!s.services_on) {
-        svc.replaceChildren(h('p', { class: 'empty', text: 'Services run on the hub server.' }));
+        put(svc, h('p', { class: 'empty', text: 'Services run on the hub server.' }));
         svcWord.textContent = '';
       } else {
         const counts = { NickServ: plural(s.nicks, 'nick', 'nicks'), ChanServ: plural(s.reg_channels, 'channel', 'channels'), MemoServ: plural(s.memos, 'memo', 'memos') };
         const bots = s.services || [];
-        svc.replaceChildren(...bots.slice(0, 6).map(b => row(null, b, counts[b] || 'up')));
+        put(svc, ...bots.slice(0, 6).map(b => row(null, b, counts[b] || 'up')));
         svcWord.className = 'okword';
         svcWord.textContent = bots.length ? 'All up' : '';
       }
     }
 
     function onEvents(list, before) {
-      if (!list.length) { evList.replaceChildren(h('p', { class: 'empty', text: 'Nothing yet. Sign-ins and changes made here show up in this list.' })); return; }
+      if (!list.length) { put(evList, h('p', { class: 'empty', text: 'Nothing yet. Sign-ins and changes made here show up in this list.' })); return; }
       const seen = new Set((before || []).map(e => e.at + e.who + e.what));
-      evList.replaceChildren(...list.slice(0, 12).map(e => h('div', { class: 'ev' + (before && !seen.has(e.at + e.who + e.what) ? ' new' : '') },
+      put(evList, ...list.slice(0, 12).map(e => h('div', { class: 'ev' + (before && !seen.has(e.at + e.who + e.what) ? ' new' : '') },
         h('span', { class: 't', text: when(e.at) }),
         h('span', {}, h('b', { text: e.who }), ' ' + e.what, e.ip ? h('span', { class: 'ip', text: ' · ' + e.ip }) : null))));
     }
@@ -447,7 +454,7 @@
         const d = await api('GET', '/api/settings');
         const byName = Object.fromEntries((d.settings || []).map(s => [s.name, s]));
         fields.length = 0;
-        grid.replaceChildren(...LIMITS.filter(l => byName[l.name]).map(l => {
+        put(grid, ...LIMITS.filter(l => byName[l.name]).map(l => {
           const s = byName[l.name];
           const id = 'set-' + l.name;
           const input = h('input', { class: 'in', id, type: 'text', inputmode: 'numeric', autocomplete: 'off', value: s.value, 'aria-describedby': id + '-hint' });
@@ -460,7 +467,7 @@
         }));
         fields.forEach(check);
       } catch (e) {
-        grid.replaceChildren(h('p', { class: 'empty', text: e.message }));
+        put(grid, h('p', { class: 'empty', text: e.message }));
       }
     }
     undoBtn.addEventListener('click', () => { fields.forEach(f => { f.input.value = f.s.value; check(f); }); });
@@ -500,9 +507,9 @@
       b.addEventListener('click', () => busy(b, async () => {
         try {
           const d = await api('POST', path);
-          res.replaceChildren(...show(d));
+          put(res, ...show(d));
         } catch (e) {
-          res.replaceChildren(h('div', {}, h('span', { class: 'dot bad' }), h('span', { text: e.message })));
+          put(res, h('div', {}, h('span', { class: 'dot bad' }), h('span', { text: e.message })));
         }
         res.hidden = false;
       }));
@@ -548,7 +555,7 @@
         backupText.textContent = s.last_backup ? 'Last one ' + when(s.last_backup) + ' · owner only' : 'No backup yet · owner only';
         if (s.update) {
           updateRow.hidden = false;
-          updateRow.replaceChildren(h('div', { class: 'act-text' }, h('b', { text: 'Update' }),
+          put(updateRow, h('div', { class: 'act-text' }, h('b', { text: 'Update' }),
             h('span', { class: 'lbl', text: s.update.version + ' is out. Run beeircd update on the server.' })));
         } else updateRow.hidden = true;
       },
@@ -586,7 +593,7 @@
         data = d.people;
         draw();
       } catch (e) {
-        tbody.replaceChildren(h('tr', {}, h('td', { colspan: 5, class: 'empty', text: e.message })));
+        put(tbody, h('tr', {}, h('td', { colspan: 5, class: 'empty', text: e.message })));
       }
     }
     function draw() {
@@ -607,7 +614,7 @@
         rows.push(tr);
         if (open) rows.push(detailRow(r));
       }
-      tbody.replaceChildren(...rows);
+      put(tbody, ...rows);
       const from = p.matched ? p.offset + 1 : 0, to = p.offset + p.rows.length;
       count.textContent = fmt(from) + ' to ' + fmt(to) + ' of ' + fmt(p.matched);
       back.disabled = p.offset <= 0;
@@ -623,7 +630,7 @@
       const box = h('div', {}, h('p', { class: 'empty', text: 'Loading…' }));
       const tr = h('tr', { class: 'detail' }, h('td', { colspan: 5 }, box));
       api('GET', '/api/person?uid=' + encodeURIComponent(r.uid)).then(d => fill(box, d.person))
-        .catch(e => box.replaceChildren(h('p', { class: 'empty', text: e.message })));
+        .catch(e => put(box, h('p', { class: 'empty', text: e.message })));
       return tr;
     }
     function item(label, value, cls, wide) {
@@ -676,7 +683,7 @@
             load();
           } catch (e) { toastErr(e.message); }
         }));
-        confirmBox.replaceChildren(...[
+        put(confirmBox, ...[
           h('label', { class: 'f' }, kind === 'kill' ? 'Disconnect ' + p.nick + '?' : 'Ban ' + p.nick + ' from the whole network' + (p.ip ? ' (*@' + p.ip + ')' : '') + '?', reason),
           kind === 'ban' ? life : null, go, cancel].filter(Boolean));
         confirmBox.hidden = false;
@@ -689,7 +696,7 @@
         bb.addEventListener('click', () => ask('ban'));
         ends.push(kb, bb);
       }
-      box.replaceChildren(
+      put(box, 
         h('div', { class: 'dl' }, items),
         h('div', { class: 'acts' },
           h('div', { class: 'grow' }, h('label', { class: 'f', for: 'note-' + p.uid }, 'Notice to ' + p.nick, note), send),
@@ -772,7 +779,7 @@
           if (seq !== matchSeq) return;
           const n = d.match.people, ex = type.value === 'eline';
           hit.className = 'hit' + (n ? ' some' : '');
-          hit.replaceChildren(h('span', { class: 'dot ' + (n ? 'warn' : 'off') }),
+          put(hit, h('span', { class: 'dot ' + (n ? 'warn' : 'off') }),
             (ex ? 'Covers ' : 'Matches ') + plural(n, 'person', 'people') + ' online' + (d.match.mask !== v ? ' · saved as ' + d.match.mask : ''));
         } catch (e) {
           if (seq !== matchSeq) return;
@@ -804,7 +811,7 @@
         data = d.bans;
         draw();
       } catch (e) {
-        tbody.replaceChildren(h('tr', {}, h('td', { colspan: 6, class: 'empty', text: e.message })));
+        put(tbody, h('tr', {}, h('td', { colspan: 6, class: 'empty', text: e.message })));
       }
     }
     function draw() {
@@ -812,25 +819,25 @@
       const k = kindOf(kind);
       title.textContent = k.kind === 'eline' ? 'Exceptions' : k.name + 's';
       if (!data.rows.length) {
-        tbody.replaceChildren(h('tr', {}, h('td', { colspan: 6, class: 'empty', text: k.kind === 'eline' ? 'No exceptions.' : 'No ' + k.name + 's.' })));
+        put(tbody, h('tr', {}, h('td', { colspan: 6, class: 'empty', text: k.kind === 'eline' ? 'No exceptions.' : 'No ' + k.name + 's.' })));
         return;
       }
-      tbody.replaceChildren(...data.rows.map(b => {
+      put(tbody, ...data.rows.map(b => {
         const cell = h('td', { class: 'end-cell' });
         const trash = h('button', { type: 'button', class: 'x', 'aria-label': 'Remove ' + kindOf(b.kind).name + ' on ' + b.mask, title: 'Remove' }, icon('trash'));
         cell.append(trash);
         trash.addEventListener('click', () => {
           const yes = h('button', { type: 'button', class: 'btn bad', text: 'Remove' });
           const no = h('button', { type: 'button', class: 'btn ghost', text: 'Keep' });
-          no.addEventListener('click', () => cell.replaceChildren(trash));
+          no.addEventListener('click', () => put(cell, trash));
           yes.addEventListener('click', () => busy(yes, async () => {
             try {
               const d = await api('POST', '/api/ban-del', { kind: b.kind, mask: b.mask });
               toast([d.done.text]);
               load();
-            } catch (e) { toastErr(e.message); cell.replaceChildren(trash); }
+            } catch (e) { toastErr(e.message); put(cell, trash); }
           }));
-          cell.replaceChildren(h('span', { class: 'rm' }, yes, no));
+          put(cell, h('span', { class: 'rm' }, yes, no));
           yes.focus();
         });
         return h('tr', { class: b.mask === freshMask ? 'fresh' : null },
@@ -865,6 +872,152 @@
     load();
     const timer = setInterval(() => { if (!document.hidden && !el.querySelector('.rm')) load(); }, 30000);
     return { el, leave() { clearInterval(timer); } };
+  }
+
+  // ---------- Opers ----------
+  const FLAGS = [
+    ['a', 'admin', 'Settings, rehash, opers'],
+    ['c', 'links', 'Linked servers'],
+    ['g', 'global', 'Notices to everyone'],
+    ['h', 'hosts', 'See real hosts, HostServ'],
+    ['k', 'kill', 'Disconnect people, network bans'],
+    ['s', 'services', 'Other OperServ tools'],
+  ];
+  function chips(all) {
+    return h('span', { class: 'fl', 'aria-label': 'flags ' + (all || 'none') },
+      FLAGS.map(([f]) => h('span', { class: 'c' + (all.includes(f) ? '' : ' no'), text: f, 'aria-hidden': 'true' })));
+  }
+  function opersPage() {
+    let data = null, open = null; // open: account name, or '+' when adding
+    const tbody = h('tbody');
+    const form = h('section', { class: 'card' });
+    const addBtn = h('button', { type: 'button', class: 'btn', text: 'Add oper' });
+    addBtn.addEventListener('click', () => { open = '+'; draw(); });
+
+    async function load(keep) {
+      try {
+        data = (await api('GET', '/api/opers')).opers;
+        if (!keep && open && open !== '+' && !data.rows.some(r => r.account === open)) open = null;
+        draw();
+      } catch (e) { put(tbody, h('tr', {}, h('td', { colspan: 5, class: 'empty', text: e.message }))); }
+    }
+    function draw() {
+      put(tbody, ...data.rows.map(r => {
+        const btn = h('button', { type: 'button', class: 'rowbtn', 'aria-expanded': r.account === open ? 'true' : 'false' },
+          r.account, r.owner ? icon('lock', 'lock') : null);
+        const tr = h('tr', { class: 'person' + (r.account === open ? ' open' : '') },
+          h('td', {}, btn, r.disabled ? [' ', h('span', { class: 'tag', text: 'disabled' })] : null),
+          h('td', { text: r.class || '—' }),
+          h('td', {}, chips(r.all || '')),
+          h('td', { class: 'mono', text: (r.hosts || []).join(' ') }),
+          h('td', {}, h('span', { class: 'dot ' + (r.online ? '' : 'off') }), ' ', h('span', { class: 'lbl', text: r.online ? 'online' : 'offline' })));
+        tr.addEventListener('click', () => { open = open === r.account ? null : r.account; draw(); });
+        return tr;
+      }));
+      drawForm();
+    }
+
+    function drawForm() {
+      if (!open) {
+        put(form, h('h2', { text: 'Change an oper' }), h('p', { class: 'form-empty', text: 'Click an oper to change them, or Add oper.' }));
+        return;
+      }
+      const adding = open === '+';
+      const found = adding ? { account: '' } : data.rows.find(x => x.account === open);
+      if (!found) { open = null; drawForm(); return; }
+      // Empty fields are left out of the server's answer.
+      const r = Object.assign({ class: '', flags: '', all: '', hosts: [], password: false }, found);
+      if (r.owner) {
+        put(form, h('div', { class: 'ch' }, h('h2', { text: r.account }), h('span', { class: 'lbl', text: 'owner' })),
+          h('p', { class: 'note', text: 'The owner is the server admin in beeircd.conf, with every flag. Change it there; the owner\'s oper password is changed with /as oper ' + r.account + ' set password.' }),
+          chips(r.all));
+        return;
+      }
+      const nick = adding ? h('input', { class: 'in', id: 'op-nick', type: 'text', autocomplete: 'off', placeholder: 'Their registered nick' }) : null;
+      const cls = h('select', { class: 'in', id: 'op-class' }, h('option', { value: '', text: 'No class (own flags only)' }),
+        data.classes.map(c => h('option', { value: c.name, text: c.name + ' · ' + (c.flags || 'no flags'), disabled: [...c.flags].some(f => !has(f)) && r.class !== c.name })));
+      cls.value = r.class || '';
+      const boxes = {};
+      const picks = h('div', { class: 'picks' });
+      function drawPicks() {
+        const cf = (data.classes.find(c => c.name === cls.value) || { flags: '' }).flags;
+        put(picks, ...FLAGS.map(([f, name]) => {
+          const fromClass = cf.includes(f);
+          const mine = !has(f); // can't give or take it
+          const box = boxes[f] || h('input', { type: 'checkbox' });
+          boxes[f] = box;
+          box.checked = fromClass || r.flags.includes(f) && !box.dataset.touched || box.dataset.touched === 'on';
+          box.disabled = fromClass || mine;
+          box.addEventListener('change', () => { box.dataset.touched = box.checked ? 'on' : 'off'; });
+          return h('label', { class: 'pk' + (box.disabled ? ' locked' : ''), title: fromClass ? 'From the class' : mine ? 'You don\'t have this flag' : '' },
+            box, h('span', { class: 'mono', text: f }), ' ' + name + (fromClass ? ' (class)' : ''));
+        }));
+      }
+      cls.addEventListener('change', drawPicks);
+      drawPicks();
+      const hosts = h('input', { class: 'in mono', id: 'op-hosts', type: 'text', autocomplete: 'off', value: r.hosts.join(' '), placeholder: '*@192.168.50.* or *@*' });
+      const pw = h('input', { class: 'in', id: 'op-pw', type: 'password', autocomplete: 'new-password', placeholder: adding ? 'At least 8 characters' : (r.password ? 'Leave empty to keep' : 'None set yet: set one') });
+      const err = h('span', { class: 'err', role: 'alert' });
+      const save = h('button', { type: 'button', class: 'btn main', text: adding ? 'Add oper' : 'Save' });
+      save.addEventListener('click', () => busy(save, async () => {
+        err.textContent = '';
+        const cf = (data.classes.find(c => c.name === cls.value) || { flags: '' }).flags;
+        const own = FLAGS.map(([f]) => f).filter(f => boxes[f].checked && !cf.includes(f)).join('');
+        const name = adding ? nick.value.trim() : r.account;
+        if (adding && !name) { err.textContent = 'Type their nick.'; nick.focus(); return; }
+        if (!hosts.value.trim()) { err.textContent = 'Say where they may /oper from, like *@*'; hosts.focus(); return; }
+        if (pw.value && pw.value.length < 8) { err.textContent = 'The oper password needs at least 8 characters.'; pw.focus(); return; }
+        try {
+          const d = await api('POST', '/api/oper-save', { name, class: cls.value, flags: own, hosts: hosts.value, password: pw.value, new: adding });
+          pw.value = '';
+          const c = d.changed;
+          open = c.name;
+          toast([adding ? c.name + ' is an oper now: ' : c.name + ' now has ', h('b', { text: c.new || 'no flags' })],
+            c.id ? async () => { await api('POST', '/api/undo', { id: c.id }); await load(); toast(['Put back as it was']); } : null);
+          await load(true);
+        } catch (e) { err.textContent = e.message; }
+      }));
+      const rm = adding ? null : h('button', { type: 'button', class: 'btn bad', text: 'Remove oper' });
+      if (rm) rm.addEventListener('click', () => {
+        if (rm.dataset.sure !== '1') { rm.dataset.sure = '1'; rm.textContent = 'Sure? Remove ' + r.account; return; }
+        busy(rm, async () => {
+          try {
+            const d = await api('POST', '/api/oper-del', { name: r.account });
+            open = null;
+            toast([d.changed.name + ' is no longer an oper'], d.changed.id ? async () => { await api('POST', '/api/undo', { id: d.changed.id }); open = r.account; await load(); toast(['Put back as it was']); } : null);
+            await load();
+          } catch (e) { err.textContent = e.message; rm.dataset.sure = ''; rm.textContent = 'Remove oper'; }
+        });
+      });
+      put(form, ...[
+        h('div', { class: 'ch' }, h('h2', { text: adding ? 'Add an oper' : r.account }),
+          !adding && r.added_by ? h('span', { class: 'lbl', text: 'added by ' + r.added_by }) : null),
+        adding ? h('label', { class: 'f', for: 'op-nick' }, 'Nick', nick) : null,
+        h('label', { class: 'f', for: 'op-class' }, 'Class', cls),
+        h('fieldset', { class: 'f plain' }, h('legend', { class: 'lbl', text: 'Flags' }), picks),
+        h('span', { class: 'note', text: 'You can give and take only the flags you have.' }),
+        h('label', { class: 'f', for: 'op-hosts' }, 'Allowed from', hosts),
+        h('label', { class: 'f', for: 'op-pw' }, adding ? 'Oper password' : 'New oper password', pw),
+        err,
+        h('div', { class: 'btns' }, save, rm)].filter(Boolean)); // replaceChildren would print null
+      (adding ? nick : cls).focus({ preventScroll: true });
+    }
+
+    const el = h('div', { class: 'main-stack' },
+      h('header', { class: 'head' }, h('div', { class: 'head-text' }, h('h1', { text: 'Opers' }),
+        h('span', { class: 'sub', text: 'The same opers as /oper, on every server' })), addBtn),
+      h('div', { class: 'band21' },
+        h('section', { class: 'card list-card' },
+          h('div', { class: 'wrap' }, h('table', { class: 'opers' },
+            h('thead', {}, h('tr', {}, ['Oper', 'Class', 'Flags', 'Allowed from', 'Now'].map(t => h('th', { scope: 'col', text: t })))),
+            tbody))),
+        form),
+      h('section', { class: 'card' }, h('h2', { text: 'What the flags allow' }),
+        h('div', { class: 'leg' }, FLAGS.map(([f, , text]) => h('div', {}, h('span', { class: 'c', text: f }), h('span', { text }))))));
+    const onKey = e => { if (e.key === 'Escape' && open && !e.target.closest('input, select')) { open = null; draw(); } };
+    document.addEventListener('keydown', onKey);
+    load();
+    return { el, leave() { document.removeEventListener('keydown', onKey); } };
   }
 
   // ---------- boot ----------

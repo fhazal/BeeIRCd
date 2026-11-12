@@ -200,6 +200,14 @@ the control socket): `beeircd-web -config /etc/beeircd/beeircd.conf`.
   bans by kind (AKILL, ZLINE, SHUN, exceptions) and adds or removes them
   with the same checks as OperServ. While you type a mask it says how
   many people online it matches; masks that match everyone are refused.
+- **Opers** (flag `a`, like AdminServ OPER): every oper entry with its
+  class, flags and hosts; add an oper (a registered nick), change their
+  class, own flags, hosts or oper password, or remove them. Same rules as
+  AdminServ: you give and take only flags you have, remove only opers
+  whose flags you all have, and the owner is locked (beeircd.conf). You
+  can't remove yourself or take your own flag `a` in the panel. Every
+  change is in AdminServ HISTORY; the panel's Undo puts it back (a
+  removed oper comes back with their password).
 - Settings changed in the panel are saved to `beeircd.conf`, applied at
   once and kept in AdminServ HISTORY (Undo works there too). The panel's
   own "What happened" list keeps sign-ins and changes with who and from
