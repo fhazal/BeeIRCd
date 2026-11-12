@@ -292,11 +292,15 @@ func (s *Server) newLink(conn net.Conn, outgoing bool, b *config.LinkServer, fp 
 }
 
 // linkLocal is what the handshake says about us.
-// cloakHash is what NETINFO shows of our cloak keys: UnrealIRCd's
-// checksum with method "unreal", else a short hash of the secret.
+// cloakHash is what NETINFO shows of our cloak keys: the checksum
+// UnrealIRCd's module for the method shows, else a short hash of the
+// secret.
 func (s *Server) cloakHash() string {
-	if s.cfg.UnrealCloak() && len(s.cfg.Cloak.Keys) == 3 {
+	if s.cfg.KeyedCloak() && len(s.cfg.Cloak.Keys) == 3 {
 		k := s.cfg.Cloak.Keys
+		if s.cfg.InspCloak() {
+			return cloak.InspChecksum([3]string{k[0], k[1], k[2]})
+		}
 		return cloak.UnrealChecksum([3]string{k[0], k[1], k[2]})
 	}
 	sum := sha256.Sum256([]byte("beeircd-cloak:" + s.cfg.Cloak.Secret))
@@ -631,10 +635,12 @@ func (s *Server) linkNetinfo(l *linkConn, m irc.Message) {
 	}
 	switch theirs := m.Params[3]; {
 	case theirs == s.cloakHash():
-	case !l.peer.Bee && !s.cfg.UnrealCloak():
+	case !l.peer.Bee && strings.HasPrefix(theirs, "INSPMD5:") && !s.cfg.InspCloak():
+		why = append(why, "it loads the cloak_inspircd module, so people get different cloaks there and bans on cloaks miss (set [cloak] method = \"cloak_inspircd\" with its three cloak-keys)")
+	case !l.peer.Bee && !s.cfg.KeyedCloak():
 		why = append(why, "UnrealIRCd makes its own cloaks, so people get different cloaks there and bans on cloaks miss (set [cloak] method = \"unreal\" with its three cloak-keys)")
-	case s.cfg.UnrealCloak():
-		why = append(why, "its cloak keys differ from ours, so the same person gets a different cloak there (copy the same three keys to every server)")
+	case s.cfg.KeyedCloak():
+		why = append(why, "its cloak method or keys differ from ours, so the same person gets a different cloak there (the same method and the same three keys on every server)")
 	default:
 		why = append(why, "its [cloak] secret differs from ours, so the same person gets a different cloak there (set the same secret on every server)")
 	}

@@ -37,3 +37,20 @@ keys = ["`+key80+`1", "`+key80+`2", "`+key80+`3"]`, 1)
 		}
 	}
 }
+
+func TestConfigInspCloak(t *testing.T) {
+	insp := strings.Replace(good, `secret = "0123456789abcdef-test"`,
+		"method = \"cloak_inspircd\"\nkeys = [\"aB3def\", \"gH4ijk\", \"lM5nop\"]", 1)
+	c, err := Load(write(t, insp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.InspCloak() || !c.KeyedCloak() || c.UnrealCloak() {
+		t.Error("method not cloak_inspircd")
+	}
+	// the module allows short keys but not over 100 characters
+	long := strings.Replace(insp, `"aB3def"`, `"`+strings.Repeat("aB3", 34)+`"`, 1)
+	if _, err := Load(write(t, long)); err == nil || !strings.Contains(err.Error(), "5 to 100") {
+		t.Errorf("long key: %v", err)
+	}
+}

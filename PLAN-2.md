@@ -33,6 +33,11 @@ three-server trees; services on the hub serve leaf users (replies,
 numerics, +r, account, kills). Tested against a real UnrealIRCd 6.2.7.
 Left for 2d: SVSJOIN/SVSPART (services joining people elsewhere, AJOIN),
 SASL over the link, remote WHOIS (idle time), SQLINE/SNLINE network-wide.
+After 2c: `[cloak] method = "cloak_inspircd"` matches the cloak_inspircd
+UnrealIRCd module (the owner's network uses it), checked against that
+module in a real UnrealIRCd 6.2.7. A link test on the owner's production
+network comes only after the owner says go: BeeIRCd as a leaf with
+services off, at a quiet hour.
 
 Stage 2 links BeeIRCd servers into one network: a hub with leaves (and
 later hubs under hubs), one set of services on the hub, splits and rejoins
@@ -119,6 +124,19 @@ the config, the installer opens the link port.
   commands and SASL fails with 904 + a clear note.
 - OperServ: STATS UPLINK, JUPE, NOOP, DEFCON, SERVER ADD/SET/LINK/UNLINK/
   DEL/LIST (writes config, L4). Log channel shows link events.
+- Left over from 2c: SVSJOIN/SVSPART (AJOIN and services joins for people
+  elsewhere), remote WHOIS (idle time), SQLINE/SNLINE network-wide.
+- AdminServ for every server from the hub (owner approved 12 Nov):
+  `/as server <name> <command>` runs an AdminServ command on another
+  server, which applies it and saves it to its own beeircd.conf;
+  `/as server <name> status` shows its version, uptime, users and lag
+  (read-only). Limits: admins only (oper flag a); the target must allow
+  it (`[link] remote_admin = true`, off by default, so whoever runs a
+  leaf keeps the last word); only the settings AdminServ can change live
+  (ports, certificates, server name and link settings still need the
+  shell and a restart); every change logged with who, what and which
+  server, in the log channel and on both servers; it travels only over
+  the existing TLS link. The Hive Panel later uses the same path.
 
 ### 2e - splits and rejoins
 - SQUIT / lost link: users behind it quit with L8 reason, `netsplit`

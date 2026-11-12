@@ -236,8 +236,8 @@ One block per port.
 | --- | --- | --- |
 | `enabled` | `true` | Hide people's IPs and hosts (user mode +x) |
 | `secret` | – | At least 16 random characters; needed when enabled with method `beeircd`. Changing it changes every cloak; linked servers need the same one |
-| `method` | `"beeircd"` | `"beeircd"` (our own cloaks) or `"unreal"`: exactly UnrealIRCd 6's cloaks (cloak_sha256), for a network that mixes in UnrealIRCd servers, so a person has one cloak everywhere and bans on cloaks work on every server (restart) |
-| `keys` | – | With `method = "unreal"`: the three `set::cloak-keys` of your UnrealIRCd servers, in the same order, like `keys = ["...", "...", "..."]` (80+ characters each, a-z A-Z 0-9 mixed) |
+| `method` | `"beeircd"` | `"beeircd"` (our own cloaks), `"unreal"` (exactly UnrealIRCd 6's cloaks, cloak_sha256) or `"cloak_inspircd"` (exactly the cloaks of the cloak_inspircd UnrealIRCd module). Use the one your UnrealIRCd servers load, so a person has one cloak everywhere and bans on cloaks work on every server (restart) |
+| `keys` | – | With `method = "unreal"` or `"cloak_inspircd"`: the three `set::cloak-keys` of your UnrealIRCd servers, in the same order, like `keys = ["...", "...", "..."]` (a-z A-Z 0-9 mixed; 80 to 1000 characters each for `unreal`, 5 to 100 for `cloak_inspircd`, the modules' own rules) |
 | `prefix` | `"Clk"` | With `method = "unreal"`: UnrealIRCd's `set::cloak-prefix`, the start of hostname cloaks |
 
 Linked servers compare their cloak keys when they link (NETINFO); a

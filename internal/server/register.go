@@ -300,9 +300,13 @@ func (s *Server) welcome(c *Client) {
 
 // cloakFor is u's cloaked host.
 func (s *Server) cloakFor(u *state.User) string {
-	if s.cfg.UnrealCloak() {
+	if s.cfg.KeyedCloak() {
 		k := s.cfg.Cloak.Keys
-		return cloak.UnrealHost([3]string{k[0], k[1], k[2]}, s.cfg.Cloak.Prefix, u.RealHost)
+		keys := [3]string{k[0], k[1], k[2]}
+		if s.cfg.InspCloak() {
+			return cloak.InspHost(keys, u.RealHost, u.IP)
+		}
+		return cloak.UnrealHost(keys, s.cfg.Cloak.Prefix, u.RealHost)
 	}
 	return cloak.Host(s.cfg.Cloak.Secret, s.cfg.Server.Network, u.RealHost, u.IP, u.RealHost == irc.DisplayIP(u.IP))
 }

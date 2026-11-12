@@ -94,20 +94,28 @@ type Cloak struct {
 	// Secret makes cloaks impossible to reverse. Every linked server
 	// needs the same one, and changing it changes everyone's cloak.
 	Secret string `toml:"secret"`
-	// Method is "beeircd" (the default) or "unreal": UnrealIRCd 6's
-	// cloak_sha256, for networks that mix in UnrealIRCd servers. Every
-	// server needs the same method and keys.
+	// Method is "beeircd" (the default), "unreal" (UnrealIRCd 6's
+	// cloak_sha256) or "cloak_inspircd" (the cloak_inspircd module), for
+	// networks that mix in UnrealIRCd servers. Every server needs the
+	// same method and keys.
 	Method string `toml:"method"`
-	// Keys are UnrealIRCd's three set::cloak-keys (method "unreal"):
-	// copy them from unrealircd.conf, in the same order.
+	// Keys are UnrealIRCd's three set::cloak-keys (methods "unreal" and
+	// "cloak_inspircd"): copy them from unrealircd.conf, in the same order.
 	Keys []string `toml:"keys"`
 	// Prefix starts hostname cloaks with method "unreal" (UnrealIRCd's
 	// set::cloak-prefix, "Clk" by default).
 	Prefix string `toml:"prefix"`
 }
 
-// UnrealCloak reports whether cloaks are UnrealIRCd's.
+// UnrealCloak reports whether cloaks are UnrealIRCd's cloak_sha256.
 func (c *Config) UnrealCloak() bool { return c.Cloak.Method == "unreal" }
+
+// InspCloak reports whether cloaks are the cloak_inspircd module's.
+func (c *Config) InspCloak() bool { return c.Cloak.Method == "cloak_inspircd" }
+
+// KeyedCloak reports whether cloaks come from three UnrealIRCd keys
+// (not the secret).
+func (c *Config) KeyedCloak() bool { return c.UnrealCloak() || c.InspCloak() }
 
 // Server names this server and its network.
 type Server struct {
@@ -548,7 +556,7 @@ func (c *Config) Check() error {
 	if err := c.checkCloak(); err != nil {
 		return err
 	}
-	if c.CloakEnabled() && !c.UnrealCloak() && len(c.Cloak.Secret) < 16 {
+	if c.CloakEnabled() && !c.KeyedCloak() && len(c.Cloak.Secret) < 16 {
 		return fmt.Errorf("[cloak] secret must be at least 16 characters of random text (or set enabled = false)")
 	}
 	if p := c.Services.AdminPassword; p != "" && !strings.HasPrefix(p, "$argon2id$") {
@@ -661,18 +669,22 @@ func (c *Config) checkCloak() error {
 	switch k.Method {
 	case "beeircd":
 		if len(k.Keys) > 0 {
-			return fmt.Errorf("[cloak] keys are for method = \"unreal\"; method \"beeircd\" uses secret")
+			return fmt.Errorf("[cloak] keys are for method \"unreal\" or \"cloak_inspircd\"; method \"beeircd\" uses secret")
 		}
 		return nil
-	case "unreal":
+	case "unreal", "cloak_inspircd":
 	default:
-		return fmt.Errorf("[cloak] method %q must be \"beeircd\" or \"unreal\"", k.Method)
+		return fmt.Errorf("[cloak] method %q must be \"beeircd\", \"unreal\" or \"cloak_inspircd\"", k.Method)
+	}
+	minLen, maxLen := 80, 1000 // UnrealIRCd's cloak_sha256 rule
+	if k.Method == "cloak_inspircd" {
+		minLen, maxLen = 5, 100 // the module's own rule
 	}
 	if !c.CloakEnabled() {
 		return nil
 	}
 	if len(k.Keys) != 3 {
-		return fmt.Errorf("[cloak] method \"unreal\" needs keys = [three keys], the set::cloak-keys of your UnrealIRCd servers in the same order")
+		return fmt.Errorf("[cloak] method %q needs keys = [three keys], the set::cloak-keys of your UnrealIRCd servers in the same order", k.Method)
 	}
 	for i, key := range k.Keys {
 		lower, upper, digit := false, false, false
@@ -686,8 +698,8 @@ func (c *Config) checkCloak() error {
 				digit = true
 			}
 		}
-		if len(key) < 80 || len(key) > 1000 || !lower || !upper || !digit {
-			return fmt.Errorf("[cloak] key %d must be 80 to 1000 characters mixing a-z, A-Z and 0-9 (UnrealIRCd's rule)", i+1)
+		if len(key) < minLen || len(key) > maxLen || !lower || !upper || !digit {
+			return fmt.Errorf("[cloak] key %d must be %d to %d characters mixing a-z, A-Z and 0-9 (the rule of method %s)", i+1, minLen, maxLen, k.Method)
 		}
 	}
 	if k.Keys[0] == k.Keys[1] || k.Keys[1] == k.Keys[2] {
