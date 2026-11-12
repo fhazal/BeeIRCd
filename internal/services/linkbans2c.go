@@ -59,6 +59,22 @@ func (s *Services) LinkedBans() []store.NetBan {
 
 // RemoteBan applies a ban change from another server. It reports whether
 // anything changed.
+// matchesEveryone says whether a ban mask of kind would hit every user
+// (the masks OperServ refuses with "That mask matches everyone").
+func matchesEveryone(kind, mask string) bool {
+	switch kind {
+	case store.BanZline:
+		return strings.Trim(mask, "*?.:") == "" || strings.HasSuffix(mask, "/0")
+	case store.BanSNLine:
+		return strings.Trim(mask, "*?") == ""
+	}
+	user, host, ok := strings.Cut(mask, "@")
+	if !ok {
+		return strings.Trim(mask, "*?.:") == ""
+	}
+	return (strings.Trim(host, "*?.:") == "" || strings.HasSuffix(host, "/0")) && strings.Trim(user, "*?~") == ""
+}
+
 func (s *Services) RemoteBan(b store.NetBan, add bool) bool {
 	if !linked(b.Kind) {
 		return false
@@ -66,6 +82,11 @@ func (s *Services) RemoteBan(b store.NetBan, add bool) bool {
 	b.Mask = strings.ToLower(b.Mask)
 	if add {
 		if !b.Live(time.Now()) {
+			return false
+		}
+		if matchesEveryone(b.Kind, b.Mask) {
+			// Never right, from anyone: here OperServ refuses it too (2g).
+			s.log.Printf("refused a network ban from another server that matches everyone: %s %s (by %s)", b.Kind, b.Mask, b.SetBy)
 			return false
 		}
 		for _, have := range s.netbans {

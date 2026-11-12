@@ -127,3 +127,90 @@ func chanNames(m map[string]*state.Channel) []string {
 	sort.Strings(out)
 	return out
 }
+
+// Server-tree tricks and broken lines from a linked server: the link may
+// be dropped, but nothing may crash and the hub's own users stay as they
+// were.
+func TestRogueServerTreeAndJunk(t *testing.T) {
+	cases := []struct {
+		line string
+		drop bool // the link must be dropped
+	}{
+		{":L SID evil.test.local 2 0HB :our SID", true},
+		{":L SID hub.test.local 2 9ZZ :our name", true},
+		{":L SID services.test.local 2 9ZZ :our services server", true},
+		{":L SID leaf.test.local 2 9ZY :the leaf's own name again", true},
+		{":9QQ SID ghost.test.local 3 9QR :from a server nobody introduced", false}, // refused by the gate
+		{":L SID bad_name 2 9ZX :not a server name", true},
+		{":L UID x 1 1700000000 u h 0HBAAAAAZ * +i * * * :a user with our SID", true},
+		{":L UID", false},
+		{":L SJOIN", false},
+		{":L SJOIN 1700000000 #x", false},
+		{":L SJOIN notanumber #x + :@" + "B", false},
+		{":L MODE #x +bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", false},
+		{":L MODE #x +l", false},
+		{":L MODE #x +k", false},
+		{":L TKL + G", false},
+		{":L TKL + G * * x 0 0 :", false},
+		{":L TKL + G * *.* x 0 0 :matches everyone", false},
+		{":L TKL + Z * * x 0 0 :matches everyone", false},
+		{":L TKL + Q * * x 0 0 :every nick", false},
+		{":L MD client", false},
+		{":L MD client A", false},
+		{":L SASL", false},
+		{":L BEEOPER", false},
+		{":L BEEOPERR", false},
+		{":L BEEADMIN", false},
+		{":L 001", false},
+		{":L EOS extra junk here", false},
+		{":L SQUIT", false},
+		{":L NETINFO", false},
+		{":L TOPIC #nosuchchannel :x", false},
+		{":L KICK #nosuchchannel A :x", false},
+		{":L INVITE A #x junk junk junk", false},
+	}
+	for i, tc := range cases {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			hub, leaf := linkedPair(t)
+			alice := login(t, hub.s, "alice")
+			alice.send("JOIN #x")
+			alice.expect("366")
+			before := hubView(hub)
+			var a string
+			hub.s.onLoop(func() { a = hub.s.net.UserByNick("alice").UID })
+			line := strings.NewReplacer(" A ", " "+a+" ", ":L ", ":"+leaf.sid+" ").Replace(tc.line)
+			if strings.HasSuffix(line, " A") {
+				line = strings.TrimSuffix(line, " A") + " " + a
+			}
+			hub.fromLink(t, line)
+			time.Sleep(50 * time.Millisecond)
+			dropped := false
+			hub.s.onLoop(func() { dropped = len(hub.s.links.conns) == 0 })
+			if tc.drop && !dropped {
+				t.Errorf("%s: link not dropped", line)
+			}
+			after := hubView(hub)
+			if !dropped && after != before {
+				t.Errorf("%s changed the hub:\nbefore %s\nafter  %s", line, before, after)
+			}
+			alice.send("PING :alive") // the hub still answers
+			alice.expect("PONG")
+		})
+	}
+}
+
+// A Q-line for every nick from a link is refused; a normal one is kept.
+func TestRogueQlineEveryone(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	hub.fromLink(t, ":"+leaf.sid+" TKL + Q * * x 0 0 :every nick")
+	hub.fromLink(t, ":"+leaf.sid+" TKL + Q * *Serv x 0 0 :reserved")
+	var masks []string
+	hub.s.onLoop(func() {
+		for _, q := range hub.s.links.qlines {
+			masks = append(masks, q.mask)
+		}
+	})
+	if len(masks) != 1 || masks[0] != "*Serv" {
+		t.Errorf("qlines %v", masks)
+	}
+}

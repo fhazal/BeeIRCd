@@ -522,7 +522,9 @@ else is refused (logged once per link and kind). Services commands
 (SVSLOGIN, SVSKILL, SVSJOIN, SVSPART, SVSNICK, SVSMODE, SVSNOOP, and
 CHGHOST/CHGIDENT/CHGNAME sent by a server) are taken only from the
 services server or the server it is linked behind; CHGHOST, SAJOIN and
-the like sent by a user only from an IRC operator.
+the like sent by a user only from an IRC operator. A network ban or
+Q-line from another server that matches everyone (`*@*`, `*`, `::/0`) is
+refused, as OperServ refuses it here.
 Opers with `+s` see every link event (established, refused and why, sync
 time, split). `BEEIRCD_LINK_DEBUG=1` in the environment logs every line
 sent and received on links.

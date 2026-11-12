@@ -339,6 +339,10 @@ func (s *Server) remoteQline(l *linkConn, raw irc.Message, b *link.Ban) {
 		s.links.qlines = map[string]qline{}
 	}
 	key := irc.Fold(b.Host)
+	if b.Add && strings.Trim(b.Host, "*?") == "" {
+		s.ignoreOnce(l, "qline-everyone", "refused a nick ban (Q-line) that matches every nick: %q", b.Host)
+		return
+	}
 	if b.Add {
 		s.links.qlines[key] = qline{mask: b.Host, reason: b.Reason, setBy: b.SetBy, setAt: b.SetAt, expires: b.Expires, via: l}
 	} else {
