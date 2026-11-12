@@ -135,6 +135,7 @@
     { id: 'bans', label: 'Bans', icon: 'bans', need: 'k', make: bansPage },
     { id: 'opers', label: 'Opers', icon: 'opers', need: 'a', make: opersPage },
     { id: 'servers', label: 'Linked servers', icon: 'servers', need: 'c', make: serversPage },
+    { id: 'services', label: 'Services', icon: 'services', need: 'a', make: servicesPage },
     { id: 'settings', label: 'Settings', icon: 'settings', need: 'a', make: settingsPage },
   ];
 
@@ -1185,6 +1186,143 @@
     load();
     timer = setInterval(() => { if (!document.hidden && !el.querySelector('.split-ask')) load(); }, 10000);
     return { el, leave() { clearInterval(timer); } };
+  }
+
+  // ---------- Services ----------
+  const SVC_GROUPS = [
+    ['Accounts', [
+      ['nick-expire', 'Unused accounts are dropped after'],
+      ['identify-within', 'Time to identify before the Guest rename'],
+      ['guest-prefix', 'Guest nicks start with'],
+      ['kill-quick', 'NickServ SET KILL QUICK gives'],
+      ['allow-kill-immed', 'People may choose SET KILL IMMED'],
+    ]],
+    ['Channels', [['chan-expire', 'Unused channels are dropped after']]],
+    ['Network bans', [['ban-expiry', 'Bans without a length last']]],
+    ['Services log', [
+      ['log-channel', 'Log channel (off for none)'],
+      ['log-connects', 'Also log connects and quits'],
+    ]],
+  ];
+  const BOT_TEXT = {
+    NickServ: 'Registers nicks, logs people in', ChanServ: 'Registers and guards channels',
+    MemoServ: 'Messages for people who are away', OperServ: 'Oper tools and network bans',
+    HostServ: 'Virtual hosts', AdminServ: 'Server settings and opers', BotServ: 'Channel bots', Global: 'Notices to everyone',
+  };
+  // toSecs reads 90s / 30m / 12h / 30d / 2w (a bare number is seconds); -1 when it isn't a time.
+  function toSecs(v) {
+    const m = /^(\d+)\s*([smhdw]?)$/i.exec(v.trim());
+    return m ? Number(m[1]) * { '': 1, s: 1, m: 60, h: 3600, d: 86400, w: 604800 }[m[2].toLowerCase()] : -1;
+  }
+  function secs(d) { return d >= 86400 && d % 86400 === 0 ? d / 86400 + 'd' : d >= 3600 && d % 3600 === 0 ? d / 3600 + 'h' : d >= 60 && d % 60 === 0 ? d / 60 + 'm' : d + 's'; }
+  function servicesPage() {
+    const tile = label => { const n = h('span', { class: 'num', text: '…' }); return { n, el: h('section', { class: 'card tight' }, h('span', { class: 'lbl', text: label }), n) }; };
+    const tNicks = tile('Registered nicks'), tChans = tile('Registered channels'), tMemos = tile('Memos waiting'), tBots = tile('Bots');
+    const bots = h('div');
+    const form = h('div', { class: 'svc-form' }, h('p', { class: 'empty', text: 'Loading…' }));
+    const count = h('span');
+    const undoBtn = h('button', { type: 'button', class: 'btn ghost', text: 'Undo' });
+    const saveBtn = h('button', { type: 'button', class: 'btn main', text: 'Save' });
+    const bar = h('div', { class: 'unsaved', hidden: true }, count, h('div', { class: 'row-btns' }, undoBtn, saveBtn));
+    const off = h('section', { class: 'card', hidden: true }, h('h2', { text: 'Services run on the hub' }),
+      h('p', { class: 'note', text: 'This server has its services switched off ([services] enabled = false): the hub of the network runs them. Change these settings in the hub\'s Hive Panel.' }));
+    const main = h('div', { class: 'band21' },
+      h('section', { class: 'card' }, h('h2', { text: 'Settings' }), form, bar),
+      h('section', { class: 'card' }, h('h2', { text: 'Bots' }), bots));
+    const el = h('div', { class: 'main-stack' },
+      h('header', { class: 'head' }, h('div', { class: 'head-text' }, h('h1', { text: 'Services' }),
+        h('span', { class: 'sub', text: 'NickServ, ChanServ and the other bots, built in' }))),
+      off,
+      h('div', { class: 'tiles4' }, tNicks.el, tChans.el, tMemos.el, tBots.el),
+      main);
+    const fields = [];
+
+    function check(f) {
+      const s = f.s;
+      if (s.kind === 'onoff') {
+        f.dirty = (f.input.checked ? 'on' : 'off') !== s.value;
+        f.ok = true;
+      } else {
+        const v = f.input.value.trim();
+        f.dirty = v !== s.value;
+        const sec = s.kind === 'time' ? toSecs(v) : 0;
+        f.ok = v !== '' && (s.kind !== 'time' || sec >= s.min && sec <= s.max) && (s.kind !== 'text' || v.length <= s.max);
+        f.input.classList.toggle('wrong', !f.ok);
+        f.input.classList.toggle('changed', f.ok && f.dirty);
+        f.hint.classList.toggle('wrong', !f.ok);
+        f.hint.textContent = !f.ok ? (s.kind === 'time' ? 'A time like 90s, 30m, 12h or 30d (' + secs(s.min) + ' to ' + secs(s.max) + ').' : 'Up to ' + s.max + ' characters.')
+          : f.dirty ? 'was ' + s.value : (s.kind === 'time' ? secs(s.min) + ' to ' + secs(s.max) : '');
+      }
+      const dirty = fields.filter(x => x.dirty).length;
+      bar.hidden = dirty === 0;
+      count.textContent = dirty === 1 ? '1 unsaved change' : dirty + ' unsaved changes';
+      saveBtn.disabled = fields.some(x => x.dirty && !x.ok);
+    }
+    async function load() {
+      try {
+        const d = await api('GET', '/api/settings');
+        const by = Object.fromEntries((d.settings || []).map(s => [s.name, s]));
+        fields.length = 0;
+        const groups = SVC_GROUPS.map(([title, list]) => h('fieldset', { class: 'plain svc-group' },
+          h('legend', { class: 'grp', text: title }),
+          list.filter(([n]) => by[n]).map(([n, label]) => {
+            const s = by[n], id = 'svc-' + n;
+            let input, hint = h('span', { class: 'hint', id: id + '-hint' });
+            if (s.kind === 'onoff') {
+              input = h('input', { type: 'checkbox', id });
+              input.checked = s.value === 'on';
+              const f = { s, input, hint, ok: true, dirty: false, label };
+              input.addEventListener('change', () => check(f));
+              fields.push(f);
+              return h('label', { class: 'ck', for: id }, input, label);
+            }
+            input = h('input', { class: 'in' + (s.kind === 'text' ? '' : ' mono'), id, type: 'text', value: s.value, autocomplete: 'off', spellcheck: 'false', 'aria-describedby': id + '-hint' });
+            const f = { s, input, hint, ok: true, dirty: false, label };
+            input.addEventListener('input', () => check(f));
+            input.addEventListener('keydown', e => { if (e.key === 'Enter' && !saveBtn.disabled) saveBtn.click(); });
+            fields.push(f);
+            return h('label', { class: 'f', for: id }, label, input, hint);
+          })));
+        put(form, groups);
+        fields.forEach(check);
+      } catch (e) { put(form, h('p', { class: 'empty', text: e.message })); }
+    }
+    undoBtn.addEventListener('click', () => { fields.forEach(f => { if (f.s.kind === 'onoff') f.input.checked = f.s.value === 'on'; else f.input.value = f.s.value; check(f); }); });
+    saveBtn.addEventListener('click', () => busy(saveBtn, async () => {
+      const done = [];
+      for (const f of fields.filter(x => x.dirty && x.ok)) {
+        const value = f.s.kind === 'onoff' ? (f.input.checked ? 'on' : 'off') : f.input.value.trim();
+        try {
+          const d = await api('POST', '/api/set', { name: f.s.name, value });
+          done.push(d.changed);
+          f.s.value = d.changed.new;
+          if (f.s.kind !== 'onoff') f.input.value = d.changed.new;
+          check(f);
+          f.input.classList.remove('saved'); void f.input.offsetWidth; f.input.classList.add('saved');
+        } catch (e) {
+          if (f.s.kind !== 'onoff') { f.input.classList.add('wrong'); f.hint.classList.add('wrong'); f.hint.textContent = e.message; }
+          toastErr(f.label + ': ' + e.message);
+        }
+      }
+      if (!done.length) return;
+      toast([done.length === 1 ? [fields.find(x => x.s.name === done[0].name).label + ': ', h('b', { text: done[0].new })] : plural(done.length, 'setting', 'settings') + ' saved', ' · applied'], async () => {
+        for (const c of done.slice().reverse()) await api('POST', '/api/undo', { id: c.id });
+        await load();
+        toast(['Put back as it was']);
+      });
+    }));
+    load();
+    return {
+      el,
+      status(s) {
+        off.hidden = s.services_on;
+        main.hidden = !s.services_on;
+        tNicks.n.textContent = fmt(s.nicks); tChans.n.textContent = fmt(s.reg_channels); tMemos.n.textContent = fmt(s.memos);
+        const list = s.services || [];
+        tBots.n.textContent = fmt(list.length);
+        put(bots, list.map(b => h('div', { class: 'row' }, h('span', {}, h('span', { class: 'dot' }), b), h('span', { class: 'end', text: BOT_TEXT[b] || 'up' }))));
+      },
+    };
   }
 
   // ---------- boot ----------

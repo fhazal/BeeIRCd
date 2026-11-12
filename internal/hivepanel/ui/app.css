@@ -263,3 +263,9 @@ table.links{min-width:600px}
 .split-ask .in{min-height:32px;width:160px;font-size:13px}
 .dl1{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 14px;align-items:center}
 .in[readonly]{background:#151515;color:var(--muted);cursor:default}
+
+/* Services (3f) */
+.svc-form{display:flex;flex-direction:column;gap:18px}
+.svc-group{display:flex;flex-direction:column;gap:12px}
+.grp{font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--honey);padding:0 0 4px}
+.band21[hidden],.card[hidden]{display:none}

@@ -47,6 +47,12 @@ server. Standalone servers get a short "how to link" note instead.
 Empty times in the status answer are now left out (omitzero), which
 also fixes a "tries again" shown for blocks that never retry. Tested
 with a real hub + leaf pair: add, edit, split, connect, remove.
+3f built 12 Nov 2026 (branch stage3): Services page, page only (the
+server already had AdminServ's settings with their checks, the counts
+and the bot list): the nine [services] settings in four groups, time
+fields range-checked in the page too, save + Undo through HISTORY.
+A leaf (services off) can't sign in to its own panel, so the page's
+"services run on the hub" note is only a fallback.
 
 ## What it is
 Hive Panel = the web admin for BeeIRCd. A separate program

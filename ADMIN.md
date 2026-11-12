@@ -216,6 +216,11 @@ the control socket): `beeircd-web -config /etc/beeircd/beeircd.conf`.
   never shown (leave it empty to keep it). The card "This server, for the
   other side" shows the name, link port and fingerprint the other
   server's block needs (the same as `beeircd link-info`).
+- **Services** (flag `a`): registered nicks, channels and memos, the
+  bots, and the services settings from AdminServ SET in plain words
+  (account and channel expiry, identify time, guest prefix, KILL QUICK /
+  IMMED, how long network bans last, the log channel). Saved, applied
+  and undoable like Settings.
 - Settings changed in the panel are saved to `beeircd.conf`, applied at
   once and kept in AdminServ HISTORY (Undo works there too). The panel's
   own "What happened" list keeps sign-ins and changes with who and from
