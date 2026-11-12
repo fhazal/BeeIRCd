@@ -5,7 +5,7 @@
 // disk, writes go to SQLite first and then to memory. Read methods return
 // copies, so callers may change what they get and pass it to a Save method.
 //
-// Nicks are stored with their rfc1459-folded form as key, so "Bee" and
+// Nicks are stored with their folded form (irc.Fold) as key, so "Bee" and
 // "bee" are the same nick. The server calls the store from its single loop
 // goroutine.
 package store
@@ -196,6 +196,11 @@ func Open(path string) (*Store, error) {
 	}
 	if err := migrate155b(db); err != nil {
 		return fail(err)
+	}
+	if note, err := migrateCasemapping(db); err != nil {
+		return fail(err)
+	} else if note != "" {
+		notes = append(notes, note)
 	}
 	c, err := loadCache(db)
 	if err != nil {

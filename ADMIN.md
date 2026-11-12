@@ -196,6 +196,7 @@ Unknown settings are refused, so a typo shows up in `beeircd check`.
 | `sid` | – | Server ID for linking: a digit and two capitals or digits, like `0EX` (restart) |
 | `resolve_hosts` | `true` | Look up hostnames of connecting IPs |
 | `prefixes` | `"@+"` | `"@+"` or `"~&@%+"` (owner, admin, op, halfop, voice) (restart) |
+| `casemapping` | `"ascii"` | How nicks and channels ignore case: `"ascii"` (only A-Z: `Belon` = `belon`, but `[` and `{` differ, like UnrealIRCd 6 and InspIRCd) or `"rfc1459"` (also `[]\~` = `{}|^`). Linked servers (v1.1) need the same. Changing it moves the stored nicks and channels to the new rule at the next start; going to rfc1459 is refused when two stored names would become one (restart) |
 
 ### [[listen]]
 

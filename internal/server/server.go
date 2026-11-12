@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/fhazal/beeircd/internal/config"
+	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/services"
 	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
@@ -145,6 +146,7 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	if err := os.MkdirAll(filepath.Dir(cfg.Services.Database), 0o750); err != nil {
 		return nil, err
 	}
+	irc.SetCasemapping(cfg.Server.Casemapping) // before any name is stored
 	s.setupHistory()
 	db, err := store.Open(cfg.Services.Database)
 	if err != nil {

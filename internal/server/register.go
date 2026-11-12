@@ -378,7 +378,7 @@ func (s *Server) isupport() []string {
 		"ACCOUNTEXTBAN=a",
 		"AWAYLEN=" + strconv.Itoa(l.AwayLen),
 		"BOT=B",
-		"CASEMAPPING=rfc1459",
+		"CASEMAPPING=" + irc.Casemapping(),
 		"CHANLIMIT=#:" + strconv.Itoa(l.MaxChannels),
 		"CHANMODES=" + chanModesList + "," + chanModesKey + "," + chanModesParam + "," + chanModesFlags,
 		"CHANNELLEN=" + strconv.Itoa(l.ChannelLen),

@@ -109,6 +109,11 @@ type Server struct {
 	// default) or "~&@%+" (owner, admin, op, halfop, voice). Changing it
 	// needs a restart.
 	Prefixes string `toml:"prefixes"`
+	// Casemapping is how nicks and channel names ignore case: "ascii"
+	// (the default, like UnrealIRCd 6 and InspIRCd: only A-Z) or
+	// "rfc1459" (also []\~ = {}|^). Every linked server needs the same,
+	// and links to UnrealIRCd need ascii. Changing it needs a restart.
+	Casemapping string `toml:"casemapping"`
 }
 
 // FullPrefixes reports whether owner, admin and halfop exist.
@@ -288,6 +293,9 @@ func (c *Config) SetDefaults() {
 	}
 	if c.Server.Prefixes == "" {
 		c.Server.Prefixes = "@+"
+	}
+	if c.Server.Casemapping == "" {
+		c.Server.Casemapping = "ascii"
 	}
 	l := &c.Limits
 	setDur(&l.PingInterval, 90*time.Second)
@@ -485,6 +493,8 @@ func (c *Config) Check() error {
 		return fmt.Errorf("network name %q must be one word (letters, digits, dot, dash or underscore)", c.Server.Network)
 	case !sidRe.MatchString(c.Server.SID):
 		return fmt.Errorf("server sid %q must be a digit and two capital letters or digits, like 0BE", c.Server.SID)
+	case c.Server.Casemapping != "ascii" && c.Server.Casemapping != "rfc1459":
+		return fmt.Errorf("server casemapping %q must be \"ascii\" or \"rfc1459\"", c.Server.Casemapping)
 	case c.Server.Prefixes != "@+" && c.Server.Prefixes != "~&@%+":
 		return fmt.Errorf("server prefixes %q must be \"@+\" or \"~&@%%+\"", c.Server.Prefixes)
 	case c.Services.LogChannel != "" && (!strings.HasPrefix(c.Services.LogChannel, "#") || len(c.Services.LogChannel) > 50 || strings.ContainsAny(c.Services.LogChannel, " ,\a")):
