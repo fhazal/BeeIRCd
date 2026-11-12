@@ -8,7 +8,9 @@ import (
 	"time"
 )
 
-var t0 = time.Date(2026, 11, 12, 10, 0, 0, 0, time.UTC)
+// t0 is "now" for the tests: SetLimit trims by the real clock, so a fixed
+// date here made TestLimits fail once that date was over an hour old.
+var t0 = time.Now().UTC().Truncate(time.Second)
 
 func fill(s *Store, ch string, n int, lim Limit) {
 	for i := 0; i < n; i++ {
