@@ -325,13 +325,10 @@ func (c *unrealCodec) decodeMode(src, channel, modes string, args []string) *Mod
 // :reason; ban exceptions add a kinds field before the reason; nick bans
 // (Q) and spamfilters are kinds we don't keep.
 func (c *unrealCodec) decodeBan(src string, p []string) any {
-	if len(p) < 2 {
-		return nil
+	if len(p) < 2 || len(p[1]) != 1 || (p[0] != "+" && p[0] != "-") {
+		return nil // (an empty type crashed here before 2g's fuzzing)
 	}
 	b := &Ban{Source: src, Add: p[0] == "+", Type: p[1][0]}
-	if len(p[1]) != 1 || (p[0] != "+" && p[0] != "-") {
-		return nil
-	}
 	switch {
 	case b.Type == BanGline, b.Type == BanGZline, b.Type == BanShun, b.Type == BanException, b.Type == BanQline:
 	case b.Type == BanRealname && c.bee:
