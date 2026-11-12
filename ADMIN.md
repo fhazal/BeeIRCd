@@ -515,6 +515,14 @@ them).
 
 `beeircd link-info` prints this server's fingerprint and the blocks the
 other side needs. Links use TLS 1.2+ only; plain links are never accepted.
+
+**What a linked server may say.** A server speaks only for itself, the
+servers behind it and their users: a line claiming to come from anyone
+else is refused (logged once per link and kind). Services commands
+(SVSLOGIN, SVSKILL, SVSJOIN, SVSPART, SVSNICK, SVSMODE, SVSNOOP, and
+CHGHOST/CHGIDENT/CHGNAME sent by a server) are taken only from the
+services server or the server it is linked behind; CHGHOST, SAJOIN and
+the like sent by a user only from an IRC operator.
 Opers with `+s` see every link event (established, refused and why, sync
 time, split). `BEEIRCD_LINK_DEBUG=1` in the environment logs every line
 sent and received on links.

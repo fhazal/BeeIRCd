@@ -142,6 +142,11 @@ the same nick taken on both sides); rejoin by autoconnect, the topic
 arrives, the newer nick is renamed and both users stay, all three servers
 show the same channel; clean-up.
 
+**Rogue-server tests** (`go test ./internal/server -run TestRogueServerSpoofs`,
+2g): 26 lines a linked server has no right to send (speaking for a user
+on another server, services commands from a plain server, CHG*/SA* from a
+non-oper); none may change anything or reach anyone.
+
 **Two-machine install** (`scripts/linkmachines.sh <beeircd> <installcheck>
 [image]`, LXD): installs a hub, then a leaf with only what the hub's
 installer printed (fingerprint) and its cloak secret, pastes the block the

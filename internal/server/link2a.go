@@ -532,6 +532,9 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		}
 		return ""
 	}
+	if !s.linkGate(l, m) {
+		return
+	}
 	switch m.Command {
 	case "PING":
 		if dest := param(1); dest == "" || strings.EqualFold(dest, s.cfg.Server.Name) || dest == s.cfg.Server.SID {
