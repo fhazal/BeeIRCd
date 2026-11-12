@@ -66,6 +66,9 @@ func (s *Server) linkMD(l *linkConn, m irc.Message) {
 		return
 	}
 	r := s.serverByName(m.Params[1])
+	if r == nil {
+		r = s.links.servers[m.Params[1]] // UnrealIRCd names it by SID in a burst
+	}
 	if r == nil || r.via != l {
 		return
 	}

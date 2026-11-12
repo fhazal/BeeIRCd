@@ -176,3 +176,16 @@ func TestLinkNickAndRealnameBans(t *testing.T) {
 		t.Errorf("got %q", l)
 	}
 }
+
+// UnrealIRCd passes Anope's saslmechlist on with the services SID as the
+// target ("MD client 00B saslmechlist ..."), seen on the prod link test.
+func TestLinkSASLServerBySID(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	leaf.s.onLoop(func() { leaf.s.links.saslServer = "" })
+	leaf.fromLink(t, ":"+hub.sid+" MD client 9HB saslmechlist :EXTERNAL,PLAIN")
+	var got string
+	leaf.s.onLoop(func() { got = leaf.s.saslTarget() })
+	if got != "services.test.local" {
+		t.Errorf("sasl server %q", got)
+	}
+}
