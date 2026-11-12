@@ -59,6 +59,8 @@ y
 		get / | grep -q "<title>Hive Panel</title>" && get /api/status | head -1 | grep -q " 401 " && echo "panel answers, its API needs a sign-in"' || { echo "FAIL hive panel http"; fail=1; }
 	echo "--- backup timer runs"
 	lxc exec "$name" -- sh -c 'systemctl start beeircd-backup.service && ls /var/lib/beeircd/backups' || fail=1
+	echo "--- Hive Panel backup download (beeircd-web reads the backup folder)"
+	lxc exec "$name" -- /root/installcheck -panel 127.0.0.1:8787 -admin Bee -pass "$pw" || { echo "FAIL hive panel backup download"; fail=1; }
 	echo "--- backup to a path of your own (the locked-down server can't write /root)"
 	lxc exec "$name" -- sh -c 'beeircd backup /root/mine.tar.gz && tar -tzf /root/mine.tar.gz && ! ls -A /var/lib/beeircd/backups | grep -q named' || { echo "FAIL backup to /root"; fail=1; }
 	echo "--- stop, then start (check runs while stopped)"

@@ -1,6 +1,7 @@
 // Command installcheck tests a fresh `beeircd install` from inside the
 // machine: both ports answer, a nick registers with NickServ, and the
-// admin can /oper. Used by scripts/cleanmachine.sh.
+// admin can /oper. With -panel it tests the Hive Panel's backup download.
+// Used by scripts/cleanmachine.sh.
 //
 //	installcheck -plain 127.0.0.1:6667 -tls 127.0.0.1:6697 -admin Bee -pass <oper password>
 package main
@@ -25,8 +26,12 @@ func main() {
 	skipReg := flag.Bool("again", false, "the nick is registered already (after a restart): IDENTIFY instead")
 	serve := flag.String("serve", "", "serve this folder over HTTP on -addr instead (a release folder for the update test)")
 	addr := flag.String("addr", "127.0.0.1:8099", "address for -serve")
+	panel := flag.String("panel", "", "sign in to the Hive Panel at this host:port as -admin and test backup download instead")
 	watch := flag.String("watch", "", "stay connected to this plain host:port and print the server's goodbye (ERROR line)")
 	flag.Parse()
+	if *panel != "" {
+		os.Exit(panelCheck(*panel, *admin, *pass))
+	}
 	if *watch != "" {
 		c, err := dial(*watch, false)
 		if err == nil {
