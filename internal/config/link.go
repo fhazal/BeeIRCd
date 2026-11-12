@@ -27,6 +27,10 @@ type Link struct {
 	Key  string `toml:"key"`
 	// Servers are the [[link.server]] blocks, one per server we link with.
 	Servers []LinkServer `toml:"server"`
+	// RemoteAdmin lets admins on the services server run AdminServ
+	// commands here over the link (/as server <name> ...). Off by
+	// default, so whoever runs this server keeps the last word.
+	RemoteAdmin bool `toml:"remote_admin"`
 }
 
 // LinkServer is one [[link.server]] block, like UnrealIRCd's link { }.
@@ -90,6 +94,31 @@ func (c *Config) setLinkDefaults() {
 	}
 }
 
+// ServicesServer is the pseudo-server the services bots sit on when this
+// server runs services and links: name and SID, ok false otherwise. The
+// defaults are services.<our domain> and our SID with 9 (or 8) first.
+func (c *Config) ServicesServer() (name, sid string, ok bool) {
+	if !c.Services.On() || !c.Link.Linked() {
+		return "", "", false
+	}
+	name, sid = c.Services.ServerName, c.Services.ServerSID
+	if name == "" {
+		labels := strings.Split(c.Server.Name, ".")
+		if len(labels) >= 3 {
+			labels = labels[1:]
+		}
+		name = "services." + strings.Join(labels, ".")
+	}
+	if sid == "" && len(c.Server.SID) == 3 {
+		first := "9"
+		if c.Server.SID[0] == '9' {
+			first = "8"
+		}
+		sid = first + c.Server.SID[1:]
+	}
+	return name, sid, true
+}
+
 func (c *Config) checkLink() error {
 	ok := false
 	for _, r := range LinkRoles {
@@ -117,6 +146,18 @@ func (c *Config) checkLink() error {
 	if len(c.Link.Servers) > 0 && !c.Link.Linked() {
 		return fmt.Errorf("[[link.server]] blocks need [link] role hub or leaf")
 	}
+	if name, sid, ok := c.ServicesServer(); ok {
+		switch {
+		case !ValidServerName(name) || !strings.Contains(name, "."):
+			return fmt.Errorf("[services] server_name %q must be a server name like services.example.net", name)
+		case strings.EqualFold(name, c.Server.Name):
+			return fmt.Errorf("[services] server_name must differ from [server] name")
+		case !sidRe.MatchString(sid):
+			return fmt.Errorf("[services] server_sid %q must be a digit and two capital letters or digits", sid)
+		case sid == c.Server.SID:
+			return fmt.Errorf("[services] server_sid must differ from [server] sid")
+		}
+	}
 	seen := map[string]bool{}
 	for _, s := range c.Link.Servers {
 		if err := s.check(c.Server.Name); err != nil {
@@ -129,6 +170,9 @@ func (c *Config) checkLink() error {
 	}
 	return nil
 }
+
+// Check reports what is wrong with a block for a server named self.
+func (s LinkServer) Check(self string) error { return s.check(self) }
 
 func (s LinkServer) check(self string) error {
 	switch {

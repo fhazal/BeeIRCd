@@ -168,10 +168,12 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	s.svc = svc
 	svc.OnSecretDone(s.releaseHeld)
 	svc.OnBanChange(s.linkBanChanged)
+	svc.OnOperData(s.syncQlines)
 	s.sinks = append(s.sinks, svc.Event)
 	svc.Start()
 	s.adminServ = svc.AddBot("AdminServ", "as", "Admin Services",
 		"AdminServ changes the server while it runs; changes are saved to beeircd.conf. Commands:", 'a', s.adminServCommands())
+	svc.AddCommands("OperServ", s.operServExtras())
 	svc.SyncLogChannel("")
 	if cfg.Services.Admin != "" && len(cfg.Services.AdminHosts) == 0 {
 		logger.Printf("warning: [services] admin_hosts is empty, so the admin %s may /oper from any host (with the oper password)", cfg.Services.Admin)

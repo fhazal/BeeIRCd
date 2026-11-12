@@ -62,6 +62,11 @@ type Kill struct{ Source, UID, Reason string }
 // no KILL line to the user. UID may be a nick.
 type SvsKill struct{ Source, UID, Reason string }
 
+// SvsJoin and SvsPart are services putting a user in or out of channels
+// (UnrealIRCd SVSJOIN / SVSPART); the user's own server does it.
+type SvsJoin struct{ Source, UID, Channel, Key string }
+type SvsPart struct{ Source, UID, Channel, Reason string }
+
 // Codec writes and reads the network for one protocol, after the
 // handshake.
 type Codec interface {

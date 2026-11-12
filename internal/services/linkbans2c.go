@@ -14,7 +14,7 @@ import (
 // network ban).
 
 // LinkedBanKinds are the kinds that travel between servers.
-var LinkedBanKinds = []string{store.BanAkill, store.BanZline, store.BanShun, store.BanEline}
+var LinkedBanKinds = []string{store.BanAkill, store.BanZline, store.BanShun, store.BanEline, store.BanSNLine}
 
 func linked(kind string) bool {
 	for _, k := range LinkedBanKinds {
@@ -28,6 +28,22 @@ func linked(kind string) bool {
 // OnBanChange sets what runs after a linked network ban went on (add) or
 // off. Expiry is not a change: every server drops a ban at its time.
 func (s *Services) OnBanChange(f func(b store.NetBan, add bool)) { s.banHook = f }
+
+// OnOperData sets what runs after the bans, forbids and the rest were
+// (re)loaded: the server sends nick bans (SQLINE) to its links.
+func (s *Services) OnOperData(f func()) { s.operHook = f }
+
+// NickForbids are the live FORBID NICK entries (= SQLINE).
+func (s *Services) NickForbids() []store.Forbid {
+	now := time.Now()
+	var out []store.Forbid
+	for _, f := range s.forbids[store.ForbidNick] {
+		if f.Expires.IsZero() || now.Before(f.Expires) {
+			out = append(out, f)
+		}
+	}
+	return out
+}
 
 // LinkedBans are the bans in force that travel between servers.
 func (s *Services) LinkedBans() []store.NetBan {

@@ -29,6 +29,10 @@ func (s *Server) cmdAuthenticate(c *Client, m irc.Message) {
 		return
 	}
 	arg := m.Params[0]
+	if s.svc.Off() {
+		s.saslRelay(c, arg) // services run on another server
+		return
+	}
 	if arg == "*" {
 		c.resetSASL()
 		s.reply(c, irc.ErrSaslAborted, "SASL authentication aborted")

@@ -37,6 +37,10 @@ type User struct {
 	TLS       bool
 	CertFP    string // SHA-256 of the TLS client certificate, lower case hex ("" = none)
 	Service   bool   // NickServ and the other built-in services
+	// OperClass and OperFlags are what a user's own server says about
+	// their oper status (users on other servers; ours keep it on the
+	// client), so services here know what they may do.
+	OperClass, OperFlags string
 	// Cloak is the host +x shows, for users on other servers: their
 	// server made it (2c). Ours are made on the spot (cloakFor).
 	Cloak    string
@@ -368,6 +372,16 @@ func NewNetwork(sid string) *Network {
 const uidChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 // NextUID returns a new user ID: the server ID plus 6 characters.
+// UIDOf is the UID number v of server sid (SID + 6 characters).
+func UIDOf(sid string, v int) string {
+	id := make([]byte, 6)
+	for i := 5; i >= 0; i-- {
+		id[i] = uidChars[v%36]
+		v /= 36
+	}
+	return sid + string(id)
+}
+
 func (n *Network) NextUID() string {
 	v := n.next
 	n.next++

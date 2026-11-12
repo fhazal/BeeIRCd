@@ -385,6 +385,11 @@ type Services struct {
 	// (on by default). A network has one services server: set false on
 	// the others, they use the hub's over the link (Stage 2c/2d).
 	Enabled *bool `toml:"enabled"`
+	// ServerName and ServerSID are the pseudo-server the bots sit on when
+	// this server links (services.<domain> and our SID with 9 first by
+	// default). UnrealIRCd servers U-line this name.
+	ServerName string `toml:"server_name"`
+	ServerSID  string `toml:"server_sid"`
 	// Database is the SQLite file with accounts, nicks and memos.
 	Database string `toml:"database"`
 	// NickExpire drops accounts nobody identified to for this long.

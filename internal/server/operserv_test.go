@@ -598,7 +598,7 @@ func TestAdminServPorts(t *testing.T) {
 	b.send("AS PORT DEL 1")
 	b.expect(asLine("Boss", "No open port 1. See them: /as port list"))
 	b.send("AS SERVER LIST")
-	b.expect(asLine("Boss", "Linking BeeIRCd servers comes in Stage 2. This server runs on its own for now."))
+	b.expect(asLine("Boss", "This server doesn't link ([link] role = standalone); set role hub or leaf and restart first."))
 }
 
 func TestAdminServRestartAndDie(t *testing.T) {

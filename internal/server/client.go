@@ -53,6 +53,8 @@ type Client struct {
 	saslMech    string   // SASL mechanism in progress
 	saslBuf     strings.Builder
 	saslBusy    bool
+	saslSeq     int               // counts relayed logins, so an old timeout is ignored
+	adminFrom   string            // stand-in running AdminServ for an admin on that server
 	saslAccount *store.Account    // SASL done before registration finished
 	certfp      string            // SHA-256 of the TLS client certificate, "" = none
 	monitor     map[string]string // MONITOR list: folded nick -> nick as given

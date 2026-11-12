@@ -248,6 +248,7 @@ difference is a warning to opers, not a refusal.
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `enabled` | `true` | Run NickServ, ChanServ and the other bots here. A network has **one** services server: set `false` on every other BeeIRCd; their users reach the services server's bots over the link (`/ns`, `/cs` ... work as before). Two linked servers that both run services are refused, and so is a link to an UnrealIRCd network that has its own services (Anope) while ours run (restart) |
+| `server_name`, `server_sid` | `services.<domain>`, our SID with `9` first | The pseudo-server the bots sit on when this server links (`irc.example.net` gives `services.example.net`; SID `0BE` gives `9BE`). UnrealIRCd servers U-line this name. Not used when standalone (restart) |
 | `database` | `/var/lib/beeircd/services.db` | Accounts, nicks, channels, memos, bans (restart). With services off it still keeps the network bans that arrive over links |
 | `admin` | – | The admin's account: every oper flag, can't be changed from IRC |
 | `admin_password` | – | argon2id hash from `beeircd mkpasswd`. Empty: the admin sets it with the first `/oper` while identified |
@@ -392,9 +393,10 @@ that class.
 ### [link]
 
 Server linking is being built (Stage 2, v1.1). Servers link, keep the
-server tree and exchange every user and channel when they link (2b);
-live changes over links follow in 2c, network bans in 2d. BeeIRCd speaks
-the UnrealIRCd 6 server protocol, so it links with BeeIRCd and UnrealIRCd 6.
+server tree and exchange every user and channel when they link (2b),
+pass on every change and the network bans (2c), and share one set of
+services (2d). BeeIRCd speaks the UnrealIRCd 6 server protocol, so it
+links with BeeIRCd and UnrealIRCd 6.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
@@ -402,6 +404,7 @@ the UnrealIRCd 6 server protocol, so it links with BeeIRCd and UnrealIRCd 6.
 | `address` | all addresses | IP the link port listens on, like `127.0.0.1` (restart) |
 | `port` | `7000` for hub/leaf | TLS port for server links (restart) |
 | `cert`, `key` | next to services.db | This server's link certificate, made at the first start as a hub or leaf and never renewed, so its fingerprint stays the same. It is in every backup |
+| `remote_admin` | `false` | Let admins on other servers run AdminServ commands here (`/as server <this server> SET ...`) and use this server's AdminServ. Off: only people on this server change it; `SERVER <name> STATUS` (read-only) works either way |
 
 Each server we link with gets a `[[link.server]]` block. These apply on
 `beeircd rehash`; removing one drops that link.
@@ -414,6 +417,39 @@ Each server we link with gets a `[[link.server]]` block. These apply on
 | `host`, `port` | –, `7000` | Where to connect; no host = it connects to us |
 | `autoconnect` | `false` | Keep connecting while the link is down (10 s after a lost link, then 30 s doubling to 5 min) |
 | `sendq_mb` | `20` | How much may wait for the link before it is dropped |
+
+**Services on a linked network.** One server runs services (the hub,
+usually); every other BeeIRCd has `[services] enabled = false`. On the
+services server the bots sit on their own pseudo-server,
+`services.<domain>` (see `server_name`), linked behind it. People on any
+server use them as usual: `/ns`, `/cs` ..., SASL (relayed to the
+services server, `904 ... services are unavailable` while it is not
+linked), AJOIN, oper rights (each server says who its opers are and with
+which flags; an UnrealIRCd oper gets the flags of its oper class:
+netadmin, admin, globop, locop). Network bans, SQLINE (sent as UnrealIRCd
+Q-lines) and DEFCON apply everywhere; SNLINE reaches BeeIRCd servers only
+(UnrealIRCd has no realname ban to send it as).
+
+**Linking an UnrealIRCd 6 server** to a BeeIRCd that runs services: give
+it a `link` block with our fingerprint (`beeircd link-info` prints it),
+and U-line the services server and name it, or SASL stays off there:
+
+    ulines { services.example.net; }
+    set { services-server "services.example.net"; }
+
+A BeeIRCd with services off can also link to an UnrealIRCd network that
+runs Anope: logins (SASL) go to Anope.
+
+**Oper tools for links.** OperServ `STATS UPLINK` (each link, its lag
+and software), `JUPE <server> [reason]` / `JUPE LIST` / `JUPE DEL`
+(blocks a server name, splits it if linked), `NOOP SET|REVOKE <server>`
+(nobody may be an IRC operator there), `DEFCON 1-5`, and `SERVER LIST |
+ADD | SET | DEL | LINK | UNLINK` (writes the `[[link.server]]` blocks,
+also in AdminServ). AdminServ `SERVER <name> STATUS` and
+`SERVER <name> <command>` run on another BeeIRCd (SET, MOTD, OPER, CLASS,
+SHOW, HISTORY, DIFF, UNDO, DNSBL; it needs `remote_admin = true` there;
+ports, restarts and link blocks are changed in that server's shell). Each
+remote change is logged on both servers with who and what.
 
 `beeircd link-info` prints this server's fingerprint and the blocks the
 other side needs. Links use TLS 1.2+ only; plain links are never accepted.

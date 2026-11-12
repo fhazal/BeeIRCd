@@ -161,6 +161,9 @@ func (s *Services) csChanOper(c *Client, name string) (reg *store.Channel, asOpe
 }
 
 func csRegister(s *Services, c *Client, args []string) {
+	if s.defconBlocks(c, s.chanServ, 4) {
+		return
+	}
 	u := c.user
 	name := argAt(args, 0)
 	if c.accountID == 0 {

@@ -101,6 +101,10 @@ func (h host) OperFlags(uid string) string {
 	if c := h.s.clients[uid]; c != nil {
 		return c.operFlags
 	}
+	if u := h.s.net.UserByUID(uid); u != nil && u.Modes['o'] {
+		// An oper on another server; "o" = oper, nothing more known.
+		return orStr(u.OperFlags, "o")
+	}
 	return ""
 }
 
@@ -138,12 +142,18 @@ func (h host) ApplySetting(uid, botUID, key, value string) {
 func (h host) Post(f func()) { h.s.post(f) }
 
 func (h host) Stats() services.HostStats {
-	return services.HostStats{Started: h.s.created, PeakUsers: h.s.maxLocal, Loop: h.s.loop.summary(), DNSBL: h.s.dnsblSummary()}
+	return services.HostStats{Started: h.s.created, PeakUsers: h.s.maxLocal, Loop: h.s.loop.summary(), DNSBL: h.s.dnsblSummary(), Links: h.s.uplinkLines()}
 }
 
 // botReply sends a notice from a service bot to c.
 func (s *Server) botReply(c *Client, bot *state.User, text string) {
-	if c.user != nil {
+	switch {
+	case c.user == nil:
+	case c.adminFrom != "" || bot == nil || bot.UID == "":
+		// AdminServ run from another server, or no bot here: a notice
+		// from this server says which one answers.
+		host{s}.ServerNotice(c.uid, "["+s.cfg.Server.Name+" AdminServ] "+text)
+	default:
 		s.svc.Reply(bot, c.uid, text)
 	}
 }
@@ -212,6 +222,10 @@ func (h host) JoinBlocked(uid, channel, key string) (string, bool) {
 func (h host) ForceJoin(uid, channel string) {
 	s := h.s
 	c := s.clients[uid]
+	if c == nil && s.net.UserByUID(uid) != nil {
+		s.svsJoinRemote(uid, channel) // on another server: it joins them
+		return
+	}
 	if c == nil || c.user == nil {
 		return
 	}

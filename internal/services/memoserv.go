@@ -118,6 +118,9 @@ func (s *Services) boxDelete(b *memoBox, id int64) error {
 }
 
 func msSend(s *Services, c *Client, args []string) {
+	if !c.isOper() && s.defconBlocks(c, s.memoServ, 3) {
+		return
+	}
 	from, ok := s.msIdentified(c)
 	if !ok {
 		return

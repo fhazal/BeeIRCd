@@ -26,6 +26,8 @@ var operServAliases = map[string]string{
 
 func operServCommands() map[string]svcCmd {
 	return map[string]svcCmd{
+		"DEFCON": {"DEFCON [1|2|3|4|5]", "lock the network down in steps",
+			"DEFCON alone shows the level; DEFCON <n> sets it (flag a). 5 is normal.\n4  no new nick or channel registrations\n3  also no new memos (opers still may)\n2  also: people who connect now are disconnected\n1  also: services answer IRC operators only\nEveryone gets a Global notice when it changes.", osDefcon},
 		"STATS": {"STATS [AKILL | HASH | UPLINK | UPTIME | ALL | RESET]", "people, channels, opers, uptime",
 			"STATS alone shows how busy the network is. AKILL counts the network bans,\nHASH the size of the tables, UPLINK the server links, UPTIME people and\nuptime; ALL shows everything. RESET makes the people peak the number online\nnow. Any oper.", osStats},
 		"GLOBAL": {"GLOBAL <text>", "a notice to everyone",
@@ -165,7 +167,12 @@ func osStats(s *Services, c *Client, args []string) {
 			len(s.net.Users()), s.net.ChannelCount(), regChans, nicks, accounts, len(s.clients))
 	}
 	if extra == "UPLINK" || extra == "ALL" {
-		s.os(c, "Uplink: none, %s runs on its own (linking comes in Stage 2).", s.cfg.Server.Name)
+		if len(hs.Links) == 0 {
+			s.os(c, "Uplink: none, %s is not linked to any server.", s.cfg.Server.Name)
+		}
+		for _, line := range hs.Links {
+			s.os(c, "%s", line)
+		}
 	}
 	if extra == "UPTIME" {
 		s.os(c, "Current users: %d (%d ops)", people, opers)

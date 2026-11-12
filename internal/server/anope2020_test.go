@@ -144,7 +144,7 @@ func TestOperServ2020(t *testing.T) {
 	b.send("OS STATS UPTIME")
 	b.expect(osLine("Boss", "Current users: 2 (1 ops)"))
 	b.send("OS STATS UPLINK")
-	b.expect(osLine("Boss", "Uplink: none, irc.test.local runs on its own"))
+	b.expect(osLine("Boss", "Uplink: none, irc.test.local is not linked to any server."))
 	b.send("OS STATS HASH")
 	b.expect(osLine("Boss", "Tables (entries): users "))
 	b.send("OS STATS bogus")

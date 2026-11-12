@@ -97,7 +97,7 @@ func TestLinkLiveTree(t *testing.T) {
 	hub.start(t)
 	a.start(t)
 	b.start(t)
-	waitLink(t, "tree", func() bool { return len(a.servers()) == 2 && len(b.servers()) == 2 })
+	waitLink(t, "tree", func() bool { return len(a.servers()) == 3 && len(b.servers()) == 3 })
 	ann := login(t, a.s, "ann")
 	ben := login(t, b.s, "ben")
 	a.seen(t, "ben")
@@ -124,12 +124,12 @@ func TestLinkServicesOnHub(t *testing.T) {
 	bob := login(t, leaf.s, "bob")
 	hub.seen(t, "bob")
 	bob.send("NS REGISTER " + pw)
-	bob.expect(":NickServ!services@hub.test.local NOTICE bob :bob is now registered to you.")
+	bob.expect(":NickServ!services@services.test.local NOTICE bob :bob is now registered to you.")
 	bob.expect(" 900 bob ")
 	bob.expect("MODE bob +r")
 	waitLink(t, "account on the leaf", func() bool { u := leaf.user("bob"); return u != nil && u.Account == "bob" })
 	bob.send("PRIVMSG ChanServ :HELP")
-	bob.expect(":ChanServ!services@hub.test.local NOTICE bob :")
+	bob.expect(":ChanServ!services@services.test.local NOTICE bob :")
 
 	// The hub's services kill someone on the leaf.
 	carol := login(t, leaf.s, "carol")

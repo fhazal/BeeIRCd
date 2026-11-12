@@ -140,7 +140,9 @@ func TestLinkHubLeaf(t *testing.T) {
 	leaf.expects(hub, true, "s3cret")
 	hub.start(t)
 	leaf.start(t)
-	waitLink(t, "the link", func() bool { return len(hub.servers()) == 1 && len(leaf.servers()) == 1 })
+	waitLink(t, "the link", func() bool {
+		return len(hub.servers()) == 1 && len(leaf.servers()) == 2 && leaf.servers()["9HB"] == "services.test.local"
+	})
 	if got := hub.servers()["0LF"]; got != "leaf.test.local" {
 		t.Errorf("hub knows %v", hub.servers())
 	}

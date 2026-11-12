@@ -27,11 +27,22 @@ func (s *Server) behind(l *linkConn, sid string) bool {
 	return r != nil && r.via == l
 }
 
+// userHops is the hop count sent for a user of server sid.
+func (s *Server) userHops(sid string) int {
+	if si, ok := s.servicesInfo(); ok && sid == si.SID {
+		return 2
+	}
+	return s.hopsOf(sid) + 1
+}
+
 // serverDescription is a server's description: ours, or a linked one's
 // (WHOIS 312).
 func (s *Server) serverDescription(name string) string {
 	if r := s.serverByName(name); r != nil {
 		return r.desc
+	}
+	if si, ok := s.servicesInfo(); ok && strings.EqualFold(si.Name, name) {
+		return si.Description
 	}
 	return s.cfg.Server.Description
 }
@@ -65,11 +76,7 @@ func (s *Server) burstBody(l *linkConn) []string {
 		if s.behind(l, sid) {
 			continue
 		}
-		hops := 1
-		if r := s.links.servers[sid]; r != nil {
-			hops = r.hops + 1
-		}
-		out = append(out, cd.User(s.linkUser(u, hops), sid)...)
+		out = append(out, cd.User(s.linkUser(u, s.userHops(sid)), sid)...)
 		if u.Away != "" {
 			out = append(out, cd.Away(u.UID, u.Away))
 		}
@@ -162,6 +169,10 @@ func (s *Server) linkItem(l *linkConn, m irc.Message) bool {
 		s.remoteKill(l, it)
 	case *link.SvsKill:
 		s.remoteSvsKill(l, it)
+	case *link.SvsJoin:
+		s.remoteSvsJoin(l, m, it)
+	case *link.SvsPart:
+		s.remoteSvsPart(l, m, it)
 	default:
 		return s.linkLive(l, m, it)
 	}

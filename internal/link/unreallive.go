@@ -235,7 +235,7 @@ func (c *unrealCodec) decodeLive(m irc.Message) any {
 		if acc == "0" || acc == "*" {
 			acc = ""
 		}
-		return &Login{Source: m.Source, UID: p[1], Account: acc}
+		return &Login{Source: m.Source, Target: p[0], UID: p[1], Account: acc}
 	case "SETHOST":
 		if len(p) < 1 {
 			return nil
@@ -332,8 +332,9 @@ func (c *unrealCodec) decodeBan(src string, p []string) any {
 	if len(p[1]) != 1 || (p[0] != "+" && p[0] != "-") {
 		return nil
 	}
-	switch b.Type {
-	case BanGline, BanGZline, BanShun, BanException:
+	switch {
+	case b.Type == BanGline, b.Type == BanGZline, b.Type == BanShun, b.Type == BanException, b.Type == BanQline:
+	case b.Type == BanRealname && c.bee:
 	default:
 		b.Unsupported = true
 		return b

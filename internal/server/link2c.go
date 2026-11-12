@@ -102,7 +102,31 @@ func (s *Server) linkOut(ev state.Event, org *linkOrigin) {
 func isSID(x string) bool { return len(x) == 3 && link.ValidSID(x) }
 
 // ours reports whether uid is a user on this server.
-func (s *Server) ours(uid string) bool { return uidServer(uid) == s.cfg.Server.SID }
+// The services bots count as ours: their pseudo-server hangs off us.
+func (s *Server) ours(uid string) bool {
+	sid := uidServer(uid)
+	if sid == s.cfg.Server.SID {
+		return true
+	}
+	_, ssid, ok := s.cfg.ServicesServer()
+	return ok && sid == ssid
+}
+
+// servicesInfo is the services pseudo-server, when there is one.
+func (s *Server) servicesInfo() (link.ServerInfo, bool) {
+	name, sid, ok := s.cfg.ServicesServer()
+	// Not "synced" in the burst: its EOS follows the SASL announcement
+	// (saslAnnounce), which is when UnrealIRCd looks for a SASL server.
+	return link.ServerInfo{Name: name, SID: sid, Description: "BeeIRCd Services", Uplink: s.cfg.Server.SID, Hops: 1}, ok
+}
+
+// hopsOf is how far server sid is from us (1 = linked to us).
+func (s *Server) hopsOf(sid string) int {
+	if r := s.links.servers[sid]; r != nil {
+		return r.hops
+	}
+	return 0
+}
 
 // srcOr is uid when it is a user, else the server source.
 func srcOr(uid, server string) string {
@@ -120,11 +144,7 @@ func (s *Server) linkLines(o *linkConn, ev state.Event, src string, from *linkCo
 	case *state.UserAdd:
 		u := e.User
 		sid := uidServer(u.UID)
-		hops := 1
-		if r := s.links.servers[sid]; r != nil {
-			hops = r.hops + 1
-		}
-		out := cd.User(s.linkUser(u, hops), sid)
+		out := cd.User(s.linkUser(u, s.userHops(sid)), sid)
 		if u.Away != "" {
 			out = append(out, cd.Away(u.UID, u.Away))
 		}
@@ -314,7 +334,9 @@ func (s *Server) linkLive(l *linkConn, m irc.Message, item any) bool {
 	case *link.UMode:
 		s.remoteUMode(l, it)
 	case *link.Login:
-		if u := s.userByUIDOrNick(it.UID); u != nil && u.Account != it.Account {
+		if u := s.userByUIDOrNick(it.UID); u == nil {
+			s.remoteLogin(l, m.String(), it.Target, it.UID, it.Account)
+		} else if u.Account != it.Account {
 			s.emitFrom(l, m.Source, &state.Login{UID: u.UID, Account: it.Account})
 		}
 	case *link.Host:

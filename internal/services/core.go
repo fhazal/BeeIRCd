@@ -84,7 +84,8 @@ type HostStats struct {
 	Started   time.Time
 	PeakUsers int
 	Loop      string
-	DNSBL     string // hits per DNSBL list, "" when none is set up
+	DNSBL     string   // hits per DNSBL list, "" when none is set up
+	Links     []string // one line per server link, for STATS UPLINK
 }
 
 // Services is the running services.
@@ -95,11 +96,15 @@ type Services struct {
 	// People use the services server's bots over the link (Stage 2c).
 	off bool
 
-	host  Host
-	cfg   *config.Config
-	log   *log.Logger
-	net   *state.Network
-	store *store.Store
+	host Host
+	cfg  *config.Config
+	// botSeq numbers bots on the services pseudo-server.
+	botSeq int
+	// defcon is OperServ DEFCON (0 = 5, normal).
+	defcon int
+	log    *log.Logger
+	net    *state.Network
+	store  *store.Store
 
 	// secretDone runs on the loop (as a new job) after every password
 	// check or hash finished, so the server can go on with that client's
@@ -123,6 +128,7 @@ type Services struct {
 	netbans        []store.NetBan
 	bansLoaded     bool                           // the first load is no change
 	banHook        func(b store.NetBan, add bool) // see OnBanChange
+	operHook       func()                         // see OnOperData
 	banRegexps     map[string]*regexp.Regexp      // compiled SNLINE /regex/ masks
 	news           []store.News
 	sessionExcepts []store.SessionExcept
@@ -280,6 +286,9 @@ func (s *Services) handle(ev state.Event) {
 // connected runs once a new person is on the network: an account they
 // logged in to with SASL first, then the nick check.
 func (s *Services) connected(c *Client) {
+	if s.defconNewUser(c) {
+		return
+	}
 	if c.user.Account != "" {
 		if a, err := s.store.AccountByNick(c.user.Account); err == nil && a != nil {
 			c.accountID = a.ID

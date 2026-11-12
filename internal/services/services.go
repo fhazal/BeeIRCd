@@ -107,6 +107,11 @@ func (s *Services) addService(nick, alias, realname, intro string, cmds map[stri
 		SignOn:   s.host.Stats().Started,
 		Service:  true,
 	}
+	if name, sid, ok := s.cfg.ServicesServer(); ok {
+		// Linked: the bots sit on their own pseudo-server behind us.
+		u.UID, u.Server, u.Host, u.RealHost = state.UIDOf(sid, s.botSeq), name, name, name
+		s.botSeq++
+	}
 	if s.off {
 		u.UID = "" // never on the network: another server runs services
 	} else if err := s.emit(&state.UserAdd{User: u}); err != nil {
@@ -153,6 +158,8 @@ func (s *Services) toService(c *Client, sv *service, text string) {
 		return
 	case sv.alias == "":
 		s.svcReply(c, sv, sv.intro)
+		return
+	case s.defconOperOnly(c, sv):
 		return
 	}
 	if name == "HELP" {

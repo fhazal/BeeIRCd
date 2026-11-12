@@ -91,10 +91,12 @@ func (s *Server) operUp(c *Client, o *store.Oper) {
 	if u.Modes['o'] {
 		if was != v.flags {
 			s.notice(c, "*** Your oper flags are now "+describeFlags(v.flags))
+			s.linkOperInfo(nil, u.UID, v.class, v.flags)
 		}
 		return
 	}
 	s.emit(&state.UserMode{UID: u.UID, Changes: umodes(true, "os")})
+	s.linkOperInfo(nil, u.UID, v.class, v.flags)
 	s.reply(c, irc.RplYoureOper, "You are now an IRC operator")
 	if v.class != "" {
 		s.notice(c, "*** Oper class "+v.class+": "+describeFlags(v.flags))
@@ -126,6 +128,7 @@ func (s *Server) deoper(c *Client, why string) {
 		}
 	}
 	s.emit(&state.UserMode{UID: u.UID, Changes: umodes(false, gone)})
+	s.linkOperInfo(nil, u.UID, "", "")
 	if why != "" {
 		s.notice(c, "*** "+why)
 	}
@@ -209,6 +212,10 @@ func (s *Server) cmdOper(c *Client, m irc.Message) {
 			as = " (" + as + ")"
 		}
 		s.notice(c, "*** You are already an IRC operator"+as+". To oper again, de-oper first: /mode "+u.Nick+" -o")
+		return
+	}
+	if s.links.noop {
+		s.reply(c, irc.ErrNoOperHost, "No IRC operators on this server for now (NOOP)")
 		return
 	}
 	a, err := s.store.AccountByNick(name)

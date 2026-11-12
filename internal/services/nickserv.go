@@ -103,6 +103,9 @@ func validEmail(e string) bool {
 }
 
 func nsRegister(s *Services, c *Client, args []string) {
+	if s.defconBlocks(c, s.nickServ, 4) {
+		return
+	}
 	u := c.user
 	if len(args) == 0 {
 		s.ns(c, "Syntax: REGISTER <password> [email]")

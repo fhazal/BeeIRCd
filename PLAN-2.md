@@ -33,6 +33,18 @@ three-server trees; services on the hub serve leaf users (replies,
 numerics, +r, account, kills). Tested against a real UnrealIRCd 6.2.7.
 Left for 2d: SVSJOIN/SVSPART (services joining people elsewhere, AJOIN),
 SASL over the link, remote WHOIS (idle time), SQLINE/SNLINE network-wide.
+2d built 12 Nov 2026 (branch stage2): services pseudo-server
+(`[services] server_name/server_sid`), SASL over links (UnrealIRCd SASL
+s2s both as client and as services; the services EOS follows the
+saslmechlist MD so UnrealIRCd detects it at once; UnrealIRCd needs
+`set::services-server`), SVSJOIN/SVSPART, SVSKILL (found on the prod link
+test), oper class/flags over links, remote WHOIS, SQLINE as Q-lines (and
+from UnrealIRCd), SNLINE between BeeIRCd servers, OperServ JUPE/NOOP/
+DEFCON/SERVER + STATS UPLINK, AdminServ SERVER incl. `/as server <name>`
+and `[link] remote_admin` (off by default; AdminServ on a server takes
+commands from people elsewhere only when it is on). Not done (later):
+remote MOTD/VERSION/ADMIN and /CONNECT /SQUIT /LINKS /MAP (2e), SASL
+mechanisms besides PLAIN/EXTERNAL, SVSNLINE from Anope.
 After 2c: `[cloak] method = "cloak_inspircd"` matches the cloak_inspircd
 UnrealIRCd module (the owner's network uses it), checked against that
 module in a real UnrealIRCd 6.2.7. A link test on the owner's production

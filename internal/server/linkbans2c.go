@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"strings"
 	"time"
 
@@ -16,10 +17,11 @@ import (
 // enforces it on its own users.
 
 var banTypes = map[string]byte{
-	store.BanAkill: link.BanGline,
-	store.BanZline: link.BanGZline,
-	store.BanShun:  link.BanShun,
-	store.BanEline: link.BanException,
+	store.BanAkill:  link.BanGline,
+	store.BanZline:  link.BanGZline,
+	store.BanShun:   link.BanShun,
+	store.BanEline:  link.BanException,
+	store.BanSNLine: link.BanRealname, // BeeIRCd links only
 }
 
 func banKind(t byte) string {
@@ -38,9 +40,12 @@ func (s *Server) banItem(b store.NetBan, add bool) *link.Ban {
 	if !b.Expires.IsZero() {
 		it.Expires = b.Expires.Unix()
 	}
-	if b.Kind == store.BanZline {
+	switch b.Kind {
+	case store.BanZline:
 		it.User, it.Host = "*", b.Mask
-	} else {
+	case store.BanSNLine:
+		it.User, it.Host = "*", base64.RawURLEncoding.EncodeToString([]byte(b.Mask))
+	default:
 		it.User, it.Host, _ = strings.Cut(b.Mask, "@")
 		if it.Host == "" {
 			it.User, it.Host = "*", b.Mask
@@ -57,6 +62,9 @@ func (s *Server) banItem(b store.NetBan, add bool) *link.Ban {
 func (s *Server) linkBanChanged(b store.NetBan, add bool) {
 	it := s.banItem(b, add)
 	for _, o := range s.upLinks(s.banFrom) {
+		if it.Type == link.BanRealname && !o.peer.Bee {
+			continue // UnrealIRCd has no realname TKL
+		}
 		for _, line := range o.codecOf().Encode(it) {
 			o.send(line)
 		}
@@ -74,13 +82,28 @@ func (s *Server) banBurst(l *linkConn) []string {
 	var out []string
 	cd := l.codecOf()
 	for _, b := range s.svc.LinkedBans() {
+		if b.Kind == store.BanSNLine && !l.peer.Bee {
+			continue
+		}
 		out = append(out, cd.Encode(s.banItem(b, true))...)
 	}
+	out = append(out, s.qlineBurst(l)...)
 	return out
 }
 
 // remoteBan is a TKL from l.
 func (s *Server) remoteBan(l *linkConn, raw irc.Message, b *link.Ban) {
+	if b.Type == link.BanQline {
+		s.remoteQline(l, raw, b)
+		return
+	}
+	if b.Type == link.BanRealname {
+		if m, err := base64.RawURLEncoding.DecodeString(b.Host); err == nil {
+			b.User, b.Host = "", string(m)
+		} else {
+			return
+		}
+	}
 	kind := banKind(b.Type)
 	if b.Unsupported || kind == "" {
 		// Nick bans, spamfilters ...: not ours to keep, but the servers
@@ -91,7 +114,7 @@ func (s *Server) remoteBan(l *linkConn, raw irc.Message, b *link.Ban) {
 		return
 	}
 	mask := b.Host
-	if kind != store.BanZline {
+	if kind != store.BanZline && kind != store.BanSNLine {
 		mask = orStr(b.User, "*") + "@" + b.Host
 	}
 	nb := store.NetBan{Kind: kind, Mask: strings.ToLower(mask), Reason: irc.Truncate(b.Reason, 200), SetBy: b.SetBy, SetAt: time.Unix(b.SetAt, 0)}
@@ -116,7 +139,7 @@ func (s *Server) remoteBan(l *linkConn, raw irc.Message, b *link.Ban) {
 // enforceBan removes our users a ban from another server hits.
 func (s *Server) enforceBan(b store.NetBan) {
 	switch b.Kind {
-	case store.BanAkill, store.BanZline:
+	case store.BanAkill, store.BanZline, store.BanSNLine:
 	default:
 		return
 	}

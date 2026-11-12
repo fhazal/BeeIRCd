@@ -44,7 +44,8 @@ func adminCommands() map[string]adminCmd {
 			"Puts back how things were before change <number> (from HISTORY): settings,\nthe MOTD, classes and oper entries. Ports are changed back with PORT ADD/DEL,\npasswords with a new one. The undo is itself a change in the history.", asUndo},
 		"DNSBL": {"DNSBL LIST | CHECK <ip> | ENABLE|DISABLE <name>", "the DNS blocklists",
 			"DNSBL LIST              the [[dnsbl]] lists of beeircd.conf, with their hits\nDNSBL CHECK <ip>        look an IP up in every list now, with its answers\nDNSBL DISABLE <name>    stop using a list until the server restarts\nDNSBL ENABLE <name>     use it again\nNew connections are looked up when they connect; LAN IPs, ELINEs and session\nexceptions are skipped. Each list says what a hit does: reject (refuse the\nconnection), or a zline, akill or shun for its ban_time.", asDnsbl},
-		"SERVER": {"SERVER ...", "linked servers (Stage 2)", "Linking BeeIRCd servers comes in Stage 2.", asServer},
+		"SERVER": {"SERVER LIST|ADD|SET|DEL|LINK|UNLINK ... | SERVER <name> STATUS|<command>", "linked servers",
+			serverHelp + "\nSERVER <name> STATUS       version, uptime, users and links of that server\nSERVER <name> <command>    run an AdminServ command there (SET, MOTD, OPER,\n                           CLASS, SHOW, HISTORY, DIFF, UNDO, DNSBL); it must\n                           allow it with [link] remote_admin = true", asServer},
 		"RESTART": {"RESTART [reason]", "restart the server",
 			"Disconnects everyone and starts the server again. You are asked to repeat it\nwith a code first.", asStop(stopRestart)},
 		"DIE": {"DIE [reason]", "stop the server",
@@ -58,10 +59,23 @@ func (s *Server) adminServCommands() map[string]services.BotCommand {
 	out := make(map[string]services.BotCommand)
 	for name, cmd := range adminCommands() {
 		run := cmd.run
+		name := name
 		out[name] = services.BotCommand{Syntax: cmd.syntax, Short: cmd.short, Long: cmd.long, Run: func(uid string, args []string) {
-			if c := s.clients[uid]; c != nil && c.user != nil {
-				run(s, c, args)
+			if c := s.clients[uid]; c != nil {
+				if c.user != nil {
+					run(s, c, args)
+				}
+				return
 			}
+			// Someone on another server: SERVER (to reach their own
+			// server) always; the rest only with [link] remote_admin.
+			s.runFor(uid, func(c *Client) {
+				if name != "SERVER" && !s.cfg.Link.RemoteAdmin {
+					s.as(c, "AdminServ on %s only takes commands from people on it ([link] remote_admin = false). For your own server: /as server <its name> <command>", s.cfg.Server.Name)
+					return
+				}
+				run(s, c, args)
+			})
 		}}
 	}
 	return out
@@ -1022,10 +1036,21 @@ func asOperList(s *Server, c *Client) {
 }
 
 func asServer(s *Server, c *Client, args []string) {
-	if !s.needFlag(c, s.adminServ, 'c') {
+	switch strings.ToUpper(argAt(args, 0)) {
+	case "", "LIST", "LINK", "UNLINK":
+	case "ADD", "SET", "DEL":
+		if !s.ours(c.uid) && !s.cfg.Link.RemoteAdmin {
+			s.as(c, "Link blocks on %s are changed by people on it ([link] remote_admin = false).", s.cfg.Server.Name)
+			return
+		}
+	default:
+		if !s.needFlag(c, s.adminServ, 'a') {
+			return
+		}
+		s.asServerOn(c, args[0], args[1:])
 		return
 	}
-	s.as(c, "Linking BeeIRCd servers comes in Stage 2. This server runs on its own for now.")
+	s.serverCmd(c, s.adminServ, args)
 }
 
 // RESTART and DIE

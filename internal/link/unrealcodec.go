@@ -246,6 +246,24 @@ func (c *unrealCodec) Decode(m irc.Message) any {
 			reason = p[len(p)-1]
 		}
 		return &SvsKill{Source: m.Source, UID: p[0], Reason: reason}
+	case "SVSJOIN", "SAJOIN":
+		if len(p) < 2 {
+			return nil
+		}
+		j := &SvsJoin{Source: m.Source, UID: p[0], Channel: p[1]}
+		if len(p) > 2 {
+			j.Key = p[2]
+		}
+		return j
+	case "SVSPART", "SAPART":
+		if len(p) < 2 {
+			return nil
+		}
+		pt := &SvsPart{Source: m.Source, UID: p[0], Channel: p[1]}
+		if len(p) > 2 {
+			pt.Reason = p[len(p)-1]
+		}
+		return pt
 	}
 	return c.decodeLive(m)
 }

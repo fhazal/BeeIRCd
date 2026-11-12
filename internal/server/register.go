@@ -129,6 +129,10 @@ func (s *Server) cmdNick(c *Client, m irc.Message) {
 		s.reply(c, irc.ErrErroneusNickname, nick, "Forbidden by the network: "+f.Reason)
 		return
 	}
+	if q, ok := s.qlineFor(nick); ok && !c.isOper() {
+		s.reply(c, irc.ErrErroneusNickname, nick, "Forbidden by the network: "+q.reason)
+		return
+	}
 	if !c.registered {
 		if s.net.NickInUse(nick) {
 			s.reply(c, irc.ErrNicknameInUse, nick, "Nickname is already in use")

@@ -38,7 +38,7 @@ type Mode struct {
 type UMode struct{ Source, UID, Modes string }
 
 // Login sets the account UID is identified to; "" logs out.
-type Login struct{ Source, UID, Account string }
+type Login struct{ Source, Target, UID, Account string }
 
 // Host changes the host others see.
 type Host struct{ Source, UID, Host string }
@@ -78,6 +78,10 @@ const (
 	BanGZline    = 'Z' // IP or CIDR
 	BanShun      = 's' // user@host
 	BanException = 'E' // user@host, exempt from the others
+	BanQline     = 'Q' // nick mask (in Host; User is "*")
+	// BanRealname is BeeIRCd-only (SNLINE): the realname mask, base64,
+	// in Host. Only sent to and read from BeeIRCd servers.
+	BanRealname = 'n'
 )
 
 // Ban is a network ban going on (Add) or off.

@@ -77,57 +77,67 @@ func (s *Server) whoLine(c *Client, channel string, u *state.User, prefix string
 }
 
 func (s *Server) cmdWhois(c *Client, m irc.Message) {
-	// "WHOIS server nick" asks a given server; there is only this one.
 	nicks := m.Params[len(m.Params)-1]
-	for _, nick := range strings.SplitN(nicks, ",", 2)[:1] {
-		u := s.net.UserByNick(nick)
-		if u == nil {
-			s.reply(c, irc.ErrNoSuchNick, nick, "No such nick/channel")
-			s.reply(c, irc.RplEndOfWhois, nick, "End of /WHOIS list.")
-			continue
+	nick := strings.SplitN(nicks, ",", 2)[0]
+	if len(m.Params) >= 2 && s.whoisElsewhere(c, m.Params[0], nick) {
+		return // "WHOIS server nick" / "WHOIS nick nick": that server answers
+	}
+	u := s.net.UserByNick(nick)
+	reply := func(code string, p ...string) { s.reply(c, code, p...) }
+	if u == nil {
+		reply(irc.ErrNoSuchNick, nick, "No such nick/channel")
+		reply(irc.RplEndOfWhois, nick, "End of /WHOIS list.")
+		return
+	}
+	s.whoisOne(c, u, reply)
+}
+
+// whoisOne answers a WHOIS on u for c (ours, or a stand-in for someone on
+// another server) through reply.
+func (s *Server) whoisOne(c *Client, u *state.User, reply func(code string, p ...string)) {
+	reply(irc.RplWhoisUser, u.Nick, u.Ident, u.Host, "*", u.Realname)
+	if chans := s.whoisChannels(c, u); chans != "" {
+		reply(irc.RplWhoisChannels, u.Nick, chans)
+	}
+	if (u == c.user || c.can('h')) && !u.Service && (u.Host != u.RealHost || u != c.user) {
+		reply(irc.RplWhoisHost, u.Nick, "is connecting from *@"+u.RealHost+" "+u.IP)
+	}
+	reply(irc.RplWhoisServer, u.Nick, u.Server, s.serverDescription(u.Server))
+	if u.Away != "" {
+		reply(irc.RplAway, u.Nick, u.Away)
+	}
+	if u.HasMode('B') {
+		reply(irc.RplWhoisBot, u.Nick, "is a Bot on "+s.cfg.Server.Network)
+	}
+	tc := s.clientOf(u)
+	switch {
+	case u.Service:
+		reply(irc.RplWhoisOperator, u.Nick, "is a Network Service")
+	case tc != nil && tc.isOper() && (!u.HasMode('H') || u == c.user || c.isOper()):
+		reply(irc.RplWhoisOperator, u.Nick, whoisOperText(tc.operTitle))
+		for _, line := range tc.operSwhois {
+			reply(irc.RplWhoisSpecial, u.Nick, line)
 		}
-		s.reply(c, irc.RplWhoisUser, u.Nick, u.Ident, u.Host, "*", u.Realname)
-		if chans := s.whoisChannels(c, u); chans != "" {
-			s.reply(c, irc.RplWhoisChannels, u.Nick, chans)
-		}
-		if (u == c.user || c.can('h')) && !u.Service && (u.Host != u.RealHost || u != c.user) {
-			s.reply(c, irc.RplWhoisHost, u.Nick, "is connecting from *@"+u.RealHost+" "+u.IP)
-		}
-		s.reply(c, irc.RplWhoisServer, u.Nick, u.Server, s.serverDescription(u.Server))
-		if u.Away != "" {
-			s.reply(c, irc.RplAway, u.Nick, u.Away)
-		}
-		if u.HasMode('B') {
-			s.reply(c, irc.RplWhoisBot, u.Nick, "is a Bot on "+s.cfg.Server.Network)
-		}
-		if u.Service {
-			s.reply(c, irc.RplWhoisOperator, u.Nick, "is a Network Service")
-		} else if tc := s.clientOf(u); tc != nil && tc.isOper() && (!u.HasMode('H') || u == c.user || c.isOper()) {
-			s.reply(c, irc.RplWhoisOperator, u.Nick, whoisOperText(tc.operTitle))
-			for _, line := range tc.operSwhois {
-				s.reply(c, irc.RplWhoisSpecial, u.Nick, line)
-			}
-		}
-		if u.Account != "" {
-			s.reply(c, irc.RplWhoisAccount, u.Nick, u.Account, "is logged in as")
-		}
-		if u.TLS {
-			s.reply(c, irc.RplWhoisSecure, u.Nick, "is using a secure connection")
-		}
-		if u.CertFP != "" && (u == c.user || c.isOper()) {
-			s.reply(c, irc.RplWhoisCertFP, u.Nick, "has client certificate fingerprint "+u.CertFP)
-		}
-		if tc := s.clientOf(u); tc != nil {
-			idle := int64(time.Since(tc.lastMsg).Seconds())
-			s.reply(c, irc.RplWhoisIdle, u.Nick, strconv.FormatInt(idle, 10), strconv.FormatInt(u.SignOn.Unix(), 10), "seconds idle, signon time")
-		}
-		s.reply(c, irc.RplEndOfWhois, u.Nick, "End of /WHOIS list.")
-		if u.HasMode('W') && u != c.user { // +W: opers see who looks them up
-			if tc := s.clientOf(u); tc != nil {
-				me := c.user
-				s.notice(tc, "*** "+me.Nick+" ("+me.TrueIdent()+"@"+me.RealHost+") did a /whois on you.")
-			}
-		}
+	case tc == nil && u.Modes['o'] && (!u.HasMode('H') || c.isOper()):
+		reply(irc.RplWhoisOperator, u.Nick, whoisOperText(""))
+	}
+	if u.Account != "" {
+		reply(irc.RplWhoisAccount, u.Nick, u.Account, "is logged in as")
+	}
+	if u.TLS {
+		reply(irc.RplWhoisSecure, u.Nick, "is using a secure connection")
+	}
+	if u.CertFP != "" && (u == c.user || c.isOper()) {
+		reply(irc.RplWhoisCertFP, u.Nick, "has client certificate fingerprint "+u.CertFP)
+	}
+	if tc != nil {
+		idle := int64(time.Since(tc.lastMsg).Seconds())
+		reply(irc.RplWhoisIdle, u.Nick, strconv.FormatInt(idle, 10), strconv.FormatInt(u.SignOn.Unix(), 10), "seconds idle, signon time")
+	}
+	reply(irc.RplEndOfWhois, u.Nick, "End of /WHOIS list.")
+	if u.HasMode('W') && u != c.user && tc != nil { // +W: opers see who looks them up
+		me := c.user
+		s.notice(tc, "*** "+me.Nick+" ("+me.TrueIdent()+"@"+me.RealHost+") did a /whois on you.")
 	}
 }
 

@@ -67,7 +67,19 @@ type linkState struct {
 	retry   map[string]*linkRetry    // by lower-case block name
 	over    []*linkConn              // send queue overflowed, drop after this job
 	debug   bool                     // BEEIRCD_LINK_DEBUG=1: log every link line
-	pending atomic.Int32             // TLS handshakes running on the link port
+	// saslServer takes SASL for our clients when services are off here
+	// (it sent MD saslmechlist); sasl are logins our services run for
+	// clients on other servers, by UID.
+	saslServer, saslMechs string
+	sasl                  map[string]*saslSession
+	// qlines are nick bans from other servers; qlineSent our own as last
+	// sent, by folded mask.
+	qlines    map[string]qline
+	qlineSent map[string]*link.Ban
+	stand     map[string]*Client // stand-ins for people elsewhere (link2d_ops.go)
+	jupes     map[string]*jupe   // OperServ JUPE, by lower-case name
+	noop      bool               // NOOP: nobody may be an IRC operator here
+	pending   atomic.Int32       // TLS handshakes running on the link port
 }
 
 type linkRetry struct {
@@ -341,6 +353,12 @@ func (s *Server) linkKnown(x string) bool {
 	if x == s.cfg.Server.SID || strings.EqualFold(x, s.cfg.Server.Name) {
 		return true
 	}
+	if si, ok := s.servicesInfo(); ok && (x == si.SID || strings.EqualFold(x, si.Name)) {
+		return true
+	}
+	if s.jupeFor(x) != nil {
+		return true
+	}
 	if s.links.servers[x] != nil {
 		return true
 	}
@@ -441,6 +459,15 @@ func (s *Server) linkUp(l *linkConn) {
 	for _, line := range l.hs.Burst(others, s.burstBody(l)) {
 		l.send(line)
 	}
+	for _, line := range s.operBurst(l) {
+		l.send(line)
+	}
+	s.saslAnnounce(l)
+	if t := s.saslTarget(); t != "" {
+		if r := s.serverByName(t); r != nil && r.via != l {
+			l.send(":" + r.sid + " MD client " + r.name + " saslmechlist :" + s.links.saslMechs)
+		}
+	}
 	s.linkBroadcast(l, fmt.Sprintf(":%s SID %s 2 %s :%s", s.cfg.Server.SID, p.Name, p.SID, p.Description))
 	dir := "they connected"
 	if l.out {
@@ -453,6 +480,10 @@ func (s *Server) linkUp(l *linkConn) {
 // l, nearest first so every uplink comes before what hangs off it.
 func (s *Server) burstServers(l *linkConn) []link.ServerInfo {
 	var out []link.ServerInfo
+	if si, ok := s.servicesInfo(); ok {
+		out = append(out, si)
+	}
+	out = append(out, s.jupeInfos()...)
 	for _, r := range s.links.servers {
 		if r.via == l {
 			continue
@@ -529,7 +560,17 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		s.dropLink(l, "they closed the link: "+param(len(m.Params)-1))
 	case "NETINFO":
 		s.linkNetinfo(l, m)
-	case "SINFO", "SMOD", "MD", "GLOBOPS", "SENDUMODE", "SENDSNO", "SLOG", "SWHOIS", "BOTMOTD", "REPUTATION":
+	case "MD":
+		s.linkMD(l, m)
+	case "SASL":
+		s.linkSASL(l, m)
+	case "WHOIS":
+		s.remoteWhois(l, m)
+	case "SVSNOOP":
+		s.remoteNoop(l, m)
+	case "BEEADMIN":
+		s.remoteAdmin(l, m)
+	case "SINFO", "SMOD", "GLOBOPS", "SENDUMODE", "SENDSNO", "SLOG", "SWHOIS", "BOTMOTD", "REPUTATION":
 		// Server info, module lists and notices for opers: nothing to do,
 		// and nothing worth a log line.
 	default:
@@ -577,6 +618,9 @@ func (s *Server) linkSQUIT(l *linkConn, m irc.Message) {
 	target, reason := m.Params[0], ""
 	if len(m.Params) > 1 {
 		reason = m.Params[len(m.Params)-1]
+	}
+	if s.squitJupe(l, target) {
+		return
 	}
 	r := s.links.servers[target]
 	if r == nil {
@@ -666,6 +710,7 @@ func (s *Server) dropLink(l *linkConn, reason string) {
 	}
 	l.closed = true
 	delete(s.links.conns, l)
+	s.dropQlinesVia(l)
 	l.netjoin.end()
 	l.send("ERROR :Closing Link: " + s.cfg.Server.Name + " (" + reason + ")")
 	l.close()
