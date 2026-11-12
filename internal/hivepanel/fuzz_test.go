@@ -13,7 +13,7 @@ import (
 // FuzzPanel throws random requests at the panel: no panic, no 500, and a
 // POST without the X-Hive header never reaches the server.
 func FuzzPanel(f *testing.F) {
-	for _, s := range []string{"/api/login", "/api/set", "/api/people?q=x&offset=-5", "/api/ban-add", "/api/oper-save", "/api/link-save", "/fonts/../app.js", "/api/live", "/"} {
+	for _, s := range []string{"/api/login", "/api/set", "/api/people?q=x&offset=-5", "/api/ban-add", "/api/oper-save", "/api/link-save", "/api/backup-get", "/fonts/../app.js", "/api/live", "/"} {
 		f.Add("POST", s, `{"name":"x","value":"1"}`, true, true)
 		f.Add("GET", s, "", false, true)
 	}

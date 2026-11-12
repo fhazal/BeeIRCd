@@ -230,6 +230,15 @@ then open <http://127.0.0.1:8787>. `beeircd install` sets it up as the
   (account and channel expiry, identify time, guest prefix, KILL QUICK /
   IMMED, how long network bans last, the log channel). Saved, applied
   and undoable like Settings.
+- **Backups** (Settings, owner only) lists the dated backups in the
+  backup folder, newest first, with who made the ones made in the panel.
+  Back up now makes one. The download button asks for your oper password
+  again first: the file holds every password hash and the server's
+  private keys, so a browser left signed in is not enough. Each download
+  (and each wrong password) goes to "What happened" and the server
+  notices. The panel reads the file itself, so the backup folder must be
+  readable by the user `beeircd-web` runs as (the installer's
+  `/var/lib/beeircd/backups` is).
 - Settings changed in the panel are saved to `beeircd.conf`, applied at
   once and kept in AdminServ HISTORY (Undo works there too). The panel's
   own "What happened" list keeps sign-ins and changes with who and from

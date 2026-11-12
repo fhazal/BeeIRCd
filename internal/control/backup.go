@@ -3,6 +3,7 @@ package control
 import (
 	"archive/tar"
 	"compress/gzip"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
@@ -138,4 +139,57 @@ func LastBackup(dir string) (time.Time, bool) {
 		return time.Time{}, false
 	}
 	return fi.ModTime(), true
+}
+
+// madeByFile notes who made the backups made in the Hive Panel. Its name
+// doesn't look like a backup, so Prune and Backups pass it by.
+const madeByFile = ".made-by.json"
+
+// IsBackupName reports whether name is a dated backup's file name (no
+// folder in it).
+func IsBackupName(name string) bool {
+	return name == filepath.Base(name) && !strings.ContainsAny(name, `/\`) &&
+		strings.HasPrefix(name, backupPrefix) && strings.HasSuffix(name, backupSuffix) &&
+		len(name) > len(backupPrefix)+len(backupSuffix)
+}
+
+func readMadeBy(dir string) map[string]string {
+	m := map[string]string{}
+	if b, err := os.ReadFile(filepath.Join(dir, madeByFile)); err == nil {
+		json.Unmarshal(b, &m)
+	}
+	return m
+}
+
+// NoteMadeBy remembers that by made the backup file (a path in dir), and
+// forgets the backups that are gone.
+func NoteMadeBy(dir, file, by string) error {
+	m := readMadeBy(dir)
+	m[filepath.Base(file)] = by
+	for n := range m {
+		if _, err := os.Stat(filepath.Join(dir, n)); err != nil || !IsBackupName(n) {
+			delete(m, n)
+		}
+	}
+	b, _ := json.Marshal(m)
+	tmp := filepath.Join(dir, madeByFile+".part")
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, filepath.Join(dir, madeByFile))
+}
+
+// ListBackups is Backups with sizes, times and who made each.
+func ListBackups(dir string) []BackupFile {
+	by := readMadeBy(dir)
+	out := []BackupFile{}
+	for _, p := range Backups(dir) {
+		fi, err := os.Stat(p)
+		if err != nil {
+			continue
+		}
+		n := filepath.Base(p)
+		out = append(out, BackupFile{Name: n, Made: fi.ModTime(), Bytes: fi.Size(), By: by[n]})
+	}
+	return out
 }

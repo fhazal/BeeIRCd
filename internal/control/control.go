@@ -64,6 +64,10 @@ const (
 	CmdChanTopic     = "chan-topic"     // Name + Value -> Done (flag s)
 	CmdChanSuspend   = "chan-suspend"   // Name + Reason + Life -> Done (flag s)
 	CmdChanUnsuspend = "chan-unsuspend" // Name -> Done (flag s)
+
+	// Backups card (3i), owner only.
+	CmdBackups   = "backups"    // -> Backups
+	CmdBackupGet = "backup-get" // Name + Password -> Backup (the file the panel may send)
 )
 
 // MaxRequest is the most bytes one request may be (the Hive Panel takes
@@ -126,6 +130,7 @@ type Response struct {
 	Links    *Links       `json:"links,omitempty"`
 	Channels *Channels    `json:"channels,omitempty"`
 	Channel  *ChannelInfo `json:"channel,omitempty"`
+	Backups  *BackupList  `json:"backups,omitempty"`
 	// Denied is set (with Error) when the oper may not do this: signed
 	// out, or missing a flag. The panel then signs them out or says so.
 	Denied string `json:"denied,omitempty"` // "signin" or "flag"
@@ -443,6 +448,22 @@ type Backup struct {
 	File  string   `json:"file"`
 	Bytes int64    `json:"bytes"`
 	Parts []string `json:"parts"`
+}
+
+// BackupList lists the dated backups in the backup folder, newest first.
+type BackupList struct {
+	Dir   string       `json:"dir"`
+	Keep  int          `json:"keep"`
+	Files []BackupFile `json:"files"`
+}
+
+// BackupFile is one dated backup. By is set for the ones made in the
+// Hive Panel ("Bee"); the others came from `beeircd backup` or its timer.
+type BackupFile struct {
+	Name  string    `json:"name"`
+	Made  time.Time `json:"made"`
+	Bytes int64     `json:"bytes"`
+	By    string    `json:"by,omitempty"`
 }
 
 // Rehash is what re-reading beeircd.conf did.

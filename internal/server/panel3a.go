@@ -12,6 +12,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -393,8 +394,16 @@ func (s *Server) panelControl(req control.Request, setDeadline func(time.Duratio
 		if err != nil {
 			return control.Response{Error: err.Error()}, true
 		}
+		if err := control.NoteMadeBy(filepath.Dir(b.File), b.File, po.Account); err != nil {
+			s.post(func() { s.log.Printf("backup: noting who made it: %v", err) })
+		}
 		s.onLoop(func() { s.panelEvent(po.Account, req.IP, "made a backup") })
 		return control.Response{Backup: b}, true
+	case control.CmdBackups:
+		return run('O', func(*control.PanelOper) { resp.Backups = s.panelBackups() }), true
+	case control.CmdBackupGet:
+		setDeadline(panelLoginWait + 5*time.Second)
+		return s.panelBackupGetWait(req), true
 	}
 	return control.Response{Error: "The Hive Panel can't do " + req.Cmd + "."}, true
 }

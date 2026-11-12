@@ -519,7 +519,6 @@
       return h('div', { class: 'act' }, h('div', { class: 'act-text' }, h('b', { text: title }), h('span', { class: 'lbl', text: text })), b, res);
     }
     const line = (cls, text) => h('div', {}, h('span', { class: 'dot ' + cls }), h('span', { text }));
-    const backupText = h('span', { class: 'lbl' });
     const updateRow = h('div', { class: 'act', hidden: true });
     actions.append(
       action('Check', 'Reads the database, changes nothing', 'Check', '/api/check', d => {
@@ -535,27 +534,21 @@
         if ((r.needs_restart || []).length) out.push(line('warn', 'Needs a restart: ' + r.needs_restart.join(', ')));
         return out;
       }));
-    if (me.owner) {
-      const b = action('Backup', '', 'Back up now', '/api/backup', d => {
-        const k = d.backup || {};
-        return [line('', 'Saved ' + (k.file || '').split(/[/\\]/).pop() + ' · ' + bytes(k.bytes || 0)), line('', (k.parts || []).join(', '))];
-      });
-      b.querySelector('.act-text').replaceChildren(h('b', { text: 'Backup' }), backupText);
-      actions.append(b);
-    }
     actions.append(updateRow);
+    const backups = me.owner ? backupsCard() : null;
 
     const el = h('div', { class: 'main-stack' },
       h('header', { class: 'head' }, h('div', { class: 'head-text' }, h('h1', { text: 'Settings' }),
         h('span', { class: 'sub', text: 'Saved to beeircd.conf and applied at once' }))),
       h('div', { class: 'two' },
         h('section', { class: 'card' }, h('h2', { text: 'Limits' }), grid, bar),
-        h('section', { class: 'card' }, h('h2', { text: 'Server actions' }), actions)));
+        h('section', { class: 'card' }, h('h2', { text: 'Server actions' }), actions)),
+      backups && backups.el);
     load();
     return {
       el,
       status(s) {
-        backupText.textContent = s.last_backup ? 'Last one ' + when(s.last_backup) + ' · owner only' : 'No backup yet · owner only';
+        if (backups) backups.status(s);
         if (s.update) {
           updateRow.hidden = false;
           put(updateRow, h('div', { class: 'act-text' }, h('b', { text: 'Update' }),
@@ -875,6 +868,121 @@
     load();
     const timer = setInterval(() => { if (!document.hidden && !el.querySelector('.rm')) load(); }, 30000);
     return { el, leave() { clearInterval(timer); } };
+  }
+
+  // ---------- Backups card (Settings, owner only) ----------
+  function backupsCard() {
+    const tbody = h('tbody');
+    const sub = h('span', { class: 'lbl', text: 'Config, services, history and certificates · owner only' });
+    const make = h('button', { type: 'button', class: 'btn', text: 'Back up now' });
+    let list = null, open = null, lastSeen = null;
+    make.addEventListener('click', () => busy(make, async () => {
+      try {
+        const d = await api('POST', '/api/backup');
+        const k = d.backup || {};
+        toast(['Saved ', h('b', { text: (k.file || '').split(/[/\\]/).pop() }), ' · ' + bytes(k.bytes || 0)]);
+        open = null;
+        await load();
+      } catch (e) { toastErr('No backup made: ' + e.message); }
+    }));
+    async function load() {
+      try {
+        const d = await api('GET', '/api/backups');
+        list = d.backups;
+        draw();
+      } catch (e) {
+        put(tbody, h('tr', {}, h('td', { colspan: 4, class: 'empty', text: e.message })));
+      }
+    }
+    function save(blob, name) {
+      const a = h('a', { href: URL.createObjectURL(blob), download: name, hidden: true });
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    }
+    function askRow(f) {
+      const pw = h('input', { class: 'in', id: 'bk-pw', type: 'password', autocomplete: 'current-password', maxlength: 256 });
+      const msg = h('span', { class: 'hint' });
+      const no = h('button', { type: 'button', class: 'btn ghost', text: 'Cancel' });
+      const go = h('button', { type: 'submit', class: 'btn main' }, icon('download'), 'Download');
+      no.addEventListener('click', () => { open = null; draw(); });
+      const form = h('form', { class: 'bk-ask' },
+        h('span', { text: "This file holds password hashes and the server's private keys. Keep it somewhere safe." }),
+        h('div', { class: 'bk-row' },
+          h('label', { class: 'f', for: 'bk-pw' }, 'Your password again', pw, msg),
+          h('div', { class: 'bk-btns' }, no, go)));
+      const wrong = text => {
+        pw.value = '';
+        pw.classList.add('wrong'); msg.classList.add('wrong');
+        msg.textContent = text;
+        pw.focus();
+      };
+      form.addEventListener('submit', e => {
+        e.preventDefault();
+        if (!pw.value) { wrong('Type your password.'); return; }
+        busy(go, async () => {
+          let res;
+          try {
+            res = await fetch('/api/backup-get', { method: 'POST', credentials: 'same-origin',
+              headers: { 'X-Hive': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ name: f.name, password: pw.value }) });
+          } catch (err) {
+            wrong("Can't reach the Hive Panel. Is beeircd-web running?");
+            return;
+          }
+          if (!res.ok || !(res.headers.get('Content-Type') || '').startsWith('application/gzip')) {
+            const data = await res.json().catch(() => ({}));
+            if (res.status === 401 && data.signin) { signedOut(data.error || 'Please sign in.'); return; }
+            wrong(data.error || 'Something went wrong (' + res.status + ').');
+            return;
+          }
+          let blob;
+          try { blob = await res.blob(); } catch (err) { wrong('The download broke off. Please try again.'); return; }
+          pw.value = '';
+          save(blob, f.name);
+          toast(['Downloaded ', h('b', { text: f.name }), ' · ' + bytes(blob.size)]);
+          open = null;
+          draw();
+        });
+      });
+      pw.addEventListener('input', () => { pw.classList.remove('wrong'); msg.classList.remove('wrong'); msg.textContent = ''; });
+      setTimeout(() => pw.focus(), 0);
+      return h('tr', { class: 'detail bk-detail' }, h('td', { colspan: 4 }, form));
+    }
+    function draw() {
+      sub.textContent = 'Config, services, history and certificates · newest ' + fmt(list.keep) + ' kept on the server · owner only';
+      if (!list.files.length) {
+        put(tbody, h('tr', {}, h('td', { colspan: 4, class: 'empty', text: 'No backups yet. Back up now makes the first one.' })));
+        return;
+      }
+      if (open && !list.files.some(f => f.name === open)) open = null;
+      put(tbody, ...list.files.map(f => {
+        const dl = h('button', { type: 'button', class: 'x dl-btn', 'aria-label': 'Download ' + f.name, title: 'Download', 'aria-expanded': open === f.name ? 'true' : 'false' }, icon('download'));
+        dl.addEventListener('click', () => { open = open === f.name ? null : f.name; draw(); });
+        const w = when(f.made), made = /^\d/.test(w) ? 'today ' + w : w;
+        const row = h('tr', { class: open === f.name ? 'open' : null },
+          h('td', {}, h('div', { class: 'bk-made' }, h('b', { text: made.charAt(0).toUpperCase() + made.slice(1) }), h('span', { class: 'mono lbl', text: f.name }))),
+          h('td', { class: 'lbl bk-by', text: f.by ? f.by + ', in the panel' : 'beeircd backup' }),
+          h('td', { class: 'bk-size', text: bytes(f.bytes) }),
+          h('td', { class: 'end-cell' }, dl));
+        return open === f.name ? [row, askRow(f)] : row;
+      }));
+    }
+    const el = h('section', { class: 'card list-card bk-card' },
+      h('div', { class: 'tools bk-head' },
+        h('div', { class: 'head-text' }, h('h2', { text: 'Backups' }), sub), make),
+      h('div', { class: 'wrap' }, h('table', { class: 'backups' },
+        h('thead', {}, h('tr', {}, h('th', { scope: 'col', text: 'Made' }), h('th', { scope: 'col', class: 'bk-by', text: 'By' }), h('th', { scope: 'col', text: 'Size' }), h('th', { scope: 'col' }, h('span', { class: 'sr', text: 'Download' })))),
+        tbody)));
+    load();
+    return {
+      el,
+      status(s) {
+        // A backup made elsewhere (the timer, beeircd backup) shows up.
+        if (s.last_backup && lastSeen && s.last_backup !== lastSeen && !open) load();
+        lastSeen = s.last_backup || lastSeen;
+      },
+    };
   }
 
   // ---------- Opers ----------

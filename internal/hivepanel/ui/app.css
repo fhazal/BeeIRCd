@@ -281,3 +281,20 @@ table.links{min-width:600px}
 .dl .span4{grid-column:1/-1}
 table.chans{min-width:720px}
 .rowbtn.mono{font-family:var(--mono);font-size:13px}
+
+/* Backups card (3i) */
+.bk-head{justify-content:space-between}
+.bk-head .head-text{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 300px}
+table.backups{min-width:0}
+table.backups td{height:58px}
+.bk-made{display:flex;flex-direction:column;min-width:0}
+.bk-made .mono{overflow-wrap:anywhere}
+td.bk-size{white-space:nowrap;font-variant-numeric:tabular-nums}
+table.backups .end-cell{text-align:right;width:48px}
+.dl-btn:hover,.dl-btn[aria-expanded="true"]{color:var(--honey);background:#1f1f1f}
+tr.bk-detail td{background:var(--honey-tint);box-shadow:inset 3px 0 0 var(--honey);padding:0 16px 14px;height:auto}
+.bk-ask{display:flex;flex-direction:column;gap:12px;padding:14px 16px;border-radius:4px;background:#141414;border:1px solid #4a3a1a}
+.bk-row{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}
+.bk-row .f{flex:1 1 220px}
+.bk-btns{display:flex;gap:8px;padding-top:25px}
+@media (max-width:700px){.bk-by{display:none}.bk-btns{padding-top:0}}

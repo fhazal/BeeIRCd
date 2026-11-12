@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -21,6 +23,7 @@ type fakeServer struct {
 	gone    bool // the oper entry was removed
 	reqs    []control.Request
 	offline bool
+	bkDir   string // backup-get answers with files here
 }
 
 func (f *fakeServer) ask(r control.Request, _ time.Duration) (*control.Response, error) {
@@ -53,6 +56,14 @@ func (f *fakeServer) ask(r control.Request, _ time.Duration) (*control.Response,
 			return &control.Response{Changed: &control.Changed{Name: "ember", New: "g", ID: 9}}, nil
 		}
 		return &control.Response{Error: "unexpected"}, nil
+	case control.CmdBackupGet:
+		if r.Password != "pw" {
+			return &control.Response{Error: "Wrong password."}, nil
+		}
+		if r.Name == "beeircd-2026-11-13-0001.tar.gz" { // a strange answer
+			return &control.Response{Backup: &control.Backup{File: filepath.Join(f.bkDir, "beeircd.conf")}}, nil
+		}
+		return &control.Response{Backup: &control.Backup{File: filepath.Join(f.bkDir, r.Name)}}, nil
 	case control.CmdChanSuspend:
 		return &control.Response{Done: &control.Done{Text: r.Cmd + " " + r.Name + " " + r.Reason + " " + r.Life}}, nil
 	case control.CmdLinkSave:
@@ -403,5 +414,56 @@ func TestChannelRoutes(t *testing.T) {
 	}
 	if w := rg.do("POST", "/api/chan-topic", `{"text":"no name"}`, tok, nil); w.Code != 400 {
 		t.Errorf("chan-topic without name: %d", w.Code)
+	}
+}
+
+func TestBackupDownload(t *testing.T) {
+	rg := newRig(t)
+	rg.f.bkDir = t.TempDir()
+	name := "beeircd-2026-11-13-0400.tar.gz"
+	os.WriteFile(filepath.Join(rg.f.bkDir, name), []byte("tar-bytes"), 0o600)
+	os.WriteFile(filepath.Join(rg.f.bkDir, "beeircd.conf"), []byte("secret"), 0o600)
+	tok := rg.login()
+
+	w := rg.do("POST", "/api/backup-get", `{"name":"`+name+`","password":"pw"}`, tok, nil)
+	if w.Code != 200 || w.Body.String() != "tar-bytes" || w.Header().Get("Content-Type") != "application/gzip" ||
+		w.Header().Get("Content-Disposition") != `attachment; filename="`+name+`"` || w.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("download: %d %v %q", w.Code, w.Header(), w.Body)
+	}
+	if last := rg.f.reqs[len(rg.f.reqs)-1]; last.Cmd != control.CmdBackupGet || last.Password != "pw" || last.As != "Bee" || last.Seal != "s1" {
+		t.Errorf("asked: %+v", last)
+	}
+	if w := rg.do("POST", "/api/backup-get", `{"name":"`+name+`","password":"no"}`, tok, nil); w.Code != 422 || !strings.Contains(w.Body.String(), "Wrong password.") {
+		t.Errorf("wrong password: %d %s", w.Code, w.Body)
+	}
+	if rg.p.sessions[tokenKey(tok)] == nil {
+		t.Error("a wrong password signed the owner out")
+	}
+	n := len(rg.f.reqs)
+	for _, bad := range []string{"../beeircd.conf", "beeircd.conf", "", "beeircd-x.tar.gz/../a"} {
+		if w := rg.do("POST", "/api/backup-get", `{"name":"`+bad+`","password":"pw"}`, tok, nil); w.Code != 400 {
+			t.Errorf("%q: %d", bad, w.Code)
+		}
+	}
+	if len(rg.f.reqs) != n {
+		t.Error("bad names reached the server")
+	}
+	// The server names another file: nothing is sent.
+	if w := rg.do("POST", "/api/backup-get", `{"name":"beeircd-2026-11-13-0001.tar.gz","password":"pw"}`, tok, nil); w.Code != 502 || strings.Contains(w.Body.String(), "secret") {
+		t.Errorf("strange answer: %d %s", w.Code, w.Body)
+	}
+	// Gone from disk between the check and the read.
+	if w := rg.do("POST", "/api/backup-get", `{"name":"beeircd-2026-11-12-0400.tar.gz","password":"pw"}`, tok, nil); w.Code != 500 {
+		t.Errorf("missing file: %d %s", w.Code, w.Body)
+	}
+	// Cross-site and signed-out requests.
+	if w := rg.do("POST", "/api/backup-get", `{"name":"`+name+`","password":"pw"}`, tok, map[string]string{"X-Hive": ""}); w.Code != 403 {
+		t.Errorf("no X-Hive: %d", w.Code)
+	}
+	if w := rg.do("POST", "/api/backup-get", `{"name":"`+name+`","password":"pw"}`, "", nil); w.Code != 401 {
+		t.Errorf("signed out: %d", w.Code)
+	}
+	if w := rg.do("GET", "/api/backup-get?name="+name, "", tok, nil); w.Code != 405 {
+		t.Errorf("GET: %d", w.Code)
 	}
 }

@@ -17,9 +17,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"io"
 	"io/fs"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -126,6 +129,8 @@ func New(o Options) *Panel {
 	m.HandleFunc("POST /api/check", p.withOper(p.simple(control.CmdCheck)))
 	m.HandleFunc("POST /api/rehash", p.withOper(p.simple(control.CmdRehash)))
 	m.HandleFunc("POST /api/backup", p.withOper(p.simple(control.CmdBackup)))
+	m.HandleFunc("GET /api/backups", p.withOper(p.simple(control.CmdBackups)))
+	m.HandleFunc("POST /api/backup-get", p.withOper(p.backupGet))
 	m.HandleFunc("GET /api/people", p.withOper(p.people))
 	m.HandleFunc("GET /api/person", p.withOper(p.person))
 	m.HandleFunc("POST /api/notice", p.withOper(p.act(control.CmdNotice)))
@@ -304,9 +309,9 @@ func (p *Panel) withOper(f func(http.ResponseWriter, *http.Request, operCtx)) ht
 	}
 }
 
-// send asks the server for oc's oper and answers the browser. It returns
-// the answer when it went well.
-func (p *Panel) send(w http.ResponseWriter, oc operCtx, req control.Request, timeout time.Duration) *control.Response {
+// asked asks the server for oc's oper. On any failure it answers the
+// browser itself and returns nil.
+func (p *Panel) asked(w http.ResponseWriter, oc operCtx, req control.Request, timeout time.Duration) *control.Response {
 	p.mu.Lock()
 	req.As, req.IP, req.Seal = oc.s.oper.Account, oc.ip, oc.s.oper.Seal
 	p.mu.Unlock()
@@ -327,6 +332,16 @@ func (p *Panel) send(w http.ResponseWriter, oc operCtx, req control.Request, tim
 		return nil
 	case resp.Error != "":
 		writeErr(w, http.StatusUnprocessableEntity, resp.Error)
+		return nil
+	}
+	return resp
+}
+
+// send asks the server for oc's oper and answers the browser. It returns
+// the answer when it went well.
+func (p *Panel) send(w http.ResponseWriter, oc operCtx, req control.Request, timeout time.Duration) *control.Response {
+	resp := p.asked(w, oc, req, timeout)
+	if resp == nil {
 		return nil
 	}
 	if resp.Oper != nil {
@@ -486,6 +501,41 @@ func (p *Panel) chanAct(cmd string) func(http.ResponseWriter, *http.Request, ope
 		}
 		p.send(w, oc, control.Request{Cmd: cmd, Name: in.Name, Value: in.Text, Reason: in.Reason, Life: in.Life}, 10*time.Second)
 	}
+}
+
+// backupGet sends one backup file once the server has checked the
+// owner's password again: {"name", "password"}.
+func (p *Panel) backupGet(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	var in struct{ Name, Password string }
+	if json.NewDecoder(r.Body).Decode(&in) != nil || !control.IsBackupName(in.Name) {
+		writeErr(w, http.StatusBadRequest, "Bad request.")
+		return
+	}
+	resp := p.asked(w, oc, control.Request{Cmd: control.CmdBackupGet, Name: in.Name, Password: in.Password}, 25*time.Second)
+	if resp == nil {
+		return
+	}
+	if resp.Backup == nil || filepath.Base(resp.Backup.File) != in.Name {
+		writeErr(w, http.StatusBadGateway, "The server sent a strange answer.")
+		return
+	}
+	f, err := os.Open(resp.Backup.File)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "The panel can't read the backup folder: "+err.Error())
+		return
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil || !fi.Mode().IsRegular() {
+		writeErr(w, http.StatusInternalServerError, "The panel can't read that backup.")
+		return
+	}
+	h := w.Header()
+	h.Set("Content-Type", "application/gzip")
+	h.Set("Content-Disposition", `attachment; filename="`+in.Name+`"`)
+	h.Set("Content-Length", strconv.FormatInt(fi.Size(), 10))
+	h.Set("Cache-Control", "no-store")
+	io.Copy(w, f)
 }
 
 // ipLocked reports how long ip must still wait after wrong sign-ins.
