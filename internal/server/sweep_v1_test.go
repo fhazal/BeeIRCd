@@ -60,3 +60,15 @@ func TestMaxLoginsSASLAndRecover(t *testing.T) {
 	r.send("NS RECOVER Bee " + pw)
 	r.expect(nsLine("y2", "Account Bee has already reached the maximum number of simultaneous logins (1)."))
 }
+
+// INVITE to a name that can't be a channel is refused, not passed on.
+func TestInviteBadChannelName(t *testing.T) {
+	s := testServer(t, nil)
+	a := login(t, s, "Ann")
+	b := login(t, s, "Bob")
+	a.send("INVITE Bob nochan")
+	a.expect(" 403 Ann nochan :No such channel")
+	a.send("INVITE Bob #fine")
+	a.expect(" 341 Ann Bob #fine")
+	b.expect("INVITE Bob #fine")
+}
