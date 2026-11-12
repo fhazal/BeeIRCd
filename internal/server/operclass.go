@@ -97,3 +97,17 @@ func (s *Server) showOperVhost(c *Client, vhost string) {
 		s.svc.RestoreHost(c.uid)
 	}
 }
+
+// coversOper reports whether c holds every flag oper entry o gives, so it
+// may change or remove the entry (or put it back with UNDO). Otherwise c
+// is told why not.
+func (s *Server) coversOper(c *Client, o *store.Oper) bool {
+	eff := s.viewOf(o).flags
+	for i := 0; i < len(eff); i++ {
+		if !c.can(eff[i]) {
+			s.as(c, "You can't change %s: they have flag %c and you don't.", o.Account, eff[i])
+			return false
+		}
+	}
+	return true
+}

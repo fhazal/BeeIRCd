@@ -696,6 +696,13 @@ func asOper(s *Server, c *Client, args []string) {
 		}
 		return oc.Name, true
 	}
+	// An entry with flags c lacks is out of c's reach: changing its
+	// password or host would let c /oper as it and get those flags.
+	if cur != nil && !strings.EqualFold(args[1], "ADD") {
+		if !s.coversOper(c, cur) {
+			return
+		}
+	}
 	switch strings.ToUpper(args[1]) {
 	case "DISABLE", "ENABLE":
 		if cur == nil {
@@ -946,14 +953,6 @@ func asOper(s *Server, c *Client, args []string) {
 		if cur == nil {
 			s.as(c, "%s isn't an oper.", a.Name)
 			return
-		}
-		if eff := s.viewOf(cur).flags; true {
-			for i := 0; i < len(eff); i++ {
-				if !c.can(eff[i]) {
-					s.as(c, "You can't remove %s: they have flag %c and you don't.", a.Name, eff[i])
-					return
-				}
-			}
 		}
 		if _, err := s.store.DeleteOper(a.ID); err != nil {
 			s.dbErr(c, s.adminServ, err)
