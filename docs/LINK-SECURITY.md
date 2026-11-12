@@ -30,7 +30,7 @@ real handlers, no panic), fuzz targets `FuzzLinkLine`, `FuzzLinkUID`,
 tests. Real traffic checked with the UnrealIRCd 6.2.7 sandbox (2d and 2e
 kits, no refused lines) and the 3-server test network (30/30).
 
-## Still trusted (open decision)
+## Still trusted (by design)
 
 - **Accounts in a UID.** When a server introduces a user with an account
   name (the burst after a split, or a new user), services log them into
@@ -38,7 +38,9 @@ kits, no refused lines) and the 3-server test network (30/30).
   same way; it is what keeps people logged in across a split. A leaf that
   is taken over could therefore claim any account. Tightening it means
   the services server only honours accounts it gave out itself (kept
-  across splits and restarts). Owner's call.
+  across splits and restarts). **Decided 12 Nov 2026 (owner): keep the
+  standard trust**, like UnrealIRCd, InspIRCd and Anope; the fingerprint
+  lock on every link is the protection.
 - **Oper flags of a server's own users** (`MD bee-operflags`) and network
   bans set by its opers: trusted, as in UnrealIRCd.
 - **Volume**: no cap on how many users or channels one server brings.
