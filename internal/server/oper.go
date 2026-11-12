@@ -224,7 +224,10 @@ func (s *Server) cmdOper(c *Client, m irc.Message) {
 		return
 	}
 	var o *store.Oper
-	if a != nil {
+	if a == nil {
+		a, o = s.leafAdmin(u, name)
+	}
+	if a != nil && o == nil {
 		if o, err = s.operEntry(a); err != nil {
 			s.log.Printf("services database: %v", err)
 			return
@@ -257,6 +260,22 @@ func (s *Server) cmdOper(c *Client, m irc.Message) {
 			s.snotice("Failed /oper as %s from %s (%s@%s): wrong password", o.Account, u.Nick, u.Ident, u.RealHost)
 		}
 	})
+}
+
+// leafAdmin is the admin's oper entry on a server whose services are off
+// (a leaf): accounts live on the services server, so there is none here
+// to look up. The admin from beeircd.conf may still /oper with its
+// admin_password, once logged in (on the services server) to the account
+// of that name.
+func (s *Server) leafAdmin(u *state.User, name string) (*store.Account, *store.Oper) {
+	admin := s.cfg.Services.Admin
+	if !s.svc.Off() || admin == "" || s.cfg.Services.AdminPassword == "" ||
+		!strings.EqualFold(name, admin) || !strings.EqualFold(u.Account, admin) {
+		return nil, nil
+	}
+	a := &store.Account{Name: admin}
+	return a, &store.Oper{Account: admin, Class: "netadmin", Flags: allFlags,
+		Vhost: s.cfg.Services.AdminVhost, Hosts: s.adminHosts(), PassHash: s.cfg.Services.AdminPassword}
 }
 
 // firstOperPassword handles /oper for an entry without a password. Only
