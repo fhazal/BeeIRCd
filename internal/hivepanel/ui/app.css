@@ -145,7 +145,7 @@ h2{margin:0;font-family:var(--display);font-weight:600;font-size:16px}
 
 @media (max-width:1000px){.band,.three,.two{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:700px){
-  .side{max-width:none;flex-basis:100%;padding:12px 0 0;gap:8px;border-right:0;border-bottom:1px solid var(--line);position:relative;height:auto}
+  .side{max-width:none;min-width:0;flex-basis:100%;padding:12px 0 0;gap:8px;border-right:0;border-bottom:1px solid var(--line);position:relative;height:auto}
   .brand{padding:0 16px}
   .nav{flex-direction:row;overflow-x:auto}
   .nav a{border-left:0;border-bottom:3px solid transparent;padding:0 14px;white-space:nowrap;min-height:44px}
