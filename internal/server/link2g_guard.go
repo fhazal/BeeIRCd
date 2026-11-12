@@ -86,6 +86,12 @@ func (s *Server) linkGate(l *linkConn, m irc.Message) bool {
 		s.ignoreOnce(l, "svs:"+m.Command, "refused %s from %s: only services may send it", m.Command, m.Source)
 		return false
 	}
+	// A server may KILL (collisions, server kills); a user only as an IRC
+	// operator or a services bot.
+	if m.Command == "KILL" && u != nil && !u.Modes['o'] && !u.Service && !s.fromServices(srv) {
+		s.ignoreOnce(l, "oper:KILL", "refused KILL from %s: not an IRC operator", u.Nick)
+		return false
+	}
 	if operOnly[m.Command] {
 		switch {
 		case u == nil && !s.fromServices(srv):

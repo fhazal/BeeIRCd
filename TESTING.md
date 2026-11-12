@@ -143,12 +143,16 @@ arrives, the newer nick is renamed and both users stay, all three servers
 show the same channel; clean-up.
 
 **Rogue-server tests** (`go test ./internal/server -run TestRogueServerSpoofs`,
-2g): 26 lines a linked server has no right to send (speaking for a user
+2g): 27 lines a linked server has no right to send (speaking for a user
 on another server, services commands from a plain server, CHG*/SA* from a
 non-oper); none may change anything or reach anyone. `TestRogueServerTreeAndJunk`:
 33 server-tree tricks (our SID or name, services' name, unknown uplink,
 bad names) and broken or truncated lines, plus bans matching everyone:
 the link may drop, nothing crashes, the hub's users stay.
+`TestRogueRandomLines`: 5 seeds x 3,000 random lines (every link command,
+real and broken sources and parameters) through the real handlers; the
+server loop has no recover, so a panic fails it. Fuzz targets for the
+parser: `FuzzLinkLine`, `FuzzLinkUID`, `FuzzLinkSJOIN` (internal/link).
 
 **Two-machine install** (`scripts/linkmachines.sh <beeircd> <installcheck>
 [image]`, LXD): installs a hub, then a leaf with only what the hub's

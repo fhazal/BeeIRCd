@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/state"
 )
 
@@ -46,6 +47,7 @@ func TestRogueServerSpoofs(t *testing.T) {
 		{"CHGHOST by a user who isn't an oper", ":B CHGHOST A spoof.host"},
 		{"SAJOIN by a user who isn't an oper", ":B SAJOIN A #spoofchan"},
 		{"SVSNICK from a non-services server to a nick", ":L SVSNICK A spoofnick 0"},
+		{"KILL by a user who isn't an oper", ":B KILL A :spoofmsg"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -212,5 +214,84 @@ func TestRogueQlineEveryone(t *testing.T) {
 	})
 	if len(masks) != 1 || masks[0] != "*Serv" {
 		t.Errorf("qlines %v", masks)
+	}
+}
+
+// Seeded random lines from a linked server through the real handlers
+// (2g): every command the link code knows, with sources and parameters
+// from a pool of real and broken values. The server loop has no recover,
+// so any panic fails this. Lines that end the link (SID, UID, SQUIT, EOS,
+// ERROR) have their own tests above.
+func TestRogueRandomLines(t *testing.T) {
+	for seed := uint64(20261112); seed < 20261117; seed++ {
+		t.Run(strconv.FormatUint(seed, 10), func(t *testing.T) { rogueRandom(t, seed) })
+	}
+}
+
+func rogueRandom(t *testing.T, seed uint64) {
+	hub, leaf := linkedPair(t)
+	alice := login(t, hub.s, "alice")
+	alice.send("JOIN #x")
+	alice.expect("366")
+	bob := login(t, leaf.s, "bob")
+	bob.send("JOIN #x")
+	bob.expect("366")
+	hub.seen(t, "bob")
+	var a, b string
+	hub.s.onLoop(func() { a, b = hub.s.net.UserByNick("alice").UID, hub.s.net.UserByNick("bob").UID })
+	cmds := []string{"PRIVMSG", "NOTICE", "TAGMSG", "NICK", "QUIT", "PART", "KICK", "MODE", "UMODE2", "SVSMODE", "SVS2MODE",
+		"SVSLOGIN", "SETHOST", "CHGHOST", "SETIDENT", "CHGIDENT", "SETNAME", "CHGNAME", "INVITE", "SVSNICK", "TKL", "TOPIC",
+		"AWAY", "KILL", "SVSKILL", "SVSJOIN", "SAJOIN", "SVSPART", "SAPART", "SJOIN", "MD", "SASL", "WHOIS", "MOTD", "VERSION",
+		"ADMIN", "TIME", "STATS", "SVSNOOP", "BEEADMIN", "BEEOPER", "BEEOPERR", "NETINFO", "PING", "PONG", "001", "311", "SINFO"}
+	sources := []string{leaf.sid, b, "", "9ZZ", "0ZZAAAAAA", "bob", "leaf.test.local", "services.test.local"}
+	pool := []string{a, b, "#x", "#y", "*", "", "+", "-", "0", "1700000000", "-5", "99999999999999999999", "+ovbk", "-ovbk+l",
+		"+bbbbbbbbbbbbbbbbbbbb", "*!*@*", "*@*", "G", "Z", "Q", "n", "s", "e", "+G", "client", "channel", "bee-operflags",
+		"operclass", "saslmechlist", "OK", "FAIL", "UPDATE", "DEOPER", "{", "{\"flags\":\"aaaa\"}", "H", "S", "C", "D", "F",
+		"hub.test.local", "leaf.test.local", "9HB", "0HB", "alice", "bob", ":", "::", strings.Repeat("x", 600), "\x01ACTION\x01",
+		"@", "%", "+", "&*!*@x", "~", "#", "!", "0LF", "0LFAAAAAZ", "ÿ", "a,b,c,#x,#y"}
+	rnd, ran := seed, 0
+	next := func(n int) int { rnd = rnd*6364136223846793005 + 1442695040888963407; return int(rnd>>33) % n }
+	for i := 0; i < 3000; i++ {
+		var line strings.Builder
+		if src := sources[next(len(sources))]; src != "" {
+			line.WriteString(":" + src + " ")
+		}
+		line.WriteString(cmds[next(len(cmds))])
+		for j, n := 0, next(9); j < n; j++ {
+			p := pool[next(len(pool))]
+			if j == n-1 && next(2) == 0 {
+				line.WriteString(" :" + p)
+				break
+			}
+			if p == "" || strings.HasPrefix(p, ":") || strings.Contains(p, " ") {
+				p = "x"
+			}
+			line.WriteString(" " + p)
+		}
+		m, err := irc.Parse(line.String())
+		if err != nil {
+			continue
+		}
+		hub.s.onLoop(func() {
+			for l := range hub.s.links.conns {
+				ran++
+				hub.s.linkCommand(l, m)
+				return
+			}
+		})
+		if i%250 == 0 {
+			// A server may KILL (collisions, server kills), so alice may be
+			// gone: a new connection shows the hub is still alive.
+			c := login(t, hub.s, "zz"+strconv.Itoa(i))
+			c.send("QUIT")
+			c.expect("ERROR")
+		}
+	}
+	c := login(t, hub.s, "zzend")
+	c.send("QUIT")
+	c.expect("ERROR")
+	t.Logf("%d of 3000 lines ran on a live link", ran)
+	if ran < 1000 {
+		t.Errorf("only %d lines reached a link (it kept dropping)", ran)
 	}
 }
