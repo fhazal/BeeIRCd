@@ -123,6 +123,17 @@ func (c *Client) deliver(o *outMsg) {
 		if nj := c.s.netjoin; nj != nil && o.msg.Command == "JOIN" && c.caps["batch"] {
 			line = nj.tag(c, line) // a burst from a server link (2b)
 		}
+		if ns := c.s.netsplit; ns != nil && o.msg.Command == "QUIT" {
+			if ns.hidden(c) {
+				h := *o
+				h.msg.Params = []string{"*.net *.split"}
+				h.built = 0
+				line, _ = c.format(&h)
+			}
+			if c.caps["batch"] {
+				line = ns.tag(c, line) // a split (2e)
+			}
+		}
 		c.queueLine(line)
 	}
 }

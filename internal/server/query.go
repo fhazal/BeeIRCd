@@ -259,14 +259,25 @@ func (s *Server) cmdUserhost(c *Client, m irc.Message) {
 	s.reply(c, irc.RplUserHost, strings.Join(out, " "))
 }
 
-func (s *Server) cmdMotd(c *Client, m irc.Message)   { s.motd(c) }
+func (s *Server) cmdMotd(c *Client, m irc.Message) {
+	if len(m.Params) > 0 && s.queryElsewhere(c, "MOTD", m.Params[0], "") {
+		return
+	}
+	s.motd(c)
+}
 func (s *Server) cmdLusers(c *Client, m irc.Message) { s.lusers(c) }
 
 func (s *Server) cmdVersion(c *Client, m irc.Message) {
+	if len(m.Params) > 0 && s.queryElsewhere(c, "VERSION", m.Params[0], "") {
+		return
+	}
 	s.reply(c, irc.RplVersion, version.Name+"-"+version.Version+".", s.cfg.Server.Name, version.String())
 	s.sendISupport(c)
 }
 
 func (s *Server) cmdTime(c *Client, m irc.Message) {
+	if len(m.Params) > 0 && s.queryElsewhere(c, "TIME", m.Params[0], "") {
+		return
+	}
 	s.reply(c, irc.RplTime, s.cfg.Server.Name, time.Now().Format("Monday January 2 2006 -- 15:04:05 -07:00"))
 }

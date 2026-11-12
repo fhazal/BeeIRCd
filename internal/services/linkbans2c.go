@@ -72,6 +72,9 @@ func (s *Services) RemoteBan(b store.NetBan, add bool) bool {
 			if have.Kind == b.Kind && have.Mask == b.Mask && have.Reason == b.Reason && have.Expires.Equal(b.Expires) {
 				return false
 			}
+			if have.Kind == b.Kind && have.Mask == b.Mask && have.SetAt.After(b.SetAt) {
+				return false // after a split both sides send theirs: the newest wins (2e)
+			}
 		}
 		if err := s.store.AddNetBan(b); err != nil {
 			s.log.Printf("services database: %v", err)

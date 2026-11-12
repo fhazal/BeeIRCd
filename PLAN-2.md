@@ -45,6 +45,10 @@ and `[link] remote_admin` (off by default; AdminServ on a server takes
 commands from people elsewhere only when it is on). Not done (later):
 remote MOTD/VERSION/ADMIN and /CONNECT /SQUIT /LINKS /MAP (2e), SASL
 mechanisms besides PLAIN/EXTERNAL, SVSNLINE from Anope.
+2e built 12 Nov 2026 (branch stage2): netsplit batch + hide_split,
+rejoin settle test, newest ban wins, /LINKS /MAP /CONNECT /SQUIT /STATS,
+/ADMIN and remote MOTD/VERSION/ADMIN/TIME/STATS, K-lines. Remote WHOIS
+was done in 2d. `beeircd status` link lines exist since 2a.
 After 2c: `[cloak] method = "cloak_inspircd"` matches the cloak_inspircd
 UnrealIRCd module (the owner's network uses it), checked against that
 module in a real UnrealIRCd 6.2.7. A link test on the owner's production

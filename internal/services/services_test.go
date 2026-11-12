@@ -150,3 +150,18 @@ func TestServicesForUsersOnAnotherServer(t *testing.T) {
 		t.Errorf("unidentified user kept the registered nick")
 	}
 }
+
+// After a split both sides send their copy of a ban: the newest wins.
+func TestRemoteBanNewestWins(t *testing.T) {
+	s, _ := newServices(t)
+	now := time.Now()
+	newer := store.NetBan{Kind: store.BanAkill, Mask: "*@bad.example", Reason: "newer", SetBy: "a", SetAt: now}
+	older := store.NetBan{Kind: store.BanAkill, Mask: "*@bad.example", Reason: "older", SetBy: "b", SetAt: now.Add(-time.Hour)}
+	s.RemoteBan(newer, true)
+	if s.RemoteBan(older, true) {
+		t.Error("older ban replaced the newer one")
+	}
+	if b := s.firstBan(store.BanAkill, "x", "bad.example", "", ""); b == nil || b.Reason != "newer" {
+		t.Errorf("kept %+v", b)
+	}
+}

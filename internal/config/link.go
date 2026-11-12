@@ -31,6 +31,9 @@ type Link struct {
 	// commands here over the link (/as server <name> ...). Off by
 	// default, so whoever runs this server keeps the last word.
 	RemoteAdmin bool `toml:"remote_admin"`
+	// HideSplit shows non-opers "*.net *.split" as the quit reason of a
+	// netsplit instead of the two server names (L8).
+	HideSplit bool `toml:"hide_split"`
 }
 
 // LinkServer is one [[link.server]] block, like UnrealIRCd's link { }.

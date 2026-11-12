@@ -12,10 +12,11 @@ const (
 	BanSNLine = "snline" // realname mask or /regex/: disconnect, refuse
 	BanShun   = "shun"   // user@host: connected, but can't do anything
 	BanEline  = "eline"  // user@host: exempt from all of the above
+	BanKline  = "kline"  // user@host, this server only (never sent over links)
 )
 
 // BanKinds are all kinds, in the order lists show them.
-var BanKinds = []string{BanAkill, BanZline, BanSNLine, BanShun, BanEline}
+var BanKinds = []string{BanAkill, BanZline, BanSNLine, BanShun, BanEline, BanKline}
 
 // NetBan is one network ban.
 type NetBan struct {

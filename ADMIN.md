@@ -404,6 +404,7 @@ links with BeeIRCd and UnrealIRCd 6.
 | `address` | all addresses | IP the link port listens on, like `127.0.0.1` (restart) |
 | `port` | `7000` for hub/leaf | TLS port for server links (restart) |
 | `cert`, `key` | next to services.db | This server's link certificate, made at the first start as a hub or leaf and never renewed, so its fingerprint stays the same. It is in every backup |
+| `hide_split` | `false` | In a netsplit, show non-opers `*.net *.split` as the quit reason instead of the two server names (opers always see them) |
 | `remote_admin` | `false` | Let admins on other servers run AdminServ commands here (`/as server <this server> SET ...`) and use this server's AdminServ. Off: only people on this server change it; `SERVER <name> STATUS` (read-only) works either way |
 
 Each server we link with gets a `[[link.server]]` block. These apply on
@@ -450,6 +451,20 @@ also in AdminServ). AdminServ `SERVER <name> STATUS` and
 SHOW, HISTORY, DIFF, UNDO, DNSBL; it needs `remote_admin = true` there;
 ports, restarts and link blocks are changed in that server's shell). Each
 remote change is logged on both servers with who and what.
+
+**Splits and rejoins.** When a link goes, everyone behind it quits with
+"near-server far-server" (or `*.net *.split`, see `hide_split`), inside an
+IRCv3 `netsplit` batch for clients that asked for batches; when it comes
+back both sides burst again (`netjoin` batch), nick clashes and channel
+timestamps settle as on the first link, and for network bans the newest
+copy of each mask wins. A leaf with `autoconnect` comes back by itself.
+
+**Oper commands.** `/LINKS [mask]`, `/MAP`, `/CONNECT <server>` and
+`/SQUIT <server> [reason]` (flag c), `/STATS l|c|k|u [server]`,
+`/ADMIN`, `/MOTD`, `/VERSION`, `/TIME` with a server name ask that
+server. `/KLINE [+time] <nick|user@host> [reason]` and `/UNKLINE` ban
+from this server only (flag k; never sent over links; `STATS k` lists
+them).
 
 `beeircd link-info` prints this server's fingerprint and the blocks the
 other side needs. Links use TLS 1.2+ only; plain links are never accepted.

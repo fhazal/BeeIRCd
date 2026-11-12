@@ -80,6 +80,7 @@ type Server struct {
 	loop        loopStats                   // how long each piece of loop work took
 	links       linkState                   // Stage 2 server links
 	netjoin     *netjoinBatch               // set while a link's burst is handled
+	netsplit    *netjoinBatch               // set while the users of a split server quit (2e)
 	origin      *linkOrigin                 // where the next emitted event came from (2c)
 	banFrom     *linkConn                   // the link a ban change came from, while it is applied
 	wg          sync.WaitGroup

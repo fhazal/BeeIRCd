@@ -118,7 +118,7 @@ func (s *Services) connectBan(ident, host, ip, realname string) *store.NetBan {
 	if s.exempt(ident, host, ip) {
 		return nil
 	}
-	for _, kind := range []string{store.BanZline, store.BanAkill, store.BanSNLine} {
+	for _, kind := range []string{store.BanZline, store.BanAkill, store.BanSNLine, store.BanKline} {
 		if b := s.firstBan(kind, ident, host, ip, realname); b != nil {
 			return b
 		}

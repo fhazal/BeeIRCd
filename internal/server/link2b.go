@@ -580,9 +580,20 @@ func (s *Server) quitSplit(gone map[string]bool, near, far string) {
 		}
 	}
 	sort.Strings(uids)
+	if len(uids) == 0 {
+		return
+	}
+	// The QUITs reach clients with the batch capability inside an IRCv3
+	// netsplit batch (2e); with [link] hide_split non-opers see
+	// "*.net *.split" instead of the server names (L8).
+	s.batchSeq++
+	b := &netjoinBatch{id: "ns" + strconv.FormatUint(s.batchSeq, 36), kind: "netsplit", near: near, far: far, started: map[*Client]bool{}}
+	s.netsplit = b
 	for _, uid := range uids {
 		s.emitQuiet(&state.UserQuit{UID: uid, Reason: near + " " + far}) // every server sees the SQUIT
 	}
+	s.netsplit = nil
+	b.end()
 }
 
 // ---- netjoin batch ----
@@ -591,6 +602,7 @@ func (s *Server) quitSplit(gone map[string]bool, near, far string) {
 // for clients with the batch capability.
 type netjoinBatch struct {
 	id       string
+	kind     string // "netjoin" ("" too) or "netsplit"
 	near     string
 	far      string
 	started  map[*Client]bool
@@ -610,9 +622,20 @@ func (s *Server) netjoinFor(l *linkConn) *netjoinBatch {
 func (b *netjoinBatch) tag(c *Client, line string) string {
 	if !b.started[c] {
 		b.started[c] = true
-		c.queueLine(":" + b.near + " BATCH +" + b.id + " netjoin " + b.near + " " + b.far + crlf)
+		kind := orStr(b.kind, "netjoin")
+		near, far := b.near, b.far
+		if b.hidden(c) {
+			near, far = "*.net", "*.split"
+		}
+		c.queueLine(":" + c.s.cfg.Server.Name + " BATCH +" + b.id + " " + kind + " " + near + " " + far + crlf)
 	}
 	return addTag(line, "batch", b.id)
+}
+
+// hidden reports whether c sees "*.net *.split" ([link] hide_split, not
+// an oper).
+func (b *netjoinBatch) hidden(c *Client) bool {
+	return c.s.cfg.Link.HideSplit && !c.isOper()
 }
 
 // end closes the batch for everyone it was opened for.
@@ -628,7 +651,7 @@ func (b *netjoinBatch) end() {
 	sort.Slice(cs, func(i, j int) bool { return cs[i].uid < cs[j].uid })
 	for _, c := range cs {
 		if !c.closed {
-			c.queueLine(":" + b.near + " BATCH -" + b.id + crlf)
+			c.queueLine(":" + c.s.cfg.Server.Name + " BATCH -" + b.id + crlf)
 		}
 	}
 }
