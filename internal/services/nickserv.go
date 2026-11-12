@@ -286,8 +286,15 @@ func nsRecover(s *Services, c *Client, args []string) {
 		s.ns(c, "You are using %s already.", c.user.Nick)
 		return
 	}
+	if a.Suspended(time.Now()) {
+		s.ns(c, "Nick %s is suspended.", a.Name)
+		return
+	}
 	if c.accountID != a.ID && len(args) < 2 {
 		s.ns(c, "Give the password of %s: /ns recover %s <password>", a.Name, nick)
+		return
+	}
+	if c.accountID != a.ID && s.loginsFull(c, a) {
 		return
 	}
 	s.withOwnership(c, a, argAt(args, 1), func() {
@@ -338,6 +345,9 @@ func nsGroup(s *Services, c *Client, args []string) {
 	}
 	if c.accountID != a.ID && len(args) < 2 {
 		s.ns(c, "Give the password of %s: /ns group %s <password>", a.Name, args[0])
+		return
+	}
+	if c.accountID != a.ID && s.loginsFull(c, a) {
 		return
 	}
 	nick := u.Nick

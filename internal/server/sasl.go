@@ -106,6 +106,16 @@ func (s *Server) saslDone(c *Client, a *store.Account) {
 		s.reply(c, irc.ErrSaslFail, "SASL authentication failed")
 		return
 	}
+	// The same doors as NS IDENTIFY: a suspended account stays shut, and
+	// max_logins counts SASL logins too.
+	if fresh.Suspended(time.Now()) {
+		s.reply(c, irc.ErrSaslFail, "SASL authentication failed: account "+fresh.Name+" is suspended")
+		return
+	}
+	if s.accountID(c) != fresh.ID && s.svc.LoginsFull(fresh.ID) {
+		s.reply(c, irc.ErrSaslFail, "SASL authentication failed: account "+fresh.Name+" has reached the maximum number of simultaneous logins")
+		return
+	}
 	if c.registered {
 		s.svc.LoginSASL(c.uid, fresh) // sends 900 and 903
 		return
