@@ -183,10 +183,13 @@ one holding the key it expects. No passwords are needed.
    one or cloaks differ per server). The installer writes the hub's
    `[[link.server]]` block with `autoconnect = true`, turns the leaf's
    own services off (it uses the hub's) and prints the block the hub
-   needs. The admin from the leaf's beeircd.conf opers there with its
-   admin password once identified to the account of that name (it lives
-   on the hub). Other oper entries are on the hub, so other opers /oper
-   on the hub for now.
+   needs. Opers /oper on a leaf as anywhere: their entries live with the
+   accounts on the hub, so the leaf asks the hub over the link, and the
+   hub checks the entry, host and password (wrong-password lockout
+   included) and sends back the flags. The admin from the leaf's
+   beeircd.conf also opers there with its own admin password, once
+   identified to the account of that name. A change to an entry on the
+   hub applies at the next /oper on a leaf.
 3. **Back on the hub,** paste the leaf's block into
    `/etc/beeircd/beeircd.conf` and run `sudo beeircd rehash`:
 

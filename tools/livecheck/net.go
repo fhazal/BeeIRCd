@@ -108,6 +108,26 @@ func (lc *liveCheck) network(n netCheck) {
 	l2.send("NS INFO ztn1")
 	lc.ok("NS INFO from leaf2", l2.wait(`NickServ!.* NOTICE ztn2 :.*ztn1`))
 
+	// Opers on a leaf: entries live on the services server. The test
+	// network's admin is ztnadmin (its first /oper sets its password); it
+	// adds ztnop, who opers on leaf1.
+	adm := lc.connectTo(n.addrs[0], "ztnadmin", "")
+	adm.send("NS REGISTER " + PW + " ztnadmin@example.org")
+	adm.wait("registered", 8*time.Second)
+	adm.send("OPER ztnadmin " + PW + "-oper")
+	lc.ok("admin opers on the hub", adm.wait(" 381 ", 8*time.Second))
+	op := lc.connectTo(n.addrs[1], "ztnop", "")
+	op.send("NS REGISTER " + PW + " ztnop@example.org")
+	op.wait("registered", 8*time.Second)
+	adm.send("AS OPER ztnop ADD CLASS globop HOST *@* PASSWORD " + PW + "-op2")
+	lc.ok("oper entry added on the hub", adm.wait("is an oper now", 8*time.Second))
+	op.send("OPER ztnop wrong-password")
+	lc.ok("leaf1: wrong oper password refused (checked on the hub)", op.wait(" 464 ztnop ", 8*time.Second))
+	op.send("OPER ztnop " + PW + "-op2")
+	lc.ok("leaf1: oper from the hub's entry", op.wait(" 381 ztnop ", 8*time.Second))
+	h.send("WHOIS ztnop")
+	lc.ok("hub sees leaf1's oper", h.wait(` 313 ztnh ztnop `))
+
 	// Split: cut leaf2's link.
 	h.lines, l1.lines, l2.lines = nil, nil, nil
 	lc.shell("cut", n.cut)
@@ -147,6 +167,12 @@ func (lc *liveCheck) network(n netCheck) {
 	lc.ok("rejoin: messages flow again", h.wait(`:ztn2!.* PRIVMSG #ztnet :after the rejoin`))
 
 	// Clean up.
+	adm.send("AS OPER ztnop DEL")
+	lc.ok("oper entry removed", adm.wait("ztnop", 8*time.Second))
+	op.send("NS DROP ztnop")
+	lc.ok("oper's account dropped", op.wait("has been dropped"))
+	adm.send("NS DROP ztnadmin")
+	adm.wait("has been dropped|can't|cannot", 5*time.Second)
 	l1.send("CS DROP " + ch + " " + ch)
 	lc.ok("channel dropped", l1.wait("no longer registered"))
 	l1.send("NS DROP ztn1")

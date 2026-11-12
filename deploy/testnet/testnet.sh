@@ -50,7 +50,7 @@ secret = "$CLOAK"
 [services]
 enabled = $3
 database = "/data/services.db"
-admin = "Belon"
+admin = "ztnadmin"
 reg_delay = "0s"
 force_email = false
 

@@ -80,6 +80,7 @@ type linkState struct {
 	jupes     map[string]*jupe   // OperServ JUPE, by lower-case name
 	noop      bool               // NOOP: nobody may be an IRC operator here
 	pending   atomic.Int32       // TLS handshakes running on the link port
+	operBusy  map[string]*bool   // relayed /oper password checks running, by UID (link2f_oper.go)
 }
 
 type linkRetry struct {
@@ -406,7 +407,7 @@ func (s *Server) handleLinkLine(l *linkConn, line string) {
 	}
 	l.lastRecv = time.Now()
 	if s.links.debug {
-		s.log.Printf("link %s <- %s", l.name(), line)
+		s.log.Printf("link %s <- %s", l.name(), debugLine(line))
 	}
 	m, err := irc.Parse(line)
 	if err != nil {
@@ -572,6 +573,10 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		s.remoteNoop(l, m)
 	case "BEEADMIN":
 		s.remoteAdmin(l, m)
+	case "BEEOPER":
+		s.remoteOper(l, m)
+	case "BEEOPERR":
+		s.operAnswered(l, m)
 	case "SINFO", "SMOD", "GLOBOPS", "SENDUMODE", "SENDSNO", "SLOG", "SWHOIS", "BOTMOTD", "REPUTATION":
 		// Server info, module lists and notices for opers: nothing to do,
 		// and nothing worth a log line.
@@ -713,6 +718,7 @@ func (s *Server) dropLink(l *linkConn, reason string) {
 	l.closed = true
 	delete(s.links.conns, l)
 	s.dropQlinesVia(l)
+	s.operRelayLost(l)
 	l.netjoin.end()
 	l.send("ERROR :Closing Link: " + s.cfg.Server.Name + " (" + reason + ")")
 	l.close()
@@ -903,7 +909,7 @@ func (s *Server) linkStatus() []control.Link {
 // send queues one line (on the loop).
 func (l *linkConn) send(line string) {
 	if l.s.links.debug {
-		l.s.log.Printf("link %s -> %s", l.name(), line)
+		l.s.log.Printf("link %s -> %s", l.name(), debugLine(line))
 	}
 	line = irc.CleanFraming(line) + crlf
 	l.mu.Lock()

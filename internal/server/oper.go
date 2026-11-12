@@ -80,9 +80,12 @@ func (s *Server) operEntry(a *store.Account) (*store.Oper, error) {
 // operLockKey keeps wrong oper passwords apart from wrong NickServ ones.
 func operLockKey(id int64) int64 { return -id }
 
-func (s *Server) operUp(c *Client, o *store.Oper) {
+func (s *Server) operUp(c *Client, o *store.Oper) { s.operUpView(c, o, s.viewOf(o)) }
+
+// operUpView opers c up with v; o names the entry (its account). On a
+// leaf v comes from the services server (o.AccountID 0: no account here).
+func (s *Server) operUpView(c *Client, o *store.Oper, v operView) {
 	u := c.user
-	v := s.viewOf(o)
 	was := c.operFlags
 	c.operFlags, c.operTitle, c.operAccount, c.operSwhois, c.operClass = v.flags, v.title, o.AccountID, v.swhois, v.class
 	s.opers[c] = true
@@ -226,6 +229,10 @@ func (s *Server) cmdOper(c *Client, m irc.Message) {
 	var o *store.Oper
 	if a == nil {
 		a, o = s.leafAdmin(u, name)
+	}
+	if a == nil && s.svc.Off() {
+		s.operRelayTo(c, name, pw) // the entries are on the services server
+		return
 	}
 	if a != nil && o == nil {
 		if o, err = s.operEntry(a); err != nil {

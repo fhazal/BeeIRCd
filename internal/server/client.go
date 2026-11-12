@@ -55,6 +55,7 @@ type Client struct {
 	saslBusy    bool
 	saslSeq     int               // counts relayed logins, so an old timeout is ignored
 	adminFrom   string            // stand-in running AdminServ for an admin on that server
+	operRelay   *operRelay        // a /oper sent to the services server, waiting (link2f_oper.go)
 	saslAccount *store.Account    // SASL done before registration finished
 	certfp      string            // SHA-256 of the TLS client certificate, "" = none
 	monitor     map[string]string // MONITOR list: folded nick -> nick as given
