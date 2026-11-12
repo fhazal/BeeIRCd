@@ -468,7 +468,7 @@
   // account in this browser. Blocks the oper has no flag for never show.
   const OV = [
     { id: 'stats', label: 'Numbers', wide: true },
-    { id: 'room', label: 'Room on this server', wide: true },
+    { id: 'room', label: 'This server', wide: true },
     { id: 'map', label: 'Network map', wide: true, need: 'c' },
     { id: 'events', label: 'What happened', col: 'l' },
     { id: 'actions', label: 'Server actions', col: 'l', can: () => has('a') || me.owner },
@@ -554,20 +554,12 @@
           } };
       },
       room() {
-        const c = ovCard('gauge', 'Room on this server', 'People connected against max users, and what services keep');
-        const meterB = h('b', { text: '…' }), fill = h('i'), free = h('span'), used = h('span');
+        const c = ovCard('gauge', 'This server', 'What services keep, and how fast this server answers');
         const fact = label => { const b = h('b', { text: '…' }); return { el: h('div', {}, h('span', { text: label }), b), b }; };
         const fN = fact('Registered nicks'), fC = fact('Registered channels'), fM = fact('Memos kept'), fR = fact('Reply time'), fMem = fact('Memory');
-        c.card.append(h('div', { class: 'meter' }, h('span', { text: 'Connected people' }), meterB),
-          h('div', { class: 'bar', role: 'img', 'aria-label': 'People connected' }, fill), h('div', { class: 'msub' }, free, used),
-          h('div', { class: 'facts' }, fN.el, fC.el, fM.el, fR.el, fMem.el));
+        c.card.append(h('div', { class: 'facts' }, fN.el, fC.el, fM.el, fR.el, fMem.el));
         return { el: c.card, tail: c.tail,
           status(s) {
-            const max = s.max_users || 0, pct = max ? Math.min(1, s.online / max) : 0;
-            meterB.textContent = fmt(s.online) + (max ? ' / ' + fmt(max) : '');
-            fill.style.width = (pct * 100).toFixed(2) + '%';
-            free.textContent = max ? fmt(Math.max(0, max - s.online)) + ' places free' : 'no limit set';
-            used.textContent = !max ? '' : pct < 0.01 ? 'under 1% used' : Math.round(pct * 100) + '% used';
             const svc = s.services_on;
             fN.b.textContent = svc ? fmt(s.nicks) : 'on the hub';
             fC.b.textContent = svc ? fmt(s.reg_channels) : 'on the hub';
@@ -663,17 +655,16 @@
       services() {
         const word = h('span', { class: 'okword' });
         const c = ovCard('services', 'Services', 'The built-in service bots', word);
-        const n = h('b', { text: '…' }), counts = h('span'), bots = h('div', { class: 'bots' });
-        c.card.append(h('div', { class: 'svc-n' }, n, counts), bots);
+        const n = h('b', { text: '…' }), bots = h('div', { class: 'bots' });
+        c.card.append(h('div', { class: 'svc-n' }, n), bots);
         return { el: c.card, tail: c.tail,
           status(s) {
             if (!s.services_on) {
-              put(n, '0', h('small', { text: 'here' })); counts.textContent = ''; put(bots, h('p', { class: 'empty', text: 'Services run on the hub server.' }));
+              put(n, '0', h('small', { text: 'here' })); put(bots, h('p', { class: 'empty', text: 'Services run on the hub server.' }));
               word.textContent = ''; return;
             }
             const list = s.services || [];
             put(n, String(list.length), h('small', { text: list.length === 1 ? 'service bot' : 'service bots' }));
-            counts.textContent = [plural(s.nicks, 'nick', 'nicks'), plural(s.reg_channels, 'channel', 'channels'), plural(s.memos, 'memo', 'memos')].join(' · ');
             put(bots, list.map(b => h('span', { class: 'bot', title: BOT_TEXT[b] || '' }, h('span', { class: 'dot' }), b)));
             word.className = 'okword'; word.textContent = list.length ? 'All up' : '';
           } };
@@ -1638,13 +1629,11 @@
     const sub = h('span', { class: 'sub' });
     const addBtn = h('button', { type: 'button', class: 'btn', text: 'Add a server', hidden: true });
     addBtn.addEventListener('click', () => { open = '+'; drawForm(); });
-    const mapBox = h('div', { class: 'map' });
     const nm = window.HiveNetMap ? window.HiveNetMap({ h, put, icon, api, busy, toast, toastErr, plural, fmt, when, ends, since }).create({ panel: true, canPlace: has('c'), canSettings: has('a'), reload: () => load(), self: () => status }) : null;
     const tbody = h('tbody');
     const form = h('section', { class: 'card' });
     const mine = h('section', { class: 'card' });
     const left = h('div', { class: 'stack' },
-      h('section', { class: 'card' }, h('h2', { text: 'Server tree' }), mapBox),
       h('section', { class: 'card list-card' }, h('div', { class: 'ch tools' }, h('h2', { text: 'Link blocks' })),
         h('div', { class: 'wrap' }, h('table', { class: 'links' },
           h('thead', {}, h('tr', {}, ['Server', 'State', 'Up since', 'Software'].map(t => h('th', { scope: 'col', text: t })), h('th', { scope: 'col' }, h('span', { class: 'sr', text: 'Actions' })))),
@@ -1658,7 +1647,7 @@
       try {
         data = (await api('GET', '/api/links')).links;
         draw();
-      } catch (e) { put(mapBox, h('p', { class: 'empty', text: e.message })); }
+      } catch (e) { put(tbody, h('tr', {}, h('td', { colspan: 5, class: 'empty', text: e.message }))); }
     }
     function draw() {
       const d = data;
@@ -1675,26 +1664,6 @@
       const up = (d.status || []).filter(s => s.state === 'up');
       const lags = up.filter(s => s.lag_ms).map(s => s.lag_ms);
       sub.textContent = d.map.length + (d.map.length === 1 ? ' server' : ' servers') + (lags.length ? ' · slowest ping ' + ms(Math.max(...lags)) : '') + ' · this one is the ' + d.role;
-
-      // map: a tree from the uplinks
-      const kids = {};
-      for (const m of d.map.slice(1)) (kids[(m.uplink || d.self).toLowerCase()] ||= []).push(m);
-      const node = (m, top) => {
-        const s = st[m.name.toLowerCase()];
-        const cls = m.self ? 'warn' : '';
-        const parts = [m.self ? 'this one' : null, plural(m.users, 'person', 'people'), m.lag_ms ? ms(m.lag_ms) : null].filter(Boolean).join(' · ');
-        const line = h('div', { class: 'node' }, h('span', { class: 'dot ' + cls }), h('span', { class: 'mono', text: m.name }), h('span', { class: 'lbl', text: parts }));
-        const below = (kids[m.name.toLowerCase()] || []).map(k => node(k, false));
-        return [line, below.length ? h('div', { class: 'kid' }, below) : null];
-      };
-      // blocks that are down show under us, red
-      const down = (d.status || []).filter(s => s.state !== 'up').map(s => h('div', { class: 'node' },
-        h('span', { class: 'dot ' + (s.state === 'down' ? 'bad' : 'warn') }), h('span', { class: 'mono', text: s.name }),
-        h('span', { class: 'lbl', text: s.state === 'down' ? 'down' + (s.retry ? ' · tries again ' + ends(s.retry).replace('in ', 'in ') : '') : s.state })));
-      const tree = node(d.map[0], true);
-      const kidBox = tree[1] || h('div', { class: 'kid' });
-      add(kidBox, down);
-      put(mapBox, tree[0], down.length || tree[1] ? kidBox : null);
 
       // link blocks with their state
       if (!d.blocks.length) {

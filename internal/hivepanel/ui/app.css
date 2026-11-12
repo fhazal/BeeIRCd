@@ -313,10 +313,6 @@ fieldset.plain legend{padding:0 0 6px}
 table.opers{min-width:620px}
 
 /* Linked servers */
-.map{display:flex;flex-direction:column;padding:2px 0}
-.node{display:flex;align-items:center;gap:10px;min-height:36px;flex-wrap:wrap}
-.kid{margin-left:15px;padding-left:20px;border-left:1px solid var(--btn-line)}
-.kid > .node::before{content:"";width:14px;border-top:1px solid var(--btn-line);margin-left:-20px;margin-right:-4px}
 .fp{font-family:var(--mono);font-size:12px;word-break:break-all;padding:10px 12px;border-radius:6px;background:var(--field);border:1px solid var(--line);color:var(--ink);user-select:all}
 .ck{display:flex;gap:10px;align-items:center;min-height:36px;color:var(--ink);font-size:14px}
 .ck input{accent-color:var(--honey);width:16px;height:16px;margin:0}
@@ -435,13 +431,7 @@ tr.bk-detail td{background:var(--honey-tint);box-shadow:inset 3px 0 0 var(--hone
 .ov-col{display:flex;flex-direction:column;gap:14px;min-width:0;min-height:20px}
 .blk{position:relative;min-width:0}
 .blk>.card{height:100%}
-.meter{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
-.meter span{color:var(--muted);font-size:14px}
-.meter b{font:600 18px var(--mono)}
-.bar{height:6px;border-radius:9px;background:var(--field);border:1px solid var(--line);overflow:hidden}
-.bar i{display:block;height:100%;background:var(--honey);min-width:2px;transition:width .6s ease}
-.msub{display:flex;justify-content:space-between;font:11px var(--mono);color:var(--muted)}
-.facts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;border-top:1px solid var(--line-soft);padding-top:13px}
+.facts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
 .facts span{display:block;color:var(--muted);font-size:12px}
 .facts b{font:400 14px var(--mono)}
 .svc-n{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
