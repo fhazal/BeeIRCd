@@ -22,6 +22,12 @@ behind a proxy or tunnel. Day-to-day running is in [ADMIN.md](ADMIN.md).
 curl -fsSL https://beeircd.org/install.sh | sudo sh
 ```
 
+No curl on the machine? wget works the same:
+
+```sh
+wget -qO- https://beeircd.org/install.sh | sudo sh
+```
+
 The script downloads the program for your machine (amd64 or arm64) and runs
 `beeircd install`. If you'd rather not pipe a script into a shell, do it by
 hand:
