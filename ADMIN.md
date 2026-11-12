@@ -271,6 +271,19 @@ then open <http://127.0.0.1:8787>. `beeircd install` sets it up as the
   `[web] trusted_proxy` so the panel believes its `X-Forwarded-For` and
   `X-Forwarded-Proto` (https makes the session cookie Secure).
 
+
+**Find your way round.** The menu on the left holds every page your flags
+allow. In the top bar: **Jump to** (Ctrl K, ⌘K on a Mac) finds a page or
+runs Check, Rehash, Back up now (owner) and more; **Theme** picks Bee,
+Catppuccin Latte (light), Catppuccin Mocha, One Dark Pro or Dracula (kept in
+that browser only); the pill says whether the server answers.
+
+**Arrange the Overview.** Click **Arrange**: switch blocks on and off
+(Recent bans, Top channels and Opers online are off at first), drag a block
+by its **Drag** handle, or focus the handle and use the arrow keys (up/down
+moves, left/right changes column). **Reset** puts it back. The layout is
+kept per oper account in that browser; nothing is saved on the server.
+
 ## Linking servers
 
 Servers on one network share users, channels, bans and one set of

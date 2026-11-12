@@ -132,6 +132,11 @@ Last updated: 12 Nov 2026 (Stage 1.5.9b).
 | Sign in with oper nick + oper password (/oper's entry, hosts and lockout) + a per-address lock | Implemented (3a) | |
 | Every request re-checked by the server (entry, host, flags); removed opers signed out at their next click | Implemented (3a) | |
 | Overview: people online ring, channels, opers, servers, reply time, health, linked servers, services, What happened | Implemented (3a) | |
+| Panel design v3: menu + top bar (page path, Jump to, theme, running pill, refresh), cards with header strips and icon boxes, number tiles | Implemented (3n) | design from the owner's experimental panel; our menu, sign-in and map kept |
+| Overview blocks: numbers, room on this server, network map with the chosen server's details beside it, What happened, server actions, health, services, linked servers; extra blocks Recent bans (k), Top channels, Opers online | Implemented (3n) | blocks an oper has no flag for never show |
+| Arrange the Overview: show/hide blocks, drag (mouse, touch, pen) or arrow keys, two columns + wide rows, Reset; kept per oper account in that browser | Implemented (3n) | |
+| Themes: Bee, Catppuccin Latte (light), Catppuccin Mocha, One Dark Pro, Dracula; the map follows the theme; kept in that browser | Implemented (3n) | |
+| Jump to (Ctrl K / ⌘K): pages, Check, Rehash, Back up (owner), Arrange, themes, Sign out, keyboard only if wanted | Implemented (3n) | only what the oper may do |
 | Settings (AdminServ SET's limits, saved + applied, Undo via HISTORY), Check, Rehash, Backup (owner) | Implemented (3a) | |
 | People: everyone on every server, search, filters, paging; one person's details (real host only with h), notice, disconnect (k), ban = AKILL on their address (k) | Implemented (3b) | |
 | Channels: every channel (secret too) biggest first + suspended ones, search, filters, details (topic, modes without key, ban counts, people ops first, ChanServ registration), notice (g, from Global), topic (s, as ChanServ), suspend/unsuspend (s) | Implemented (3h) | Lucide "hash" icon |

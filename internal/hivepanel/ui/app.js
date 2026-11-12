@@ -71,6 +71,7 @@
     if (d.toDateString() === y.toDateString()) return 'yesterday ' + hm;
     return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' ' + hm;
   }
+  const ms = v => (v < 1 ? 'under 1 ms' : Math.round(v) + ' ms');
   const day = t => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   const has = f => !!me && me.flags.includes(f);
 
@@ -131,14 +132,32 @@
   let poll = 0, liveFails = 0;
   const pages = [
     { id: 'overview', label: 'Overview', icon: 'overview', make: overviewPage },
-    { id: 'people', label: 'People', icon: 'people', make: peoplePage },
-    { id: 'channels', label: 'Channels', icon: 'hash', make: channelsPage },
-    { id: 'bans', label: 'Bans', icon: 'bans', need: 'k', make: bansPage },
-    { id: 'opers', label: 'Opers', icon: 'opers', need: 'a', make: opersPage },
-    { id: 'servers', label: 'Linked servers', icon: 'servers', need: 'c', make: serversPage },
-    { id: 'services', label: 'Services', icon: 'services', need: 'a', make: servicesPage },
-    { id: 'settings', label: 'Settings', icon: 'settings', need: 'a', make: settingsPage },
+    { id: 'people', label: 'People', icon: 'people', eyebrow: 'Live list', make: peoplePage },
+    { id: 'channels', label: 'Channels', icon: 'hash', eyebrow: 'Live list', make: channelsPage },
+    { id: 'bans', label: 'Bans', icon: 'bans', need: 'k', eyebrow: 'Network bans', make: bansPage },
+    { id: 'opers', label: 'Opers', icon: 'opers', need: 'a', eyebrow: 'Who may /oper', make: opersPage },
+    { id: 'servers', label: 'Linked servers', icon: 'servers', need: 'c', eyebrow: 'Links', make: serversPage },
+    { id: 'services', label: 'Services', icon: 'services', need: 'a', eyebrow: 'Built in', make: servicesPage },
+    { id: 'settings', label: 'Settings', icon: 'settings', need: 'a', eyebrow: 'beeircd.conf', make: settingsPage },
   ];
+  const allowed = p => !p.need || has(p.need);
+
+  // ---------- themes (kept in this browser only) ----------
+  const THEMES = [['bee', 'Bee'], ['catppuccin-latte', 'Catppuccin Latte'], ['catppuccin-mocha', 'Catppuccin Mocha'], ['one-dark-pro', 'One Dark Pro'], ['dracula', 'Dracula']];
+  function getTheme() {
+    let t = null;
+    try { t = localStorage.getItem('hive-theme'); } catch { /* private window */ }
+    return THEMES.some(x => x[0] === t) ? t : 'bee';
+  }
+  function setTheme(t, keep) {
+    if (t === 'bee') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+    if (keep) { try { localStorage.setItem('hive-theme', t); } catch { /* private window */ } }
+    document.querySelectorAll('.theme select').forEach(x => { x.value = t; });
+    window.dispatchEvent(new Event('hive-theme'));
+  }
+  setTheme(getTheme());
+  const brand = () => h('div', { class: 'brand' }, h('span', { class: 'mark' }, icon('hive')),
+    h('span', { class: 'bname' }, 'Hive Panel', h('small', { text: 'NETWORK CONTROL' })));
 
   // ---------- sign in ----------
   function signedOut(msg) {
@@ -160,11 +179,12 @@
     const err = h('span', { class: 'err', id: 'err', role: 'alert', text: msg && msg !== 'Please sign in.' ? msg : '' });
     const go = h('button', { type: 'submit', class: 'btn main', text: 'Sign in' });
     const form = h('form', { novalidate: true },
-      h('div', { class: 'top' }, icon('hive'), h('b', { text: 'Hive Panel' })),
+      brand(),
+      h('h2', { text: 'Sign in to your server' }),
+      h('p', { class: 'intro', text: 'The same oper nick and oper password as /oper.' }),
       h('label', { class: 'f', for: 'nick' }, 'Oper nick', nick),
       h('label', { class: 'f pw', for: 'pw' }, 'Oper password', pw, eye),
-      err, go,
-      h('span', { class: 'foot', text: 'The same nick and password as /oper' }));
+      err, go);
     form.addEventListener('submit', async e => {
       e.preventDefault();
       err.textContent = '';
@@ -190,47 +210,172 @@
   }
 
   // ---------- shell ----------
-  let mainEl, navEl;
+  let mainEl, navEl, crumbEl, pillEl, deco;
+  async function signOut() {
+    await api('POST', '/api/logout').catch(() => {});
+    signedOut('');
+  }
   function start() {
     navEl = h('div', { class: 'nav' });
     const out = h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Sign out', title: 'Sign out' }, icon('signout'));
-    out.addEventListener('click', async () => {
-      await api('POST', '/api/logout').catch(() => {});
-      signedOut('');
-    });
+    out.addEventListener('click', signOut);
     const side = h('nav', { class: 'side', 'aria-label': 'Hive Panel' },
-      h('div', { class: 'brand' }, icon('hive'), 'Hive Panel'),
-      navEl,
+      brand(), h('div', { class: 'nlabel', text: 'Server' }), navEl,
       h('div', { class: 'me' }, h('div', { class: 'av', text: me.account.slice(0, 1) }),
-        h('div', { class: 'me-text' }, h('b', { text: me.account }), h('span', { class: 'lbl', text: me.owner ? 'Owner' : (me.class || 'Oper') })),
+        h('div', { class: 'me-text' }, h('b', { text: me.account }), h('span', { class: 'lbl', text: me.owner ? 'Owner' : (me.class || 'Oper') + ' · ' + (me.flags || 'no flags') })),
         out));
+    crumbEl = h('div', { class: 'crumb' });
+    pillEl = h('span', { class: 'pill', role: 'status' }, h('span', { class: 'dot' }), h('span', { text: '…' }));
+    const mac = /Mac|iPhone|iPad/.test(navigator.platform || '');
+    const jumpBtn = h('button', { type: 'button', class: 'jump', 'aria-label': 'Jump to a page or action', title: 'Jump to (' + (mac ? '⌘K' : 'Ctrl K') + ')' },
+      icon('search'), h('span', { text: 'Jump to…' }), h('span', { class: 'kbd', text: mac ? '⌘ K' : 'Ctrl K' }));
+    jumpBtn.addEventListener('click', openJump);
+    const themeSel = h('select', { 'aria-label': 'Theme' }, THEMES.map(([v, t]) => h('option', { value: v, text: t })));
+    themeSel.value = getTheme();
+    themeSel.addEventListener('change', () => setTheme(themeSel.value, true));
+    const refresh = h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Refresh this page', title: 'Refresh' }, icon('refresh'));
+    refresh.addEventListener('click', () => {
+      route();
+      api('GET', '/api/status').then(d => { setOffline(false); gotStatus(d.status); }).catch(() => setOffline(true));
+    });
+    const topbar = h('header', { class: 'topbar' }, crumbEl,
+      h('div', { class: 'tacts' }, jumpBtn, h('label', { class: 'theme' }, icon('palette'), h('span', { text: 'Theme' }), themeSel), pillEl, refresh));
     mainEl = h('main', { class: 'content', id: 'main', tabindex: '-1' });
-    put(app, h('div', { class: 'hp' }, side, mainEl));
+    put(app, h('div', { class: 'hp' }, side, h('div', { class: 'mainwrap' }, topbar, mainEl)));
+    if (deco) deco.disconnect();
+    deco = new MutationObserver(() => decorate());
+    deco.observe(mainEl, { childList: true, subtree: true });
     drawNav();
     route();
     startLive();
   }
   function drawNav() {
-    put(navEl, ...pages.filter(p => !p.need || has(p.need)).map(p =>
+    put(navEl, ...pages.filter(allowed).map(p =>
       h('a', { href: '#/' + p.id, 'data-page': p.id, class: page && page.id === p.id ? 'on' : null,
         'aria-current': page && page.id === p.id ? 'page' : null }, icon(p.icon), p.label)));
   }
   function route() {
     if (!me) return;
     const id = (location.hash.match(/^#\/([a-z]+)/) || [])[1] || 'overview';
-    let p = pages.find(x => x.id === id && (!x.need || has(x.need)));
+    let p = pages.find(x => x.id === id && allowed(x));
     if (!p) { p = pages[0]; history.replaceState(null, '', '#/overview'); }
     if (page && page.leave) page.leave();
     page = p.make();
     page.id = p.id;
     put(mainEl, page.el);
+    put(crumbEl, 'Hive Panel / ', h('b', { text: p.label }));
     document.title = p.label + ' · Hive Panel';
     drawNav();
+    decorate();
     if (status && page.status) page.status(status);
     if (events && page.events) page.events(events);
     mainEl.focus({ preventScroll: true });
     window.scrollTo(0, 0);
   }
+
+  // decorate gives every page the same look without each page drawing it:
+  // a small label over the title, an icon box in number tiles and in card
+  // heads. It runs again when a page redraws a part (a MutationObserver).
+  const HEAD_ICON = {
+    'Health': 'pulse', 'What happened': 'list', 'Services': 'services', 'Bots': 'services', 'Services run on the hub': 'services',
+    'Limits': 'gauge', 'Server actions': 'terminal', 'Backups': 'archive', 'Add a ban': 'plus', 'Network map': 'map',
+    'Settings': 'settings', 'What the flags allow': 'opers', 'Change an oper': 'opers', 'Add an oper': 'opers',
+    'This server, for the other side': 'lock', 'Server tree': 'servers', 'Link blocks': 'servers', 'Link block': 'servers', 'Not linked': 'servers',
+  };
+  const TILE_ICON = [[/oper/i, 'opers'], [/bot/i, 'services'], [/memo/i, 'message'], [/logged|nick/i, 'lock'], [/online|guest|people/i, 'people'],
+    [/suspend|akill|zline|shun|snline/i, 'bans'], [/exception|registered/i, 'check'], [/channel|biggest/i, 'hash']];
+  function decorate() {
+    if (!mainEl || !page) return;
+    const pg = pages.find(x => x.id === page.id) || {};
+    for (const hd of mainEl.querySelectorAll('header.head:not([data-deco])')) {
+      hd.dataset.deco = '1';
+      const t = hd.querySelector('.head-text');
+      if (t && pg.eyebrow && !t.querySelector('.eyebrow')) t.prepend(h('div', { class: 'eyebrow', text: [status && status.network, pg.eyebrow].filter(Boolean).join(' · ') }));
+    }
+    for (const tl of mainEl.querySelectorAll('.card.tight:not([data-deco]), .card.tile:not([data-deco])')) {
+      tl.dataset.deco = '1';
+      const lbl = tl.querySelector(':scope > .lbl');
+      if (!lbl) continue;
+      const hit = TILE_ICON.find(([re]) => re.test(lbl.textContent));
+      const slab = h('div', { class: 'slab' });
+      lbl.replaceWith(slab);
+      slab.append(lbl, h('span', { class: 'sico' }, icon(hit ? hit[1] : pg.icon || 'hive')));
+    }
+    for (const h2 of mainEl.querySelectorAll('.card h2')) {
+      if (h2.querySelector('.sico') || h2.closest('.nm-card, td')) continue;
+      const text = h2.textContent.trim();
+      const name = HEAD_ICON[text] || (/AKILL|ZLINE|SHUN|SNLINE|Exception/.test(text) ? 'bans' : pg.icon || 'hive');
+      h2.prepend(h('span', { class: 'sico' }, icon(name)));
+    }
+  }
+
+  // ---------- Jump to (Ctrl K): pages and quick actions in one box ----------
+  let jumpEl = null;
+  function quick(path, lines, what) {
+    return api('POST', path).then(d => toast([what + ': ', lines(d).map(x => x.textContent).join(' · ')]))
+      .catch(e => toastErr(what + ': ' + e.message));
+  }
+  function openJump() {
+    if (!me || jumpEl) return;
+    const back = document.activeElement;
+    const items = [
+      ...pages.filter(allowed).map(p => ({ grp: 'Pages', label: p.label, icon: p.icon, run: () => { location.hash = '#/' + p.id; } })),
+      has('a') ? { grp: 'Actions', label: 'Check the config', icon: 'check', run: () => quick('/api/check', checkLines, 'Check') } : null,
+      has('a') ? { grp: 'Actions', label: 'Rehash', icon: 'refresh', run: () => quick('/api/rehash', rehashLines, 'Rehash') } : null,
+      me.owner ? { grp: 'Actions', label: 'Back up now', icon: 'archive', run: () => quick('/api/backup', backupLines, 'Backup') } : null,
+      { grp: 'Actions', label: 'Arrange the Overview', icon: 'grip', run: () => { editNext = true; if (page && page.id === 'overview' && page.edit) { editNext = false; page.edit(true); } else location.hash = '#/overview'; } },
+      ...THEMES.map(([v, t]) => ({ grp: 'Theme', label: 'Theme: ' + t, icon: 'palette', hint: getTheme() === v ? 'now' : '', run: () => setTheme(v, true) })),
+      { grp: 'You', label: 'Sign out', icon: 'signout', run: signOut },
+    ].filter(Boolean);
+    let sel = 0, shown = items;
+    const input = h('input', { type: 'text', 'aria-label': 'Jump to', placeholder: 'Type a page or an action', autocomplete: 'off', spellcheck: 'false', role: 'combobox', 'aria-expanded': 'true', 'aria-controls': 'jump-list' });
+    const list = h('div', { class: 'jump-list', id: 'jump-list', role: 'listbox' });
+    function draw() {
+      const q = input.value.trim().toLowerCase();
+      shown = items.filter(x => !q || x.label.toLowerCase().includes(q) || x.grp.toLowerCase().includes(q));
+      sel = Math.min(sel, Math.max(0, shown.length - 1));
+      const out = [];
+      let grp = '';
+      shown.forEach((x, n) => {
+        if (x.grp !== grp) { grp = x.grp; out.push(h('div', { class: 'jump-grp', text: grp })); }
+        const b = h('button', { type: 'button', role: 'option', id: 'jump-' + n, 'aria-selected': n === sel ? 'true' : 'false' }, icon(x.icon), x.label, x.hint ? h('small', { text: x.hint }) : null);
+        b.addEventListener('click', () => go(x));
+        b.addEventListener('mousemove', () => { if (sel !== n) { sel = n; mark(); } });
+        out.push(b);
+      });
+      if (!shown.length) out.push(h('div', { class: 'jump-none', text: 'Nothing called that.' }));
+      put(list, out);
+      mark();
+    }
+    function mark() {
+      list.querySelectorAll('button').forEach((b, n) => b.setAttribute('aria-selected', n === sel ? 'true' : 'false'));
+      const b = list.querySelector('[aria-selected="true"]');
+      if (b) { b.scrollIntoView({ block: 'nearest' }); input.setAttribute('aria-activedescendant', b.id); }
+    }
+    function close() {
+      if (!jumpEl) return;
+      jumpEl.remove(); jumpEl = null;
+      if (back && back.isConnected) back.focus({ preventScroll: true });
+    }
+    function go(x) { close(); x.run(); }
+    input.addEventListener('input', () => { sel = 0; draw(); });
+    input.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); sel = Math.min(shown.length - 1, sel + 1); mark(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); sel = Math.max(0, sel - 1); mark(); }
+      else if (e.key === 'Enter') { e.preventDefault(); if (shown[sel]) go(shown[sel]); }
+      else if (e.key === 'Escape') { e.preventDefault(); close(); }
+      else if (e.key === 'Tab') e.preventDefault();
+    });
+    jumpEl = h('div', { class: 'jump-bg', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Jump to' },
+      h('div', { class: 'jump-box' }, h('div', { class: 'jump-in' }, icon('search'), input), list));
+    jumpEl.addEventListener('mousedown', e => { if (e.target === jumpEl) close(); });
+    document.body.append(jumpEl);
+    draw();
+    input.focus();
+  }
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'k' && me) { e.preventDefault(); if (jumpEl) jumpEl.querySelector('input').focus(); else openJump(); }
+  });
   window.addEventListener('hashchange', () => {
     if (!me) return;
     route();
@@ -243,6 +388,7 @@
   // ---------- live ----------
   function gotStatus(s) {
     status = s;
+    if (pillEl && !offline) { pillEl.className = 'pill'; pillEl.lastChild.textContent = 'Running · ' + since(s.started); }
     if (page && page.status) page.status(s);
   }
   function gotEvents(list) {
@@ -288,137 +434,491 @@
   function setOffline(on) {
     if (on === offline) return;
     offline = on;
+    if (pillEl) {
+      pillEl.className = on ? 'pill bad' : 'pill';
+      pillEl.lastChild.textContent = on ? 'Not answering' : status ? 'Running · ' + since(status.started) : '…';
+    }
     if (page && page.offline) page.offline(on);
   }
 
-  // ---------- Overview ----------
+  // ---------- what server actions answer, as lines ----------
+  const line = (cls, text) => h('div', {}, h('span', { class: 'dot ' + cls }), h('span', { text }));
+  function checkLines(d) {
+    const c = d.check || {};
+    return [c.db_error ? line('bad', 'Database problem: ' + c.db_error) : line('', 'Database fine · ' + plural(c.nicks, 'nick', 'nicks') + ' · ' + plural(c.channels, 'channel', 'channels') + ' · ' + plural(c.memos, 'memo', 'memos')),
+      line('', 'History kept for ' + plural(c.history_channels, 'channel', 'channels'))];
+  }
+  function rehashLines(d) {
+    const r = d.rehash || {};
+    const out = [];
+    if (!(r.applied || []).length && !(r.needs_restart || []).length) out.push(line('', 'Nothing had changed'));
+    if ((r.applied || []).length) out.push(line('', 'Applied: ' + r.applied.join(', ')));
+    if ((r.needs_restart || []).length) out.push(line('warn', 'Needs a restart: ' + r.needs_restart.join(', ')));
+    return out;
+  }
+  function backupLines(d) {
+    const k = d.backup || {};
+    return [line('', 'Saved ' + (k.file || '').split(/[/\\]/).pop() + ' · ' + bytes(k.bytes || 0))];
+  }
+
+  // ---------- Overview: blocks the oper can arrange ----------
+  // Each block is a card. Wide ones fill the row; the others sit in a left
+  // or right column. Order, column and which are shown are kept per oper
+  // account in this browser. Blocks the oper has no flag for never show.
+  const OV = [
+    { id: 'stats', label: 'Numbers', wide: true },
+    { id: 'room', label: 'Room on this server', wide: true },
+    { id: 'map', label: 'Network map', wide: true, need: 'c' },
+    { id: 'events', label: 'What happened', col: 'l' },
+    { id: 'actions', label: 'Server actions', col: 'l', can: () => has('a') || me.owner },
+    { id: 'health', label: 'Health', col: 'r' },
+    { id: 'services', label: 'Services', col: 'r' },
+    { id: 'links', label: 'Linked servers', col: 'r' },
+    { id: 'bans', label: 'Recent bans', col: 'l', need: 'k', off: true },
+    { id: 'chans', label: 'Top channels', col: 'r', off: true },
+    { id: 'opers', label: 'Opers online', col: 'r', off: true },
+  ];
+  let editNext = false;
+  const ovKey = () => 'hive-overview:' + me.account.toLowerCase();
+  function ovLoad(fresh) {
+    let saved = null;
+    if (!fresh) { try { saved = JSON.parse(localStorage.getItem(ovKey()) || 'null'); } catch { /* private window or bad data */ } }
+    if (!saved || typeof saved !== 'object') saved = {};
+    const ids = OV.map(b => b.id), known = Array.isArray(saved.known) ? saved.known : [];
+    const order = (Array.isArray(saved.order) ? saved.order : []).filter((id, n, a) => ids.includes(id) && a.indexOf(id) === n);
+    for (const id of ids) if (!order.includes(id)) order.push(id);
+    const col = {};
+    for (const b of OV) if (!b.wide) col[b.id] = saved.col && (saved.col[b.id] === 'l' || saved.col[b.id] === 'r') ? saved.col[b.id] : b.col;
+    const hidden = Array.isArray(saved.hidden) ? saved.hidden.filter(id => ids.includes(id)) : [];
+    for (const b of OV) if (b.off && !known.includes(b.id) && !hidden.includes(b.id)) hidden.push(b.id); // new extra blocks start hidden
+    return { order, col, hidden };
+  }
+  function ovSave(L) {
+    try { localStorage.setItem(ovKey(), JSON.stringify({ order: L.order, col: L.col, hidden: L.hidden, known: OV.map(b => b.id) })); } catch { /* private window */ }
+  }
+  // ovCard: a card with the header strip (icon box, title, one line about it)
+  function ovCard(ic, title, desc, ...right) {
+    const tail = h('div', { class: 'ch-r' }, right);
+    const card = h('section', { class: 'card' }, h('div', { class: 'ch' },
+      h('h2', {}, h('span', { class: 'sico' }, icon(ic)), h('span', { class: 'ctitle' }, title, desc ? h('span', { class: 'cdesc', text: desc }) : null)), tail));
+    return { card, tail };
+  }
+
   function overviewPage() {
+    let L = ovLoad(), editing = false;
+    const eyebrow = h('div', { class: 'eyebrow', text: ' ' });
+    const title = h('h1', { text: 'Overview' });
     const sub = h('span', { class: 'sub', text: ' ' });
-    const pill = h('span', { class: 'pill' }, h('span', { class: 'dot' }), h('span', { text: '…' }));
+    const editBtn = h('button', { type: 'button', class: 'btn' }, icon('grip'), 'Arrange');
     const notice = h('div', { class: 'notice', role: 'alert', hidden: true, text: "The server isn't answering. The numbers below are from before." });
+    const toggles = h('div', { class: 'chips' });
+    const said = h('span', { class: 'sr', role: 'status' }); // what a key move did, for screen readers
+    const resetBtn = h('button', { type: 'button', class: 'btn' }, 'Reset');
+    const doneBtn = h('button', { type: 'button', class: 'btn main' }, 'Done');
+    const arrange = h('section', { class: 'arrange', hidden: true, 'aria-label': 'Arrange the Overview' },
+      h('div', { class: 'arrange-top' }, h('div', {}, h('b', { text: 'Arrange your Overview' }),
+        h('p', { text: 'Drag a block by its Drag handle, or use the arrow keys on it. Switch blocks on and off here. Kept for ' + me.account + ' in this browser.' })),
+        h('div', { class: 'row-btns' }, resetBtn, doneBtn)),
+      toggles, said);
+    const area = h('div', { class: 'main-stack' });
+    const foot = h('div', { class: 'ov-foot' }, h('span'), h('span'));
+    const el = h('div', { class: 'main-stack' },
+      h('header', { class: 'head', 'data-deco': '1' }, h('div', { class: 'head-text' }, eyebrow, title, sub), h('div', { class: 'head-btns' }, editBtn)),
+      arrange, notice, area, foot);
 
-    const C = 2 * Math.PI * 52;
-    const val = svgEl('circle', { class: 'val', cx: 60, cy: 60, r: 52, 'stroke-dasharray': '0 ' + C, transform: 'rotate(-90 60 60)' });
-    const big = svgEl('text', { class: 'big', x: 60, y: 58, 'text-anchor': 'middle' });
-    const small = svgEl('text', { class: 'small', x: 60, y: 76, 'text-anchor': 'middle' });
-    const ring = svgEl('svg', { class: 'ring', viewBox: '0 0 120 120', role: 'img' });
-    ring.append(svgEl('circle', { class: 'track', cx: 60, cy: 60, r: 52 }), val, big, small);
-    const peak = h('span', { class: 'lbl' });
-
-    const tile = label => {
-      const n = h('span', { class: 'num' }), l = h('span', { class: 'lbl' });
-      return { el: h('section', { class: 'card tight' }, h('span', { class: 'lbl', text: label }), n, l), n, l };
+    const tile = (ic, label) => {
+      const n = h('span', { class: 'num', text: '…' }), l = h('span', { class: 'foot-n', text: ' ' });
+      return { el: h('section', { class: 'card tight', 'data-deco': '1' }, h('div', { class: 'slab' }, h('span', { text: label }), h('span', { class: 'sico' }, icon(ic))), n, l), n, l };
     };
-    const tChan = tile('Channels'), tOpers = tile('Opers online'), tServers = tile('Servers'), tLag = tile('Reply time');
-    const health = h('div'), healthWord = h('span', { class: 'okword' });
-    const links = h('div');
-    const svc = h('div'), svcWord = h('span', { class: 'okword' });
-    const evList = h('div');
-
-    const el = h('div', { class: 'stack' },
-      h('header', { class: 'head' },
-        h('div', { class: 'head-text' }, h('h1', { text: 'Overview' }), sub), pill),
-      notice,
-      h('div', { class: 'band' },
-        h('section', { class: 'card ring-card' }, ring, h('span', { text: 'People online' }), peak),
-        h('div', { class: 'tiles' }, tChan.el, tOpers.el, tServers.el, tLag.el)),
-      h('div', { class: 'three' },
-        h('section', { class: 'card' }, h('div', { class: 'ch' }, h('h2', { text: 'Health' }), healthWord), health),
-        h('section', { class: 'card' }, h('div', { class: 'ch' }, h('h2', { text: 'Linked servers' })), links),
-        h('section', { class: 'card' }, h('div', { class: 'ch' }, h('h2', { text: 'Services' }), svcWord), svc)),
-      h('section', { class: 'card' }, h('div', { class: 'ch' }, h('h2', { text: 'What happened' }),
-        h('span', { class: 'lbl' }, h('span', { class: 'dot warn' }), ' Live')), evList));
-    el.classList.add('main-stack');
-
-    const row = (dotCls, label, end, endCls, mono) => h('div', { class: 'row' },
+    const rowOf = (dotCls, label, end, endCls, mono) => h('div', { class: 'row' },
       h('span', { class: mono ? 'mono' : null }, dotCls !== null ? h('span', { class: 'dot ' + dotCls }) : null, label),
       h('span', { class: 'end ' + (endCls || ''), text: end }));
 
-    function onStatus(s) {
-      sub.textContent = [s.network, s.server, 'BeeIRCd ' + s.version].filter(Boolean).join(' · ');
-      pill.className = 'pill';
-      pill.lastChild.textContent = 'Running ' + since(s.started);
-      const max = s.max_users || 0, pct = max > 0 ? Math.min(1, s.online / max) : 0;
-      val.setAttribute('stroke-dasharray', (pct * C).toFixed(1) + ' ' + C.toFixed(1));
-      big.textContent = fmt(s.online);
-      small.textContent = max ? 'of ' + fmt(max) : '';
-      ring.setAttribute('aria-label', fmt(s.online) + (max ? ' of ' + fmt(max) : '') + ' people online');
-      peak.textContent = 'Most since start ' + fmt(s.peak);
-
-      tChan.n.textContent = fmt(s.channels);
-      tChan.l.textContent = s.services_on ? plural(s.reg_channels, 'registered', 'registered') : 'Registered on the hub';
-      tOpers.n.textContent = fmt(s.opers);
-      tOpers.l.textContent = (s.oper_nicks || []).join(', ') || 'None on this server';
-      const ls = s.links || [];
-      const down = ls.filter(l => l.state !== 'up').length;
-      put(tServers.n, String(ls.length + 1), ' ', h('small', { text: ls.length === 0 ? 'this one' : down ? down + ' not linked' : 'all linked' }));
-      const lags = ls.filter(l => l.state === 'up' && l.lag_ms).map(l => l.lag_ms);
-      tServers.l.textContent = lags.length ? 'Slowest ping ' + Math.round(Math.max(...lags)) + ' ms' : ls.length ? '' : 'No links set up';
-      put(tLag.n, String(Math.max(0, Math.round(s.lag_avg_ms))), ' ', h('small', { text: 'ms' }));
-      tLag.l.textContent = 'Memory ' + Math.round(s.memory_mb) + ' MB';
-
-      // Health
-      const rows = [];
-      let worst = 0;
-      const mark = (lvl) => { worst = Math.max(worst, lvl); return ['', 'warn', 'bad'][lvl]; };
-      if (s.cert) {
-        const c = s.cert;
-        const left = (new Date(c.not_after) - Date.now()) / 86400000;
-        if (c.renew_failures > 0) rows.push(row(mark(2), 'Certificate', c.renew_failures + ' renewals failed', 'badword'));
-        else if (left < 7) rows.push(row(mark(left < 2 ? 2 : 1), 'Certificate', 'ends ' + day(c.not_after)));
-        else rows.push(row(mark(0), 'Certificate', c.renew_at ? 'renews ' + day(c.renew_at) : 'until ' + day(c.not_after)));
-      }
-      rows.push(row(mark(0), 'Database', bytes(s.db_bytes || 0)));
-      if (s.last_backup) {
-        const old = (Date.now() - new Date(s.last_backup)) / 86400000 > 2;
-        rows.push(row(mark(old ? 1 : 0), 'Last backup', when(s.last_backup)));
-      } else rows.push(row(mark(1), 'Last backup', 'none yet'));
-      if (s.update) rows.push(row(mark(1), 'Update', s.update.version + ' is out', 'warnword'));
-      else rows.push(row(mark(0), 'Update', 'up to date'));
-      const sf = s.safety || {};
-      const guards = (sf.throttled || 0) + (sf.zlined || 0) + (sf.dnsbl_hits || 0);
-      rows.push(row(mark(0), 'Guards today', guards ? fmt(guards) + ' stopped' : 'quiet'));
-      put(health, ...rows);
-      healthWord.className = ['okword', 'warnword', 'badword'][worst];
-      healthWord.textContent = ['All fine', 'Look at this', 'Needs you'][worst];
-
-      // Linked servers
-      const lrows = [row('warn', s.server, 'this one', null, true)];
-      for (const l of ls) {
-        const cls = l.state === 'up' ? '' : l.state === 'down' ? 'bad' : 'warn';
-        const end = l.state === 'up' ? (l.lag_ms ? Math.round(l.lag_ms) + ' ms' : 'linked') : l.state;
-        lrows.push(row(cls, l.name, end, null, true));
-      }
-      put(links, ...lrows);
-
-      // Services
-      if (!s.services_on) {
-        put(svc, h('p', { class: 'empty', text: 'Services run on the hub server.' }));
-        svcWord.textContent = '';
-      } else {
-        const counts = { NickServ: plural(s.nicks, 'nick', 'nicks'), ChanServ: plural(s.reg_channels, 'channel', 'channels'), MemoServ: plural(s.memos, 'memo', 'memos') };
-        const bots = s.services || [];
-        put(svc, ...bots.slice(0, 6).map(b => row(null, b, counts[b] || 'up')));
-        svcWord.className = 'okword';
-        svcWord.textContent = bots.length ? 'All up' : '';
-      }
-    }
-
-    function onEvents(list, before) {
-      if (!list.length) { put(evList, h('p', { class: 'empty', text: 'Nothing yet. Sign-ins and changes made here show up in this list.' })); return; }
-      const seen = new Set((before || []).map(e => e.at + e.who + e.what));
-      put(evList, ...list.slice(0, 12).map(e => h('div', { class: 'ev' + (before && !seen.has(e.at + e.who + e.what) ? ' new' : '') },
-        h('span', { class: 't', text: when(e.at) }),
-        h('span', {}, h('b', { text: e.who }), ' ' + e.what, e.ip ? h('span', { class: 'ip', text: ' · ' + e.ip }) : null))));
-    }
-
-    return {
-      el, status: onStatus, events: onEvents,
-      offline(on) {
-        notice.hidden = !on;
-        pill.className = on ? 'pill bad' : 'pill';
-        if (on) pill.lastChild.textContent = 'Not answering';
+    // ---- the blocks ----
+    const make = {
+      stats() {
+        const tP = tile('people', 'People online'), tC = tile('hash', 'Channels'), tO = tile('opers', 'Opers online'), tS = tile('servers', 'Servers');
+        return { el: h('div', { class: 'tiles4' }, tP.el, tC.el, tO.el, tS.el), float: true,
+          status(s) {
+            tP.n.textContent = fmt(s.online);
+            tP.l.textContent = (s.max_users ? 'of ' + fmt(s.max_users) + ' · ' : '') + 'most ' + fmt(s.peak);
+            tC.n.textContent = fmt(s.channels);
+            tC.l.textContent = s.services_on ? plural(s.reg_channels, 'registered', 'registered') : 'registered on the hub';
+            tO.n.textContent = fmt(s.opers);
+            tO.l.textContent = (s.oper_nicks || []).join(', ') || 'none on this server';
+            const ls = s.links || [], down = ls.filter(l => l.state !== 'up').length;
+            put(tS.n, String(ls.length + 1), ' ', h('small', { text: ls.length === 0 ? 'this one' : down ? down + ' not linked' : 'all linked' }));
+            const lags = ls.filter(l => l.state === 'up' && l.lag_ms).map(l => l.lag_ms);
+            tS.l.textContent = lags.length ? 'slowest ping ' + ms(Math.max(...lags)) : ls.length ? 'ping not measured yet' : 'no links set up';
+          } };
       },
+      room() {
+        const c = ovCard('gauge', 'Room on this server', 'People connected against max users, and what services keep');
+        const meterB = h('b', { text: '…' }), fill = h('i'), free = h('span'), used = h('span');
+        const fact = label => { const b = h('b', { text: '…' }); return { el: h('div', {}, h('span', { text: label }), b), b }; };
+        const fN = fact('Registered nicks'), fC = fact('Registered channels'), fM = fact('Memos kept'), fR = fact('Reply time'), fMem = fact('Memory');
+        c.card.append(h('div', { class: 'meter' }, h('span', { text: 'Connected people' }), meterB),
+          h('div', { class: 'bar', role: 'img', 'aria-label': 'People connected' }, fill), h('div', { class: 'msub' }, free, used),
+          h('div', { class: 'facts' }, fN.el, fC.el, fM.el, fR.el, fMem.el));
+        return { el: c.card, tail: c.tail,
+          status(s) {
+            const max = s.max_users || 0, pct = max ? Math.min(1, s.online / max) : 0;
+            meterB.textContent = fmt(s.online) + (max ? ' / ' + fmt(max) : '');
+            fill.style.width = (pct * 100).toFixed(2) + '%';
+            free.textContent = max ? fmt(Math.max(0, max - s.online)) + ' places free' : 'no limit set';
+            used.textContent = !max ? '' : pct < 0.01 ? 'under 1% used' : Math.round(pct * 100) + '% used';
+            const svc = s.services_on;
+            fN.b.textContent = svc ? fmt(s.nicks) : 'on the hub';
+            fC.b.textContent = svc ? fmt(s.reg_channels) : 'on the hub';
+            fM.b.textContent = svc ? fmt(s.memos) : 'on the hub';
+            fR.b.textContent = (s.lag_avg_ms < 0.1 ? '0.1' : (Math.round(s.lag_avg_ms * 10) / 10)) + ' ms';
+            fMem.b.textContent = Math.round(s.memory_mb) + ' MB';
+          } };
+      },
+      map() {
+        const open = h('button', { type: 'button', class: 'btn' }, icon('servers'), 'Linked servers');
+        open.addEventListener('click', () => { location.hash = '#/servers'; });
+        const nm = window.HiveNetMap ? window.HiveNetMap({ h, put, icon, api, busy, toast, toastErr, plural, fmt, when, ends, since })
+          .create({ panel: true, canPlace: has('c'), canSettings: has('a'), reload: () => load(), self: () => status, details: () => { location.hash = '#/servers'; }, barExtra: open }) : null;
+        const alone = h('section', { class: 'card', hidden: true }, h('h2', { text: 'Network map' }),
+          h('p', { class: 'note', text: 'This server runs alone ([link] role = standalone), so there is nothing to map yet.' }));
+        const box = h('div', { class: 'stack' }, nm && nm.el, alone);
+        let timer = 0, seq = 0;
+        async function load() {
+          if (!box.isConnected) return;
+          const n = ++seq;
+          try {
+            const d = (await api('GET', '/api/links')).links;
+            if (n !== seq) return;
+            const solo = d.role === 'standalone';
+            alone.hidden = !solo;
+            if (nm) { nm.el.hidden = solo; if (!solo) nm.update(d); }
+          } catch (e) { /* the offline notice says it */ }
+        }
+        return { el: box, host: () => nm && !nm.el.hidden ? nm.el.querySelector('.nm-bar') : alone.querySelector('h2'),
+          show() { setTimeout(load, 0); clearInterval(timer); timer = setInterval(() => { if (!document.hidden) load(); }, 10000); },
+          status() { if (nm) nm.refresh(); },
+          leave() { clearInterval(timer); if (nm) nm.destroy(); } };
+      },
+      events() {
+        const c = ovCard('list', 'What happened', 'Sign-ins and changes made in the Hive Panel', h('span', { class: 'warnword' }, 'Live'));
+        const list = h('div');
+        c.card.append(list);
+        return { el: c.card, tail: c.tail,
+          events(lst, before) {
+            if (!lst.length) { put(list, h('p', { class: 'empty', text: 'Nothing yet. Sign-ins and changes made here show up in this list.' })); return; }
+            const seen = new Set((before || []).map(e => e.at + e.who + e.what));
+            put(list, ...lst.slice(0, 10).map(e => h('div', { class: 'ev' + (before && !seen.has(e.at + e.who + e.what) ? ' new' : '') },
+              h('span', { class: 't', text: when(e.at) }),
+              h('span', {}, h('b', { text: e.who }), ' ' + e.what, e.ip ? h('span', { class: 'ip', text: ' · ' + e.ip }) : null))));
+          } };
+      },
+      actions() {
+        const c = ovCard('terminal', 'Server actions', 'Sent straight to this server');
+        const res = h('div', { class: 'res', hidden: true, role: 'status' });
+        const btn = (ic, label, path, lines, ok) => {
+          const b = h('button', { type: 'button', class: 'btn' }, icon(ic), label);
+          b.addEventListener('click', () => busy(b, async () => {
+            try { const d = await api('POST', path); put(res, lines(d)); if (ok) ok(d); }
+            catch (e) { put(res, line('bad', e.message)); }
+            res.hidden = false;
+          }));
+          return b;
+        };
+        c.card.append(h('div', { class: 'acts-v' },
+          has('a') ? btn('check', 'Check the config', '/api/check', checkLines) : null,
+          me.owner ? btn('archive', 'Back up now', '/api/backup', backupLines) : null,
+          has('a') ? btn('refresh', 'Rehash', '/api/rehash', rehashLines) : null, res));
+        return { el: c.card, tail: c.tail };
+      },
+      health() {
+        const word = h('span', { class: 'okword' });
+        const c = ovCard('pulse', 'Health', 'Things to look at now and then', word);
+        const rows = h('div');
+        c.card.append(rows);
+        return { el: c.card, tail: c.tail,
+          status(s) {
+            const out = [];
+            let worst = 0;
+            const mark = lvl => { worst = Math.max(worst, lvl); return ['', 'warn', 'bad'][lvl]; };
+            if (s.cert) {
+              const ce = s.cert, left = (new Date(ce.not_after) - Date.now()) / 86400000;
+              if (ce.renew_failures > 0) out.push(rowOf(mark(2), 'Certificate', ce.renew_failures + ' renewals failed', 'bad-t'));
+              else if (left < 7) out.push(rowOf(mark(left < 2 ? 2 : 1), 'Certificate', 'ends ' + day(ce.not_after)));
+              else out.push(rowOf(mark(0), 'Certificate', ce.renew_at ? 'renews ' + day(ce.renew_at) : 'until ' + day(ce.not_after)));
+            }
+            out.push(rowOf(mark(0), 'Database', bytes(s.db_bytes || 0)));
+            if (s.last_backup) out.push(rowOf(mark((Date.now() - new Date(s.last_backup)) / 86400000 > 2 ? 1 : 0), 'Last backup', when(s.last_backup)));
+            else out.push(rowOf(mark(1), 'Last backup', 'none yet'));
+            if (s.update) out.push(rowOf(mark(1), 'Update', s.update.version + ' is out'));
+            else out.push(rowOf(mark(0), 'Update', 'up to date'));
+            const sf = s.safety || {}, guards = (sf.throttled || 0) + (sf.zlined || 0) + (sf.dnsbl_hits || 0);
+            out.push(rowOf(mark(0), 'Guards today', guards ? fmt(guards) + ' stopped' : 'quiet'));
+            put(rows, out);
+            word.className = ['okword', 'warnword', 'badword'][worst];
+            word.textContent = ['All fine', 'Look at this', 'Needs you'][worst];
+          } };
+      },
+      services() {
+        const word = h('span', { class: 'okword' });
+        const c = ovCard('services', 'Services', 'The built-in service bots', word);
+        const n = h('b', { text: '…' }), counts = h('span'), bots = h('div', { class: 'bots' });
+        c.card.append(h('div', { class: 'svc-n' }, n, counts), bots);
+        return { el: c.card, tail: c.tail,
+          status(s) {
+            if (!s.services_on) {
+              put(n, '0', h('small', { text: 'here' })); counts.textContent = ''; put(bots, h('p', { class: 'empty', text: 'Services run on the hub server.' }));
+              word.textContent = ''; return;
+            }
+            const list = s.services || [];
+            put(n, String(list.length), h('small', { text: list.length === 1 ? 'service bot' : 'service bots' }));
+            counts.textContent = [plural(s.nicks, 'nick', 'nicks'), plural(s.reg_channels, 'channel', 'channels'), plural(s.memos, 'memo', 'memos')].join(' · ');
+            put(bots, list.map(b => h('span', { class: 'bot', title: BOT_TEXT[b] || '' }, h('span', { class: 'dot' }), b)));
+            word.className = 'okword'; word.textContent = list.length ? 'All up' : '';
+          } };
+      },
+      links() {
+        const c = ovCard('servers', 'Linked servers', "This network's servers and their ping");
+        const rows = h('div');
+        c.card.append(rows);
+        return { el: c.card, tail: c.tail,
+          status(s) {
+            const out = [rowOf('warn', s.server, 'this one', null, true)];
+            for (const l of s.links || []) {
+              const cls = l.state === 'up' ? '' : l.state === 'down' ? 'bad' : 'warn';
+              out.push(rowOf(cls, l.name, l.state === 'up' ? (l.lag_ms ? ms(l.lag_ms) : 'linked') : l.state, null, true));
+            }
+            put(rows, out);
+          } };
+      },
+      bans() {
+        const all = h('button', { type: 'button', class: 'btn ghost' }, 'All bans');
+        all.addEventListener('click', () => { location.hash = '#/bans'; });
+        const c = ovCard('bans', 'Recent bans', 'The newest AKILLs on the network', all);
+        const counts = h('div', { class: 'chips' }), rows = h('div');
+        c.card.append(counts, rows);
+        let timer = 0;
+        async function load() {
+          if (!c.card.isConnected) return;
+          try {
+            const d = (await api('GET', '/api/bans?kind=akill')).bans;
+            put(counts, KINDS.map(k => h('span', { class: 'chip2' }, k.name + ' ' + fmt(d.counts[k.kind] || 0))));
+            put(rows, d.rows.length ? d.rows.slice(0, 5).map(b => rowOf(null, b.mask, ends(b.expires), null, true)) : h('p', { class: 'empty', text: 'No AKILLs.' }));
+          } catch (e) { put(rows, h('p', { class: 'empty', text: e.message })); }
+        }
+        return { el: c.card, tail: c.tail,
+          show() { setTimeout(load, 0); clearInterval(timer); timer = setInterval(() => { if (!document.hidden) load(); }, 30000); },
+          leave() { clearInterval(timer); } };
+      },
+      chans() {
+        const all = h('button', { type: 'button', class: 'btn ghost' }, 'All channels');
+        all.addEventListener('click', () => { location.hash = '#/channels'; });
+        const c = ovCard('hash', 'Top channels', 'The biggest channels right now', all);
+        const rows = h('div');
+        c.card.append(rows);
+        let timer = 0;
+        async function load() {
+          if (!c.card.isConnected) return;
+          try {
+            const d = (await api('GET', '/api/channels?' + new URLSearchParams({ filter: 'all', offset: 0 }))).channels;
+            const list = d.rows.filter(r => r.open).slice(0, 6);
+            put(rows, list.length ? list.map(r => rowOf(null, r.name, plural(r.people, 'person', 'people'), null, true)) : h('p', { class: 'empty', text: 'No channels open.' }));
+          } catch (e) { put(rows, h('p', { class: 'empty', text: e.message })); }
+        }
+        return { el: c.card, tail: c.tail,
+          show() { setTimeout(load, 0); clearInterval(timer); timer = setInterval(() => { if (!document.hidden) load(); }, 30000); },
+          leave() { clearInterval(timer); } };
+      },
+      opers() {
+        const c = ovCard('opers', 'Opers online', 'Opers on every server of the network');
+        const rows = h('div');
+        c.card.append(rows);
+        let timer = 0;
+        async function load() {
+          if (!c.card.isConnected) return;
+          try {
+            const d = (await api('GET', '/api/people?' + new URLSearchParams({ filter: 'opers', offset: 0 }))).people;
+            put(rows, d.rows.length ? d.rows.slice(0, 8).map(r => rowOf('', r.nick, r.server + ' · ' + since(r.signon), null, true)) : h('p', { class: 'empty', text: 'No opers online.' }));
+          } catch (e) { put(rows, h('p', { class: 'empty', text: e.message })); }
+        }
+        return { el: c.card, tail: c.tail,
+          show() { setTimeout(load, 0); clearInterval(timer); timer = setInterval(() => { if (!document.hidden) load(); }, 30000); },
+          leave() { clearInterval(timer); } };
+      },
+    };
+
+    // ---- build the blocks the oper may see ----
+    const B = {};
+    for (const b of OV) {
+      if (b.need && !has(b.need)) continue;
+      if (b.can && !b.can()) continue;
+      const x = make[b.id]();
+      x.def = b;
+      x.handle = h('button', { type: 'button', class: 'handle' + (x.float ? ' float' : ''), 'aria-label': 'Move ' + b.label + ' (arrow keys)', title: 'Drag to move' }, icon('grip'), 'Drag');
+      x.wrap = h('div', { class: 'blk', 'data-blk': b.id }, x.float ? x.handle : null, x.el);
+      if (!x.float) {
+        const host = x.host ? null : x.tail;
+        if (host) host.append(x.handle);
+      }
+      B[b.id] = x;
+    }
+    const visible = () => L.order.filter(id => B[id] && !L.hidden.includes(id));
+    function placeHandles() {
+      for (const x of Object.values(B)) if (x.host && !x.float) { const hst = x.host(); if (hst && x.handle.parentNode !== hst) hst.append(x.handle); }
+    }
+    function layout() {
+      const shownBefore = new Set([...area.querySelectorAll('[data-blk]')].map(e => e.dataset.blk));
+      area.replaceChildren();
+      let cols = null;
+      for (const id of visible()) {
+        const x = B[id];
+        if (x.def.wide) { cols = null; area.append(x.wrap); continue; }
+        if (!cols) {
+          cols = { l: h('div', { class: 'ov-col', 'data-col': 'l' }), r: h('div', { class: 'ov-col', 'data-col': 'r' }) };
+          area.append(h('div', { class: 'ov-cols' }, cols.l, cols.r));
+        }
+        cols[L.col[id]].append(x.wrap);
+      }
+      placeHandles();
+      for (const id of visible()) {
+        const x = B[id];
+        if (!shownBefore.has(id) && x.show) x.show();
+        if (status && x.status) x.status(status);
+        if (events && x.events) x.events(events, null);
+      }
+      for (const x of Object.values(B)) if (x.handle) x.handle.tabIndex = editing ? 0 : -1;
+    }
+    function drawToggles() {
+      put(toggles, Object.values(B).map(x => {
+        const on = !L.hidden.includes(x.def.id);
+        const t = h('button', { type: 'button', class: 'togg', 'aria-pressed': on ? 'true' : 'false' }, icon(on ? 'minus' : 'plus'), x.def.label);
+        t.addEventListener('click', () => {
+          L.hidden = on ? [...L.hidden, x.def.id] : L.hidden.filter(id => id !== x.def.id);
+          ovSave(L); layout(); drawToggles();
+        });
+        return t;
+      }));
+    }
+    function setEditing(on) {
+      editing = on;
+      el.classList.toggle('editing', on);
+      arrange.hidden = !on;
+      put(editBtn, icon(on ? 'check' : 'grip'), on ? 'Done' : 'Arrange');
+      if (on) drawToggles();
+      for (const x of Object.values(B)) if (x.handle) x.handle.tabIndex = on ? 0 : -1;
+      if (on) arrange.scrollIntoView({ block: 'nearest' });
+    }
+    editBtn.addEventListener('click', () => setEditing(!editing));
+    doneBtn.addEventListener('click', () => { setEditing(false); editBtn.focus(); });
+    resetBtn.addEventListener('click', () => {
+      try { localStorage.removeItem(ovKey()); } catch { /* private window */ }
+      L = ovLoad(true); ovSave(L); layout(); drawToggles();
+      toast(['The Overview is back to how it came']);
+    });
+
+    // ---- moving blocks: pointer (mouse, touch, pen) and keys ----
+    let drag = null;
+    const drop = h('div', { class: 'drop', text: 'DROP HERE', 'aria-hidden': 'true' });
+    function where(x, y) {
+      const under = document.elementFromPoint(x, y);
+      if (!under || !area.contains(under) || under === drop) return null; // over the drop spot: keep it
+      const blk = under.closest('.blk');
+      if (blk && blk !== drag.x.wrap) {
+        const r = blk.getBoundingClientRect(), after = y > r.top + r.height / 2;
+        const inCol = blk.parentNode.classList.contains('ov-col');
+        if (drag.x.def.wide && inCol) { const cols = blk.parentNode.parentNode; return { ref: cols, after: y > cols.getBoundingClientRect().top + cols.getBoundingClientRect().height / 2 }; }
+        return { ref: blk, after };
+      }
+      const col = under.closest('.ov-col');
+      if (col && !drag.x.def.wide) {
+        // empty space under a column's last block: the end of that column
+        const last = [...col.children].filter(n => n !== drop && n !== drag.x.wrap).pop();
+        if (!last || y > last.getBoundingClientRect().bottom) return { col };
+      }
+      return null;
+    }
+    function dragMove(e) {
+      if (!drag) return;
+      if (!drag.on && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 5) return;
+      if (!drag.on) { drag.on = true; drag.x.wrap.classList.add('dragging'); document.body.classList.add('drag-on'); }
+      const w = where(e.clientX, e.clientY);
+      if (w && w.col) { if (drop.parentNode !== w.col || drop.nextSibling) w.col.append(drop); }
+      else if (w) { if (w.after) w.ref.after(drop); else w.ref.before(drop); }
+      // scroll near the edges while dragging
+      if (e.clientY < 70) window.scrollBy(0, -12); else if (e.clientY > window.innerHeight - 50) window.scrollBy(0, 12);
+    }
+    function dragEnd(e, cancel) {
+      if (!drag) return;
+      const d = drag;
+      drag = null;
+      document.body.classList.remove('drag-on');
+      d.x.wrap.classList.remove('dragging');
+      try { d.x.handle.releasePointerCapture(e.pointerId); } catch { /* gone */ }
+      if (!d.on || cancel || !drop.parentNode) { drop.remove(); return; }
+      const id = d.x.def.id;
+      const order = [];
+      for (const n of area.querySelectorAll('[data-blk], .drop')) {
+        if (n === drop) order.push(id);
+        else if (n.dataset.blk !== id) order.push(n.dataset.blk);
+      }
+      const col = drop.parentNode.classList.contains('ov-col') ? drop.parentNode.dataset.col : null;
+      drop.remove();
+      const rest = L.order.filter(x => !order.includes(x)); // hidden blocks keep their place at the end
+      L.order = [...order, ...rest];
+      if (col && !d.x.def.wide) L.col[id] = col;
+      ovSave(L); layout();
+      d.x.handle.focus({ preventScroll: true });
+    }
+    for (const x of Object.values(B)) {
+      x.handle.addEventListener('pointerdown', e => {
+        if (!editing || e.button > 0) return;
+        e.preventDefault();
+        try { x.handle.setPointerCapture(e.pointerId); } catch { /* not a live pointer */ }
+        drag = { x, x0: e.clientX, y0: e.clientY, on: false };
+      });
+      x.handle.addEventListener('pointermove', dragMove);
+      x.handle.addEventListener('pointerup', e => dragEnd(e, false));
+      x.handle.addEventListener('pointercancel', e => dragEnd(e, true));
+      x.handle.addEventListener('keydown', e => {
+        if (!editing) return;
+        const id = x.def.id, vis = visible(), at = vis.indexOf(id);
+        if (e.key === 'Escape' && drag) { dragEnd(e, true); return; }
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+          // move past the next shown block (in the same column for column blocks)
+          const same = vis.filter(v => B[v].def.wide === x.def.wide && (x.def.wide || L.col[v] === L.col[id]));
+          const k = same.indexOf(id), other = same[k + (e.key === 'ArrowUp' ? -1 : 1)];
+          e.preventDefault();
+          if (!other) return;
+          const o = L.order.slice(), a = o.indexOf(id), b = o.indexOf(other);
+          o[a] = other; o[b] = id; L.order = o;
+        } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !x.def.wide) {
+          e.preventDefault();
+          const to = e.key === 'ArrowLeft' ? 'l' : 'r';
+          if (L.col[id] === to) return;
+          L.col[id] = to;
+        } else return;
+        void at;
+        ovSave(L); layout(); x.handle.focus({ preventScroll: true });
+        said.textContent = x.def.label + ' moved ' + (e.key === 'ArrowUp' ? 'up' : e.key === 'ArrowDown' ? 'down' : e.key === 'ArrowLeft' ? 'to the left column' : 'to the right column');
+      });
+    }
+
+    function onStatus(s) {
+      eyebrow.textContent = [s.network, (s.links || []).length ? plural((s.links || []).length + 1, 'server', 'servers') + ' linked' : 'one server'].filter(Boolean).join(' · ');
+      title.textContent = s.server;
+      sub.textContent = 'BeeIRCd ' + s.version + ' · running since ' + when(s.started);
+      put(foot, h('span', { text: 'BeeIRCd ' + s.version }), h('span', { text: 'Updated ' + new Date().toLocaleTimeString('en-GB') }));
+      for (const id of visible()) if (B[id].status) B[id].status(s);
+    }
+    layout();
+    if (editNext) { editNext = false; setTimeout(() => setEditing(true), 0); }
+    return {
+      el,
+      status: onStatus,
+      events(list, before) { for (const id of visible()) if (B[id].events) B[id].events(list, before); },
+      edit: setEditing,
+      offline(on) { notice.hidden = !on; },
+      leave() { for (const x of Object.values(B)) if (x.leave) x.leave(); if (drag) dragEnd({}, true); },
     };
   }
 
@@ -518,22 +1018,10 @@
       }));
       return h('div', { class: 'act' }, h('div', { class: 'act-text' }, h('b', { text: title }), h('span', { class: 'lbl', text: text })), b, res);
     }
-    const line = (cls, text) => h('div', {}, h('span', { class: 'dot ' + cls }), h('span', { text }));
     const updateRow = h('div', { class: 'act', hidden: true });
     actions.append(
-      action('Check', 'Reads the database, changes nothing', 'Check', '/api/check', d => {
-        const c = d.check || {};
-        return [c.db_error ? line('bad', 'Database problem: ' + c.db_error) : line('', 'Database fine · ' + plural(c.nicks, 'nick', 'nicks') + ' · ' + plural(c.channels, 'channel', 'channels') + ' · ' + plural(c.memos, 'memo', 'memos')),
-          line('', 'History kept for ' + plural(c.history_channels, 'channel', 'channels'))];
-      }),
-      action('Rehash', 'Re-reads beeircd.conf without a restart', 'Rehash', '/api/rehash', d => {
-        const r = d.rehash || {};
-        const out = [];
-        if (!(r.applied || []).length && !(r.needs_restart || []).length) out.push(line('', 'Nothing had changed'));
-        if ((r.applied || []).length) out.push(line('', 'Applied: ' + r.applied.join(', ')));
-        if ((r.needs_restart || []).length) out.push(line('warn', 'Needs a restart: ' + r.needs_restart.join(', ')));
-        return out;
-      }));
+      action('Check', 'Reads the database, changes nothing', 'Check', '/api/check', checkLines),
+      action('Rehash', 'Re-reads beeircd.conf without a restart', 'Rehash', '/api/rehash', rehashLines));
     actions.append(updateRow);
     const backups = me.owner ? backupsCard() : null;
 
@@ -1150,7 +1638,7 @@
     const addBtn = h('button', { type: 'button', class: 'btn', text: 'Add a server', hidden: true });
     addBtn.addEventListener('click', () => { open = '+'; drawForm(); });
     const mapBox = h('div', { class: 'map' });
-    const nm = window.HiveNetMap ? window.HiveNetMap({ h, put, icon, api, busy, toast, toastErr, plural, fmt, when, ends }).create({ canPlace: has('c'), canSettings: has('a'), reload: () => load() }) : null;
+    const nm = window.HiveNetMap ? window.HiveNetMap({ h, put, icon, api, busy, toast, toastErr, plural, fmt, when, ends, since }).create({ panel: true, canPlace: has('c'), canSettings: has('a'), reload: () => load(), self: () => status }) : null;
     const tbody = h('tbody');
     const form = h('section', { class: 'card' });
     const mine = h('section', { class: 'card' });
@@ -1185,7 +1673,7 @@
       const st = Object.fromEntries((d.status || []).map(s => [s.name.toLowerCase(), s]));
       const up = (d.status || []).filter(s => s.state === 'up');
       const lags = up.filter(s => s.lag_ms).map(s => s.lag_ms);
-      sub.textContent = d.map.length + (d.map.length === 1 ? ' server' : ' servers') + (lags.length ? ' · slowest ping ' + Math.round(Math.max(...lags)) + ' ms' : '') + ' · this one is the ' + d.role;
+      sub.textContent = d.map.length + (d.map.length === 1 ? ' server' : ' servers') + (lags.length ? ' · slowest ping ' + ms(Math.max(...lags)) : '') + ' · this one is the ' + d.role;
 
       // map: a tree from the uplinks
       const kids = {};
@@ -1193,7 +1681,7 @@
       const node = (m, top) => {
         const s = st[m.name.toLowerCase()];
         const cls = m.self ? 'warn' : '';
-        const parts = [m.self ? 'this one' : null, plural(m.users, 'person', 'people'), m.lag_ms ? Math.round(m.lag_ms) + ' ms' : null].filter(Boolean).join(' · ');
+        const parts = [m.self ? 'this one' : null, plural(m.users, 'person', 'people'), m.lag_ms ? ms(m.lag_ms) : null].filter(Boolean).join(' · ');
         const line = h('div', { class: 'node' }, h('span', { class: 'dot ' + cls }), h('span', { class: 'mono', text: m.name }), h('span', { class: 'lbl', text: parts }));
         const below = (kids[m.name.toLowerCase()] || []).map(k => node(k, false));
         return [line, below.length ? h('div', { class: 'kid' }, below) : null];
@@ -1309,7 +1797,7 @@
 
     load();
     timer = setInterval(() => { if (!document.hidden && !el.querySelector('.split-ask')) load(); }, 10000);
-    return { el, leave() { clearInterval(timer); if (nm) nm.destroy(); } };
+    return { el, status() { if (nm) nm.refresh(); }, leave() { clearInterval(timer); if (nm) nm.destroy(); } };
   }
 
   // ---------- Services ----------

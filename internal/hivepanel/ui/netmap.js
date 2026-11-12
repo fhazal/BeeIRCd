@@ -45,6 +45,15 @@ window.HiveNetMap = function (env) {
       nodes: [], hits: [], links: [], anim: 0, dragging: false, quick: false, cw: 0, ch: 0,
     };
     try { st.lite = localStorage.getItem('hive-map-lite') === '1'; } catch { /* private window */ }
+    // colours come from the panel theme (CSS variables), read once per theme
+    let pal = null;
+    const P = () => pal || (pal = {
+      sea1: css('--map-sea1'), sea2: css('--map-sea2'), grid: css('--map-grid'), land: css('--map-land'), coast: css('--map-coast'), coastHi: css('--map-coast-hi'),
+      shade: css('--map-shade'), label: css('--map-label'), honey: css('--honey'), hi: css('--honey-hi'), rgb: css('--honey-rgb'), bad: css('--bad'),
+      ink: css('--ink'), chip: css('--card'), dark: css('--on-honey'), dot: css('--map-signal'), other: css('--map-other'), ring: css('--map-ring'),
+    });
+    const onTheme = () => { pal = null; st.landKey = null; redraw(); };
+    window.addEventListener('hive-theme', onTheme);
 
     // ---------- DOM ----------
     const count = h('span', { class: 'lbl' });
@@ -69,11 +78,14 @@ window.HiveNetMap = function (env) {
     const stage = h('div', { class: 'nm-stage' }, landC, base, top, h('div', { class: 'nm-zoom' }, zin, zout, zfit), hint, card);
     const unplaced = h('div', { class: 'nm-unplaced' });
     const ipRow = h('div', { class: 'nm-unplaced nm-ip' });
-    const el = h('section', { class: 'card nm' },
+    // panel mode: the chosen server (this one at first) shows beside the map
+    // instead of in a card floating on it
+    const side = opt.panel ? h('aside', { class: 'nm-side', 'aria-live': 'polite' }) : null;
+    const el = h('section', { class: 'card nm' + (opt.panel ? ' nm-paneled' : '') },
       h('div', { class: 'nm-bar' },
         h('div', { class: 'nm-grp' }, h('h2', { text: 'Network map' }), count),
-        h('div', { class: 'nm-grp' }, h('div', { class: 'nm-find' }, search, found), chips, liteBtn)),
-      placing, stage, legend, unplaced, ipRow);
+        h('div', { class: 'nm-grp' }, h('div', { class: 'nm-find' }, search, found), chips, liteBtn, opt.barExtra || null)),
+      placing, side ? h('div', { class: 'nm-body' }, h('div', { class: 'nm-main' }, stage, legend), side) : [stage, legend], unplaced, ipRow);
 
     // ---------- geometry ----------
     const scale = () => st.cw / 360 * st.view.z; // px per degree
@@ -149,10 +161,10 @@ window.HiveNetMap = function (env) {
 
     function drawLand(x, dpr, s, lite) {
       x.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const g = x.createLinearGradient(0, 0, 0, st.ch); g.addColorStop(0, '#101010'); g.addColorStop(1, '#0b0b0b');
+      const g = x.createLinearGradient(0, 0, 0, st.ch); g.addColorStop(0, P().sea1); g.addColorStop(1, P().sea2);
       x.fillStyle = g; x.fillRect(0, 0, st.cw, st.ch);
       // grid every 30 degrees
-      x.strokeStyle = 'rgba(236,235,230,.035)'; x.lineWidth = 1; x.beginPath();
+      x.strokeStyle = P().grid; x.lineWidth = 1; x.beginPath();
       for (let lo = -180; lo < 180; lo += 30) { const a = sx(lo); for (const X of [a - 360 * s, a, a + 360 * s]) if (X >= 0 && X <= st.cw) { x.moveTo(X, 0); x.lineTo(X, st.ch); } }
       for (let la = -60; la <= 60; la += 30) { const b = sy(la); x.moveTo(0, b); x.lineTo(st.cw, b); }
       x.stroke();
@@ -166,14 +178,14 @@ window.HiveNetMap = function (env) {
           const ox = sx(0) + k * 360 * s;
           if (ox + 180 * s < 0 || ox - 180 * s > st.cw) continue;
           x.setTransform(dpr * s, 0, 0, -dpr * s, dpr * ox, dpr * sy(0));
-          if (!lite && !fine) { x.save(); x.shadowColor = 'rgba(242,179,61,.10)'; x.shadowBlur = 14 * dpr; x.fillStyle = '#22211e'; x.fill(land); x.restore(); }
-          x.fillStyle = '#242320'; x.fill(land);
-          if (!st.quick || st.view.z > 2) { x.lineWidth = (st.view.z > 2 ? 0.8 : 0.6) / s; x.strokeStyle = st.view.z > 2 ? 'rgba(236,235,230,.13)' : 'rgba(236,235,230,.09)'; x.stroke(land); }
+          if (!lite && !fine) { x.save(); x.shadowColor = 'rgba(' + P().rgb + ',.10)'; x.shadowBlur = 14 * dpr; x.fillStyle = P().land; x.fill(land); x.restore(); }
+          x.fillStyle = P().land; x.fill(land);
+          if (!st.quick || st.view.z > 2) { x.lineWidth = (st.view.z > 2 ? 0.8 : 0.6) / s; x.strokeStyle = st.view.z > 2 ? P().coastHi : P().coast; x.stroke(land); }
         }
         x.setTransform(dpr, 0, 0, dpr, 0, 0);
       }
       const v = x.createRadialGradient(st.cw / 2, st.ch / 2, Math.min(st.cw, st.ch) * 0.45, st.cw / 2, st.ch / 2, Math.max(st.cw, st.ch) * 0.75);
-      v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.45)'); x.fillStyle = v; x.fillRect(0, 0, st.cw, st.ch);
+      v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, P().shade); x.fillStyle = v; x.fillRect(0, 0, st.cw, st.ch);
     }
     function drawBase() {
       if (!st.cw) return;
@@ -212,10 +224,10 @@ window.HiveNetMap = function (env) {
       for (const e of [...seen.values()].sort((m, q) => m.split - q.split)) {
         const pts2 = curve(e.ca.a, e.ca.b, e.cb.a, e.cb.b), wgt = 1 + Math.log2(e.n) * 0.6;
         x.lineCap = 'round';
-        if (e.split) { x.strokeStyle = '#f28a7d'; x.lineWidth = 1.6; x.setLineDash([6, 6]); poly(x, pts2); x.setLineDash([]); continue; }
-        if (many && !e.backbone) { x.strokeStyle = `rgba(242,179,61,${Math.min(0.42, 0.22 + 0.05 * wgt).toFixed(2)})`; x.lineWidth = Math.min(1.6, 0.8 + 0.2 * wgt); poly(x, pts2); continue; }
-        if (!lite) { x.strokeStyle = 'rgba(242,179,61,.18)'; x.lineWidth = 5 * Math.min(wgt, 2); poly(x, pts2); }
-        const gr = x.createLinearGradient(pts2[0][0], pts2[0][1], pts2.at(-1)[0], pts2.at(-1)[1]); gr.addColorStop(0, '#f2b33d'); gr.addColorStop(1, '#ffd27f');
+        if (e.split) { x.strokeStyle = P().bad; x.lineWidth = 1.6; x.setLineDash([6, 6]); poly(x, pts2); x.setLineDash([]); continue; }
+        if (many && !e.backbone) { x.strokeStyle = `rgba(${P().rgb},${Math.min(0.42, 0.22 + 0.05 * wgt).toFixed(2)})`; x.lineWidth = Math.min(1.6, 0.8 + 0.2 * wgt); poly(x, pts2); continue; }
+        if (!lite) { x.strokeStyle = 'rgba(' + P().rgb + ',.18)'; x.lineWidth = 5 * Math.min(wgt, 2); poly(x, pts2); }
+        const gr = x.createLinearGradient(pts2[0][0], pts2[0][1], pts2.at(-1)[0], pts2.at(-1)[1]); gr.addColorStop(0, P().honey); gr.addColorStop(1, P().hi);
         x.strokeStyle = gr; x.lineWidth = 1.6 * Math.min(wgt, 2.4); poly(x, pts2);
         st.curves.push(pts2);
       }
@@ -234,12 +246,12 @@ window.HiveNetMap = function (env) {
         const y0 = big && singles.length > 6 ? c.b - 32 : c.b + 14, bx = [c.a - w / 2, y0, w, 16];
         if (boxes.some(o => (o[0] !== c.a - 14 || o[1] !== c.b - 11) && bx[0] < o[0] + o[2] && bx[0] + bx[2] > o[0] && bx[1] < o[1] + o[3] && bx[1] + bx[3] > o[1])) continue;
         boxes.push(bx);
-        x.fillStyle = 'rgba(13,13,13,.78)'; x.fillRect(bx[0], bx[1], w, 16);
-        x.fillStyle = n.split ? '#f28a7d' : big && singles.length > 6 ? '#f2b33d' : '#ecebe6'; x.fillText(n.name, bx[0] + 5, bx[1] + 12);
+        x.fillStyle = P().label; x.fillRect(bx[0], bx[1], w, 16);
+        x.fillStyle = n.split ? P().bad : big && singles.length > 6 ? P().honey : P().ink; x.fillText(n.name, bx[0] + 5, bx[1] + 12);
       }
       if (st.pin) { // where a server is being placed
         const X = sx(st.pin.lon), Y = sy(st.pin.lat);
-        x.strokeStyle = '#ffd27f'; x.lineWidth = 1.5; x.setLineDash([3, 3]); x.beginPath(); x.arc(X, Y, 16, 0, 7); x.stroke(); x.setLineDash([]);
+        x.strokeStyle = P().hi; x.lineWidth = 1.5; x.setLineDash([3, 3]); x.beginPath(); x.arc(X, Y, 16, 0, 7); x.stroke(); x.setLineDash([]);
         serverIcon(x, X, Y, { name: '', hub: false, split: false, self: false }, true);
       }
       positionCard();
@@ -255,28 +267,28 @@ window.HiveNetMap = function (env) {
     }
     function poly(x, pts) { x.beginPath(); pts.forEach(([a, b], i) => i ? x.lineTo(a, b) : x.moveTo(a, b)); x.stroke(); }
     function serverIcon(x, cx, cy, n, sel) {
-      const S = 20, honey = '#f2b33d', red = '#f28a7d', hub = n.hub || n.self;
-      x.save(); if (!st.lite) { x.shadowColor = 'rgba(0,0,0,.6)'; x.shadowBlur = 6; }
-      x.beginPath(); x.roundRect(cx - S / 2, cy - S / 2, S, S, 4); x.fillStyle = hub && !n.split ? honey : '#181818'; x.fill(); x.shadowBlur = 0;
-      x.lineWidth = sel ? 2 : 1.2; x.strokeStyle = sel ? '#fff3d1' : n.split ? red : n.software && !/bee/i.test(n.software) ? '#b98a3a' : honey; x.stroke();
-      const ink = hub && !n.split ? '#151515' : n.split ? red : honey; x.strokeStyle = ink; x.fillStyle = ink; x.lineWidth = 1.3;
+      const S = 20, honey = P().honey, red = P().bad, hub = n.hub || n.self;
+      x.save(); if (!st.lite) { x.shadowColor = P().shade; x.shadowBlur = 6; }
+      x.beginPath(); x.roundRect(cx - S / 2, cy - S / 2, S, S, 4); x.fillStyle = hub && !n.split ? honey : P().chip; x.fill(); x.shadowBlur = 0;
+      x.lineWidth = sel ? 2 : 1.2; x.strokeStyle = sel ? P().ring : n.split ? red : n.software && !/bee/i.test(n.software) ? P().other : honey; x.stroke();
+      const ink = hub && !n.split ? P().dark : n.split ? red : honey; x.strokeStyle = ink; x.fillStyle = ink; x.lineWidth = 1.3;
       if (hub) { x.beginPath(); for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3, X = cx + 5.6 * Math.cos(a), Y = cy + 5.6 * Math.sin(a); i ? x.lineTo(X, Y) : x.moveTo(X, Y); } x.closePath(); x.stroke(); x.beginPath(); x.arc(cx, cy, 1.6, 0, 7); x.fill(); }
       else {
         x.beginPath(); x.roundRect(cx - 5.5, cy - 5.5, 11, 4.6, 1); x.roundRect(cx - 5.5, cy + 0.9, 11, 4.6, 1); x.stroke();
         x.beginPath(); x.arc(cx - 3, cy - 3.2, 0.8, 0, 7); x.arc(cx - 3, cy + 3.2, 0.8, 0, 7); x.fill();
-        if (n.software && !/bee/i.test(n.software)) { x.fillStyle = '#181818'; x.fillRect(cx + 1, cy - 4.4, 4, 2.4); x.fillRect(cx + 1, cy + 2, 4, 2.4); }
+        if (n.software && !/bee/i.test(n.software)) { x.fillStyle = P().chip; x.fillRect(cx + 1, cy - 4.4, 4, 2.4); x.fillRect(cx + 1, cy + 2, 4, 2.4); }
       }
-      if (n.split) { x.fillStyle = red; x.beginPath(); x.arc(cx + S / 2 - 1, cy - S / 2 + 1, 3.4, 0, 7); x.fill(); x.strokeStyle = '#121212'; x.lineWidth = 1.5; x.stroke(); }
+      if (n.split) { x.fillStyle = red; x.beginPath(); x.arc(cx + S / 2 - 1, cy - S / 2 + 1, 3.4, 0, 7); x.fill(); x.strokeStyle = P().chip; x.lineWidth = 1.5; x.stroke(); }
       x.restore();
     }
     function groupIcon(x, cx, cy, c) {
       const t = String(c.items.length); x.font = '600 12px ' + css('--body');
       const w = Math.max(30, x.measureText(t).width + 26);
-      x.save(); if (!st.lite) { x.shadowColor = 'rgba(0,0,0,.6)'; x.shadowBlur = 6; }
-      x.beginPath(); x.roundRect(cx - w / 2, cy - 11, w, 22, 11); x.fillStyle = '#181818'; x.fill(); x.shadowBlur = 0; x.lineWidth = 1.2; x.strokeStyle = '#f2b33d'; x.stroke();
+      x.save(); if (!st.lite) { x.shadowColor = P().shade; x.shadowBlur = 6; }
+      x.beginPath(); x.roundRect(cx - w / 2, cy - 11, w, 22, 11); x.fillStyle = P().chip; x.fill(); x.shadowBlur = 0; x.lineWidth = 1.2; x.strokeStyle = P().honey; x.stroke();
       const gx = cx - w / 2 + 11; x.lineWidth = 1.1; x.beginPath(); x.roundRect(gx - 4, cy - 5, 8, 4, 1); x.roundRect(gx - 4, cy + 1, 8, 4, 1); x.stroke();
-      x.fillStyle = '#ecebe6'; x.fillText(t, gx + 8, cy + 4.5);
-      if (c.items.some(n => n.split)) { x.fillStyle = '#f28a7d'; x.beginPath(); x.arc(cx + w / 2 - 2, cy - 9, 3.4, 0, 7); x.fill(); x.strokeStyle = '#121212'; x.lineWidth = 1.5; x.stroke(); }
+      x.fillStyle = P().ink; x.fillText(t, gx + 8, cy + 4.5);
+      if (c.items.some(n => n.split)) { x.fillStyle = P().bad; x.beginPath(); x.arc(cx + w / 2 - 2, cy - 9, 3.4, 0, 7); x.fill(); x.strokeStyle = P().chip; x.lineWidth = 1.5; x.stroke(); }
       x.restore();
       return w;
     }
@@ -291,7 +303,7 @@ window.HiveNetMap = function (env) {
       const step = now => {
         if (document.hidden || !el.isConnected) { st.anim = 0; return; }
         if (now - last >= 33) { // about 30 frames a second is plenty
-          last = now; x.clearRect(0, 0, st.cw, st.ch); x.fillStyle = '#fff3d1';
+          last = now; x.clearRect(0, 0, st.cw, st.ch); x.fillStyle = P().dot;
           for (const [i, pts] of st.curves.entries()) {
             const len = pts.length - 1;
             for (const off of [0, 0.5]) { const t = ((now / 2600 + i * 0.137 + off) % 1), f = t * len, j = Math.floor(f), k = f - j, p = pts[j], q = pts[Math.min(len, j + 1)]; x.beginPath(); x.arc(p[0] + (q[0] - p[0]) * k, p[1] + (q[1] - p[1]) * k, 2.2, 0, 7); x.fill(); }
@@ -398,6 +410,7 @@ window.HiveNetMap = function (env) {
       card.style.top = Math.max(8, Math.min(st.ch - hh - 8, Y - hh / 2)) + 'px';
     }
     function drawCard() {
+      if (side) { card.hidden = true; drawSide(); return; }
       const n = st.sel;
       if (!n) { card.hidden = true; return; }
       const s = n.status, where = n.place ? n.place.name || 'Placed' : 'Not on the map';
@@ -430,6 +443,70 @@ window.HiveNetMap = function (env) {
       close.addEventListener('click', () => { st.sel = null; drawCard(); redraw(); base.focus(); });
       put(card, close, ...lines, acts.childNodes.length ? acts : null);
       card.hidden = !n.place; positionCard();
+    }
+
+    // the side panel: what is known about the chosen server
+    function nodeActs(n) {
+      const s = n.status, acts = h('div', { class: 'nm-acts' });
+      if (st.can && n.block && !n.self) {
+        if (s && s.state === 'up') {
+          const b = h('button', { type: 'button', class: 'btn bad', text: 'Split' });
+          b.addEventListener('click', () => busy(b, async () => { try { toast([(await api('POST', '/api/link-split', { name: n.block.name, reason: '' })).done.text]); opt.reload(); } catch (e) { toastErr(e.message); } }));
+          acts.append(b);
+        } else if (n.block.host) {
+          const b = h('button', { type: 'button', class: 'btn main', text: 'Connect now' });
+          b.addEventListener('click', () => busy(b, async () => { try { toast([(await api('POST', '/api/link-connect', { name: n.block.name })).done.text]); setTimeout(opt.reload, 2500); } catch (e) { toastErr(e.message); } }));
+          acts.append(b);
+        }
+      }
+      if (st.can) {
+        const mv = h('button', { type: 'button', class: 'btn' }, env.icon('map'), n.place ? 'Move' : 'Place');
+        mv.addEventListener('click', () => startPlacing(n));
+        acts.append(mv);
+      }
+      if (opt.details) {
+        const d = h('button', { type: 'button', class: 'btn' }, env.icon('servers'), 'Link details');
+        d.addEventListener('click', opt.details);
+        acts.append(d);
+      }
+      return acts.childNodes.length ? acts : null;
+    }
+    const FROM = { 'its IP address (ipinfo.io)': 'its IP address' };
+    function drawSide() {
+      const mine = st.nodes.find(x => x.self), n = st.sel || mine;
+      if (!n) { put(side, h('p', { class: 'empty', text: 'Loading…' })); return; }
+      const s = n.status, self = opt.self ? opt.self() : null;
+      const state = n.self ? ['', 'LIVE'] : n.split ? ['bad', 'SPLIT'] : ['', 'LINKED'];
+      const role = [n.self ? 'this server' : '', n.hub ? 'hub' : 'server', n.uplink && !n.self && st.data && n.uplink.toLowerCase() !== st.data.self.toLowerCase() ? 'via ' + n.uplink : ''].filter(Boolean);
+      const rows = [];
+      const row = (k, v, cls) => rows.push(h('div', { class: 'row' }, h('span', { text: k }), h('span', { class: 'end mono' + (cls ? ' ' + cls : ''), text: v })));
+      row('Place', n.place ? n.place.name || 'placed' : 'not on the map');
+      row('Placed by', n.place ? FROM[n.place.from] || n.place.from || 'its owner' : '—');
+      if (n.gone) row('Link', n.block ? (s && s.state !== 'down' ? s.state : 'not linked') + (s && s.retry ? ' · again ' + env.ends(s.retry) : '') : 'not linked now', 'bad-t');
+      else row('People here', n.self && self && self.max_users ? fmt(n.users) + ' of ' + fmt(self.max_users) : fmt(n.users));
+      if (n.self) {
+        const others = st.links.filter(l => !l.split && (l.a === n || l.b === n)).map(l => (l.a === n ? l.b : l.a));
+        row('Links', others.length ? others.length + ' · ' + others.slice(0, 2).map(o => o.name.split('.')[0] + (o.lag >= 1 ? ' ' + Math.round(o.lag) + ' ms' : '')).join(', ') : 'none');
+        if (self) {
+          row('Up for', env.since(self.started));
+          row('Version', 'BeeIRCd ' + self.version);
+          row('Reply time', Math.max(0.1, Math.round(self.lag_avg_ms * 10) / 10) + ' ms · ' + Math.round(self.memory_mb) + ' MB');
+        }
+      } else if (!n.gone) {
+        row('Ping', n.lag >= 1 ? Math.round(n.lag) + ' ms' : n.lag > 0 ? 'under 1 ms' : 'not measured yet');
+        if (s && s.since) row('Linked for', env.since(s.since));
+        row('Version', (n.software || 'BeeIRCd').replace(/^BeeIRCd-/, 'BeeIRCd '));
+      }
+      const back = st.sel && !st.sel.self ? h('button', { type: 'button', class: 'btn ghost nm-back', text: 'Back to this server' }) : null;
+      if (back) back.addEventListener('click', () => { st.sel = null; drawSide(); redraw(); });
+      put(side,
+        h('div', { class: 'nm-live' },
+          h('div', { class: 'nm-lh' }, h('span', { text: n.self ? 'THIS SERVER' : 'SELECTED SERVER' }), h('b', { class: state[0] ? 'bad-t' : null }, h('span', { class: 'dot ' + state[0] }), state[1])),
+          h('div', { class: 'nm-name', text: n.name }),
+          h('div', { class: 'lbl', text: role.join(' · ') })),
+        h('div', { class: 'nm-rows' }, rows),
+        nodeActs(n),
+        back || h('span', { class: 'nm-tip', text: 'Click a server on the map to see it here.' }));
     }
 
     // ---------- placing ----------
@@ -512,13 +589,14 @@ window.HiveNetMap = function (env) {
     if (!world.lo) loadWorld('110').then(p => { world.lo = p; redraw(); }).catch(() => toastErr("The map outlines didn't load."));
     return {
       el,
+      refresh() { if (side) drawSide(); },
       update(data) {
         st.data = data; build(); size();
         if (st.sel) st.sel = st.nodes.find(n => n.key === st.sel.key) || null;
         if (!st.fitted && st.cw) { st.fitted = true; const ps = st.nodes.filter(n => n.place); if (ps.length) fit(ps); }
         drawCard(); redraw();
       },
-      destroy() { ro.disconnect(); cancelAnimationFrame(st.anim); },
+      destroy() { ro.disconnect(); cancelAnimationFrame(st.anim); window.removeEventListener('hive-theme', onTheme); },
     };
   }
   return { create };
