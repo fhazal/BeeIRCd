@@ -131,7 +131,12 @@ func (s *Services) serviceFor(u *state.User) *service {
 	if !u.Service {
 		return nil
 	}
-	return s.services[irc.Fold(u.Nick)]
+	// Only our own bot: a service bot from another server (the hub's,
+	// when services run there) has the same nick but isn't ours to answer.
+	if sv := s.services[irc.Fold(u.Nick)]; sv != nil && sv.user == u {
+		return sv
+	}
+	return nil
 }
 
 // toService runs one line sent to a service.

@@ -120,11 +120,26 @@ func (s *Server) burstBody(l *linkConn) []string {
 }
 
 func (s *Server) linkUser(u *state.User, hops int) link.User {
+	modes := link.SortedModes(u.Modes)
+	if u.Service {
+		// +S marks a service bot, as in UnrealIRCd: the other side keeps
+		// it out of the people counts and lists.
+		modes = link.SortedModes(withMode(u.Modes, 'S'))
+	}
 	return link.User{
 		UID: u.UID, Nick: u.Nick, NickTS: u.NickTS, Hops: hops,
 		Ident: u.Ident, RealHost: u.RealHost, Host: u.Host, Cloak: s.userCloak(u), IP: u.IP,
-		Account: u.Account, Modes: link.SortedModes(u.Modes), Realname: u.Realname,
+		Account: u.Account, Modes: modes, Realname: u.Realname,
 	}
+}
+
+func withMode(m map[byte]bool, c byte) map[byte]bool {
+	out := make(map[byte]bool, len(m)+1)
+	for k, v := range m {
+		out[k] = v
+	}
+	out[c] = true
+	return out
 }
 
 // userCloak is the host +x gives u: ours made here, others' from their
@@ -240,7 +255,7 @@ func (s *Server) remoteUser(l *linkConn, source string, in *link.User) {
 		UID: in.UID, Nick: in.Nick, Ident: in.Ident, Host: in.Host, RealHost: in.RealHost,
 		IP: in.IP, Realname: in.Realname, Server: home.name, Account: in.Account,
 		SignOn: time.Unix(in.NickTS, 0), NickTS: in.NickTS, Modes: modes, TLS: modes['z'], Cloak: in.Cloak,
-		Channels: map[string]*state.Channel{},
+		Channels: map[string]*state.Channel{}, Service: strings.IndexByte(in.Modes, 'S') >= 0,
 	}
 	if err := s.emitFrom(l, source, &state.UserAdd{User: u}); err != nil {
 		s.dropLink(l, fmt.Sprintf("could not add %s (%s): %v", in.Nick, in.UID, err))
