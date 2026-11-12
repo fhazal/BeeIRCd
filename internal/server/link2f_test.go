@@ -118,6 +118,32 @@ func TestDebugLineHidesOperPassword(t *testing.T) {
 	}
 }
 
+// A change right after /oper, before the leaf's +o reached the hub, still
+// follows the oper (it was dropped, and later changes with it).
+func TestLeafOperChangeBeforeModeArrives(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	opal := login(t, leaf.s, "opal")
+	opal.send("NS REGISTER " + pw)
+	opal.expect("is now registered to you.")
+	operEntryOn(t, hub, "opal", "gk", []string{"*@*"})
+	opal.send("OPER opal " + operPW)
+	opal.expect(" 381 opal ")
+	waitLink(t, "hub sees opal as oper", func() bool { u := hub.user("opal"); return u != nil && u.Modes['o'] })
+	hub.s.onLoop(func() {
+		u := hub.s.net.UserByNick("opal")
+		u.Modes['o'] = false // as if the +o were still on its way
+		defer func() { u.Modes['o'] = true }()
+		a, _ := hub.s.store.AccountByNick("opal")
+		o, _ := hub.s.store.OperByAccount(a.ID)
+		o.Flags = "g"
+		if err := hub.s.store.SaveOper(o); err != nil {
+			t.Error(err)
+		}
+		hub.s.recheckOpers(a.ID)
+	})
+	opal.expect("Your oper flags are now g")
+}
+
 // 2g: an oper entry changed on the services server follows the oper to
 // the leaf at once: new flags, then disabled = no longer an oper there.
 func TestLeafOperLiveChanges(t *testing.T) {
