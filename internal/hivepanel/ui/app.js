@@ -1150,7 +1150,7 @@
     const addBtn = h('button', { type: 'button', class: 'btn', text: 'Add a server', hidden: true });
     addBtn.addEventListener('click', () => { open = '+'; drawForm(); });
     const mapBox = h('div', { class: 'map' });
-    const nm = window.HiveNetMap ? window.HiveNetMap({ h, put, icon, api, busy, toast, toastErr, plural, fmt, when, ends }).create({ canPlace: has('c'), reload: () => load() }) : null;
+    const nm = window.HiveNetMap ? window.HiveNetMap({ h, put, icon, api, busy, toast, toastErr, plural, fmt, when, ends }).create({ canPlace: has('c'), canSettings: has('a'), reload: () => load() }) : null;
     const tbody = h('tbody');
     const form = h('section', { class: 'card' });
     const mine = h('section', { class: 'card' });

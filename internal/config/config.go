@@ -128,6 +128,10 @@ type Server struct {
 	SID string `toml:"sid"`
 	// ResolveHosts looks up hostnames for connecting IPs. On by default.
 	ResolveHosts *bool `toml:"resolve_hosts"`
+	// FindPlaceByIP lets the server ask ipinfo.io once where its own IP
+	// address is, for the Hive Panel's network map (city level, rounded
+	// to about 10 km). Only the server's own address; on by default.
+	FindPlaceByIP *bool `toml:"find_place_by_ip"`
 	// Prefixes is the channel status style: "@+" (op and voice, the
 	// default) or "~&@%+" (owner, admin, op, halfop, voice). Changing it
 	// needs a restart.
@@ -264,6 +268,11 @@ func (c *Config) CloakEnabled() bool { return c.Cloak.Enabled == nil || *c.Cloak
 // ResolveHosts reports whether hostname lookups are on.
 func (c *Config) ResolveHosts() bool {
 	return c.Server.ResolveHosts == nil || *c.Server.ResolveHosts
+}
+
+// FindPlaceByIP reports whether [server] find_place_by_ip is on (default).
+func (c *Config) FindPlaceByIP() bool {
+	return c.Server.FindPlaceByIP == nil || *c.Server.FindPlaceByIP
 }
 
 // NeedsTLS reports whether any port uses TLS.

@@ -83,6 +83,8 @@ type linkState struct {
 	operBusy  map[string]*bool      // relayed /oper password checks running, by UID (link2f_oper.go)
 	places    map[string]heardPlace // what servers said about their own place, by lower name (panel3l.go)
 	zone      string                // time zone for our own place, "" = the machine's (tests set it)
+	ipPlace   *control.MapPlace     // where our IP address is (panel3l.go), nil = not known
+	ipAsked   bool                  // the lookup has started this run
 	// remoteOpers: opers we granted on other servers, by UID (2g live changes).
 	remoteOpers map[string]remoteGrant
 }

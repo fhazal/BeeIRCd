@@ -43,7 +43,7 @@ func (s *Server) panelLinks() *control.Links {
 	}
 	sort.Slice(rest, func(i, j int) bool { return irc.Fold(rest[i].Name) < irc.Fold(rest[j].Name) })
 	out.Map = append(out.Map, rest...)
-	out.Places = s.mapPlaces()
+	out.Places, out.FindByIP = s.mapPlaces(), s.cfg.FindPlaceByIP()
 	out.Blocks = []control.LinkBlock{}
 	for _, b := range s.cfg.Link.Servers {
 		out.Blocks = append(out.Blocks, control.LinkBlock{Name: b.Name, Host: b.Host, Port: b.Port,

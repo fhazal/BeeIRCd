@@ -7,20 +7,29 @@ package server
 //
 //	:<sid> BEEPLACE <server> <lat> <lon> <from> :<place name>
 //
-// from is "tz" (its time zone) or "owner" (its owner placed it). Sent to
+// from is "ip" (its IP address, asked of ipinfo.io once), "tz" (its time
+// zone) or "owner" (its owner placed it). Sent to
 // BeeIRCd links only, when a link has synced and when a place changes;
 // passed on like other server lines. A [[map.place]] here always wins over
 // what a server says about itself.
 
 import (
+	"context"
+	"encoding/json"
+	"io"
 	"math"
+	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/fhazal/beeircd/internal/control"
 	"github.com/fhazal/beeircd/internal/tzplace"
+	"github.com/fhazal/beeircd/internal/version"
 )
 
 // heardPlace is what a server said about its own place.
@@ -36,6 +45,11 @@ var localZone = sync.OnceValue(tzplace.Local)
 func (s *Server) selfPlace() (control.MapPlace, string, bool) {
 	if p := s.cfg.Map.Place(s.cfg.Server.Name); p != nil {
 		return control.MapPlace{Server: s.cfg.Server.Name, Name: p.Name, Lat: p.Lat, Lon: p.Lon}, "owner", true
+	}
+	if ip := s.links.ipPlace; ip != nil && s.cfg.FindPlaceByIP() {
+		p := *ip
+		p.Server = s.cfg.Server.Name
+		return p, "ip", true
 	}
 	zone := s.links.zone // set by tests; else the machine's
 	if zone == "" {
@@ -95,7 +109,7 @@ func (s *Server) remotePlace(l *linkConn, source string, params []string) {
 	lon, e2 := strconv.ParseFloat(params[2], 64)
 	from, name := params[3], strings.Join(strings.Fields(params[4]), " ")
 	if e1 != nil || e2 != nil || math.IsNaN(lat) || math.IsNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180 ||
-		(from != "tz" && from != "owner") || !utf8.ValidString(name) || utf8.RuneCountInString(name) > 60 {
+		(from != "tz" && from != "owner" && from != "ip") || !utf8.ValidString(name) || utf8.RuneCountInString(name) > 60 {
 		return
 	}
 	if s.links.places == nil {
@@ -123,16 +137,132 @@ func (s *Server) mapPlaces() []control.MapPlace {
 	for k, h := range s.links.places {
 		if !have[k] {
 			p := h.p
-			p.From = "its " + map[string]string{"tz": "time zone", "owner": "owner"}[h.from]
+			p.From = fromWords[h.from]
 			out = append(out, p)
 			have[k] = true
 		}
 	}
 	if !have[strings.ToLower(s.cfg.Server.Name)] {
-		if p, from, ok := s.selfPlace(); ok && from == "tz" {
-			p.From = "its time zone"
+		if p, from, ok := s.selfPlace(); ok && from != "owner" {
+			p.From = fromWords[from]
 			out = append(out, p)
 		}
 	}
 	return out
 }
+
+var fromWords = map[string]string{"tz": "its time zone", "owner": "its owner", "ip": "its IP address (ipinfo.io)"}
+
+// placeLookupURL is asked where this server's own IP address is ("" =
+// never; the tests set that). Only the server's own address goes out:
+// the request carries no other.
+var placeLookupURL = "https://ipinfo.io/json"
+
+// ipPlaceFile keeps the answer, so a server asks once a month at most.
+const ipPlaceKeep = 30 * 24 * time.Hour
+
+type ipPlaceCache struct {
+	At   time.Time `json:"at"`
+	Name string    `json:"name"`
+	Lat  float64   `json:"lat"`
+	Lon  float64   `json:"lon"`
+}
+
+func (s *Server) ipPlaceFile() string {
+	if s.cfg.Services.Database == "" {
+		return ""
+	}
+	return filepath.Join(filepath.Dir(s.cfg.Services.Database), "map-place.json")
+}
+
+// startPlaceLookup finds where this server is from its IP, once: from the
+// kept answer when it is fresh, else by asking ipinfo.io. Not when the
+// owner placed the server or turned it off ([server] find_place_by_ip).
+func (s *Server) startPlaceLookup() {
+	if placeLookupURL == "" || os.Getenv("BEEIRCD_NO_PLACE_LOOKUP") == "1" || !s.cfg.FindPlaceByIP() || s.cfg.Map.Place(s.cfg.Server.Name) != nil || s.links.ipAsked {
+		return
+	}
+	s.links.ipAsked = true
+	file, url := s.ipPlaceFile(), placeLookupURL
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		p, err := lookupIPPlace(file, url, time.Now())
+		s.post(func() {
+			if err != nil {
+				s.log.Printf("network map: no place from the IP address (%v); the time zone is used", err)
+				return
+			}
+			s.links.ipPlace = p
+			s.announcePlace()
+		})
+	}()
+}
+
+// lookupIPPlace reads the kept answer or asks url. The place is rounded
+// to 0.1 degree (about 10 km): a city, never a street.
+func lookupIPPlace(file, url string, now time.Time) (*control.MapPlace, error) {
+	if file != "" {
+		if b, err := os.ReadFile(file); err == nil {
+			var c ipPlaceCache
+			if json.Unmarshal(b, &c) == nil && now.Sub(c.At) < ipPlaceKeep && c.Name != "" {
+				return &control.MapPlace{Name: c.Name, Lat: c.Lat, Lon: c.Lon}, nil
+			}
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "BeeIRCd/"+version.Version+" (network map)")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, &placeErr{"ipinfo.io answered " + resp.Status}
+	}
+	var in struct {
+		City, Region, Country, Loc string
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 16<<10)).Decode(&in); err != nil {
+		return nil, err
+	}
+	la, lo, ok := strings.Cut(in.Loc, ",")
+	lat, e1 := strconv.ParseFloat(strings.TrimSpace(la), 64)
+	lon, e2 := strconv.ParseFloat(strings.TrimSpace(lo), 64)
+	if !ok || e1 != nil || e2 != nil || lat < -90 || lat > 90 || lon < -180 || lon > 180 {
+		return nil, &placeErr{"no place in the answer"}
+	}
+	name := in.City
+	for _, n := range []string{in.Region, in.Country} {
+		if name == "" {
+			name = n
+		}
+	}
+	name = strings.Join(strings.Fields(name), " ")
+	if !utf8.ValidString(name) || utf8.RuneCountInString(name) > 60 || strings.ContainsAny(name, "\"\\") {
+		name = ""
+	}
+	if name == "" {
+		name = "Here"
+	}
+	p := &control.MapPlace{Name: name, Lat: math.Round(lat*10) / 10, Lon: math.Round(lon*10) / 10}
+	if file != "" {
+		if b, err := json.Marshal(ipPlaceCache{At: now, Name: p.Name, Lat: p.Lat, Lon: p.Lon}); err == nil {
+			tmp := file + ".part"
+			if os.WriteFile(tmp, b, 0o600) == nil {
+				os.Rename(tmp, file)
+			}
+		}
+	}
+	return p, nil
+}
+
+type placeErr struct{ s string }
+
+func (e *placeErr) Error() string { return e.s }

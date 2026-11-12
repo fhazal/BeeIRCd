@@ -257,6 +257,7 @@ func (s *Server) Serve(ctx context.Context) error {
 		go s.acmeLoop(s.acmeConfig())
 	}
 	s.startUpdateCheck()
+	s.startPlaceLookup()
 	s.log.Printf("%s ready on %d port(s)", s.cfg.Server.Name, len(s.listeners))
 	tick := time.NewTicker(s.tickEvery())
 	defer tick.Stop()

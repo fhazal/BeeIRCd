@@ -1,10 +1,13 @@
 package server
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fhazal/beeircd/internal/control"
 )
@@ -85,5 +88,61 @@ func TestMapPlaceUTC(t *testing.T) {
 	s.onLoop(func() { s.links.zone = "Etc/UTC" })
 	if p, ok := placeOf(s, s.cfg.Server.Name); ok {
 		t.Errorf("UTC server placed: %+v", p)
+	}
+}
+
+func TestMapPlaceFromIP(t *testing.T) {
+	asked := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		asked++
+		if r.URL.RawQuery != "" || r.URL.Path != "/json" || r.Header.Get("Cookie") != "" {
+			t.Errorf("request carried more than our own connection: %s %v", r.URL, r.Header)
+		}
+		w.Write([]byte(`{"ip":"203.0.113.7","city":"Kuala Lumpur","region":"Kuala Lumpur","country":"MY","loc":"3.1412,101.6865"}`))
+	}))
+	defer srv.Close()
+	file := filepath.Join(t.TempDir(), "map-place.json")
+	now := time.Now()
+	p, err := lookupIPPlace(file, srv.URL+"/json", now)
+	if err != nil || p.Name != "Kuala Lumpur" || p.Lat != 3.1 || p.Lon != 101.7 {
+		t.Fatalf("lookup: %+v %v", p, err)
+	}
+	raw, _ := os.ReadFile(file)
+	if strings.Contains(string(raw), "203.0.113") {
+		t.Errorf("the IP address was kept: %s", raw)
+	}
+	// Kept for a month: no second ask.
+	if p, err := lookupIPPlace(file, srv.URL+"/json", now.Add(29*24*time.Hour)); err != nil || p.Name != "Kuala Lumpur" || asked != 1 {
+		t.Errorf("kept: %+v %v asked %d", p, err, asked)
+	}
+	if _, err := lookupIPPlace(file, srv.URL+"/json", now.Add(31*24*time.Hour)); err != nil || asked != 2 {
+		t.Errorf("after a month: %v asked %d", err, asked)
+	}
+	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{"loc":"999,1"}`)) }))
+	defer bad.Close()
+	if _, err := lookupIPPlace("", bad.URL, now); err == nil {
+		t.Error("a place off the earth was taken")
+	}
+
+	// On a server: the IP place first, the switch turns it off (time zone
+	// then), the owner's place wins over both.
+	placeLookupURL = srv.URL + "/json"
+	defer func() { placeLookupURL = "" }()
+	s, _, _ := fileServer(t, "")
+	s.onLoop(func() { s.links.zone = "Europe/Berlin"; s.links.ipAsked = false; s.startPlaceLookup() })
+	waitLink(t, "IP place", func() bool { p, _ := placeOf(s, s.cfg.Server.Name); return p.Name == "Kuala Lumpur" })
+	if p, _ := placeOf(s, s.cfg.Server.Name); p.From != "its IP address (ipinfo.io)" {
+		t.Errorf("from: %+v", p)
+	}
+	po := &control.PanelOper{Account: "Boss", Flags: allFlags, Owner: true}
+	var r control.Response
+	s.onLoop(func() { r = s.panelSet(po, "127.0.0.1", "find-place-by-ip", "off") })
+	if p, _ := placeOf(s, s.cfg.Server.Name); r.Changed == nil || p.Name != "Berlin" {
+		t.Errorf("switched off: %+v %+v", r, p)
+	}
+	var l *control.Links
+	s.onLoop(func() { l = s.panelLinks() })
+	if l.FindByIP {
+		t.Error("links says IP places are on")
 	}
 }

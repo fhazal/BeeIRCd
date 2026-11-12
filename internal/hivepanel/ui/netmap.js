@@ -68,11 +68,12 @@ window.HiveNetMap = function (env) {
       h('span', {}, h('i', { class: 'nm-i split' }), 'split'), h('span', {}, h('i', { class: 'nm-i group', text: '3' }), 'close together'));
     const stage = h('div', { class: 'nm-stage' }, landC, base, top, h('div', { class: 'nm-zoom' }, zin, zout, zfit), hint, card);
     const unplaced = h('div', { class: 'nm-unplaced' });
+    const ipRow = h('div', { class: 'nm-unplaced nm-ip' });
     const el = h('section', { class: 'card nm' },
       h('div', { class: 'nm-bar' },
         h('div', { class: 'nm-grp' }, h('h2', { text: 'Network map' }), count),
         h('div', { class: 'nm-grp' }, h('div', { class: 'nm-find' }, search, found), chips, liteBtn)),
-      placing, stage, legend, unplaced);
+      placing, stage, legend, unplaced, ipRow);
 
     // ---------- geometry ----------
     const scale = () => st.cw / 360 * st.view.z; // px per degree
@@ -130,7 +131,7 @@ window.HiveNetMap = function (env) {
       const placed = st.nodes.filter(n => n.place), splits = st.nodes.filter(n => n.split).length;
       count.textContent = plural(d.map.length, 'server', 'servers') + ' · ' + plural(st.links.filter(l => !l.split).length, 'link', 'links') + (splits ? ' · ' + splits + ' split' : '') + (placed.length < st.nodes.length ? ' · ' + (st.nodes.length - placed.length) + ' not on the map' : '');
       base.setAttribute('aria-label', 'Network map: ' + count.textContent + '. ' + placed.map(n => n.name + ' in ' + (n.place.name || 'a place') + (n.split ? ' (split)' : '')).join(', '));
-      drawUnplaced();
+      drawUnplaced(); drawIP();
     }
     const shown = n => n.place && (st.filter === 'all' || (st.filter === 'split' && n.split) || (st.filter === 'hubs' && (n.hub || n.self)));
 
@@ -468,7 +469,23 @@ window.HiveNetMap = function (env) {
         const b = h('button', { type: 'button', class: 'nm-chip', text: n.name, title: 'Place ' + n.name });
         b.addEventListener('click', () => startPlacing(n)); return b;
       }), left.length > 40 ? h('span', { class: 'lbl', text: '+' + (left.length - 40) }) : null,
-      h('span', { class: 'lbl', text: st.can ? 'BeeIRCd servers place themselves from their time zone; a server set to UTC needs you to place it. Saved in beeircd.conf, nothing is looked up online.' : 'An oper with flag c places servers.' }));
+      h('span', { class: 'lbl', text: st.can ? 'Click one to place it. Your places are saved in beeircd.conf.' : 'An oper with flag c places servers.' }));
+    }
+    // how servers find their own place, and the switch for it (flag a)
+    function drawIP() {
+      const on = st.data && st.data.find_by_ip;
+      const words = on
+        ? 'BeeIRCd servers find their own place from their own IP address (asked of ipinfo.io once, city level, about 10 km), else from their time zone. People are never located.'
+        : 'BeeIRCd servers place themselves from their time zone; nothing is asked online. People are never located.';
+      const kids = [h('span', { class: 'lbl', text: words })];
+      if (opt.canSettings) {
+        const b = h('button', { type: 'button', class: 'nm-chip', text: on ? 'Turn IP places off' : 'Turn IP places on' });
+        b.addEventListener('click', () => busy(b, async () => {
+          try { await api('POST', '/api/set', { name: 'find-place-by-ip', value: on ? 'off' : 'on' }); toast([on ? 'IP places are off.' : 'IP places are on.']); opt.reload(); } catch (e) { toastErr(e.message); }
+        }));
+        kids.push(b);
+      }
+      put(ipRow, ...kids);
     }
 
     // ---------- search ----------
