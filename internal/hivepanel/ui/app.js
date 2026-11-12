@@ -125,6 +125,7 @@
   let poll = 0, liveFails = 0;
   const pages = [
     { id: 'overview', label: 'Overview', icon: 'overview', make: overviewPage },
+    { id: 'people', label: 'People', icon: 'people', make: peoplePage },
     { id: 'settings', label: 'Settings', icon: 'settings', need: 'a', make: settingsPage },
   ];
 
@@ -551,6 +552,168 @@
         } else updateRow.hidden = true;
       },
     };
+  }
+
+  // ---------- People ----------
+  function peoplePage() {
+    const PAGE = 50;
+    let q = '', filter = 'all', offset = 0, openUID = null, data = null, typing = 0;
+    const tile = label => { const n = h('span', { class: 'num', text: '…' }); return { n, el: h('section', { class: 'card tight' }, h('span', { class: 'lbl', text: label }), n) }; };
+    const tOn = tile('Online'), tIn = tile('Logged in'), tGuests = tile('Guests'), tOpers = tile('Opers');
+    const search = h('input', { class: 'search', type: 'search', placeholder: has('h') ? 'Search nick, host, address or account' : 'Search nick, host or account', 'aria-label': 'Search people', autocomplete: 'off', spellcheck: 'false' });
+    const segs = [['all', 'All'], ['in', 'Logged in'], ['guests', 'Guests'], ['opers', 'Opers']].map(([v, label]) =>
+      h('button', { type: 'button', 'aria-pressed': v === filter ? 'true' : 'false', 'data-f': v, text: label }));
+    const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Show' }, segs);
+    const tbody = h('tbody');
+    const count = h('span', { class: 'lbl' });
+    const back = h('button', { type: 'button', class: 'btn', text: 'Back' });
+    const next = h('button', { type: 'button', class: 'btn', text: 'Next' });
+    const el = h('div', { class: 'main-stack' },
+      h('header', { class: 'head' }, h('div', { class: 'head-text' }, h('h1', { text: 'People' }),
+        h('span', { class: 'sub', text: 'Everyone online on the network, on every server' }))),
+      h('div', { class: 'tiles4' }, tOn.el, tIn.el, tGuests.el, tOpers.el),
+      h('section', { class: 'card list-card' },
+        h('div', { class: 'tools' }, search, seg),
+        h('div', { class: 'wrap' }, h('table', {},
+          h('thead', {}, h('tr', {}, ['Nick', 'Host', 'Server', 'Channels', 'Online for'].map(t => h('th', { scope: 'col', text: t })))),
+          tbody)),
+        h('div', { class: 'pager' }, count, h('div', { class: 'row-btns' }, back, next))));
+
+    async function load() {
+      try {
+        const d = await api('GET', '/api/people?' + new URLSearchParams({ q, filter, offset }));
+        data = d.people;
+        draw();
+      } catch (e) {
+        tbody.replaceChildren(h('tr', {}, h('td', { colspan: 5, class: 'empty', text: e.message })));
+      }
+    }
+    function draw() {
+      const p = data;
+      tOn.n.textContent = fmt(p.online); tIn.n.textContent = fmt(p.logged_in); tGuests.n.textContent = fmt(p.guests); tOpers.n.textContent = fmt(p.opers);
+      const rows = [];
+      if (!p.rows.length) rows.push(h('tr', {}, h('td', { colspan: 5, class: 'empty', text: q || filter !== 'all' ? 'Nobody matches.' : 'Nobody is online.' })));
+      for (const r of p.rows) {
+        const open = r.uid === openUID;
+        const nickBtn = h('button', { type: 'button', class: 'rowbtn', 'aria-expanded': open ? 'true' : 'false' }, r.nick);
+        const tr = h('tr', { class: 'person' + (open ? ' open' : '') },
+          h('td', {}, nickBtn, r.oper ? [' ', h('span', { class: 'tag', text: 'oper' })] : null),
+          h('td', { class: 'mono', text: r.host }),
+          h('td', { class: 'lbl', text: r.server }),
+          h('td', { text: String(r.channels) }),
+          h('td', { class: 'lbl', text: since(r.signon) }));
+        tr.addEventListener('click', () => toggle(r.uid));
+        rows.push(tr);
+        if (open) rows.push(detailRow(r));
+      }
+      tbody.replaceChildren(...rows);
+      const from = p.matched ? p.offset + 1 : 0, to = p.offset + p.rows.length;
+      count.textContent = fmt(from) + ' to ' + fmt(to) + ' of ' + fmt(p.matched);
+      back.disabled = p.offset <= 0;
+      next.disabled = to >= p.matched;
+    }
+    function toggle(uid) {
+      openUID = openUID === uid ? null : uid;
+      draw();
+    }
+
+    // The open person: their details and what can be done.
+    function detailRow(r) {
+      const box = h('div', {}, h('p', { class: 'empty', text: 'Loading…' }));
+      const tr = h('tr', { class: 'detail' }, h('td', { colspan: 5 }, box));
+      api('GET', '/api/person?uid=' + encodeURIComponent(r.uid)).then(d => fill(box, d.person))
+        .catch(e => box.replaceChildren(h('p', { class: 'empty', text: e.message })));
+      return tr;
+    }
+    function item(label, value, cls, wide) {
+      return h('div', { class: wide ? 'wide' : null }, h('span', { class: 'lbl', text: label }), h('span', { class: cls || null, text: value || '—' }));
+    }
+    function fill(box, p) {
+      const items = [];
+      if (p.ip) items.push(item('Real host', p.real_host === p.ip ? p.ip : p.real_host + ' (' + p.ip + ')', 'mono', true));
+      items.push(item('Account', p.account || 'guest'));
+      items.push(item('Secure', p.tls ? 'TLS' : 'not encrypted'));
+      items.push(item('Ident', p.ident, 'mono'));
+      items.push(item('Real name', p.realname));
+      items.push(item('Channels', (p.chans || []).join(' ') || 'none', 'mono', true));
+      if (p.local) items.push(item('Idle', p.idle ? since(p.idle) : '—'));
+      items.push(item('Modes', p.modes, 'mono'));
+      if (p.away) items.push(item('Away', p.away, null, true));
+      if (p.oper_as) items.push(item('Oper', p.oper_as));
+
+      // notice
+      const note = h('input', { class: 'in', id: 'note-' + p.uid, type: 'text', maxlength: '400', placeholder: 'Type a message', autocomplete: 'off' });
+      const send = h('button', { type: 'button', class: 'btn main', text: 'Send notice' });
+      const doSend = () => busy(send, async () => {
+        if (!note.value.trim()) { note.classList.add('wrong'); note.focus(); return; }
+        try {
+          const d = await api('POST', '/api/notice', { uid: p.uid, text: note.value });
+          note.value = ''; note.classList.remove('wrong');
+          toast([d.done.text]);
+        } catch (e) { toastErr(e.message); }
+      });
+      send.addEventListener('click', doSend);
+      note.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doSend(); } });
+
+      // disconnect / ban, each asks first
+      const ends = [];
+      const confirmBox = h('div', { class: 'confirm', hidden: true });
+      function ask(kind) {
+        const reason = h('input', { class: 'in', type: 'text', maxlength: '200', autocomplete: 'off',
+          placeholder: 'Reason (they see it)', 'aria-label': 'Reason' });
+        const life = h('select', { class: 'in', 'aria-label': 'Ban length' },
+          [['1h', '1 hour'], ['1d', '1 day'], ['7d', '7 days'], ['30d', '30 days'], ['0', 'Until removed']].map(([v, t]) => h('option', { value: v, text: t })));
+        life.value = '7d';
+        const go = h('button', { type: 'button', class: 'btn bad', text: kind === 'kill' ? 'Disconnect ' + p.nick : 'Ban ' + p.nick });
+        const cancel = h('button', { type: 'button', class: 'btn ghost', text: 'Cancel' });
+        cancel.addEventListener('click', () => { confirmBox.hidden = true; });
+        go.addEventListener('click', () => busy(go, async () => {
+          try {
+            const d = await api('POST', kind === 'kill' ? '/api/kill' : '/api/ban', { uid: p.uid, text: reason.value, life: kind === 'ban' ? life.value : '' });
+            toast([d.done.text]);
+            openUID = null;
+            load();
+          } catch (e) { toastErr(e.message); }
+        }));
+        confirmBox.replaceChildren(...[
+          h('label', { class: 'f' }, kind === 'kill' ? 'Disconnect ' + p.nick + '?' : 'Ban ' + p.nick + ' from the whole network' + (p.ip ? ' (*@' + p.ip + ')' : '') + '?', reason),
+          kind === 'ban' ? life : null, go, cancel].filter(Boolean));
+        confirmBox.hidden = false;
+        reason.focus();
+      }
+      if (has('k')) {
+        const kb = h('button', { type: 'button', class: 'btn bad', text: 'Disconnect' });
+        kb.addEventListener('click', () => ask('kill'));
+        const bb = h('button', { type: 'button', class: 'btn bad', text: 'Ban ' + p.nick });
+        bb.addEventListener('click', () => ask('ban'));
+        ends.push(kb, bb);
+      }
+      box.replaceChildren(
+        h('div', { class: 'dl' }, items),
+        h('div', { class: 'acts' },
+          h('div', { class: 'grow' }, h('label', { class: 'f', for: 'note-' + p.uid }, 'Notice to ' + p.nick, note), send),
+          ends.length ? h('div', { class: 'end' }, ends) : null), // h() skips null
+        confirmBox);
+    }
+
+    // controls
+    search.addEventListener('input', () => {
+      clearTimeout(typing);
+      typing = setTimeout(() => { q = search.value.trim(); offset = 0; openUID = null; load(); }, 250);
+    });
+    for (const b of segs) b.addEventListener('click', () => {
+      filter = b.dataset.f; offset = 0; openUID = null;
+      segs.forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+      load();
+    });
+    back.addEventListener('click', () => { offset = Math.max(0, offset - PAGE); openUID = null; load(); });
+    next.addEventListener('click', () => { offset += PAGE; openUID = null; load(); });
+    const onKey = e => { if (e.key === 'Escape' && openUID) { openUID = null; draw(); } };
+    document.addEventListener('keydown', onKey);
+    // Fresh list every 15 s, unless a person is open (don't move things under the oper's hands).
+    const timer = setInterval(() => { if (!openUID && !document.hidden) load(); }, 15000);
+    load();
+    return { el, leave() { clearInterval(timer); document.removeEventListener('keydown', onKey); } };
   }
 
   // ---------- boot ----------

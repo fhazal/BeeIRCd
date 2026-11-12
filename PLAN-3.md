@@ -17,6 +17,14 @@ Changes while building: lockout is /oper's (5 wrong: 10 minutes, not
 15) plus a per-address 5/10 minutes in the panel; host masks are checked
 against the web address only (no hostname); installer unit moves to 3g;
 Update in the panel only says "run beeircd update" for now.
+3b built 12 Nov 2026 (branch stage3): People page (internal/server/
+panel3b.go, services PanelAkill): everyone on the network, search
+(addresses only with h), filters, 50 a page, refreshed every 15 s unless
+a person is open; details; notice (any oper), disconnect and ban (flag k,
+the same flag as /KILL and OperServ AKILL; the mockup said s). Ban = AKILL
+on *@address, 1 h / 1 d / 7 d / 30 d / until removed, asks first; "What
+happened" never shows the address. Client version isn't known (no CTCP
+VERSION), so the details don't show it.
 
 ## What it is
 Hive Panel = the web admin for BeeIRCd. A separate program
@@ -87,7 +95,7 @@ only through the local control socket, so a panel bug cannot crash IRC.
   fingerprint), CONNECT/SQUIT (c), per-link lag and burst state.
 - 3f Services settings: the [services] values the panel may change,
   BotServ web view later (PLAN-botserv).
-- 3g Gates: RBAC matrix test (every flag x every endpoint), CSRF and
+- 3g Bug sweep first (owner 12 Nov: before any release, sweep for bugs and fix them all), then the gates: RBAC matrix test (every flag x every endpoint), CSRF and
   session tests, API fuzzing, login lockout test, phone 375 px, light +
   dark, every button clicked on a real build (full button check),
   security review of the API, installer test on Debian 13 + Ubuntu 24.04.

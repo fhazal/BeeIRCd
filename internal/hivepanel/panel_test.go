@@ -45,6 +45,10 @@ func (f *fakeServer) ask(r control.Request, _ time.Duration) (*control.Response,
 		return &control.Response{Events: []control.Event{{Who: "Bee", What: "signed in"}}}, nil
 	case control.CmdPanelWho:
 		return &control.Response{Oper: &control.PanelOper{Account: "Bee", Flags: "acghks", Owner: true}}, nil
+	case control.CmdPeople:
+		return &control.Response{People: &control.People{Online: 2, Matched: 1, Rows: []control.PersonBrief{{UID: "0BEAAAAAB", Nick: r.Query}}}}, nil
+	case control.CmdKill, control.CmdNotice, control.CmdBan:
+		return &control.Response{Done: &control.Done{Text: r.Cmd + " " + r.UID + " " + r.Value + " " + r.Life}}, nil
 	case control.CmdSet:
 		return &control.Response{Changed: &control.Changed{Name: r.Name, Old: "5", New: r.Value, ID: 7}}, nil
 	}
@@ -276,5 +280,27 @@ func TestLiveStream(t *testing.T) {
 	var st control.Status
 	if json.Unmarshal([]byte(got["status"]), &st) != nil || st.Online != 3 || !strings.Contains(got["events"], "signed in") {
 		t.Errorf("live: %v", got)
+	}
+}
+
+func TestPeopleRoutes(t *testing.T) {
+	rg := newRig(t)
+	tok := rg.login()
+	if w := rg.do("GET", "/api/people?q=rov&filter=guests&offset=50", "", tok, nil); w.Code != 200 || !strings.Contains(w.Body.String(), `"nick":"rov"`) {
+		t.Errorf("people: %d %s", w.Code, w.Body)
+	}
+	last := rg.f.reqs[len(rg.f.reqs)-1]
+	if last.Query != "rov" || last.Filter != "guests" || last.Offset != 50 || last.Limit != 50 {
+		t.Errorf("people request: %+v", last)
+	}
+	w := rg.do("POST", "/api/ban", `{"uid":"0BEAAAAAB","text":"spam","life":"7d"}`, tok, nil)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "ban 0BEAAAAAB spam 7d") {
+		t.Errorf("ban: %d %s", w.Code, w.Body)
+	}
+	if w := rg.do("POST", "/api/kill", `{"text":"no uid"}`, tok, nil); w.Code != 400 {
+		t.Errorf("kill without uid: %d", w.Code)
+	}
+	if w := rg.do("POST", "/api/kill", `{"uid":"x"}`, tok, map[string]string{"X-Hive": ""}); w.Code != 403 {
+		t.Errorf("kill without X-Hive: %d", w.Code)
 	}
 }

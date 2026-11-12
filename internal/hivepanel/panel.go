@@ -126,6 +126,11 @@ func New(o Options) *Panel {
 	m.HandleFunc("POST /api/check", p.withOper(p.simple(control.CmdCheck)))
 	m.HandleFunc("POST /api/rehash", p.withOper(p.simple(control.CmdRehash)))
 	m.HandleFunc("POST /api/backup", p.withOper(p.simple(control.CmdBackup)))
+	m.HandleFunc("GET /api/people", p.withOper(p.people))
+	m.HandleFunc("GET /api/person", p.withOper(p.person))
+	m.HandleFunc("POST /api/notice", p.withOper(p.act(control.CmdNotice)))
+	m.HandleFunc("POST /api/kill", p.withOper(p.act(control.CmdKill)))
+	m.HandleFunc("POST /api/ban", p.withOper(p.act(control.CmdBan)))
 	m.HandleFunc("GET /api/live", p.live)
 	p.mux = m
 	return p
@@ -345,6 +350,28 @@ func (p *Panel) undo(w http.ResponseWriter, r *http.Request, oc operCtx) {
 		return
 	}
 	p.send(w, oc, control.Request{Cmd: control.CmdUndo, ID: in.ID}, 10*time.Second)
+}
+
+func (p *Panel) people(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	q := r.URL.Query()
+	off, _ := strconv.Atoi(q.Get("offset"))
+	p.send(w, oc, control.Request{Cmd: control.CmdPeople, Query: q.Get("q"), Filter: q.Get("filter"), Offset: off, Limit: 50}, 10*time.Second)
+}
+
+func (p *Panel) person(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	p.send(w, oc, control.Request{Cmd: control.CmdPerson, UID: r.URL.Query().Get("uid")}, 10*time.Second)
+}
+
+// act is an action on one person: {"uid", "text", "life"}.
+func (p *Panel) act(cmd string) func(http.ResponseWriter, *http.Request, operCtx) {
+	return func(w http.ResponseWriter, r *http.Request, oc operCtx) {
+		var in struct{ UID, Text, Life string }
+		if json.NewDecoder(r.Body).Decode(&in) != nil || in.UID == "" {
+			writeErr(w, http.StatusBadRequest, "Bad request.")
+			return
+		}
+		p.send(w, oc, control.Request{Cmd: cmd, UID: in.UID, Value: in.Text, Life: in.Life}, 10*time.Second)
+	}
 }
 
 // ipLocked reports how long ip must still wait after wrong sign-ins.

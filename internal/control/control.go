@@ -31,6 +31,13 @@ const (
 	CmdSet        = "set"         // Name + Value -> Changed (flag a)
 	CmdUndo       = "undo"        // ID (a HISTORY entry) -> Changed (flag a)
 	CmdPanelLog   = "panel-log"   // -> Events
+
+	// People page (3b).
+	CmdPeople = "people" // Query + Filter + Offset + Limit -> People
+	CmdPerson = "person" // UID -> Person
+	CmdNotice = "notice" // UID + Value (the text) -> Done
+	CmdKill   = "kill"   // UID + Value (the reason) -> Done (flag k)
+	CmdBan    = "ban"    // UID + Value (reason) + Life -> Done (flag k: OperServ AKILL)
 )
 
 // MaxRequest is the most bytes one request may be.
@@ -53,6 +60,13 @@ type Request struct {
 	Name     string `json:"name,omitempty"`     // set
 	Value    string `json:"value,omitempty"`    // set
 	ID       int64  `json:"id,omitempty"`       // undo
+
+	Query  string `json:"query,omitempty"`  // people: search text
+	Filter string `json:"filter,omitempty"` // people: all, in, guests, opers
+	Offset int    `json:"offset,omitempty"`
+	Limit  int    `json:"limit,omitempty"`
+	UID    string `json:"uid,omitempty"`  // person, notice, kill, ban
+	Life   string `json:"life,omitempty"` // ban: "7d", "0" = until removed, "" = default
 }
 
 // Response carries the answer to one Request; Error is set when it failed.
@@ -67,6 +81,9 @@ type Response struct {
 	Settings []Setting  `json:"settings,omitempty"`
 	Changed  *Changed   `json:"changed,omitempty"`
 	Events   []Event    `json:"events,omitempty"`
+	People   *People    `json:"people,omitempty"`
+	Person   *Person    `json:"person,omitempty"`
+	Done     *Done      `json:"done,omitempty"`
 	// Denied is set (with Error) when the oper may not do this: signed
 	// out, or missing a flag. The panel then signs them out or says so.
 	Denied string `json:"denied,omitempty"` // "signin" or "flag"
@@ -90,6 +107,51 @@ type Setting struct {
 	Min   int64  `json:"min,omitempty"`
 	Max   int64  `json:"max,omitempty"`
 	Value string `json:"value"`
+}
+
+// People is one page of the People list.
+type People struct {
+	Online   int           `json:"online"` // everyone, not counting services
+	LoggedIn int           `json:"logged_in"`
+	Guests   int           `json:"guests"`
+	Opers    int           `json:"opers"`
+	Matched  int           `json:"matched"` // after search and filter
+	Offset   int           `json:"offset"`
+	Rows     []PersonBrief `json:"rows"`
+}
+
+// PersonBrief is one row of the People list.
+type PersonBrief struct {
+	UID      string    `json:"uid"`
+	Nick     string    `json:"nick"`
+	Host     string    `json:"host"` // the shown (often cloaked) host
+	Server   string    `json:"server"`
+	Account  string    `json:"account,omitempty"`
+	Oper     bool      `json:"oper,omitempty"`
+	Channels int       `json:"channels"`
+	SignOn   time.Time `json:"signon"`
+}
+
+// Person is everything the panel shows about one person. RealHost and IP
+// are only filled in for opers with flag h.
+type Person struct {
+	PersonBrief
+	Ident    string    `json:"ident"`
+	Realname string    `json:"realname"`
+	RealHost string    `json:"real_host,omitempty"`
+	IP       string    `json:"ip,omitempty"`
+	TLS      bool      `json:"tls"`
+	Away     string    `json:"away,omitempty"`
+	Modes    string    `json:"modes"`
+	Chans    []string  `json:"chans"`             // with their status (@#lobby)
+	Idle     time.Time `json:"idle,omitzero"`     // last message (people on this server)
+	OperAs   string    `json:"oper_as,omitempty"` // class or flags
+	Local    bool      `json:"local"`             // on this server
+}
+
+// Done is what an action did, in words.
+type Done struct {
+	Text string `json:"text"`
 }
 
 // Changed is what one set or undo did.

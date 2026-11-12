@@ -190,6 +190,12 @@ the control socket): `beeircd-web -config /etc/beeircd/beeircd.conf`.
   flags. Settings, Check and Rehash need flag `a`; Backup is for the
   owner (the `[services] admin`). Take an oper entry away and that oper is
   signed out at their next click.
+- **People** lists everyone online on every server: search, filters
+  (logged in, guests, opers), 50 at a time. Click a person for their
+  details and to send them a notice. Real hosts and addresses show only
+  for opers with flag `h` (and only they can search by them). Disconnect
+  and Ban need flag `k`, like /KILL and OperServ AKILL; Ban adds an
+  AKILL on the person's address (1 hour to until removed) and asks first.
 - Settings changed in the panel are saved to `beeircd.conf`, applied at
   once and kept in AdminServ HISTORY (Undo works there too). The panel's
   own "What happened" list keeps sign-ins and changes with who and from

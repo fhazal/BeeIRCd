@@ -258,6 +258,20 @@ func (s *Server) panelControl(req control.Request, setDeadline func(time.Duratio
 		return run('a', func(po *control.PanelOper) { resp = s.panelSet(po, req.IP, req.Name, req.Value) }), true
 	case control.CmdUndo:
 		return run('a', func(po *control.PanelOper) { resp = s.panelUndo(po, req.IP, req.ID) }), true
+	case control.CmdPeople:
+		return run(0, func(po *control.PanelOper) { resp.People = s.panelPeople(po, req) }), true
+	case control.CmdPerson:
+		return run(0, func(po *control.PanelOper) {
+			if resp.Person = s.panelPerson(po, req.UID); resp.Person == nil {
+				resp.Error = "They have left."
+			}
+		}), true
+	case control.CmdNotice:
+		return run(0, func(po *control.PanelOper) { resp = s.panelNotice(po, req.IP, req.UID, req.Value) }), true
+	case control.CmdKill:
+		return run('k', func(po *control.PanelOper) { resp = s.panelKill(po, req.IP, req.UID, req.Value) }), true
+	case control.CmdBan:
+		return run('k', func(po *control.PanelOper) { resp = s.panelBan(po, req.IP, req.UID, req.Value, req.Life) }), true
 	}
 	if req.As == "" {
 		return resp, false
