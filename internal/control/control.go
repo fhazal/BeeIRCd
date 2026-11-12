@@ -58,8 +58,9 @@ const (
 	CmdLinkDel     = "link-del"     // Name -> Done
 )
 
-// MaxRequest is the most bytes one request may be.
-const MaxRequest = 4096
+// MaxRequest is the most bytes one request may be (the Hive Panel takes
+// requests of up to 16 KB from browsers and passes them on).
+const MaxRequest = 16 << 10
 
 // Request asks the server for one thing. For backup, Path "" makes a
 // dated backup; any other value an undated one in the backup folder that

@@ -127,3 +127,20 @@ func TestFlagWords(t *testing.T) {
 		}
 	}
 }
+
+// A request bigger than 4 KB (the panel allows 16 KB) reaches the server.
+func TestPanelBigRequest(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	registered(t, s, "ember")
+	_ = b
+	var hosts []string
+	for i := 0; i < 20; i++ {
+		hosts = append(hosts, "~ember"+strings.Repeat("x", 300)+"@*.example.org")
+	}
+	r := panelAsk(t, s, control.Request{Cmd: control.CmdOperSave, As: "Boss", IP: "127.0.0.1", Name: "ember", Class: "helper",
+		Hosts: strings.Join(hosts, " "), Password: "Ember-Big-2026", New: true})
+	if r.Changed == nil {
+		t.Errorf("big oper-save: %+v", r)
+	}
+}
