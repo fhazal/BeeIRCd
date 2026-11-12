@@ -3,6 +3,7 @@ package server
 import (
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -158,5 +159,20 @@ func TestPanelSealChangesWithPassword(t *testing.T) {
 	b.expect("ember has a new oper password.")
 	if r := ask(); r.Denied != "signin" || !strings.Contains(r.Error, "password changed") {
 		t.Errorf("old session still works after a new password: %+v", r)
+	}
+}
+
+// A refused sign-in for a nick that isn't an oper costs a password check
+// too, so timing doesn't tell oper nicks apart.
+func TestPanelLoginSameCost(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	boss(t, s)
+	var calls atomic.Int32
+	old := panelDummyCheck
+	panelDummyCheck = func(pw string) { calls.Add(1); old(pw) }
+	t.Cleanup(func() { panelDummyCheck = old })
+	r := panelAsk(t, s, control.Request{Cmd: control.CmdPanelLogin, Nick: "nobody", Password: "x", IP: "127.0.0.1"})
+	if r.Oper != nil || r.Error != "Wrong nick or password." || calls.Load() != 1 {
+		t.Errorf("unknown nick: %+v, dummy checks %d", r, calls.Load())
 	}
 }

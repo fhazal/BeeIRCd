@@ -13,6 +13,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -86,6 +87,17 @@ func passSeal(hash string) string {
 	return hex.EncodeToString(sum[:8])
 }
 
+var (
+	dummyOnce sync.Once
+	dummyHash string
+)
+
+// panelDummyCheck spends what a password check costs (off the loop).
+var panelDummyCheck = func(pw string) {
+	dummyOnce.Do(func() { dummyHash, _ = passwd.Hash("hive panel dummy password") })
+	passwd.Check(pw, dummyHash)
+}
+
 // panelLogin checks a sign-in and calls done with the answer (on the loop).
 func (s *Server) panelLogin(req control.Request, done func(control.Response)) {
 	nick, pw, ip := strings.TrimSpace(req.Nick), req.Password, req.IP
@@ -102,7 +114,12 @@ func (s *Server) panelLogin(req control.Request, done func(control.Response)) {
 		}
 		s.panelEvent(nick, ip, "could not sign in: "+problem)
 		s.snotice("Hive Panel: refused sign-in as %s from %s (%s)", nick, ip, problem)
-		done(wrong)
+		// Answer as slowly as a real password check would, so the time
+		// taken doesn't tell which nicks are opers.
+		go func() {
+			panelDummyCheck(pw)
+			s.post(func() { done(wrong) })
+		}()
 		return
 	}
 	if o.PassHash == "" {
