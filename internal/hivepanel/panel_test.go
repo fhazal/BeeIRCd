@@ -2,6 +2,7 @@ package hivepanel
 
 import (
 	"bufio"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -64,6 +65,11 @@ func (f *fakeServer) ask(r control.Request, _ time.Duration) (*control.Response,
 			return &control.Response{Backup: &control.Backup{File: filepath.Join(f.bkDir, "beeircd.conf")}}, nil
 		}
 		return &control.Response{Backup: &control.Backup{File: filepath.Join(f.bkDir, r.Name)}}, nil
+	case control.CmdMapPlace:
+		if r.Lat == nil {
+			return &control.Response{Done: &control.Done{Text: "off " + r.Name}}, nil
+		}
+		return &control.Response{Done: &control.Done{Text: fmt.Sprintf("%s %s %.4f %.4f", r.Name, r.Value, *r.Lat, *r.Lon)}}, nil
 	case control.CmdChanSuspend:
 		return &control.Response{Done: &control.Done{Text: r.Cmd + " " + r.Name + " " + r.Reason + " " + r.Life}}, nil
 	case control.CmdLinkSave:
@@ -465,5 +471,53 @@ func TestBackupDownload(t *testing.T) {
 	}
 	if w := rg.do("GET", "/api/backup-get?name="+name, "", tok, nil); w.Code != 405 {
 		t.Errorf("GET: %d", w.Code)
+	}
+}
+
+func TestMapRoutes(t *testing.T) {
+	rg := newRig(t)
+	// The outlines need no sign-in, come gzipped when asked, and are JSON.
+	r := httptest.NewRequest("GET", "http://127.0.0.1:8787/map/world-110.json", nil)
+	r.RemoteAddr = "127.0.0.1:50000"
+	r.Header.Set("Accept-Encoding", "gzip, br")
+	w := httptest.NewRecorder()
+	rg.p.ServeHTTP(w, r)
+	if w.Code != 200 || w.Header().Get("Content-Encoding") != "gzip" || w.Header().Get("Content-Type") != "application/json" || w.Body.Len() > 40000 {
+		t.Fatalf("gzip: %d %v %d bytes", w.Code, w.Header(), w.Body.Len())
+	}
+	zr, err := gzip.NewReader(w.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pack struct {
+		V     int
+		Src   string
+		Rings [][]int
+	}
+	if err := json.NewDecoder(zr).Decode(&pack); err != nil || pack.V != 1 || len(pack.Rings) < 200 || !strings.Contains(pack.Src, "Natural Earth") {
+		t.Fatalf("pack: %v %d %q", err, len(pack.Rings), pack.Src)
+	}
+	if w := rg.do("GET", "/map/world-50.json", "", "", nil); w.Code != 200 || w.Header().Get("Content-Encoding") != "" || !strings.HasPrefix(w.Body.String(), `{"v":1`) {
+		t.Errorf("plain: %d %v", w.Code, w.Header())
+	}
+	for _, bad := range []string{"/map/world-50.json%23raw", "/map/nope.json", "/map/../app.js"} {
+		if w := rg.do("GET", bad, "", "", nil); w.Code == 200 {
+			t.Errorf("%s: %d", bad, w.Code)
+		}
+	}
+	if w := rg.do("GET", "/netmap.js", "", "", nil); w.Code != 200 || !strings.Contains(w.Body.String(), "HiveNetMap") {
+		t.Errorf("netmap.js: %d", w.Code)
+	}
+	tok := rg.login()
+	if w := rg.do("POST", "/api/map-place", `{"name":"eu.x.net","place":"Frankfurt","lat":50.11,"lon":8.68}`, tok, nil); w.Code != 200 || !strings.Contains(w.Body.String(), "eu.x.net Frankfurt 50.1100 8.6800") {
+		t.Errorf("place: %d %s", w.Code, w.Body)
+	}
+	if w := rg.do("POST", "/api/map-place", `{"name":"eu.x.net"}`, tok, nil); w.Code != 200 || !strings.Contains(w.Body.String(), "off eu.x.net") {
+		t.Errorf("remove: %d %s", w.Code, w.Body)
+	}
+	for _, bad := range []string{`{"name":"eu.x.net","lat":1}`, `{"lat":1,"lon":2}`, `{"name":"a","lat":"x","lon":1}`} {
+		if w := rg.do("POST", "/api/map-place", bad, tok, nil); w.Code != 400 {
+			t.Errorf("%s: %d", bad, w.Code)
+		}
 	}
 }

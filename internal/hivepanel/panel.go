@@ -11,6 +11,8 @@
 package hivepanel
 
 import (
+	"bytes"
+	"compress/gzip"
 	"crypto/rand"
 	"crypto/sha256"
 	"embed"
@@ -108,6 +110,7 @@ func New(o Options) *Panel {
 		w.Write(b)
 	})
 	m.Handle("GET /app.js", files)
+	m.Handle("GET /netmap.js", files)
 	m.Handle("GET /app.css", files)
 	m.Handle("GET /fonts/{name}", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Only the font files themselves: no folder listing, no licences.
@@ -118,6 +121,7 @@ func New(o Options) *Panel {
 		w.Header().Set("Cache-Control", "public, max-age=604800")
 		files.ServeHTTP(w, r)
 	}))
+	m.HandleFunc("GET /map/{name}", p.mapFile)
 	m.HandleFunc("POST /api/login", p.login)
 	m.HandleFunc("POST /api/logout", p.logout)
 	m.HandleFunc("GET /api/me", p.withOper(p.me))
@@ -148,6 +152,7 @@ func New(o Options) *Panel {
 	m.HandleFunc("POST /api/link-split", p.withOper(p.linkAct(control.CmdLinkSplit)))
 	m.HandleFunc("POST /api/link-del", p.withOper(p.linkAct(control.CmdLinkDel)))
 	m.HandleFunc("POST /api/link-save", p.withOper(p.linkSave))
+	m.HandleFunc("POST /api/map-place", p.withOper(p.mapPlace))
 	m.HandleFunc("GET /api/channels", p.withOper(p.channels))
 	m.HandleFunc("GET /api/channel", p.withOper(p.channel))
 	m.HandleFunc("POST /api/chan-notice", p.withOper(p.chanAct(control.CmdChanNotice)))
@@ -536,6 +541,59 @@ func (p *Panel) backupGet(w http.ResponseWriter, r *http.Request, oc operCtx) {
 	h.Set("Content-Length", strconv.FormatInt(fi.Size(), 10))
 	h.Set("Cache-Control", "no-store")
 	io.Copy(w, f)
+}
+
+// mapPlace puts a server on the network map: {"name", "place", "lat",
+// "lon"}; no lat/lon takes it off.
+func (p *Panel) mapPlace(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	var in struct {
+		Name, Place string
+		Lat, Lon    *float64
+	}
+	if json.NewDecoder(r.Body).Decode(&in) != nil || in.Name == "" || (in.Lat == nil) != (in.Lon == nil) {
+		writeErr(w, http.StatusBadRequest, "Bad request.")
+		return
+	}
+	p.send(w, oc, control.Request{Cmd: control.CmdMapPlace, Name: in.Name, Value: in.Place, Lat: in.Lat, Lon: in.Lon}, 10*time.Second)
+}
+
+// mapFiles are the network map's outlines, gzipped once at start. They
+// hold no secrets (public domain country outlines), so no sign-in.
+var mapFiles = func() map[string][]byte {
+	out := map[string][]byte{}
+	ents, _ := uiFiles.ReadDir("ui/map")
+	for _, e := range ents {
+		if !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		raw, _ := uiFiles.ReadFile("ui/map/" + e.Name())
+		var b bytes.Buffer
+		zw, _ := gzip.NewWriterLevel(&b, gzip.BestCompression)
+		zw.Write(raw)
+		zw.Close()
+		out[e.Name()] = b.Bytes()
+		out[e.Name()+"#raw"] = raw
+	}
+	return out
+}()
+
+func (p *Panel) mapFile(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	gz, ok := mapFiles[name]
+	if !ok || strings.Contains(name, "#") {
+		http.NotFound(w, r)
+		return
+	}
+	h := w.Header()
+	h.Set("Content-Type", "application/json")
+	h.Set("Cache-Control", "public, max-age=604800")
+	h.Set("Vary", "Accept-Encoding")
+	if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		h.Set("Content-Encoding", "gzip")
+		w.Write(gz)
+		return
+	}
+	w.Write(mapFiles[name+"#raw"])
 }
 
 // ipLocked reports how long ip must still wait after wrong sign-ins.

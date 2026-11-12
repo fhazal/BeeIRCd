@@ -234,6 +234,19 @@ then open <http://127.0.0.1:8787>. `beeircd install` sets it up as the
   (account and channel expiry, identify time, guest prefix, KILL QUICK /
   IMMED, how long network bans last, the log channel). Saved, applied
   and undoable like Settings.
+- **Network map** (Linked servers, flag `c`): every server as a small
+  icon on a world map you drag round (it wraps like a globe) and zoom
+  into with the wheel, a pinch or + and −. Yellow lines are links, a red
+  dashed one is split; hubs have a hexagon. Servers close together share
+  a chip with their count until you zoom in. Find a server, or show only
+  split servers or hubs. Click an icon for its card (people, lag, Split or
+  Connect, Move). You place each server once: Move or Place, click the
+  map, name the place. Places are `[[map.place]]` blocks in beeircd.conf
+  (`server`, `name`, `lat`, `lon`), so you can also write them by hand;
+  nothing is looked up from an address and no person is ever on the map.
+  Lite turns off the glow and the moving signals (it switches on by itself
+  when drawing is slow, and the signals stop with reduced motion). The
+  outlines are Natural Earth (public domain), shipped with the panel.
 - **Backups** (Settings, owner only) lists the dated backups in the
   backup folder, newest first, with who made the ones made in the panel.
   Back up now makes one. The download button asks for your oper password

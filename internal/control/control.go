@@ -68,6 +68,9 @@ const (
 	// Backups card (3i), owner only.
 	CmdBackups   = "backups"    // -> Backups
 	CmdBackupGet = "backup-get" // Name + Password -> Backup (the file the panel may send)
+
+	// Network map (3k).
+	CmdMapPlace = "map-place" // Name (server) + Value (place name) + Lat + Lon -> Done; no Lat/Lon = remove (flag c)
 )
 
 // MaxRequest is the most bytes one request may be (the Hive Panel takes
@@ -107,6 +110,8 @@ type Request struct {
 	Hosts  string     `json:"hosts,omitempty"` // oper-save: masks, space or comma between
 	New    bool       `json:"new,omitempty"`   // oper-save, link-save: add, not change
 	Block  *LinkBlock `json:"block,omitempty"` // link-save
+	Lat    *float64   `json:"lat,omitempty"`   // map-place
+	Lon    *float64   `json:"lon,omitempty"`   // map-place
 }
 
 // Response carries the answer to one Request; Error is set when it failed.
@@ -262,6 +267,16 @@ type Links struct {
 	Map         []MapServer `json:"map"`
 	Blocks      []LinkBlock `json:"blocks"`
 	Status      []Link      `json:"status"`
+	Places      []MapPlace  `json:"places"` // where the owner put the servers (3k)
+}
+
+// MapPlace is where a server is on the network map: set by the owner,
+// never looked up.
+type MapPlace struct {
+	Server string  `json:"server"`
+	Name   string  `json:"name"`
+	Lat    float64 `json:"lat"`
+	Lon    float64 `json:"lon"`
 }
 
 // MapServer is one server of the network, for the map.

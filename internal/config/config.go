@@ -59,6 +59,7 @@ type Config struct {
 	Link     Link     `toml:"link"`
 	Update   Update   `toml:"update"`
 	Web      Web      `toml:"web"`
+	Map      MapConf  `toml:"map"`
 	// OperClasses are the [[operclass]] blocks (see Classes).
 	OperClasses []OperClass `toml:"operclass"`
 
@@ -504,6 +505,9 @@ func (c *Config) Check() error {
 		return err
 	}
 	if err := c.Web.check(); err != nil {
+		return err
+	}
+	if err := c.Map.check(); err != nil {
 		return err
 	}
 	if err := c.History.check(); err != nil {

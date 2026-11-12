@@ -1150,11 +1150,12 @@
     const addBtn = h('button', { type: 'button', class: 'btn', text: 'Add a server', hidden: true });
     addBtn.addEventListener('click', () => { open = '+'; drawForm(); });
     const mapBox = h('div', { class: 'map' });
+    const nm = window.HiveNetMap ? window.HiveNetMap({ h, put, icon, api, busy, toast, toastErr, plural, fmt, when, ends }).create({ canPlace: has('c'), reload: () => load() }) : null;
     const tbody = h('tbody');
     const form = h('section', { class: 'card' });
     const mine = h('section', { class: 'card' });
     const left = h('div', { class: 'stack' },
-      h('section', { class: 'card' }, h('h2', { text: 'Map' }), mapBox),
+      h('section', { class: 'card' }, h('h2', { text: 'Server tree' }), mapBox),
       h('section', { class: 'card list-card' }, h('div', { class: 'ch tools' }, h('h2', { text: 'Link blocks' })),
         h('div', { class: 'wrap' }, h('table', { class: 'links' },
           h('thead', {}, h('tr', {}, ['Server', 'State', 'Up since', 'Software'].map(t => h('th', { scope: 'col', text: t })), h('th', { scope: 'col' }, h('span', { class: 'sr', text: 'Actions' })))),
@@ -1162,7 +1163,7 @@
     const body = h('div', { class: 'band21' }, left, h('div', { class: 'stack' }, form, mine));
     const el = h('div', { class: 'main-stack' },
       h('header', { class: 'head' }, h('div', { class: 'head-text' }, h('h1', { text: 'Linked servers' }), sub), addBtn),
-      body);
+      nm && nm.el, body);
 
     async function load() {
       try {
@@ -1174,11 +1175,13 @@
       const d = data;
       if (d.role === 'standalone') {
         sub.textContent = 'This server runs alone';
+        if (nm) nm.el.hidden = true;
         put(body, h('section', { class: 'card' }, h('h2', { text: 'Not linked' }),
           h('p', { class: 'note', text: 'This server runs alone ([link] role = standalone). To link servers, run beeircd install on the new server and answer the hub questions, or set [link] role = hub in beeircd.conf and restart. Then link blocks are added here.' })));
         return;
       }
       addBtn.hidden = false;
+      if (nm) { nm.el.hidden = false; nm.update(d); }
       const st = Object.fromEntries((d.status || []).map(s => [s.name.toLowerCase(), s]));
       const up = (d.status || []).filter(s => s.state === 'up');
       const lags = up.filter(s => s.lag_ms).map(s => s.lag_ms);
@@ -1306,7 +1309,7 @@
 
     load();
     timer = setInterval(() => { if (!document.hidden && !el.querySelector('.split-ask')) load(); }, 10000);
-    return { el, leave() { clearInterval(timer); } };
+    return { el, leave() { clearInterval(timer); if (nm) nm.destroy(); } };
   }
 
   // ---------- Services ----------

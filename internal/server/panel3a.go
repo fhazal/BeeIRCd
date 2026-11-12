@@ -345,6 +345,8 @@ func (s *Server) panelControl(req control.Request, setDeadline func(time.Duratio
 		return run('c', func(po *control.PanelOper) { resp = s.panelLinkSave(po, req.IP, req.Block, req.New) }), true
 	case control.CmdLinkDel:
 		return run('c', func(po *control.PanelOper) { resp = s.panelLinkDel(po, req.IP, req.Name) }), true
+	case control.CmdMapPlace:
+		return run('c', func(po *control.PanelOper) { resp = s.panelMapPlace(po, req.IP, req) }), true
 	case control.CmdChannels:
 		return run(0, func(*control.PanelOper) { resp.Channels = s.panelChannels(req) }), true
 	case control.CmdChannel:
