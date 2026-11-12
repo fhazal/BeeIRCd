@@ -72,7 +72,8 @@
     return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' ' + hm;
   }
   const ms = v => (v < 1 ? 'under 1 ms' : Math.round(v) + ' ms');
-  const day = t => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  // day: '13 Nov', with the year when it isn't this year ('13 Nov 2036')
+  const day = t => { const d = new Date(t); return d.toLocaleDateString('en-GB', d.getFullYear() === new Date().getFullYear() ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' }); };
   const has = f => !!me && me.flags.includes(f);
 
   // ---------- talking to the panel ----------
