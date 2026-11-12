@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -375,5 +376,18 @@ func TestSealNeverReachesBrowser(t *testing.T) {
 	}
 	if w := rg.do("GET", "/api/me", "", tok, nil); w.Code != 200 || strings.Contains(w.Body.String(), "seal") {
 		t.Errorf("me: %d %s", w.Code, w.Body)
+	}
+}
+
+// Old wrong-try records are forgotten, so the list can't grow forever.
+func TestLoginFailsForgotten(t *testing.T) {
+	rg := newRig(t)
+	for i := 0; i < 50; i++ {
+		rg.p.ipFailed(fmt.Sprintf("192.0.2.%d", i))
+	}
+	rg.now = rg.now.Add(11 * time.Minute)
+	rg.p.ipFailed("198.51.100.1")
+	if n := len(rg.p.fails); n != 1 {
+		t.Errorf("%d records kept", n)
 	}
 }

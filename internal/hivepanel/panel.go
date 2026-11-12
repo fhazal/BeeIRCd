@@ -476,6 +476,11 @@ func (p *Panel) ipFailed(ip string) int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	now := p.now()
+	for k, old := range p.fails { // forget addresses whose tries and lock are over
+		if now.Sub(old.last) > ipLockFor && now.After(old.until) {
+			delete(p.fails, k)
+		}
+	}
 	f := p.fails[ip]
 	if f == nil || now.Sub(f.last) > ipLockFor {
 		f = &ipFails{}
