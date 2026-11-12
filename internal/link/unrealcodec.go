@@ -237,6 +237,15 @@ func (c *unrealCodec) Decode(m irc.Message) any {
 			reason = p[len(p)-1]
 		}
 		return &Kill{Source: m.Source, UID: p[0], Reason: reason}
+	case "SVSKILL":
+		if len(p) < 1 {
+			return nil
+		}
+		reason := ""
+		if len(p) > 1 {
+			reason = p[len(p)-1]
+		}
+		return &SvsKill{Source: m.Source, UID: p[0], Reason: reason}
 	}
 	return c.decodeLive(m)
 }

@@ -57,6 +57,11 @@ type Away struct{ UID, Message string }
 // Kill removes a user; Source is the server or user doing it.
 type Kill struct{ Source, UID, Reason string }
 
+// SvsKill is services removing a user (UnrealIRCd SVSKILL): every server
+// drops the user with Reason as the quit message, no "Killed (...)" and
+// no KILL line to the user. UID may be a nick.
+type SvsKill struct{ Source, UID, Reason string }
+
 // Codec writes and reads the network for one protocol, after the
 // handshake.
 type Codec interface {

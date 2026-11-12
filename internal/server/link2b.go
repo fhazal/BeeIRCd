@@ -160,6 +160,8 @@ func (s *Server) linkItem(l *linkConn, m irc.Message) bool {
 		}
 	case *link.Kill:
 		s.remoteKill(l, it)
+	case *link.SvsKill:
+		s.remoteSvsKill(l, it)
 	default:
 		return s.linkLive(l, m, it)
 	}
@@ -194,6 +196,13 @@ func (s *Server) remoteUser(l *linkConn, source string, in *link.User) {
 			return
 		}
 		in.Nick = in.UID
+	}
+	if ex := s.net.UserByNick(in.Nick); ex != nil && !s.ours(ex.UID) && uidServer(ex.UID) == uidServer(in.UID) {
+		// One server never has two users with one nick, so the one we
+		// hold is a ghost: we missed how it left. Drop it here; killing
+		// the real user over it would be wrong.
+		s.snotice("Dropped stale %s (%s): %s introduced the nick again as %s", ex.Nick, ex.UID, home.name, in.UID)
+		s.emitQuiet(&state.UserQuit{UID: ex.UID, Reason: "Gone (" + home.name + " has the nick again)"})
 	}
 	if ex := s.net.UserByNick(in.Nick); ex != nil {
 		if ex.Service && s.ours(ex.UID) {
@@ -355,6 +364,25 @@ func (s *Server) remoteKill(l *linkConn, k *link.Kill) {
 		return
 	}
 	s.emitQuiet(&state.UserQuit{UID: u.UID, Reason: reason})
+}
+
+// remoteSvsKill is SVSKILL: services remove a user anywhere. UnrealIRCd
+// sends it to every server and each drops the user with the reason as
+// its quit message (src/modules/svskill.c).
+func (s *Server) remoteSvsKill(l *linkConn, k *link.SvsKill) {
+	u := s.userByUIDOrNick(k.UID)
+	if u == nil || u.Service && s.ours(u.UID) {
+		return
+	}
+	for _, o := range s.upLinks(l) {
+		o.send(":" + k.Source + " SVSKILL " + u.UID + " :" + k.Reason)
+	}
+	if c := s.clientOf(u); c != nil {
+		s.origin = &linkOrigin{quiet: true} // every link has the SVSKILL
+		s.quit(c, k.Reason)
+		return
+	}
+	s.emitQuiet(&state.UserQuit{UID: u.UID, Reason: k.Reason})
 }
 
 // supportedRank turns a rank letter from another server into one this
