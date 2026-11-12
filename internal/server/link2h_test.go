@@ -1,6 +1,9 @@
 package server
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 // A leaf keeps the hub's service bots out of its people counts and lists,
 // and knows them as services (+S over the link, as in UnrealIRCd).
@@ -27,4 +30,27 @@ func TestLinkServicesNotPeople(t *testing.T) {
 	if people != 1 {
 		t.Errorf("hub: %d people, want 1", people)
 	}
+}
+
+// Both ends know the link's lag within seconds of the sync, not only after
+// a quiet minute.
+func TestLinkLagMeasuredAtOnce(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	// one tick each (the 1 s ticker may not have come round yet)
+	hub.s.onLoop(func() { hub.s.linkTick(time.Now()) })
+	leaf.s.onLoop(func() { leaf.s.linkTick(time.Now()) })
+	waitLink(t, "lag on both ends", func() bool {
+		var a, b float64
+		hub.s.onLoop(func() {
+			for _, st := range hub.s.linkStatus() {
+				a = st.LagMS
+			}
+		})
+		leaf.s.onLoop(func() {
+			for _, st := range leaf.s.linkStatus() {
+				b = st.LagMS
+			}
+		})
+		return a > 0 && b > 0
+	})
 }

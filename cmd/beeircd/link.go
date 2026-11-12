@@ -178,7 +178,11 @@ func linksRow(st *control.Status, p paint, now time.Time) []string {
 	for _, l := range st.Links {
 		switch l.State {
 		case "up":
-			text := fmt.Sprintf("%s %s for %s · lag %s", l.Name, p.ok("● up"), since(now.Sub(l.Since)), ms(l.LagMS))
+			lag := "lag " + ms(l.LagMS)
+			if l.LagMS == 0 {
+				lag = "lag not measured yet"
+			}
+			text := fmt.Sprintf("%s %s for %s · %s", l.Name, p.ok("● up"), since(now.Sub(l.Since)), lag)
 			if l.Behind > 0 {
 				text += fmt.Sprintf(" · %s behind it", plural(l.Behind, "server"))
 			}
