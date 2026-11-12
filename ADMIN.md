@@ -206,9 +206,13 @@ then open <http://127.0.0.1:8787>. `beeircd install` sets it up as the
   "[your nick] text"), set its topic (flag `s`, as ChanServ) or suspend /
   unsuspend it like ChanServ SUSPEND (flag `s`; asks first).
 - **Bans** (flag `k`, like OperServ's ban commands) lists the network
-  bans by kind (AKILL, ZLINE, SHUN, exceptions) and adds or removes them
-  with the same checks as OperServ. While you type a mask it says how
-  many people online it matches; masks that match everyone are refused.
+  bans by kind (AKILL, ZLINE, SHUN, SNLINE, exceptions) and adds or
+  removes them with the same checks as OperServ. While you type a mask it
+  says how many people online it matches; masks that match everyone are
+  refused. An SNLINE bans by realname: type it with spaces (saved with
+  `?` for each space, as OperServ writes it), as a `/regex/`, or as the
+  nick of someone online to take their realname. SNLINEs reach linked
+  BeeIRCd servers only. SQLINE (nick bans) stays in OperServ (flag `s`).
 - **Opers** (flag `a`, like AdminServ OPER): every oper entry with its
   class, flags and hosts; add an oper (a registered nick), change their
   class, own flags, hosts or oper password, or remove them. Same rules as

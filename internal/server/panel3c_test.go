@@ -32,7 +32,7 @@ func TestPanelBans(t *testing.T) {
 	}
 
 	r := ask("Boss", control.Request{Cmd: control.CmdBans})
-	if r.Bans == nil || r.Bans.Kind != "akill" || len(r.Bans.Rows) != 0 || r.Bans.Default != "30d" || len(r.Bans.Counts) != 4 {
+	if r.Bans == nil || r.Bans.Kind != "akill" || len(r.Bans.Rows) != 0 || r.Bans.Default != "30d" || len(r.Bans.Counts) != 5 {
 		t.Fatalf("empty list: %+v", r)
 	}
 	if r := ask("Boss", control.Request{Cmd: control.CmdBans, Kind: "kline"}); r.Error == "" {
@@ -99,5 +99,71 @@ func TestLengthWords(t *testing.T) {
 		if got := lengthWords(d); got != want {
 			t.Errorf("%v: %q", d, got)
 		}
+	}
+}
+
+// SNLINE on the Bans page: realname masks with spaces, a nick, a
+// /regex/, people hit leave, removal by the stored mask.
+func TestPanelSNLine(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	spam := raw(t, s)
+	spam.nick = "spammy"
+	spam.send("NICK spammy")
+	spam.send("USER spam 0 * :Free Bitcoin here")
+	spam.expect(":spammy MODE spammy +i")
+	login(t, s, "guesty") // realname "guesty Real"
+	ask := func(r control.Request) *control.Response {
+		r.As, r.IP = "Boss", "127.0.0.1"
+		return panelAsk(t, s, r)
+	}
+	// Spaces typed become ?, glob matching ignores case.
+	m := ask(control.Request{Cmd: control.CmdBanMatch, Kind: "snline", Mask: "  *free  bitcoin* "}).Match
+	if m == nil || m.Mask != "*free?bitcoin*" || m.People != 1 {
+		t.Fatalf("match with spaces: %+v", m)
+	}
+	// A nick takes that person's realname.
+	if m := ask(control.Request{Cmd: control.CmdBanMatch, Kind: "snline", Mask: "guesty"}).Match; m == nil || m.Mask != "guesty?Real" || m.People != 1 {
+		t.Errorf("nick: %+v", m)
+	}
+	// A /regex/ keeps its spaces; a broken one is refused.
+	if m := ask(control.Request{Cmd: control.CmdBanMatch, Kind: "snline", Mask: "/^free bitcoin/"}).Match; m == nil || m.Mask != "/^free bitcoin/" || m.People != 1 {
+		t.Errorf("regex: %+v", m)
+	}
+	if r := ask(control.Request{Cmd: control.CmdBanMatch, Kind: "snline", Mask: "/([/"}); !strings.Contains(r.Error, "regex doesn't work") {
+		t.Errorf("bad regex: %+v", r)
+	}
+	if r := ask(control.Request{Cmd: control.CmdBanMatch, Kind: "snline", Mask: "* *"}); !strings.Contains(r.Error, "matches everyone") {
+		t.Errorf("everyone: %+v", r)
+	}
+	r := ask(control.Request{Cmd: control.CmdBanAdd, Kind: "snline", Mask: "*free bitcoin*", Reason: "spam", Life: "1d"})
+	if r.Done == nil || !strings.Contains(r.Done.Text, "SNLINE added on *free?bitcoin* for 1 day. 1 removed.") {
+		t.Fatalf("add: %+v", r)
+	}
+	spam.expect("Banned: spam")
+	bans := ask(control.Request{Cmd: control.CmdBans, Kind: "snline"}).Bans
+	if bans.Counts["snline"] != 1 || len(bans.Rows) != 1 || bans.Rows[0].Mask != "*free?bitcoin*" || bans.Rows[0].Kind != "snline" {
+		t.Errorf("list: %+v", bans)
+	}
+	// Refused when they come back.
+	again := raw(t, s)
+	again.send("NICK spammy2")
+	again.send("USER spam 0 * :FREE BITCOIN again")
+	again.expect("banned")
+	// Same list as OperServ.
+	b.send("OS SNLINE LIST")
+	b.expect("*free?bitcoin*")
+	// Removal by the mask as stored, case and all (not lowercased, no *@).
+	if r := ask(control.Request{Cmd: control.CmdBanAdd, Kind: "snline", Mask: "/^Bot[0-9]+$/", Reason: "bots"}); r.Done == nil {
+		t.Fatalf("add regex: %+v", r)
+	}
+	if r := ask(control.Request{Cmd: control.CmdBanDel, Kind: "snline", Mask: "/^Bot[0-9]+$/"}); r.Done == nil || !strings.Contains(r.Done.Text, "SNLINE on /^Bot[0-9]+$/ removed.") {
+		t.Errorf("del regex: %+v", r)
+	}
+	if r := ask(control.Request{Cmd: control.CmdBanDel, Kind: "snline", Mask: "*free?bitcoin*"}); r.Done == nil {
+		t.Errorf("del: %+v", r)
+	}
+	if n := ask(control.Request{Cmd: control.CmdBans, Kind: "snline"}).Bans.Counts["snline"]; n != 0 {
+		t.Errorf("left: %d", n)
 	}
 }

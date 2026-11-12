@@ -1,7 +1,7 @@
 package server
 
 // Step 3c: the Hive Panel's Bans page: the network bans OperServ keeps
-// (AKILL, ZLINE, SHUN, exceptions), added and removed with the same checks,
+// (AKILL, ZLINE, SHUN, SNLINE, exceptions), added and removed with the same checks,
 // and a "matches N people" preview while a mask is typed. Flag k, like
 // OperServ's ban commands.
 
@@ -58,7 +58,7 @@ func (s *Server) panelBanAdd(po *control.PanelOper, ip string, req control.Reque
 		how = "for " + lengthWords(d)
 	}
 	s.panelEvent(po.Account, ip, fmt.Sprintf("added a%s %s %s", an(name), name, how))
-	what := map[string]string{"akill": "removed", "zline": "removed", "shun": "shunned", "eline": "now exempt"}[req.Kind]
+	what := map[string]string{"akill": "removed", "zline": "removed", "shun": "shunned", "snline": "removed", "eline": "now exempt"}[req.Kind]
 	return control.Response{Done: &control.Done{Text: fmt.Sprintf("%s added on %s %s. %d %s.", name, mask, how, hit, what)}}
 }
 

@@ -725,6 +725,8 @@
     { kind: 'akill', name: 'AKILL', what: 'user@host', life: '30d', ph: '*@203.0.113.9' },
     { kind: 'zline', name: 'ZLINE', what: 'IP, before connect', life: '30d', ph: '203.0.113.0/24' },
     { kind: 'shun', name: 'SHUN', what: "stays, can't talk", life: '30d', ph: '*@203.0.113.9' },
+    { kind: 'snline', name: 'SNLINE', what: 'by realname', life: '30d', ph: '*free bitcoin*', field: 'Realname',
+      hint: "* and ? as wildcards, or a /regex/. A nick takes that person's realname.", note: 'BeeIRCd servers only' },
     { kind: 'eline', name: 'Exception', what: 'never banned', life: '0', ph: '*@staff.example.org' },
   ];
   const kindOf = k => KINDS.find(x => x.kind === k) || KINDS[0];
@@ -746,12 +748,16 @@
       return { k, b, n };
     });
     const title = h('h2');
+    const listNote = h('span', { class: 'lbl', text: 'newest first' });
+    const maskHead = h('th', { scope: 'col', text: 'Mask' });
     const tbody = h('tbody');
 
     // add form
     const type = h('select', { class: 'in', id: 'ban-type' }, KINDS.map(k => h('option', { value: k.kind, text: k.name + ' · ' + k.what })));
     const mask = h('input', { class: 'in mono', id: 'ban-mask', type: 'text', autocomplete: 'off', spellcheck: 'false' });
     const hit = h('span', { class: 'hit', role: 'status' });
+    const maskLabel = h('span', { text: 'Mask' });
+    const maskHint = h('span', { class: 'hint', id: 'ban-mask-hint', hidden: true });
     const reason = h('input', { class: 'in', id: 'ban-reason', type: 'text', maxlength: '200', autocomplete: 'off', placeholder: 'They see it' });
     const life = h('select', { class: 'in', id: 'ban-life' },
       [['1h', 'in 1 hour'], ['1d', 'in 1 day'], ['7d', 'in 7 days'], ['30d', 'in 30 days'], ['0', 'never (until removed)']].map(([v, t]) => h('option', { value: v, text: t })));
@@ -759,6 +765,10 @@
     function typeChanged() {
       const k = kindOf(type.value);
       mask.placeholder = k.ph;
+      maskLabel.textContent = k.field || 'Mask';
+      maskHint.textContent = k.hint || '';
+      maskHint.hidden = !k.hint;
+      if (k.hint) mask.setAttribute('aria-describedby', 'ban-mask-hint'); else mask.removeAttribute('aria-describedby');
       life.value = k.life;
       add.textContent = k.kind === 'eline' ? 'Add exception' : 'Add ' + k.name;
       checkMask();
@@ -814,6 +824,8 @@
       for (const t of tiles) t.n.textContent = fmt(data.counts[t.k.kind] || 0);
       const k = kindOf(kind);
       title.textContent = k.kind === 'eline' ? 'Exceptions' : k.name + 's';
+      listNote.textContent = 'newest first' + (k.note ? ' · ' + k.note : '');
+      maskHead.textContent = k.field || 'Mask';
       if (!data.rows.length) {
         put(tbody, h('tr', {}, h('td', { colspan: 6, class: 'empty', text: k.kind === 'eline' ? 'No exceptions.' : 'No ' + k.name + 's.' })));
         return;
@@ -850,16 +862,16 @@
     const el = h('div', { class: 'main-stack' },
       h('header', { class: 'head' }, h('div', { class: 'head-text' }, h('h1', { text: 'Bans' }),
         h('span', { class: 'sub', text: 'Network bans reach every linked server' }))),
-      h('div', { class: 'tiles4' }, tiles.map(t => t.b)),
+      h('div', { class: 'tiles5' }, tiles.map(t => t.b)),
       h('div', { class: 'band21' },
         h('section', { class: 'card list-card' },
-          h('div', { class: 'ch tools' }, title, h('span', { class: 'lbl', text: 'newest first' })),
+          h('div', { class: 'ch tools' }, title, listNote),
           h('div', { class: 'wrap' }, h('table', { class: 'bans' },
-            h('thead', {}, h('tr', {}, ['Type', 'Mask', 'Reason', 'Set by', 'Ends'].map(t => h('th', { scope: 'col', text: t })), h('th', { scope: 'col' }, h('span', { class: 'sr', text: 'Remove' })))),
+            h('thead', {}, h('tr', {}, h('th', { scope: 'col', text: 'Type' }), maskHead, ['Reason', 'Set by', 'Ends'].map(t => h('th', { scope: 'col', text: t })), h('th', { scope: 'col' }, h('span', { class: 'sr', text: 'Remove' })))),
             tbody))),
         h('section', { class: 'card' }, h('h2', { text: 'Add a ban' }),
           h('label', { class: 'f', for: 'ban-type' }, 'Type', type),
-          h('label', { class: 'f', for: 'ban-mask' }, 'Mask', mask),
+          h('label', { class: 'f', for: 'ban-mask' }, maskLabel, mask, maskHint),
           hit,
           h('label', { class: 'f', for: 'ban-reason' }, 'Reason', reason),
           h('label', { class: 'f', for: 'ban-life' }, 'Ends', life),

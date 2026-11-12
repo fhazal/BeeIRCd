@@ -212,6 +212,9 @@ tr.detail td{background:#141414;padding:18px 20px 20px;height:auto}
 .ty.zline{background:#242033;color:#b9a7ff}
 .ty.shun{background:#1d2a33;color:#8cc4ef}
 .ty.eline{background:var(--ok-soft);color:var(--ok)}
+.ty.snline{background:#2e1f2a;color:#e9a6d6}
+.tiles5{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
+.hint[hidden]{display:none}
 .x{width:36px;height:36px;border:0;background:transparent;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;border-radius:4px}
 .x:hover{color:var(--bad);background:#1f1f1f}
 .rm{display:inline-flex;gap:6px;align-items:center}
@@ -222,7 +225,8 @@ tr.detail td{background:#141414;padding:18px 20px 20px;height:auto}
 tr.fresh td{animation:flash 2s ease}
 table.bans{min-width:640px}
 table.bans td{height:48px}
-@media (max-width:1000px){.band21{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:1000px){.band21{grid-template-columns:minmax(0,1fr)}.tiles5{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:700px){.tiles5{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .btn.full{width:100%}
 
 /* Opers (3d) */

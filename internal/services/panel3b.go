@@ -15,7 +15,7 @@ import (
 // (ban_expiry; exceptions stay until removed).
 
 // PanelKinds are the ban kinds the panel shows, in its order.
-var PanelKinds = []string{store.BanAkill, store.BanZline, store.BanShun, store.BanEline}
+var PanelKinds = []string{store.BanAkill, store.BanZline, store.BanShun, store.BanSNLine, store.BanEline}
 
 // PanelKindName is a kind as the panel says it.
 func PanelKindName(kind string) string {
@@ -23,6 +23,17 @@ func PanelKindName(kind string) string {
 		return "Exception"
 	}
 	return banKinds[kind].name
+}
+
+// panelArg is what the oper typed, made fit for netbanMask: an SNLINE
+// typed in a form may hold spaces, which a stored glob writes as ? (a
+// /regex/ keeps them).
+func panelArg(kind, arg string) string {
+	arg = strings.TrimSpace(arg)
+	if kind == store.BanSNLine && !(len(arg) >= 3 && arg[0] == '/' && arg[len(arg)-1] == '/') {
+		arg = strings.Join(strings.Fields(arg), "?")
+	}
+	return arg
 }
 
 func panelKind(kind string) bool {
@@ -47,7 +58,7 @@ func (s *Services) PanelBanMatch(kind, arg string) (mask string, n int, problem 
 	if !panelKind(kind) {
 		return "", 0, "That isn't a kind of ban."
 	}
-	mask, problem = s.netbanMask(kind, strings.TrimSpace(arg))
+	mask, problem = s.netbanMask(kind, panelArg(kind, arg))
 	if problem != "" {
 		return "", 0, problem
 	}
@@ -76,7 +87,7 @@ func (s *Services) PanelBan(by, kind, arg, reason string, life time.Duration) (m
 		return "", 0, "That isn't a kind of ban."
 	}
 	k := banKinds[kind]
-	mask, problem = s.netbanMask(kind, strings.TrimSpace(arg))
+	mask, problem = s.netbanMask(kind, panelArg(kind, arg))
 	if problem != "" {
 		return "", 0, problem
 	}
@@ -119,7 +130,7 @@ func (s *Services) PanelBan(by, kind, arg, reason string, life time.Duration) (m
 		}
 		hit++
 		switch kind {
-		case store.BanAkill, store.BanZline:
+		case store.BanAkill, store.BanZline, store.BanSNLine:
 			s.host.Numeric(ou.UID, irc.ErrYoureBannedCreep, "You are banned from this network: "+reason)
 			s.quit(oc, "Banned: "+reason)
 		}
@@ -146,9 +157,16 @@ func (s *Services) PanelBanDel(by, kind, mask string) (removed string, problem s
 	if !panelKind(kind) {
 		return "", "That isn't a kind of ban."
 	}
-	m := strings.ToLower(strings.TrimSpace(mask))
-	if kind != store.BanZline && !strings.Contains(m, "@") {
-		m = "*@" + m
+	m := strings.TrimSpace(mask)
+	switch kind {
+	case store.BanSNLine: // stored as typed: a realname mask or /regex/
+	case store.BanZline:
+		m = strings.ToLower(m)
+	default:
+		m = strings.ToLower(m)
+		if !strings.Contains(m, "@") {
+			m = "*@" + m
+		}
 	}
 	ok, err := s.store.DelNetBan(kind, m)
 	if err != nil {
