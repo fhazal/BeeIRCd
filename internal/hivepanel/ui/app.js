@@ -523,7 +523,7 @@
       toggles, said);
     const area = h('div', { class: 'main-stack' });
     const foot = h('div', { class: 'ov-foot' }, h('span'), h('span'));
-    const el = h('div', { class: 'main-stack' },
+    const el = h('div', { class: 'main-stack ov-page' },
       h('header', { class: 'head', 'data-deco': '1' }, h('div', { class: 'head-text' }, eyebrow, title, sub), h('div', { class: 'head-btns' }, editBtn)),
       arrange, notice, area, foot);
 
@@ -539,7 +539,7 @@
     const make = {
       stats() {
         const tP = tile('people', 'People online'), tC = tile('hash', 'Channels'), tO = tile('opers', 'Opers online'), tS = tile('servers', 'Servers');
-        return { el: h('div', { class: 'tiles4' }, tP.el, tC.el, tO.el, tS.el), float: true,
+        return { el: h('div', { class: 'tiles4 ov-bold' }, tP.el, tC.el, tO.el, tS.el), float: true,
           status(s) {
             tP.n.textContent = fmt(s.online);
             tP.l.textContent = (s.max_users ? 'of ' + fmt(s.max_users) + ' · ' : '') + 'most ' + fmt(s.peak);

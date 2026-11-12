@@ -7,6 +7,7 @@
 @font-face{font-family:"JetBrains Mono";src:url(fonts/jetbrains-mono.woff2) format("woff2");font-weight:400;font-display:swap}
 
 :root{
+  --acc2-rgb:143,209,154;--acc3-rgb:185,167,255;--acc4-rgb:140,196,239;--bold-a:.30;
   --ground:#090a0c;--menu:#0d0e10;--card:#121316;--card2:#17181b;--field:#0a0b0d;--line:#292a2e;--line-soft:#222327;--hover:#ffffff08;
   --ink:#f2f1eb;--muted:#999a9f;--dim:#6c6d73;
   --honey:#f2c94c;--honey-hi:#ffe28a;--honey-rgb:242,201,76;--honey-soft:#2a2410;--honey-tint:rgba(242,201,76,.09);--on-honey:#18170f;
@@ -21,6 +22,7 @@
   color-scheme:dark;
 }
 :root[data-theme="catppuccin-latte"]{color-scheme:light;
+  --acc2-rgb:64,160,43;--acc3-rgb:136,57,239;--acc4-rgb:30,102,245;--bold-a:.20;
   --ground:#eff1f5;--menu:#e6e9ef;--card:#f6f7fa;--card2:#e6e9ef;--field:#ffffff;--line:#ccd0da;--line-soft:#dce0e8;--hover:#4c4f690c;
   --ink:#4c4f69;--muted:#6c6f85;--dim:#8c8fa1;
   --honey:#df8e1d;--honey-hi:#c76a00;--honey-rgb:223,142,29;--honey-soft:#f6e3c4;--honey-tint:rgba(223,142,29,.12);--on-honey:#ffffff;
@@ -30,6 +32,7 @@
   --map-sea1:#e9ecf2;--map-sea2:#dfe3eb;--map-grid:rgba(76,79,105,.06);--map-land:#cdd2dc;--map-coast:rgba(76,79,105,.18);--map-coast-hi:rgba(76,79,105,.28);
   --map-shade:rgba(76,79,105,.10);--map-label:rgba(239,241,245,.88);--map-signal:#fe640b;--map-other:#b07219;--map-ring:#4c4f69}
 :root[data-theme="catppuccin-mocha"]{color-scheme:dark;
+  --acc2-rgb:166,227,161;--acc3-rgb:203,166,247;--acc4-rgb:137,180,250;--bold-a:.26;
   --ground:#1e1e2e;--menu:#181825;--card:#24243a;--card2:#313244;--field:#181825;--line:#45475a;--line-soft:#313244;--hover:#cdd6f40a;
   --ink:#cdd6f4;--muted:#a6adc8;--dim:#7f849c;
   --honey:#f9e2af;--honey-hi:#fab387;--honey-rgb:249,226,175;--honey-soft:#3a3530;--honey-tint:rgba(249,226,175,.10);--on-honey:#1e1e2e;
@@ -38,6 +41,7 @@
   --map-sea1:#1b1b2b;--map-sea2:#161624;--map-grid:rgba(205,214,244,.04);--map-land:#313244;--map-coast:rgba(205,214,244,.10);--map-coast-hi:rgba(205,214,244,.16);
   --map-label:rgba(24,24,37,.85);--map-signal:#f5e0dc;--map-ring:#f5e0dc}
 :root[data-theme="one-dark-pro"]{color-scheme:dark;
+  --acc2-rgb:152,195,121;--acc3-rgb:198,120,221;--acc4-rgb:97,175,239;--bold-a:.26;
   --ground:#21252b;--menu:#1b1f24;--card:#282c34;--card2:#2c313a;--field:#1b1f24;--line:#3e4451;--line-soft:#333842;--hover:#abb2bf0a;
   --ink:#d7dae0;--muted:#9da5b4;--dim:#6b7280;
   --honey:#e5c07b;--honey-hi:#f0d49a;--honey-rgb:229,192,123;--honey-soft:#3a352a;--honey-tint:rgba(229,192,123,.10);--on-honey:#21252b;
@@ -45,6 +49,7 @@
   --warn-soft:#39352c;--warn-line:#6d5a37;--btn:#2c313a;--btn-line:#3e4451;--btn-hover:#333842;
   --map-sea1:#1f2329;--map-sea2:#1a1d22;--map-grid:rgba(171,178,191,.04);--map-land:#323842;--map-coast:rgba(171,178,191,.10);--map-coast-hi:rgba(171,178,191,.16);--map-label:rgba(27,31,36,.85)}
 :root[data-theme="dracula"]{color-scheme:dark;
+  --acc2-rgb:80,250,123;--acc3-rgb:189,147,249;--acc4-rgb:139,233,253;--bold-a:.24;
   --ground:#21222c;--menu:#1d1e26;--card:#282a36;--card2:#343746;--field:#1d1e26;--line:#44475a;--line-soft:#363949;--hover:#f8f8f20a;
   --ink:#f8f8f2;--muted:#b8b8c5;--dim:#7a80a8;
   --honey:#f1fa8c;--honey-hi:#ffffa5;--honey-rgb:241,250,140;--honey-soft:#393a2e;--honey-tint:rgba(241,250,140,.09);--on-honey:#21222c;
@@ -229,6 +234,24 @@ select.in option{background:var(--card);color:var(--ink)}
 
 /* lists (People, Channels, Bans, Opers, Links) */
 .tiles4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+
+/* Overview number tiles: bold tinted cards (approved mockup H, 13 Nov).
+   Only the Overview's tiles; every other page keeps the flat tiles. The
+   four tints are theme tokens, so all themes get their own colours. */
+.ov-bold>.card.tight{--t:var(--honey-rgb);position:relative;overflow:hidden;border-radius:18px;padding:18px 18px 16px;gap:2px;
+  border:1px solid rgba(var(--t),.32);
+  background:linear-gradient(160deg,rgba(var(--t),var(--bold-a)),rgba(var(--t),calc(var(--bold-a)/3)) 55%,rgba(var(--t),.04)),var(--card2);
+  box-shadow:0 16px 36px var(--shadow),inset 0 1px 0 rgba(255,255,255,.07)}
+.ov-bold>.card.tight:nth-child(4n+2){--t:var(--acc2-rgb)}
+.ov-bold>.card.tight:nth-child(4n+3){--t:var(--acc3-rgb)}
+.ov-bold>.card.tight:nth-child(4n+4){--t:var(--acc4-rgb)}
+.ov-bold>.card.tight::before{content:"";position:absolute;left:14px;right:14px;top:0;height:4px;border-radius:0 0 6px 6px;background:rgb(var(--t))}
+.ov-bold .slab{flex-direction:row-reverse;justify-content:flex-end;align-items:center;gap:10px;color:var(--ink);font:600 12px var(--display);letter-spacing:.09em;text-transform:uppercase}
+.ov-bold .slab .sico{width:32px;height:32px;border:0;border-radius:9px;background:rgb(var(--t));color:var(--on-honey);box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
+.ov-bold .num{font-size:34px;margin-top:14px}
+.ov-bold .foot-n{font:13px var(--body);color:var(--ink);opacity:.8}
+.ov-page .card:not(.tight){border-radius:18px;background:linear-gradient(180deg,var(--card2),var(--card));box-shadow:0 16px 36px var(--shadow),inset 0 1px 0 rgba(255,255,255,.05)}
+.ov-page .card:not(.tight) h2 .sico,.ov-page .card:not(.tight) .ch .sico{border:0;border-radius:9px;background:linear-gradient(145deg,var(--honey-hi),var(--honey));color:var(--on-honey)}
 .list-card{padding:16px 0 10px;gap:12px}
 .list-card>:is(.ch,.tools,.bk-head):first-child{margin:-16px 0 0;padding:13px 16px;border-bottom:1px solid var(--line)}
 .tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:0 16px}
@@ -512,7 +535,8 @@ body.drag-on{cursor:grabbing;user-select:none}
   .card{padding:16px 14px}
   .list-card{padding:16px 0 10px}
 }
-@media (max-width:420px){.tiles4{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}.num{font-size:23px}.pill{padding:5px 8px}}
+@media (max-width:420px){.tiles4{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}.num{font-size:23px}.pill{padding:5px 8px}
+  .ov-bold>.card.tight{padding:14px 12px 12px;border-radius:14px}.ov-bold .num{font-size:27px;margin-top:10px}.ov-bold .slab{font-size:11px;letter-spacing:.06em;gap:8px}.ov-bold .slab .sico{width:28px;height:28px}}
 .ch-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .me-text .lbl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 td.empty{padding:18px 16px;text-align:center;height:auto}
