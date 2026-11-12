@@ -230,7 +230,12 @@ func (s *Server) dialLink(b config.LinkServer) {
 		if err = tc.HandshakeContext(ctx); err == nil {
 			fp := peerFingerprint(tc)
 			s.post(func() {
-				s.links.retry[strings.ToLower(b.Name)].dialing = false
+				r := s.links.retry[strings.ToLower(b.Name)]
+				if r == nil || s.cfg.Link.Server(b.Name) == nil {
+					tc.Close() // the block went (REHASH, SERVER DEL) while we dialed
+					return
+				}
+				r.dialing = false
 				s.newLink(tc, true, &b, fp)
 			})
 			return
@@ -242,6 +247,9 @@ func (s *Server) dialLink(b config.LinkServer) {
 
 func (s *Server) linkDialFailed(name string, err error) {
 	r := s.links.retry[strings.ToLower(name)]
+	if r == nil {
+		return // the block went while we dialed
+	}
 	r.dialing = false
 	msg := err.Error()
 	if r.lastErr != msg {
