@@ -134,4 +134,5 @@ Last updated: 12 Nov 2026 (Stage 1.5.9b).
 | Overview: people online ring, channels, opers, servers, reply time, health, linked servers, services, What happened | Implemented (3a) | |
 | Settings (AdminServ SET's limits, saved + applied, Undo via HISTORY), Check, Rehash, Backup (owner) | Implemented (3a) | |
 | People: everyone on every server, search, filters, paging; one person's details (real host only with h), notice, disconnect (k), ban = AKILL on their address (k) | Implemented (3b) | |
-| Bans, Opers, Linked servers, Services pages | Planned (3c to 3f) | |
+| Bans: AKILL / ZLINE / SHUN / exceptions, newest first, add (live "matches N online", OperServ's checks) and remove (asks first), flag k | Implemented (3c) | |
+| Opers, Linked servers, Services pages | Planned (3d to 3f) | |

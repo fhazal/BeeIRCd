@@ -1,6 +1,7 @@
 package services
 
 import (
+	"sort"
 	"strings"
 	"time"
 
@@ -8,27 +9,86 @@ import (
 	"github.com/fhazal/beeircd/internal/store"
 )
 
-// Step 3b: network bans added from the Hive Panel. The same list, checks
-// and enforcement as OperServ AKILL ADD, without an IRC client: by names
-// the oper, life < 0 means the default (ban_expiry).
+// Steps 3b and 3c: network bans from the Hive Panel. The same list, checks
+// and enforcement as OperServ AKILL / ZLINE / SHUN / EXCEPTION ADD and DEL,
+// without an IRC client: by names the oper, life < 0 means the default
+// (ban_expiry; exceptions stay until removed).
 
-// PanelAkill adds an AKILL on arg (a mask or an online nick) and removes
-// the people it matches. It returns the stored mask and how many were
-// removed, or problem (in words for the oper) when nothing was added.
+// PanelKinds are the ban kinds the panel shows, in its order.
+var PanelKinds = []string{store.BanAkill, store.BanZline, store.BanShun, store.BanEline}
+
+// PanelKindName is a kind as the panel says it.
+func PanelKindName(kind string) string {
+	if kind == store.BanEline {
+		return "Exception"
+	}
+	return banKinds[kind].name
+}
+
+func panelKind(kind string) bool {
+	for _, k := range PanelKinds {
+		if k == kind {
+			return true
+		}
+	}
+	return false
+}
+
+// PanelBans returns the live bans of kind, newest first.
+func (s *Services) PanelBans(kind string) []store.NetBan {
+	out := s.liveBans(kind)
+	sort.SliceStable(out, func(i, j int) bool { return out[i].SetAt.After(out[j].SetAt) })
+	return out
+}
+
+// PanelBanMatch checks arg as a mask of kind and counts the people online
+// it would match (exempt people not counted, except for exceptions).
+func (s *Services) PanelBanMatch(kind, arg string) (mask string, n int, problem string) {
+	if !panelKind(kind) {
+		return "", 0, "That isn't a kind of ban."
+	}
+	mask, problem = s.netbanMask(kind, strings.TrimSpace(arg))
+	if problem != "" {
+		return "", 0, problem
+	}
+	b := store.NetBan{Kind: kind, Mask: mask}
+	for _, oc := range s.banHits(&b) {
+		ou := oc.user
+		if ou.Service || kind != store.BanEline && s.exempt(ou.TrueIdent(), ou.RealHost, ou.IP) {
+			continue
+		}
+		n++
+	}
+	return mask, n, ""
+}
+
+// PanelAkill adds an AKILL (People page). See PanelBan.
 func (s *Services) PanelAkill(by, arg, reason string, life time.Duration) (mask string, removed int, problem string) {
-	mask, problem = s.akillMask(strings.TrimSpace(arg))
+	return s.PanelBan(by, store.BanAkill, arg, reason, life)
+}
+
+// PanelBan adds a network ban of kind on arg (a mask or an online nick)
+// and applies it to the people it matches. It returns the stored mask and
+// how many it hit, or problem (in words for the oper) when nothing was
+// added.
+func (s *Services) PanelBan(by, kind, arg, reason string, life time.Duration) (mask string, hit int, problem string) {
+	if !panelKind(kind) {
+		return "", 0, "That isn't a kind of ban."
+	}
+	k := banKinds[kind]
+	mask, problem = s.netbanMask(kind, strings.TrimSpace(arg))
 	if problem != "" {
 		return "", 0, problem
 	}
 	reason = irc.Truncate(strings.TrimSpace(reason), 200)
 	if reason == "" {
-		reason = "Banned"
+		reason = "No reason"
 	}
 	if life < 0 {
-		life = s.defaultBanLife(store.BanAkill)
+		life = s.defaultBanLife(kind)
 	}
 	now := time.Now()
-	b := store.NetBan{Kind: store.BanAkill, Mask: mask, Reason: reason, SetBy: by, SetAt: now}
+	b := store.NetBan{Kind: kind, Mask: mask, Reason: reason, SetBy: by, SetAt: now}
 	if life > 0 {
 		b.Expires = now.Add(life)
 	}
@@ -39,12 +99,12 @@ func (s *Services) PanelAkill(by, arg, reason string, life time.Duration) (mask 
 			people++
 		}
 	}
-	if len(hits) > 1 && len(hits) >= people {
+	if kind != store.BanEline && len(hits) > 1 && len(hits) >= people {
 		return "", 0, mask + " matches everyone online. Give a narrower one."
 	}
-	for _, b2 := range s.liveAkills() {
+	for _, b2 := range s.liveBans(kind) {
 		if b2.Mask == mask {
-			return "", 0, "There is already an AKILL on " + mask + "."
+			return "", 0, "There is already a" + an(PanelKindName(kind)) + " " + PanelKindName(kind) + " on " + mask + "."
 		}
 	}
 	if err := s.store.AddNetBan(b); err != nil {
@@ -54,18 +114,52 @@ func (s *Services) PanelAkill(by, arg, reason string, life time.Duration) (mask 
 	s.reloadOperData()
 	for _, oc := range hits {
 		ou := oc.user
-		if ou.Service || s.exempt(ou.TrueIdent(), ou.RealHost, ou.IP) {
+		if ou.Service || kind != store.BanEline && s.exempt(ou.TrueIdent(), ou.RealHost, ou.IP) {
 			continue
 		}
-		removed++
-		s.host.Numeric(ou.UID, irc.ErrYoureBannedCreep, "You are banned from this network: "+reason)
-		s.quit(oc, "Banned: "+reason)
+		hit++
+		switch kind {
+		case store.BanAkill, store.BanZline:
+			s.host.Numeric(ou.UID, irc.ErrYoureBannedCreep, "You are banned from this network: "+reason)
+			s.quit(oc, "Banned: "+reason)
+		}
 	}
 	how := "until removed"
 	if life > 0 {
 		how = "for " + durWords(life)
 	}
-	s.snotice("%s (Hive Panel) added an AKILL on %s %s (%s): %d removed", by, mask, how, reason, removed)
+	s.snotice("%s (Hive Panel) added a%s %s on %s %s (%s): %d %s", by, an(PanelKindName(kind)), PanelKindName(kind), mask, how, reason, hit, k.hit)
 	s.Flush()
-	return mask, removed, ""
+	return mask, hit, ""
+}
+
+// an is " n" before a word starting with a vowel sound, else "".
+func an(word string) string {
+	if word != "" && strings.ContainsRune("AEIOU", rune(word[0])) {
+		return "n"
+	}
+	return ""
+}
+
+// PanelBanDel removes the ban of kind on mask. problem says why not.
+func (s *Services) PanelBanDel(by, kind, mask string) (removed string, problem string) {
+	if !panelKind(kind) {
+		return "", "That isn't a kind of ban."
+	}
+	m := strings.ToLower(strings.TrimSpace(mask))
+	if kind != store.BanZline && !strings.Contains(m, "@") {
+		m = "*@" + m
+	}
+	ok, err := s.store.DelNetBan(kind, m)
+	if err != nil {
+		s.log.Printf("services database: %v", err)
+		return "", "Something went wrong on the server. Please try again in a moment."
+	}
+	if !ok {
+		return "", "There is no " + PanelKindName(kind) + " on " + m + " (any more)."
+	}
+	s.reloadOperData()
+	s.snotice("%s (Hive Panel) removed the %s on %s", by, PanelKindName(kind), m)
+	s.Flush()
+	return m, ""
 }

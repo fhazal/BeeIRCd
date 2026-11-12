@@ -131,6 +131,10 @@ func New(o Options) *Panel {
 	m.HandleFunc("POST /api/notice", p.withOper(p.act(control.CmdNotice)))
 	m.HandleFunc("POST /api/kill", p.withOper(p.act(control.CmdKill)))
 	m.HandleFunc("POST /api/ban", p.withOper(p.act(control.CmdBan)))
+	m.HandleFunc("GET /api/bans", p.withOper(p.bans))
+	m.HandleFunc("GET /api/ban-match", p.withOper(p.banMatch))
+	m.HandleFunc("POST /api/ban-add", p.withOper(p.banChange(control.CmdBanAdd)))
+	m.HandleFunc("POST /api/ban-del", p.withOper(p.banChange(control.CmdBanDel)))
 	m.HandleFunc("GET /api/live", p.live)
 	p.mux = m
 	return p
@@ -371,6 +375,27 @@ func (p *Panel) act(cmd string) func(http.ResponseWriter, *http.Request, operCtx
 			return
 		}
 		p.send(w, oc, control.Request{Cmd: cmd, UID: in.UID, Value: in.Text, Life: in.Life}, 10*time.Second)
+	}
+}
+
+func (p *Panel) bans(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	p.send(w, oc, control.Request{Cmd: control.CmdBans, Kind: r.URL.Query().Get("kind")}, 10*time.Second)
+}
+
+func (p *Panel) banMatch(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	q := r.URL.Query()
+	p.send(w, oc, control.Request{Cmd: control.CmdBanMatch, Kind: q.Get("kind"), Mask: q.Get("mask")}, 10*time.Second)
+}
+
+// banChange is ban-add or ban-del: {"kind", "mask", "reason", "life"}.
+func (p *Panel) banChange(cmd string) func(http.ResponseWriter, *http.Request, operCtx) {
+	return func(w http.ResponseWriter, r *http.Request, oc operCtx) {
+		var in struct{ Kind, Mask, Reason, Life string }
+		if json.NewDecoder(r.Body).Decode(&in) != nil || in.Kind == "" || in.Mask == "" {
+			writeErr(w, http.StatusBadRequest, "Bad request.")
+			return
+		}
+		p.send(w, oc, control.Request{Cmd: cmd, Kind: in.Kind, Mask: in.Mask, Reason: in.Reason, Life: in.Life}, 10*time.Second)
 	}
 }
 

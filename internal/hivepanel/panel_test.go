@@ -47,6 +47,10 @@ func (f *fakeServer) ask(r control.Request, _ time.Duration) (*control.Response,
 		return &control.Response{Oper: &control.PanelOper{Account: "Bee", Flags: "acghks", Owner: true}}, nil
 	case control.CmdPeople:
 		return &control.Response{People: &control.People{Online: 2, Matched: 1, Rows: []control.PersonBrief{{UID: "0BEAAAAAB", Nick: r.Query}}}}, nil
+	case control.CmdBanAdd, control.CmdBanDel:
+		return &control.Response{Done: &control.Done{Text: r.Cmd + " " + r.Kind + " " + r.Mask + " " + r.Reason + " " + r.Life}}, nil
+	case control.CmdBanMatch:
+		return &control.Response{Match: &control.Match{Mask: r.Mask, People: 2}}, nil
 	case control.CmdKill, control.CmdNotice, control.CmdBan:
 		return &control.Response{Done: &control.Done{Text: r.Cmd + " " + r.UID + " " + r.Value + " " + r.Life}}, nil
 	case control.CmdSet:
@@ -302,5 +306,20 @@ func TestPeopleRoutes(t *testing.T) {
 	}
 	if w := rg.do("POST", "/api/kill", `{"uid":"x"}`, tok, map[string]string{"X-Hive": ""}); w.Code != 403 {
 		t.Errorf("kill without X-Hive: %d", w.Code)
+	}
+}
+
+func TestBanRoutes(t *testing.T) {
+	rg := newRig(t)
+	tok := rg.login()
+	w := rg.do("POST", "/api/ban-add", `{"kind":"zline","mask":"198.51.100.0/24","reason":"bots","life":"1h"}`, tok, nil)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "ban-add zline 198.51.100.0/24 bots 1h") {
+		t.Errorf("ban-add: %d %s", w.Code, w.Body)
+	}
+	if w := rg.do("POST", "/api/ban-del", `{"kind":"zline"}`, tok, nil); w.Code != 400 {
+		t.Errorf("ban-del without mask: %d", w.Code)
+	}
+	if w := rg.do("GET", "/api/ban-match?kind=akill&mask=x", "", tok, nil); w.Code != 200 || !strings.Contains(w.Body.String(), `"people":2`) {
+		t.Errorf("ban-match: %d %s", w.Code, w.Body)
 	}
 }

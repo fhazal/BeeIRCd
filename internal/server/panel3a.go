@@ -272,6 +272,14 @@ func (s *Server) panelControl(req control.Request, setDeadline func(time.Duratio
 		return run('k', func(po *control.PanelOper) { resp = s.panelKill(po, req.IP, req.UID, req.Value) }), true
 	case control.CmdBan:
 		return run('k', func(po *control.PanelOper) { resp = s.panelBan(po, req.IP, req.UID, req.Value, req.Life) }), true
+	case control.CmdBans:
+		return run('k', func(*control.PanelOper) { resp = s.panelBans(req.Kind) }), true
+	case control.CmdBanAdd:
+		return run('k', func(po *control.PanelOper) { resp = s.panelBanAdd(po, req.IP, req) }), true
+	case control.CmdBanDel:
+		return run('k', func(po *control.PanelOper) { resp = s.panelBanDel(po, req.IP, req) }), true
+	case control.CmdBanMatch:
+		return run('k', func(*control.PanelOper) { resp = s.panelBanMatch(req) }), true
 	}
 	if req.As == "" {
 		return resp, false

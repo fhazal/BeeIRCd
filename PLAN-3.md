@@ -25,6 +25,11 @@ the same flag as /KILL and OperServ AKILL; the mockup said s). Ban = AKILL
 on *@address, 1 h / 1 d / 7 d / 30 d / until removed, asks first; "What
 happened" never shows the address. Client version isn't known (no CTCP
 VERSION), so the details don't show it.
+3c built 12 Nov 2026 (branch stage3): Bans page (internal/server/
+panel3c.go, services PanelBan/PanelBanDel/PanelBanMatch): AKILL, ZLINE,
+SHUN, exceptions (the panel calls ELINE "Exception"); flag k for the
+whole page (OperServ's rule; s does not give bans, decided with the
+owner 12 Nov). SQLINE/SNLINE stay in OperServ for now.
 
 ## What it is
 Hive Panel = the web admin for BeeIRCd. A separate program

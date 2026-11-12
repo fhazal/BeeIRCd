@@ -211,7 +211,7 @@ func (s *Server) panelBan(po *control.PanelOper, ip, uid, reason, life string) c
 		d = s.cfg.Services.BanExpiry.Duration
 	}
 	if d > 0 {
-		how = "for " + config.FormatDuration(d)
+		how = "for " + lengthWords(d)
 	}
 	shown := mask
 	if strings.IndexByte(po.Flags, 'h') < 0 {

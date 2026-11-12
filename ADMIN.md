@@ -196,6 +196,10 @@ the control socket): `beeircd-web -config /etc/beeircd/beeircd.conf`.
   for opers with flag `h` (and only they can search by them). Disconnect
   and Ban need flag `k`, like /KILL and OperServ AKILL; Ban adds an
   AKILL on the person's address (1 hour to until removed) and asks first.
+- **Bans** (flag `k`, like OperServ's ban commands) lists the network
+  bans by kind (AKILL, ZLINE, SHUN, exceptions) and adds or removes them
+  with the same checks as OperServ. While you type a mask it says how
+  many people online it matches; masks that match everyone are refused.
 - Settings changed in the panel are saved to `beeircd.conf`, applied at
   once and kept in AdminServ HISTORY (Undo works there too). The panel's
   own "What happened" list keeps sign-ins and changes with who and from

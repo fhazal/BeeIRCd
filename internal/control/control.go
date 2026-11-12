@@ -38,6 +38,12 @@ const (
 	CmdNotice = "notice" // UID + Value (the text) -> Done
 	CmdKill   = "kill"   // UID + Value (the reason) -> Done (flag k)
 	CmdBan    = "ban"    // UID + Value (reason) + Life -> Done (flag k: OperServ AKILL)
+
+	// Bans page (3c), all flag k like OperServ's ban commands.
+	CmdBans     = "bans"      // Kind -> Bans
+	CmdBanAdd   = "ban-add"   // Kind + Mask + Reason + Life -> Done
+	CmdBanDel   = "ban-del"   // Kind + Mask -> Done
+	CmdBanMatch = "ban-match" // Kind + Mask -> Match (who it would hit now)
 )
 
 // MaxRequest is the most bytes one request may be.
@@ -67,6 +73,9 @@ type Request struct {
 	Limit  int    `json:"limit,omitempty"`
 	UID    string `json:"uid,omitempty"`  // person, notice, kill, ban
 	Life   string `json:"life,omitempty"` // ban: "7d", "0" = until removed, "" = default
+	Kind   string `json:"kind,omitempty"` // bans: akill, zline, shun, eline
+	Mask   string `json:"mask,omitempty"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // Response carries the answer to one Request; Error is set when it failed.
@@ -84,6 +93,8 @@ type Response struct {
 	People   *People    `json:"people,omitempty"`
 	Person   *Person    `json:"person,omitempty"`
 	Done     *Done      `json:"done,omitempty"`
+	Bans     *Bans      `json:"bans,omitempty"`
+	Match    *Match     `json:"match,omitempty"`
 	// Denied is set (with Error) when the oper may not do this: signed
 	// out, or missing a flag. The panel then signs them out or says so.
 	Denied string `json:"denied,omitempty"` // "signin" or "flag"
@@ -147,6 +158,30 @@ type Person struct {
 	Idle     time.Time `json:"idle,omitzero"`     // last message (people on this server)
 	OperAs   string    `json:"oper_as,omitempty"` // class or flags
 	Local    bool      `json:"local"`             // on this server
+}
+
+// Bans is the Bans page: how many of each kind, and the list of one.
+type Bans struct {
+	Counts  map[string]int `json:"counts"`
+	Kind    string         `json:"kind"`
+	Rows    []Ban          `json:"rows"`
+	Default string         `json:"default"` // ban_expiry, like "30d"
+}
+
+// Ban is one network ban.
+type Ban struct {
+	Kind    string    `json:"kind"`
+	Mask    string    `json:"mask"`
+	Reason  string    `json:"reason"`
+	SetBy   string    `json:"set_by"`
+	SetAt   time.Time `json:"set_at"`
+	Expires time.Time `json:"expires,omitzero"` // zero = until removed
+}
+
+// Match is what a ban would hit if added now.
+type Match struct {
+	Mask   string `json:"mask"`
+	People int    `json:"people"`
 }
 
 // Done is what an action did, in words.

@@ -126,6 +126,7 @@
   const pages = [
     { id: 'overview', label: 'Overview', icon: 'overview', make: overviewPage },
     { id: 'people', label: 'People', icon: 'people', make: peoplePage },
+    { id: 'bans', label: 'Bans', icon: 'bans', need: 'k', make: bansPage },
     { id: 'settings', label: 'Settings', icon: 'settings', need: 'a', make: settingsPage },
   ];
 
@@ -714,6 +715,156 @@
     const timer = setInterval(() => { if (!openUID && !document.hidden) load(); }, 15000);
     load();
     return { el, leave() { clearInterval(timer); document.removeEventListener('keydown', onKey); } };
+  }
+
+  // ---------- Bans ----------
+  const KINDS = [
+    { kind: 'akill', name: 'AKILL', what: 'user@host', life: '30d', ph: '*@203.0.113.9' },
+    { kind: 'zline', name: 'ZLINE', what: 'IP, before connect', life: '30d', ph: '203.0.113.0/24' },
+    { kind: 'shun', name: 'SHUN', what: "stays, can't talk", life: '30d', ph: '*@203.0.113.9' },
+    { kind: 'eline', name: 'Exception', what: 'never banned', life: '0', ph: '*@staff.example.org' },
+  ];
+  const kindOf = k => KINDS.find(x => x.kind === k) || KINDS[0];
+  function ends(t) {
+    if (!t) return 'never';
+    const s = (new Date(t) - Date.now()) / 1000;
+    if (s < 60) return 'in under a minute';
+    if (s < 3570) return 'in ' + Math.round(s / 60) + ' min';
+    if (s < 86400 * 2 - 1800) return 'in ' + Math.round(s / 3600) + ' h';
+    return 'in ' + Math.round(s / 86400) + ' days';
+  }
+  function bansPage() {
+    let kind = 'akill', data = null, freshMask = null, matchTimer = 0, matchSeq = 0;
+    const tiles = KINDS.map(k => {
+      const n = h('span', { class: 'num', text: '…' });
+      const b = h('button', { type: 'button', class: 'card tile', 'aria-pressed': k.kind === kind ? 'true' : 'false' },
+        h('span', { class: 'lbl', text: k.name }), n, h('span', { class: 'lbl', text: k.what }));
+      b.addEventListener('click', () => { kind = k.kind; tiles.forEach(t => t.b.setAttribute('aria-pressed', t.k === k ? 'true' : 'false')); type.value = kind; typeChanged(); load(); });
+      return { k, b, n };
+    });
+    const title = h('h2');
+    const tbody = h('tbody');
+
+    // add form
+    const type = h('select', { class: 'in', id: 'ban-type' }, KINDS.map(k => h('option', { value: k.kind, text: k.name + ' · ' + k.what })));
+    const mask = h('input', { class: 'in mono', id: 'ban-mask', type: 'text', autocomplete: 'off', spellcheck: 'false' });
+    const hit = h('span', { class: 'hit', role: 'status' });
+    const reason = h('input', { class: 'in', id: 'ban-reason', type: 'text', maxlength: '200', autocomplete: 'off', placeholder: 'They see it' });
+    const life = h('select', { class: 'in', id: 'ban-life' },
+      [['1h', 'in 1 hour'], ['1d', 'in 1 day'], ['7d', 'in 7 days'], ['30d', 'in 30 days'], ['0', 'never (until removed)']].map(([v, t]) => h('option', { value: v, text: t })));
+    const add = h('button', { type: 'button', class: 'btn main full', text: 'Add ban' });
+    function typeChanged() {
+      const k = kindOf(type.value);
+      mask.placeholder = k.ph;
+      life.value = k.life;
+      add.textContent = k.kind === 'eline' ? 'Add exception' : 'Add ' + k.name;
+      checkMask();
+    }
+    function checkMask() {
+      clearTimeout(matchTimer);
+      const v = mask.value.trim();
+      mask.classList.remove('wrong');
+      if (!v) { hit.className = 'hit'; hit.textContent = ''; return; }
+      const seq = ++matchSeq;
+      matchTimer = setTimeout(async () => {
+        try {
+          const d = await api('GET', '/api/ban-match?' + new URLSearchParams({ kind: type.value, mask: v }));
+          if (seq !== matchSeq) return;
+          const n = d.match.people, ex = type.value === 'eline';
+          hit.className = 'hit' + (n ? ' some' : '');
+          hit.replaceChildren(h('span', { class: 'dot ' + (n ? 'warn' : 'off') }),
+            (ex ? 'Covers ' : 'Matches ') + plural(n, 'person', 'people') + ' online' + (d.match.mask !== v ? ' · saved as ' + d.match.mask : ''));
+        } catch (e) {
+          if (seq !== matchSeq) return;
+          hit.className = 'hit bad';
+          hit.textContent = e.message;
+          mask.classList.add('wrong');
+        }
+      }, 300);
+    }
+    mask.addEventListener('input', checkMask);
+    type.addEventListener('change', typeChanged);
+    add.addEventListener('click', () => busy(add, async () => {
+      if (!mask.value.trim()) { mask.classList.add('wrong'); mask.focus(); return; }
+      try {
+        const d = await api('POST', '/api/ban-add', { kind: type.value, mask: mask.value.trim(), reason: reason.value, life: life.value });
+        toast([d.done.text]);
+        freshMask = (d.done.text.match(/ on (\S+) /) || [])[1] || null;
+        if (type.value !== kind) { kind = type.value; tiles.forEach(t => t.b.setAttribute('aria-pressed', t.k.kind === kind ? 'true' : 'false')); }
+        mask.value = ''; reason.value = ''; checkMask();
+        load();
+      } catch (e) {
+        hit.className = 'hit bad'; hit.textContent = e.message; mask.classList.add('wrong');
+      }
+    }));
+
+    async function load() {
+      try {
+        const d = await api('GET', '/api/bans?kind=' + kind);
+        data = d.bans;
+        draw();
+      } catch (e) {
+        tbody.replaceChildren(h('tr', {}, h('td', { colspan: 6, class: 'empty', text: e.message })));
+      }
+    }
+    function draw() {
+      for (const t of tiles) t.n.textContent = fmt(data.counts[t.k.kind] || 0);
+      const k = kindOf(kind);
+      title.textContent = k.kind === 'eline' ? 'Exceptions' : k.name + 's';
+      if (!data.rows.length) {
+        tbody.replaceChildren(h('tr', {}, h('td', { colspan: 6, class: 'empty', text: k.kind === 'eline' ? 'No exceptions.' : 'No ' + k.name + 's.' })));
+        return;
+      }
+      tbody.replaceChildren(...data.rows.map(b => {
+        const cell = h('td', { class: 'end-cell' });
+        const trash = h('button', { type: 'button', class: 'x', 'aria-label': 'Remove ' + kindOf(b.kind).name + ' on ' + b.mask, title: 'Remove' }, icon('trash'));
+        cell.append(trash);
+        trash.addEventListener('click', () => {
+          const yes = h('button', { type: 'button', class: 'btn bad', text: 'Remove' });
+          const no = h('button', { type: 'button', class: 'btn ghost', text: 'Keep' });
+          no.addEventListener('click', () => cell.replaceChildren(trash));
+          yes.addEventListener('click', () => busy(yes, async () => {
+            try {
+              const d = await api('POST', '/api/ban-del', { kind: b.kind, mask: b.mask });
+              toast([d.done.text]);
+              load();
+            } catch (e) { toastErr(e.message); cell.replaceChildren(trash); }
+          }));
+          cell.replaceChildren(h('span', { class: 'rm' }, yes, no));
+          yes.focus();
+        });
+        return h('tr', { class: b.mask === freshMask ? 'fresh' : null },
+          h('td', {}, h('span', { class: 'ty ' + b.kind, text: kindOf(b.kind).name })),
+          h('td', { class: 'mono', text: b.mask }),
+          h('td', { text: b.reason }),
+          h('td', { text: b.set_by }),
+          h('td', { class: 'lbl', text: ends(b.expires), title: b.expires ? new Date(b.expires).toLocaleString('en-GB') : 'until removed' }),
+          cell);
+      }));
+      freshMask = null;
+    }
+
+    const el = h('div', { class: 'main-stack' },
+      h('header', { class: 'head' }, h('div', { class: 'head-text' }, h('h1', { text: 'Bans' }),
+        h('span', { class: 'sub', text: 'Network bans reach every linked server' }))),
+      h('div', { class: 'tiles4' }, tiles.map(t => t.b)),
+      h('div', { class: 'band21' },
+        h('section', { class: 'card list-card' },
+          h('div', { class: 'ch tools' }, title, h('span', { class: 'lbl', text: 'newest first' })),
+          h('div', { class: 'wrap' }, h('table', { class: 'bans' },
+            h('thead', {}, h('tr', {}, ['Type', 'Mask', 'Reason', 'Set by', 'Ends'].map(t => h('th', { scope: 'col', text: t })), h('th', { scope: 'col' }, h('span', { class: 'sr', text: 'Remove' })))),
+            tbody))),
+        h('section', { class: 'card' }, h('h2', { text: 'Add a ban' }),
+          h('label', { class: 'f', for: 'ban-type' }, 'Type', type),
+          h('label', { class: 'f', for: 'ban-mask' }, 'Mask', mask),
+          hit,
+          h('label', { class: 'f', for: 'ban-reason' }, 'Reason', reason),
+          h('label', { class: 'f', for: 'ban-life' }, 'Ends', life),
+          add)));
+    typeChanged();
+    load();
+    const timer = setInterval(() => { if (!document.hidden && !el.querySelector('.rm')) load(); }, 30000);
+    return { el, leave() { clearInterval(timer); } };
   }
 
   // ---------- boot ----------
