@@ -76,11 +76,13 @@ type linkState struct {
 	// sent, by folded mask.
 	qlines    map[string]qline
 	qlineSent map[string]*link.Ban
-	stand     map[string]*Client // stand-ins for people elsewhere (link2d_ops.go)
-	jupes     map[string]*jupe   // OperServ JUPE, by lower-case name
-	noop      bool               // NOOP: nobody may be an IRC operator here
-	pending   atomic.Int32       // TLS handshakes running on the link port
-	operBusy  map[string]*bool   // relayed /oper password checks running, by UID (link2f_oper.go)
+	stand     map[string]*Client    // stand-ins for people elsewhere (link2d_ops.go)
+	jupes     map[string]*jupe      // OperServ JUPE, by lower-case name
+	noop      bool                  // NOOP: nobody may be an IRC operator here
+	pending   atomic.Int32          // TLS handshakes running on the link port
+	operBusy  map[string]*bool      // relayed /oper password checks running, by UID (link2f_oper.go)
+	places    map[string]heardPlace // what servers said about their own place, by lower name (panel3l.go)
+	zone      string                // time zone for our own place, "" = the machine's (tests set it)
 	// remoteOpers: opers we granted on other servers, by UID (2g live changes).
 	remoteOpers map[string]remoteGrant
 }
@@ -560,6 +562,7 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 			l.netjoin.end()
 			l.synced = time.Since(l.since)
 			s.snotice("Link with %s: sync done in %s", r.name, l.synced.Round(time.Millisecond))
+			s.sendPlaces(l)
 		}
 		s.linkBroadcast(l, ":"+r.sid+" EOS")
 	case "SQUIT":
@@ -584,6 +587,8 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		s.remoteOper(l, m)
 	case "BEEOPERR":
 		s.operAnswered(l, m)
+	case "BEEPLACE":
+		s.remotePlace(l, m.Source, m.Params)
 	case "SINFO", "SMOD", "GLOBOPS", "SENDUMODE", "SENDSNO", "SLOG", "SWHOIS", "BOTMOTD", "REPUTATION":
 		// Server info, module lists and notices for opers: nothing to do,
 		// and nothing worth a log line.

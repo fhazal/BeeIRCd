@@ -60,6 +60,14 @@ func (s *Server) panelMapPlace(po *control.PanelOper, ip string, req control.Req
 		}
 		s.cfg.Map.Places = kept
 		s.panelEvent(po.Account, ip, "took "+name+" off the map")
+		if strings.EqualFold(name, s.cfg.Server.Name) {
+			s.announcePlace()
+		}
+		for _, p := range s.mapPlaces() {
+			if strings.EqualFold(p.Server, name) {
+				return control.Response{Done: &control.Done{Text: name + " is back where " + p.From + " puts it: " + p.Name + "."}}
+			}
+		}
 		return control.Response{Done: &control.Done{Text: name + " is off the map."}}
 	}
 	p := config.MapPlace{Server: name, Name: strings.Join(strings.Fields(req.Value), " "), Lat: *req.Lat, Lon: *req.Lon}
@@ -96,5 +104,8 @@ func (s *Server) panelMapPlace(po *control.PanelOper, ip string, req control.Req
 		where = "the map"
 	}
 	s.panelEvent(po.Account, ip, "put "+name+" on the map ("+where+")")
+	if strings.EqualFold(name, s.cfg.Server.Name) {
+		s.announcePlace()
+	}
 	return control.Response{Done: &control.Done{Text: name + " is on the map: " + where + "."}}
 }

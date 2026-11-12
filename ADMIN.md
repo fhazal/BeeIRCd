@@ -240,10 +240,15 @@ then open <http://127.0.0.1:8787>. `beeircd install` sets it up as the
   dashed one is split; hubs have a hexagon. Servers close together share
   a chip with their count until you zoom in. Find a server, or show only
   split servers or hubs. Click an icon for its card (people, lag, Split or
-  Connect, Move). You place each server once: Move or Place, click the
-  map, name the place. Places are `[[map.place]]` blocks in beeircd.conf
-  (`server`, `name`, `lat`, `lon`), so you can also write them by hand;
-  nothing is looked up from an address and no person is ever on the map.
+  Connect, Move). Each BeeIRCd server places itself from its time zone
+  (a machine set to Asia/Kuala_Lumpur is in Kuala Lumpur; the city list
+  comes from the IANA tz database and ships with BeeIRCd) and tells the
+  servers it links to. A server set to UTC, or another IRC server, you
+  place yourself: Move or Place, click the map, name the place. Your
+  places are `[[map.place]]` blocks in beeircd.conf (`server`, `name`,
+  `lat`, `lon`), always win over what a server says about itself, and
+  can be written by hand. Nothing is looked up from an address and no
+  person is ever on the map.
   Lite turns off the glow and the moving signals (it switches on by itself
   when drawing is slow, and the signals stop with reduced motion). The
   outlines are Natural Earth (public domain), shipped with the panel.

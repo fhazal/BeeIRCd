@@ -277,6 +277,9 @@ type MapPlace struct {
 	Name   string  `json:"name"`
 	Lat    float64 `json:"lat"`
 	Lon    float64 `json:"lon"`
+	// From is "" for a place set here ([[map.place]]), else where it came
+	// from: "its time zone" or "its owner" (the server said so itself).
+	From string `json:"from,omitempty"`
 }
 
 // MapServer is one server of the network, for the map.

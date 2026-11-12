@@ -405,6 +405,7 @@ window.HiveNetMap = function (env) {
       if (n.gone) lines.push(h('span', { class: 'bad-t', text: n.block ? (s && s.state !== 'down' ? s.state : 'not linked') + (s && s.retry ? ' · tries again ' + env.ends(s.retry) : '') : 'not linked now' }));
       else lines.push(h('span', { text: plural(n.users, 'person', 'people') + (n.self ? '' : n.lag >= 1 ? ' · lag ' + Math.round(n.lag) + ' ms' : n.lag > 0 ? ' · lag under 1 ms' : '') }));
       if (s && s.since && s.state === 'up') lines.push(h('span', { class: 'lbl', text: 'linked since ' + env.when(s.since) }));
+      if (n.place && n.place.from) lines.push(h('span', { class: 'lbl', text: 'Placed by ' + n.place.from + (st.can ? '; Move puts it where you say' : '') }));
       const acts = h('div', { class: 'nm-acts' });
       if (st.can && n.block && !n.self) {
         if (s && s.state === 'up') {
@@ -440,7 +441,7 @@ window.HiveNetMap = function (env) {
     function startPlacing(n) {
       st.placing = n; st.pin = n.place ? { lon: n.place.lon, lat: n.place.lat } : null; st.sel = null; card.hidden = true;
       put(placingText, h('b', { text: (n.place ? 'Moving ' : 'Placing ') + n.name }), ' · click the map where it is');
-      placeName.value = n.place ? n.place.name : ''; placingSave.disabled = !st.pin; placingRemove.hidden = !n.place;
+      placeName.value = n.place ? n.place.name : ''; placingSave.disabled = !st.pin; placingRemove.hidden = !n.place || !!n.place.from;
       placing.hidden = false; base.style.cursor = 'crosshair'; redraw(); placeName.focus();
     }
     function stopPlacing() { st.placing = null; st.pin = null; placing.hidden = true; base.style.cursor = ''; redraw(); }
@@ -467,7 +468,7 @@ window.HiveNetMap = function (env) {
         const b = h('button', { type: 'button', class: 'nm-chip', text: n.name, title: 'Place ' + n.name });
         b.addEventListener('click', () => startPlacing(n)); return b;
       }), left.length > 40 ? h('span', { class: 'lbl', text: '+' + (left.length - 40) }) : null,
-      h('span', { class: 'lbl', text: st.can ? 'Places are saved in beeircd.conf; nothing is looked up online.' : 'An oper with flag c places servers.' }));
+      h('span', { class: 'lbl', text: st.can ? 'BeeIRCd servers place themselves from their time zone; a server set to UTC needs you to place it. Saved in beeircd.conf, nothing is looked up online.' : 'An oper with flag c places servers.' }));
     }
 
     // ---------- search ----------
