@@ -158,6 +158,8 @@ func (h *unreal) protoctl(tok string) ([]string, error) {
 		return h.eauthIn(value)
 	case "SID":
 		switch {
+		case !hasValue:
+			return nil, nil // a bare SID is a capability flag (Anope sends it before EAUTH)
 		case !h.eauth:
 			return nil, refuse("Got PROTOCTL SID before EAUTH, that's the wrong order!")
 		case h.peer.SID != "":
@@ -223,9 +225,10 @@ func (h *unreal) eauthIn(value string) ([]string, error) {
 		return nil, refuse("Bogus server name")
 	}
 	h.peer.Name = name // for notices, even when refused below
-	proto := 0
-	if len(parts) > 1 {
+	proto, protoGiven := 0, false
+	if len(parts) > 1 && parts[1] != "" {
 		proto, _ = strconv.Atoi(parts[1])
+		protoGiven = true // Anope leaves it empty: EAUTH=name,,,Anope-2.0.20
 	}
 	if len(parts) > 3 {
 		h.peer.Software = parts[3]
@@ -245,7 +248,7 @@ func (h *unreal) eauthIn(value string) ([]string, error) {
 	if h.me.Known(name) {
 		return nil, refuse("Server Exists")
 	}
-	if proto < minUnrealProtocol {
+	if protoGiven && proto < minUnrealProtocol {
 		return nil, refuse(fmt.Sprintf("Link denied: protocol %d is too old (UnrealIRCd 6 or BeeIRCd needed)", proto))
 	}
 	h.eauth = true

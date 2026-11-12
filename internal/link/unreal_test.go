@@ -184,3 +184,41 @@ func TestVLInfo(t *testing.T) {
 		}
 	}
 }
+
+// Anope 2.0's unreal4 module (2g smoke test): a bare SID flag before
+// EAUTH, an empty protocol number in EAUTH, no PROTOCTL SERVERS=. The
+// UnrealIRCd 6 handshake takes it; so must ours. A protocol number that is
+// given and too old is still refused.
+func TestAnopeHandshake(t *testing.T) {
+	blk := config.LinkServer{Name: "services.bee.net", Fingerprint: fpLeaf, Password: "sandpass"}
+	h := NewUnreal(local("hub.bee.net", "0HB", blk), false, nil, fpLeaf, none)
+	h.Start()
+	var out []string
+	for _, l := range []string{
+		"PASS :sandpass",
+		"PROTOCTL NICKv2 VHP UMODE2 NICKIP SJOIN SJOIN2 SJ3 NOQUIT TKLEXT MLOCK SID MTAGS",
+		"PROTOCTL EAUTH=services.bee.net,,,Anope-2.0.20",
+		"PROTOCTL SID=00A",
+		"SERVER services.bee.net 1 :Services for IRC Networks",
+	} {
+		m, _ := irc.Parse(l)
+		o, err := h.Handle(m)
+		if err != nil {
+			t.Fatalf("%q refused: %v", l, err)
+		}
+		out = append(out, o...)
+	}
+	if !h.Done() || h.Peer().SID != "00A" || h.Peer().Software != "Anope-2.0.20" {
+		t.Fatalf("done %v peer %+v", h.Done(), h.Peer())
+	}
+	if !strings.Contains(strings.Join(out, "\n"), "SERVER hub.bee.net 1") {
+		t.Errorf("no SERVER sent back: %q", out)
+	}
+
+	old := NewUnreal(local("hub.bee.net", "0HB", blk), false, nil, fpLeaf, none)
+	old.Start()
+	m, _ := irc.Parse("PROTOCTL EAUTH=services.bee.net,5000,,Old-1.0")
+	if _, err := old.Handle(m); err == nil || !strings.Contains(err.Error(), "too old") {
+		t.Errorf("protocol 5000: %v", err)
+	}
+}

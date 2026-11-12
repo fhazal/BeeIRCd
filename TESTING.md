@@ -154,6 +154,15 @@ real and broken sources and parameters) through the real handlers; the
 server loop has no recover, so a panic fails it. Fuzz targets for the
 parser: `FuzzLinkLine`, `FuzzLinkUID`, `FuzzLinkSJOIN` (internal/link).
 
+**Anope smoke test** (`deploy/testnet/anope-smoke.sh <anope install>
+<anope source>`, homelab): a sandbox copy of Anope 2.0 (program and
+modules only; config made from Anope's own example files; empty
+database; runs as `ircsand`) links to a BeeIRCd hub with built-in
+services off, on 127.0.0.1. Checks (anope-probe.py): NickServ on the
+services server, NS REGISTER, CS REGISTER and +r, SASL PLAIN through
+Anope (903), the account (330), a wrong password (904). The live Anope's
+config and database are never read. Removes the sandbox at the end.
+
 **Two-machine install** (`scripts/linkmachines.sh <beeircd> <installcheck>
 [image]`, LXD): installs a hub, then a leaf with only what the hub's
 installer printed (fingerprint) and its cloak secret, pastes the block the
