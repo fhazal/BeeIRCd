@@ -542,7 +542,9 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		}
 	case "PONG":
 		if !l.pingSent.IsZero() {
-			l.lag = time.Since(l.pingSent)
+			// Never exactly 0 once measured (a coarse clock can say 0),
+			// so "not measured yet" stays apart.
+			l.lag = max(time.Since(l.pingSent), time.Microsecond)
 			l.pingSent, l.lastPong = time.Time{}, time.Now()
 		}
 	case "SID":
@@ -777,8 +779,11 @@ func (s *Server) linkTick(now time.Time) {
 		switch {
 		case !l.up && now.Sub(l.started) > linkHandshakeTimeout:
 			s.dropLink(l, "handshake timed out")
-		case l.up && l.pingSent.IsZero() && now.Sub(l.lastRecv) > linkPingIdle:
-			l.pingSent = now
+		case l.up && l.pingSent.IsZero() && (now.Sub(l.lastRecv) > linkPingIdle ||
+			// Lag: measured as soon as the link is synced, then every
+			// linkPingIdle even when the link is busy, so it stays current.
+			l.eos && (l.lastPong.IsZero() || now.Sub(l.lastPong) > linkPingIdle)):
+			l.pingSent = time.Now()
 			l.send("PING :" + s.cfg.Server.Name)
 		case l.up && !l.pingSent.IsZero() && now.Sub(l.pingSent) > linkPingTimeout:
 			s.dropLink(l, fmt.Sprintf("Ping timeout: %d seconds", int(now.Sub(l.lastRecv).Seconds())))
