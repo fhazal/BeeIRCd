@@ -344,6 +344,22 @@ func (s *Server) panelControl(req control.Request, setDeadline func(time.Duratio
 		return run('c', func(po *control.PanelOper) { resp = s.panelLinkSave(po, req.IP, req.Block, req.New) }), true
 	case control.CmdLinkDel:
 		return run('c', func(po *control.PanelOper) { resp = s.panelLinkDel(po, req.IP, req.Name) }), true
+	case control.CmdChannels:
+		return run(0, func(*control.PanelOper) { resp.Channels = s.panelChannels(req) }), true
+	case control.CmdChannel:
+		return run(0, func(*control.PanelOper) {
+			if resp.Channel = s.panelChannel(req.Name); resp.Channel == nil {
+				resp.Error = "There is no channel " + req.Name + " (any more)."
+			}
+		}), true
+	case control.CmdChanNotice:
+		return run('g', func(po *control.PanelOper) { resp = s.panelChanNotice(po, req.IP, req.Name, req.Value) }), true
+	case control.CmdChanTopic:
+		return run('s', func(po *control.PanelOper) { resp = s.panelChanTopic(po, req.IP, req.Name, req.Value) }), true
+	case control.CmdChanSuspend:
+		return run('s', func(po *control.PanelOper) { resp = s.panelChanSuspend(po, req.IP, req.Name, req.Reason, req.Life) }), true
+	case control.CmdChanUnsuspend:
+		return run('s', func(po *control.PanelOper) { resp = s.panelChanUnsuspend(po, req.IP, req.Name) }), true
 	}
 	if req.As == "" {
 		return resp, false

@@ -53,6 +53,8 @@ func (f *fakeServer) ask(r control.Request, _ time.Duration) (*control.Response,
 			return &control.Response{Changed: &control.Changed{Name: "ember", New: "g", ID: 9}}, nil
 		}
 		return &control.Response{Error: "unexpected"}, nil
+	case control.CmdChanSuspend:
+		return &control.Response{Done: &control.Done{Text: r.Cmd + " " + r.Name + " " + r.Reason + " " + r.Life}}, nil
 	case control.CmdLinkSave:
 		if r.Block == nil || r.Block.Name != "leaf.example.net" || r.Block.Port != 7001 || !r.Block.Autoconnect || !r.New {
 			return &control.Response{Error: "unexpected"}, nil
@@ -389,5 +391,17 @@ func TestLoginFailsForgotten(t *testing.T) {
 	rg.p.ipFailed("198.51.100.1")
 	if n := len(rg.p.fails); n != 1 {
 		t.Errorf("%d records kept", n)
+	}
+}
+
+func TestChannelRoutes(t *testing.T) {
+	rg := newRig(t)
+	tok := rg.login()
+	w := rg.do("POST", "/api/chan-suspend", `{"name":"#spam","reason":"bots","life":"7d"}`, tok, nil)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "chan-suspend #spam bots 7d") {
+		t.Errorf("chan-suspend: %d %s", w.Code, w.Body)
+	}
+	if w := rg.do("POST", "/api/chan-topic", `{"text":"no name"}`, tok, nil); w.Code != 400 {
+		t.Errorf("chan-topic without name: %d", w.Code)
 	}
 }

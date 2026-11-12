@@ -198,6 +198,13 @@ then open <http://127.0.0.1:8787>. `beeircd install` sets it up as the
   for opers with flag `h` (and only they can search by them). Disconnect
   and Ban need flag `k`, like /KILL and OperServ AKILL; Ban adds an
   AKILL on the person's address (1 hour to until removed) and asks first.
+- **Channels**: every channel on the network (secret ones too), biggest
+  first, plus suspended ones; search, filters (registered, not
+  registered, suspended). Open one for its topic, modes (never the key),
+  ban counts, the people in it (ops first) and its ChanServ
+  registration. Send everyone in it a notice (flag `g`, from Global as
+  "[your nick] text"), set its topic (flag `s`, as ChanServ) or suspend /
+  unsuspend it like ChanServ SUSPEND (flag `s`; asks first).
 - **Bans** (flag `k`, like OperServ's ban commands) lists the network
   bans by kind (AKILL, ZLINE, SHUN, exceptions) and adds or removes them
   with the same checks as OperServ. While you type a mask it says how

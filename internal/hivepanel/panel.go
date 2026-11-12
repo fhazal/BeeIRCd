@@ -143,6 +143,12 @@ func New(o Options) *Panel {
 	m.HandleFunc("POST /api/link-split", p.withOper(p.linkAct(control.CmdLinkSplit)))
 	m.HandleFunc("POST /api/link-del", p.withOper(p.linkAct(control.CmdLinkDel)))
 	m.HandleFunc("POST /api/link-save", p.withOper(p.linkSave))
+	m.HandleFunc("GET /api/channels", p.withOper(p.channels))
+	m.HandleFunc("GET /api/channel", p.withOper(p.channel))
+	m.HandleFunc("POST /api/chan-notice", p.withOper(p.chanAct(control.CmdChanNotice)))
+	m.HandleFunc("POST /api/chan-topic", p.withOper(p.chanAct(control.CmdChanTopic)))
+	m.HandleFunc("POST /api/chan-suspend", p.withOper(p.chanAct(control.CmdChanSuspend)))
+	m.HandleFunc("POST /api/chan-unsuspend", p.withOper(p.chanAct(control.CmdChanUnsuspend)))
 	m.HandleFunc("GET /api/live", p.live)
 	p.mux = m
 	return p
@@ -458,6 +464,28 @@ func (p *Panel) linkSave(w http.ResponseWriter, r *http.Request, oc operCtx) {
 	}
 	b := in.LinkBlock
 	p.send(w, oc, control.Request{Cmd: control.CmdLinkSave, Block: &b, New: in.New}, 15*time.Second)
+}
+
+func (p *Panel) channels(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	q := r.URL.Query()
+	off, _ := strconv.Atoi(q.Get("offset"))
+	p.send(w, oc, control.Request{Cmd: control.CmdChannels, Query: q.Get("q"), Filter: q.Get("filter"), Offset: off, Limit: 50}, 10*time.Second)
+}
+
+func (p *Panel) channel(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	p.send(w, oc, control.Request{Cmd: control.CmdChannel, Name: r.URL.Query().Get("name")}, 10*time.Second)
+}
+
+// chanAct is an action on one channel: {"name", "text", "reason", "life"}.
+func (p *Panel) chanAct(cmd string) func(http.ResponseWriter, *http.Request, operCtx) {
+	return func(w http.ResponseWriter, r *http.Request, oc operCtx) {
+		var in struct{ Name, Text, Reason, Life string }
+		if json.NewDecoder(r.Body).Decode(&in) != nil || in.Name == "" {
+			writeErr(w, http.StatusBadRequest, "Bad request.")
+			return
+		}
+		p.send(w, oc, control.Request{Cmd: cmd, Name: in.Name, Value: in.Text, Reason: in.Reason, Life: in.Life}, 10*time.Second)
+	}
 }
 
 // ipLocked reports how long ip must still wait after wrong sign-ins.

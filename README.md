@@ -86,7 +86,7 @@ The full list, with what is planned and what is only an idea, is in [FEATURES.md
 | 1.5 | Anope-style services, HostServ, oper classes, channel and user modes | ✅ Done |
 | 7 | Installer, `beeircd` command, systemd, Let's Encrypt, REHASH, signed updates | ✅ Done, v1.0 checks running |
 | 2 | Linking BeeIRCd to BeeIRCd | ⏳ Planned |
-| 3 | **Hive Panel**: web admin | 🚧 Started: every page built (sign-in, overview, people, bans, opers, linked servers, services, settings); bug sweep and release gates next |
+| 3 | **Hive Panel**: web admin | 🚧 Started: every page built (sign-in, overview, people, channels, bans, opers, linked servers, services, settings); bug sweep and release gates next |
 | 4 | **BeeRoom**: web chat | ⏳ Planned |
 
 ## 📦 Installing

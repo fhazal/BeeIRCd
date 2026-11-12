@@ -269,3 +269,15 @@ table.links{min-width:600px}
 .svc-group{display:flex;flex-direction:column;gap:12px}
 .grp{font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--honey);padding:0 0 4px}
 .band21[hidden],.card[hidden]{display:none}
+
+/* Channels (3h) */
+.chip2{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:3px;background:#1f1f1f;color:var(--ink);font-family:var(--mono);font-size:12px}
+.chip2.op{background:var(--honey-soft);color:var(--honey)}
+.chip2.v{background:var(--ok-soft);color:var(--ok)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.tag.reg{background:var(--ok-soft);color:var(--ok)}
+.tag.sus{background:#2a2020;color:var(--bad)}
+.topic{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:380px;display:inline-block;vertical-align:middle}
+.dl .span4{grid-column:1/-1}
+table.chans{min-width:720px}
+.rowbtn.mono{font-family:var(--mono);font-size:13px}

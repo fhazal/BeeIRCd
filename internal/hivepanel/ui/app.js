@@ -132,6 +132,7 @@
   const pages = [
     { id: 'overview', label: 'Overview', icon: 'overview', make: overviewPage },
     { id: 'people', label: 'People', icon: 'people', make: peoplePage },
+    { id: 'channels', label: 'Channels', icon: 'hash', make: channelsPage },
     { id: 'bans', label: 'Bans', icon: 'bans', need: 'k', make: bansPage },
     { id: 'opers', label: 'Opers', icon: 'opers', need: 'a', make: opersPage },
     { id: 'servers', label: 'Linked servers', icon: 'servers', need: 'c', make: serversPage },
@@ -1323,6 +1324,173 @@
         put(bots, list.map(b => h('div', { class: 'row' }, h('span', {}, h('span', { class: 'dot' }), b), h('span', { class: 'end', text: BOT_TEXT[b] || 'up' }))));
       },
     };
+  }
+
+  // ---------- Channels ----------
+  function channelsPage() {
+    const PAGE = 50;
+    let q = '', filter = 'all', offset = 0, open = null, data = null, typing = 0;
+    const tile = label => { const n = h('span', { class: 'num', text: '…' }), l = h('span', { class: 'lbl' }); return { n, l, el: h('section', { class: 'card tight' }, h('span', { class: 'lbl', text: label }), n, l) }; };
+    const tOpen = tile('Channels open'), tReg = tile('Registered'), tBig = tile('Biggest'), tSus = tile('Suspended');
+    const search = h('input', { class: 'search', type: 'search', placeholder: 'Search name or topic', 'aria-label': 'Search channels', autocomplete: 'off', spellcheck: 'false' });
+    const segs = [['all', 'All'], ['registered', 'Registered'], ['unregistered', 'Not registered'], ['suspended', 'Suspended']].map(([v, label]) =>
+      h('button', { type: 'button', 'aria-pressed': v === filter ? 'true' : 'false', 'data-f': v, text: label }));
+    const tbody = h('tbody');
+    const count = h('span', { class: 'lbl' });
+    const back = h('button', { type: 'button', class: 'btn', text: 'Back' });
+    const next = h('button', { type: 'button', class: 'btn', text: 'Next' });
+    const el = h('div', { class: 'main-stack' },
+      h('header', { class: 'head' }, h('div', { class: 'head-text' }, h('h1', { text: 'Channels' }),
+        h('span', { class: 'sub', text: 'Every channel on the network, on every server' }))),
+      h('div', { class: 'tiles4' }, tOpen.el, tReg.el, tBig.el, tSus.el),
+      h('section', { class: 'card list-card' },
+        h('div', { class: 'tools' }, search, h('div', { class: 'seg', role: 'group', 'aria-label': 'Show' }, segs)),
+        h('div', { class: 'wrap' }, h('table', { class: 'chans' },
+          h('thead', {}, h('tr', {}, ['Channel', 'People', 'Topic', 'Modes', 'ChanServ'].map(t => h('th', { scope: 'col', text: t })))),
+          tbody)),
+        h('div', { class: 'pager' }, count, h('div', { class: 'row-btns' }, back, next))));
+
+    async function load() {
+      try {
+        data = (await api('GET', '/api/channels?' + new URLSearchParams({ q, filter, offset }))).channels;
+        draw();
+      } catch (e) { put(tbody, h('tr', {}, h('td', { colspan: 5, class: 'empty', text: e.message }))); }
+    }
+    function draw() {
+      const d = data;
+      tOpen.n.textContent = fmt(d.open); tReg.n.textContent = fmt(d.registered); tSus.n.textContent = fmt(d.suspended);
+      tBig.n.textContent = fmt(d.biggest_n || 0); tBig.l.textContent = d.biggest || '—';
+      const rows = [];
+      if (!d.rows.length) rows.push(h('tr', {}, h('td', { colspan: 5, class: 'empty', text: q || filter !== 'all' ? 'No channel matches.' : 'No channels open.' })));
+      for (const r of d.rows) {
+        const isOpen = r.name === open;
+        const tr = h('tr', { class: 'person' + (isOpen ? ' open' : '') },
+          h('td', {}, h('button', { type: 'button', class: 'rowbtn mono', 'aria-expanded': isOpen ? 'true' : 'false', text: r.name })),
+          h('td', { text: r.open ? String(r.people) : '—' }),
+          h('td', {}, r.topic ? h('span', { class: 'topic', title: r.topic, text: r.topic }) : h('span', { class: 'lbl', text: '—' })),
+          h('td', { class: 'mono lbl', text: r.modes || '' }),
+          h('td', {}, r.suspended ? h('span', { class: 'tag sus', text: 'suspended' }) : r.registered ? h('span', { class: 'tag reg', text: 'registered' }) : h('span', { class: 'lbl', text: '—' })));
+        tr.addEventListener('click', () => { open = open === r.name ? null : r.name; draw(); });
+        rows.push(tr);
+        if (isOpen) rows.push(detailRow(r.name));
+      }
+      put(tbody, rows);
+      const from = d.matched ? d.offset + 1 : 0, to = d.offset + d.rows.length;
+      count.textContent = fmt(from) + ' to ' + fmt(to) + ' of ' + fmt(d.matched) + ' · biggest first';
+      back.disabled = d.offset <= 0; next.disabled = to >= d.matched;
+    }
+    function item(label, value, cls, wide) {
+      return h('div', { class: wide ? 'span4' : null }, h('span', { class: 'lbl', text: label }), h('span', { class: cls || null, text: value || '—' }));
+    }
+    function detailRow(name) {
+      const box = h('div', {}, h('p', { class: 'empty', text: 'Loading…' }));
+      api('GET', '/api/channel?name=' + encodeURIComponent(name)).then(d => fill(box, d.channel)).catch(e => put(box, h('p', { class: 'empty', text: e.message })));
+      return h('tr', { class: 'detail' }, h('td', { colspan: 5 }, box));
+    }
+    function fill(box, c) {
+      const items = [];
+      items.push(item('Topic', c.topic ? c.topic + (c.topic_by ? ' · set by ' + c.topic_by + (c.topic_at ? ', ' + when(c.topic_at) : '') : '') : (c.open ? 'no topic' : '—'), null, true));
+      if (c.registered) {
+        items.push(item('Founder', c.founder), item('Registered', c.registered_at ? day(c.registered_at) : ''), item('Last used', c.last_used ? when(c.last_used) : ''));
+      }
+      if (c.open) {
+        const ex = [c.excepts ? plural(c.excepts, 'exception', 'exceptions') : '', c.invites ? plural(c.invites, 'invite', 'invites') : ''].filter(Boolean).join(' · ');
+        items.push(item('Bans', fmt(c.bans) + (ex ? ' · ' + ex : '')));
+        let modes = c.modes || 'none';
+        if (c.has_key) modes += ' (key hidden)';
+        if (c.limit) modes += ' · limit ' + c.limit;
+        if (c.mlock) modes += ' · ChanServ keeps ' + c.mlock;
+        items.push(item('Modes', modes, 'mono', !!c.mlock || modes.length > 28));
+      }
+      if (c.description) items.push(item('Description', c.description, null, true));
+      if (c.suspended) items.push(item('Suspended', 'by ' + c.suspended_by + ' · ' + (c.suspend_why || 'no reason') + (c.suspend_till ? ' · until ' + day(c.suspend_till) : ' · until unsuspended'), 'badword', true));
+      const parts = [h('div', { class: 'dl' }, items)];
+      if (c.open) {
+        const shown = c.members.slice(0, 40);
+        parts.push(h('div', { class: 'f' }, h('span', { class: 'lbl', text: 'People here (' + fmt(c.people) + ') · ops first' }),
+          h('div', { class: 'chips' }, shown.map(m => h('span', { class: 'chip2' + (/^[~&@%]/.test(m) ? ' op' : m.startsWith('+') ? ' v' : ''), text: m })),
+            c.members.length > shown.length ? h('span', { class: 'chip2', text: '+ ' + fmt(c.members.length - shown.length) + ' more' }) : null)));
+      }
+      // actions, each only when the oper may do it
+      const ask = h('div', { class: 'confirm', hidden: true });
+      const acts = h('div', { class: 'acts' });
+      if (c.open && has('g')) {
+        const note = h('input', { class: 'in', id: 'cn-' + c.name, type: 'text', maxlength: '400', autocomplete: 'off', placeholder: 'Everyone in the channel sees it' });
+        const send = h('button', { type: 'button', class: 'btn main', text: 'Send notice' });
+        const go = () => busy(send, async () => {
+          if (!note.value.trim()) { note.classList.add('wrong'); note.focus(); return; }
+          try { toast([(await api('POST', '/api/chan-notice', { name: c.name, text: note.value })).done.text]); note.value = ''; note.classList.remove('wrong'); }
+          catch (e) { toastErr(e.message); }
+        });
+        send.addEventListener('click', go);
+        note.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+        acts.append(h('div', { class: 'grow' }, h('label', { class: 'f', for: 'cn-' + c.name }, 'Notice to ' + c.name, note), send));
+      }
+      const end = h('div', { class: 'end' });
+      const cancel = () => { ask.hidden = true; };
+      if (c.open && has('s')) {
+        const tb = h('button', { type: 'button', class: 'btn', text: 'Set topic' });
+        tb.addEventListener('click', () => {
+          const t = h('input', { class: 'in', type: 'text', value: c.topic || '', maxlength: '390', 'aria-label': 'New topic', placeholder: 'Empty clears the topic' });
+          const save = h('button', { type: 'button', class: 'btn main', text: 'Save topic' });
+          const no = h('button', { type: 'button', class: 'btn ghost', text: 'Cancel' });
+          no.addEventListener('click', cancel);
+          save.addEventListener('click', () => busy(save, async () => {
+            try { toast([(await api('POST', '/api/chan-topic', { name: c.name, text: t.value })).done.text]); ask.hidden = true; load(); }
+            catch (e) { toastErr(e.message); }
+          }));
+          ask.classList.remove('bad-ask');
+          put(ask, h('label', { class: 'f' }, 'New topic for ' + c.name, t), save, no);
+          ask.hidden = false; t.focus(); t.select();
+        });
+        end.append(tb);
+      }
+      if (c.registered && has('s')) {
+        if (c.suspended) {
+          const ub = h('button', { type: 'button', class: 'btn', text: 'Unsuspend' });
+          ub.addEventListener('click', () => busy(ub, async () => {
+            try { toast([(await api('POST', '/api/chan-unsuspend', { name: c.name })).done.text]); load(); } catch (e) { toastErr(e.message); }
+          }));
+          end.append(ub);
+        } else {
+          const sb = h('button', { type: 'button', class: 'btn bad', text: 'Suspend' });
+          sb.addEventListener('click', () => {
+            const reason = h('input', { class: 'in', type: 'text', maxlength: '200', placeholder: 'Reason (people see it)', 'aria-label': 'Reason' });
+            const life = h('select', { class: 'in', 'aria-label': 'How long' },
+              [['1h', '1 hour'], ['1d', '1 day'], ['7d', '7 days'], ['30d', '30 days'], ['0', 'Until unsuspended']].map(([v, t]) => h('option', { value: v, text: t })));
+            life.value = '0';
+            const go = h('button', { type: 'button', class: 'btn bad', text: 'Suspend ' + c.name });
+            const no = h('button', { type: 'button', class: 'btn ghost', text: 'Cancel' });
+            no.addEventListener('click', cancel);
+            go.addEventListener('click', () => busy(go, async () => {
+              try { toast([(await api('POST', '/api/chan-suspend', { name: c.name, reason: reason.value, life: life.value })).done.text]); open = null; load(); }
+              catch (e) { toastErr(e.message); }
+            }));
+            put(ask, h('label', { class: 'f' }, 'Suspend ' + c.name + '? Everyone but opers is removed and can\'t come back.', reason), life, go, no);
+            ask.hidden = false; reason.focus();
+          });
+          end.append(sb);
+        }
+      }
+      if (end.childNodes.length) acts.append(end);
+      if (acts.childNodes.length) parts.push(acts);
+      parts.push(ask);
+      put(box, h('div', { class: 'main-stack' }, parts));
+    }
+
+    search.addEventListener('input', () => { clearTimeout(typing); typing = setTimeout(() => { q = search.value.trim(); offset = 0; open = null; load(); }, 250); });
+    for (const b of segs) b.addEventListener('click', () => {
+      filter = b.dataset.f; offset = 0; open = null;
+      segs.forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+      load();
+    });
+    back.addEventListener('click', () => { offset = Math.max(0, offset - PAGE); open = null; load(); });
+    next.addEventListener('click', () => { offset += PAGE; open = null; load(); });
+    const onKey = e => { if (e.key === 'Escape' && open && !e.target.closest('input, select')) { open = null; draw(); } };
+    document.addEventListener('keydown', onKey);
+    const timer = setInterval(() => { if (!open && !document.hidden) load(); }, 15000);
+    load();
+    return { el, leave() { clearInterval(timer); document.removeEventListener('keydown', onKey); } };
   }
 
   // ---------- boot ----------

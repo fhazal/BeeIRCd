@@ -28,6 +28,8 @@ func TestPanelFlagMatrix(t *testing.T) {
 		control.CmdBans: 'k', control.CmdBanAdd: 'k', control.CmdBanDel: 'k', control.CmdBanMatch: 'k',
 		control.CmdOpers: 'a', control.CmdOperSave: 'a', control.CmdOperDel: 'a',
 		control.CmdLinks: 'c', control.CmdLinkConnect: 'c', control.CmdLinkSplit: 'c', control.CmdLinkSave: 'c', control.CmdLinkDel: 'c',
+		control.CmdChannels: 0, control.CmdChannel: 0, control.CmdChanNotice: 'g',
+		control.CmdChanTopic: 's', control.CmdChanSuspend: 's', control.CmdChanUnsuspend: 's',
 	}
 	who := []string{"Boss"}
 	for _, f := range allFlags {
@@ -53,7 +55,7 @@ func TestPanelFlagMatrix(t *testing.T) {
 		}
 	}
 	// Every command the panel has is in the matrix.
-	if len(need) != 26 {
+	if len(need) != 32 {
 		t.Errorf("matrix has %d commands", len(need))
 	}
 }

@@ -134,6 +134,7 @@ Last updated: 12 Nov 2026 (Stage 1.5.9b).
 | Overview: people online ring, channels, opers, servers, reply time, health, linked servers, services, What happened | Implemented (3a) | |
 | Settings (AdminServ SET's limits, saved + applied, Undo via HISTORY), Check, Rehash, Backup (owner) | Implemented (3a) | |
 | People: everyone on every server, search, filters, paging; one person's details (real host only with h), notice, disconnect (k), ban = AKILL on their address (k) | Implemented (3b) | |
+| Channels: every channel (secret too) biggest first + suspended ones, search, filters, details (topic, modes without key, ban counts, people ops first, ChanServ registration), notice (g, from Global), topic (s, as ChanServ), suspend/unsuspend (s) | Implemented (3h) | Lucide "hash" icon |
 | Bans: AKILL / ZLINE / SHUN / exceptions, newest first, add (live "matches N online", OperServ's checks) and remove (asks first), flag k | Implemented (3c) | |
 | Opers: list (flags, hosts, online), add / change class, flags, hosts, password / remove, AdminServ's rules, owner locked, no self-lockout, Undo via HISTORY, flag a | Implemented (3d) | |
 | Linked servers: network map (people per server), link blocks with state, Connect / Split, add / change / remove [[link.server]] blocks (saved + rehash), our fingerprint for the other side, flag c | Implemented (3e) | |

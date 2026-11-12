@@ -56,6 +56,14 @@ const (
 	CmdLinkSplit   = "link-split"   // Name + Reason -> Done
 	CmdLinkSave    = "link-save"    // Block + New -> Done
 	CmdLinkDel     = "link-del"     // Name -> Done
+
+	// Channels page (3h).
+	CmdChannels      = "channels"       // Query + Filter + Offset + Limit -> Channels
+	CmdChannel       = "channel"        // Name -> ChannelInfo
+	CmdChanNotice    = "chan-notice"    // Name + Value -> Done (flag g)
+	CmdChanTopic     = "chan-topic"     // Name + Value -> Done (flag s)
+	CmdChanSuspend   = "chan-suspend"   // Name + Reason + Life -> Done (flag s)
+	CmdChanUnsuspend = "chan-unsuspend" // Name -> Done (flag s)
 )
 
 // MaxRequest is the most bytes one request may be (the Hive Panel takes
@@ -105,17 +113,19 @@ type Response struct {
 	Backup *Backup `json:"backup,omitempty"`
 	Rehash *Rehash `json:"rehash,omitempty"`
 
-	Oper     *PanelOper `json:"oper,omitempty"`
-	Settings []Setting  `json:"settings,omitempty"`
-	Changed  *Changed   `json:"changed,omitempty"`
-	Events   []Event    `json:"events,omitempty"`
-	People   *People    `json:"people,omitempty"`
-	Person   *Person    `json:"person,omitempty"`
-	Done     *Done      `json:"done,omitempty"`
-	Bans     *Bans      `json:"bans,omitempty"`
-	Match    *Match     `json:"match,omitempty"`
-	Opers    *Opers     `json:"opers,omitempty"`
-	Links    *Links     `json:"links,omitempty"`
+	Oper     *PanelOper   `json:"oper,omitempty"`
+	Settings []Setting    `json:"settings,omitempty"`
+	Changed  *Changed     `json:"changed,omitempty"`
+	Events   []Event      `json:"events,omitempty"`
+	People   *People      `json:"people,omitempty"`
+	Person   *Person      `json:"person,omitempty"`
+	Done     *Done        `json:"done,omitempty"`
+	Bans     *Bans        `json:"bans,omitempty"`
+	Match    *Match       `json:"match,omitempty"`
+	Opers    *Opers       `json:"opers,omitempty"`
+	Links    *Links       `json:"links,omitempty"`
+	Channels *Channels    `json:"channels,omitempty"`
+	Channel  *ChannelInfo `json:"channel,omitempty"`
 	// Denied is set (with Error) when the oper may not do this: signed
 	// out, or missing a flag. The panel then signs them out or says so.
 	Denied string `json:"denied,omitempty"` // "signin" or "flag"
@@ -272,6 +282,50 @@ type LinkBlock struct {
 	HasPassword bool   `json:"has_password,omitempty"`
 	Password    string `json:"password,omitempty"`
 	NoPassword  bool   `json:"no_password,omitempty"` // save: remove the password
+}
+
+// Channels is one page of the Channels list.
+type Channels struct {
+	Open       int            `json:"open"`
+	Registered int            `json:"registered"`
+	Suspended  int            `json:"suspended"`
+	Biggest    string         `json:"biggest,omitempty"`
+	BiggestN   int            `json:"biggest_n,omitempty"`
+	Matched    int            `json:"matched"`
+	Offset     int            `json:"offset"`
+	Rows       []ChannelBrief `json:"rows"`
+}
+
+// ChannelBrief is one row of the Channels list.
+type ChannelBrief struct {
+	Name       string `json:"name"`
+	People     int    `json:"people"`
+	Topic      string `json:"topic,omitempty"`
+	Modes      string `json:"modes,omitempty"` // letters only, no key
+	Registered bool   `json:"registered,omitempty"`
+	Suspended  bool   `json:"suspended,omitempty"`
+	Open       bool   `json:"open"`
+}
+
+// ChannelInfo is one channel opened in the list.
+type ChannelInfo struct {
+	ChannelBrief
+	TopicBy      string    `json:"topic_by,omitempty"`
+	TopicAt      time.Time `json:"topic_at,omitzero"`
+	Limit        int       `json:"limit,omitempty"`
+	HasKey       bool      `json:"has_key,omitempty"`
+	Bans         int       `json:"bans"`
+	Excepts      int       `json:"excepts"`
+	Invites      int       `json:"invites"`
+	Members      []string  `json:"members"` // ops first, with their status (@nick +nick nick)
+	Founder      string    `json:"founder,omitempty"`
+	RegisteredAt time.Time `json:"registered_at,omitzero"`
+	LastUsed     time.Time `json:"last_used,omitzero"`
+	Description  string    `json:"description,omitempty"`
+	Mlock        string    `json:"mlock,omitempty"`
+	SuspendedBy  string    `json:"suspended_by,omitempty"`
+	SuspendWhy   string    `json:"suspend_why,omitempty"`
+	SuspendTill  time.Time `json:"suspend_till,omitzero"`
 }
 
 // Done is what an action did, in words.

@@ -64,6 +64,14 @@ race on homelab, clean-machine install with the panel. Installer:
 beeircd-web.service running `beeircd web` (the panel is now inside the
 main program; cmd/beeircd-web stays for development), SSH-tunnel hint at
 the end, uninstall removes it.
+3h 12 Nov 2026 (branch stage3, owner's pick from ChatGPT's ideas):
+Channels page, mockup first (canvas board Channels.dc.html, OK'd).
+internal/server/panel3h.go + services/panel3h.go: list (live channels +
+suspended registered ones, biggest first), details, notice (g, Global
+"[oper] text"), topic (s, as ChanServ, kept for registered channels),
+suspend/unsuspend (s, ChanServ's rules). Flag matrix now 32 commands.
+First Lucide icon (hash) in the sprite, licence in ui/LICENSE-lucide.txt
+(owner 12 Nov: new panel icons come from Lucide).
 
 ## What it is
 Hive Panel = the web admin for BeeIRCd. A separate program
