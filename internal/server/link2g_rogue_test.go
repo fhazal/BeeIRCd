@@ -63,7 +63,10 @@ func TestRogueServerSpoofs(t *testing.T) {
 			leaf.seen(t, "carol")
 			waitLink(t, "bob in #x on the hub", func() bool {
 				var in bool
-				hub.s.onLoop(func() { ch := hub.s.net.Channel("#x"); in = ch != nil && ch.Members[hub.s.net.UserByNick("bob").UID] != nil })
+				hub.s.onLoop(func() {
+					ch := hub.s.net.Channel("#x")
+					in = ch != nil && ch.Members[hub.s.net.UserByNick("bob").UID] != nil
+				})
 				return in
 			})
 			before := hubView(hub)
