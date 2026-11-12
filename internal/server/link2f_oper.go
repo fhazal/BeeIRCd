@@ -174,10 +174,14 @@ func (s *Server) recheckRemoteOpers(id int64, class string) {
 			continue
 		}
 		u := s.net.UserByUID(uid)
-		if u == nil || !u.Modes['o'] {
+		if u == nil {
 			delete(s.links.remoteOpers, uid)
 			continue
 		}
+		// No check for +o here: right after /oper their +o may still be on
+		// its way from their server, and dropping the grant then would
+		// leave later changes behind for good. Their server ignores an
+		// UPDATE or DEOPER for someone who isn't an oper there.
 		var o *store.Oper
 		if a, err := s.store.AccountByID(g.id); err == nil && a != nil {
 			o, _ = s.operEntry(a)
