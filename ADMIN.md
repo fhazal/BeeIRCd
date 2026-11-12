@@ -188,8 +188,9 @@ one holding the key it expects. No passwords are needed.
    hub checks the entry, host and password (wrong-password lockout
    included) and sends back the flags. The admin from the leaf's
    beeircd.conf also opers there with its own admin password, once
-   identified to the account of that name. A change to an entry on the
-   hub applies at the next /oper on a leaf.
+   identified to the account of that name. Changing, disabling or
+   deleting an entry (or its class) on the hub reaches the leaf at once:
+   new flags, or no longer an operator.
 3. **Back on the hub,** paste the leaf's block into
    `/etc/beeircd/beeircd.conf` and run `sudo beeircd rehash`:
 

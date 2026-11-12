@@ -117,3 +117,46 @@ func TestDebugLineHidesOperPassword(t *testing.T) {
 		t.Errorf("%q", got)
 	}
 }
+
+// 2g: an oper entry changed on the services server follows the oper to
+// the leaf at once: new flags, then disabled = no longer an oper there.
+func TestLeafOperLiveChanges(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	opal := login(t, leaf.s, "opal")
+	opal.send("NS REGISTER " + pw)
+	opal.expect("is now registered to you.")
+	operEntryOn(t, hub, "opal", "gk", []string{"*@*"})
+	opal.send("OPER opal " + operPW)
+	opal.expect(" 381 opal ")
+
+	change := func(edit func(o *store.Oper)) {
+		hub.s.onLoop(func() {
+			a, _ := hub.s.store.AccountByNick("opal")
+			o, _ := hub.s.store.OperByAccount(a.ID)
+			edit(o)
+			if err := hub.s.store.SaveOper(o); err != nil {
+				t.Error(err)
+			}
+			hub.s.recheckOpers(a.ID)
+		})
+	}
+	change(func(o *store.Oper) { o.Flags = "g" })
+	opal.expect("Your oper flags are now g")
+	var flags string
+	leaf.s.onLoop(func() { flags = leaf.s.clients[leaf.s.net.UserByNick("opal").UID].operFlags })
+	if flags != "g" {
+		t.Errorf("flags on the leaf %q", flags)
+	}
+
+	change(func(o *store.Oper) { o.Disabled = "on holiday" })
+	opal.expect("Your oper entry was disabled (on holiday), so you are no longer an operator.")
+	waitLink(t, "hub sees opal de-opered", func() bool { u := hub.user("opal"); return u != nil && !u.Modes['o'] })
+
+	// A forged change from a server that didn't oper opal is ignored.
+	kim := login(t, leaf.s, "kim")
+	netadminOn(t, leaf, kim, "kim")
+	var kimUID string
+	leaf.s.onLoop(func() { kimUID = leaf.s.net.UserByNick("kim").UID })
+	hub.s.onLoop(func() { hub.s.operAnswer(kimUID, "DEOPER :forged") })
+	kim.quiet("forged")
+}

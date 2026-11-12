@@ -7,6 +7,8 @@ package server
 //	:<uid> BEEOPER <services sid> <name> :<password>
 //	:<sid> BEEOPERR <uid> OK :<json: account class flags title vhost swhois>
 //	:<sid> BEEOPERR <uid> FAIL <numeric> :<text>
+//	:<sid> BEEOPERR <uid> UPDATE :<json>      (2g: the entry or class changed)
+//	:<sid> BEEOPERR <uid> DEOPER :<reason>    (2g: removed, disabled, host)
 //
 // The services server checks the entry, the user's host and the password
 // (with its lockout), as for /oper there. The leaf only takes an answer
@@ -135,8 +137,11 @@ func (s *Server) remoteOper(l *linkConn, m irc.Message) {
 		switch res {
 		case services.PwOK:
 			v := s.viewOf(o)
-			b, _ := json.Marshal(operGrant{Account: o.Account, Class: v.class, Flags: v.flags, Title: v.title, Vhost: v.vhost, Swhois: v.swhois})
-			s.operAnswer(uid, "OK :"+string(b))
+			s.operAnswer(uid, "OK :"+grantJSON(v, o.Account))
+			if s.links.remoteOpers == nil {
+				s.links.remoteOpers = map[string]remoteGrant{}
+			}
+			s.links.remoteOpers[uid] = remoteGrant{id: a.ID, class: v.class}
 			s.snotice("%s (%s@%s) is now an operator on %s as %s (entry checked here): %s", u.Nick, u.TrueIdent(), u.RealHost, u.Server, o.Account, v.flags)
 		case services.PwLocked:
 			fail(irc.ErrPasswdMismatch, "Too many wrong passwords. Try again in "+services.RoundUp(s.lockedFor(operLockKey(a.ID))), "locked out")
@@ -146,6 +151,56 @@ func (s *Server) remoteOper(l *linkConn, m irc.Message) {
 			fail(irc.ErrPasswdMismatch, "Password incorrect", "wrong password")
 		}
 	})
+}
+
+// remoteGrant is an oper this server granted to someone on another
+// server (link2f), so entry changes can follow them there.
+type remoteGrant struct {
+	id    int64
+	class string
+}
+
+func grantJSON(v operView, account string) string {
+	b, _ := json.Marshal(operGrant{Account: account, Class: v.class, Flags: v.flags, Title: v.title, Vhost: v.vhost, Swhois: v.swhois})
+	return string(b)
+}
+
+// recheckRemoteOpers is recheckOpers for opers on other servers: those
+// opered with account id (or, with class set, with that oper class) get
+// the new flags or lose oper there.
+func (s *Server) recheckRemoteOpers(id int64, class string) {
+	for uid, g := range s.links.remoteOpers {
+		if !(id != 0 && g.id == id) && !(class != "" && strings.EqualFold(g.class, class)) {
+			continue
+		}
+		u := s.net.UserByUID(uid)
+		if u == nil || !u.Modes['o'] {
+			delete(s.links.remoteOpers, uid)
+			continue
+		}
+		var o *store.Oper
+		if a, err := s.store.AccountByID(g.id); err == nil && a != nil {
+			o, _ = s.operEntry(a)
+		}
+		why := ""
+		switch {
+		case o == nil:
+			why = "Your oper entry was removed, so you are no longer an operator."
+		case o.Disabled != "":
+			why = "Your oper entry was disabled (" + o.Disabled + "), so you are no longer an operator."
+		case !operHostOK(o, u):
+			why = "Your oper entry no longer covers your host, so you are no longer an operator."
+		}
+		if why != "" {
+			delete(s.links.remoteOpers, uid)
+			s.operAnswer(uid, "DEOPER :"+why)
+			s.snotice("%s on %s is no longer an operator: entry changed here", u.Nick, u.Server)
+			continue
+		}
+		v := s.viewOf(o)
+		s.links.remoteOpers[uid] = remoteGrant{id: g.id, class: v.class}
+		s.operAnswer(uid, "UPDATE :"+grantJSON(v, o.Account))
+	}
 }
 
 // operAnswer sends a BEEOPERR line towards uid's server.
@@ -169,7 +224,25 @@ func (s *Server) operAnswered(l *linkConn, m irc.Message) {
 		return
 	}
 	c := s.clients[uid]
-	if c == nil || c.user == nil || c.operRelay == nil || c.operRelay.via != l {
+	if c == nil || c.user == nil {
+		return
+	}
+	if kind := m.Params[1]; kind == "UPDATE" || kind == "DEOPER" {
+		if c.operVia != l || !c.isOper() {
+			return // not opered by that server: not its to change
+		}
+		var g operGrant
+		switch {
+		case kind == "DEOPER":
+			s.deoper(c, m.Params[len(m.Params)-1])
+		case json.Unmarshal([]byte(m.Params[len(m.Params)-1]), &g) == nil && g.Flags != "":
+			flags, _ := cleanFlags(g.Flags)
+			s.operUpView(c, &store.Oper{Account: g.Account}, operView{class: g.Class, flags: flags, title: g.Title, vhost: g.Vhost, swhois: g.Swhois})
+			c.operVia = l
+		}
+		return
+	}
+	if c.operRelay == nil || c.operRelay.via != l {
 		return
 	}
 	name := c.operRelay.name
@@ -198,6 +271,7 @@ func (s *Server) operAnswered(l *linkConn, m irc.Message) {
 		flags, _ := cleanFlags(g.Flags)
 		o := &store.Oper{Account: g.Account}
 		s.operUpView(c, o, operView{class: g.Class, flags: flags, title: g.Title, vhost: g.Vhost, swhois: g.Swhois})
+		c.operVia = l
 	}
 }
 

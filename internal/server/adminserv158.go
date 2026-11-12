@@ -184,6 +184,7 @@ func (s *Server) saveClass(c *Client, name string, oc *config.OperClass, verb st
 			s.recheckOpers(oc2.operAccount)
 		}
 	}
+	s.recheckRemoteOpers(0, name)
 	return true
 }
 

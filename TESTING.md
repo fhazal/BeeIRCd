@@ -131,10 +131,11 @@ sh testnet.sh check    # livecheck -suites net
 sh testnet.sh down     # removes containers, networks and data
 ```
 
-The `net` suite (29 checks): one channel across three servers, messages
+The `net` suite (30 checks): one channel across three servers, messages
 over two hops, PMs, remote WHOIS and LINKS; NickServ and ChanServ used
 from a leaf (services on the hub); an oper entry made on the hub used on
-a leaf (wrong password refused, /oper works, seen as oper on the hub; the
+a leaf (wrong password refused, /oper works, seen as oper on the hub,
+disabling it on the hub de-opers at once; the
 network's admin is `ztnadmin`, never a real nick); split (netsplit batch, quit reason with
 both server names, seen on every side); changes during the split (topic,
 the same nick taken on both sides); rejoin by autoconnect, the topic

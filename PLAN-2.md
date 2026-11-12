@@ -173,7 +173,7 @@ the config, the installer opens the link port.
   channel, services from a leaf, split + rejoin with collisions).
 
 ### 2g - gates for v1.1
-- Live oper-entry changes on leaves (user OK 12 Nov): when an oper entry
+- DONE 12 Nov: Live oper-entry changes on leaves (user OK 12 Nov): when an oper entry
   is changed, disabled or deleted on the services server, it tells the
   leaves, and anyone opered there with it gets the new flags or loses
   oper (today that waits until their next /oper there).

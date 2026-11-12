@@ -81,6 +81,8 @@ type linkState struct {
 	noop      bool               // NOOP: nobody may be an IRC operator here
 	pending   atomic.Int32       // TLS handshakes running on the link port
 	operBusy  map[string]*bool   // relayed /oper password checks running, by UID (link2f_oper.go)
+	// remoteOpers: opers we granted on other servers, by UID (2g live changes).
+	remoteOpers map[string]remoteGrant
 }
 
 type linkRetry struct {

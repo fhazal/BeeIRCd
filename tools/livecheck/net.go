@@ -127,6 +127,8 @@ func (lc *liveCheck) network(n netCheck) {
 	lc.ok("leaf1: oper from the hub's entry", op.wait(" 381 ztnop ", 8*time.Second))
 	h.send("WHOIS ztnop")
 	lc.ok("hub sees leaf1's oper", h.wait(` 313 ztnh ztnop `))
+	adm.send("AS OPER ztnop DISABLE live test")
+	lc.ok("leaf1: entry disabled on the hub de-opers there at once", op.wait(`disabled \(live test\), so you are no longer an operator`, 8*time.Second))
 
 	// Split: cut leaf2's link.
 	h.lines, l1.lines, l2.lines = nil, nil, nil

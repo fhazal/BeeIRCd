@@ -121,6 +121,7 @@ func (s *Server) deoper(c *Client, why string) {
 		return
 	}
 	c.operFlags, c.operTitle, c.operAccount, c.operSwhois, c.operClass = "", "", 0, nil, ""
+	c.operVia = nil
 	delete(s.opers, c)
 	c.noLag.Store(false)
 	s.showOperVhost(c, "")
@@ -161,6 +162,7 @@ func (s *Server) recheckOpers(id int64) {
 			s.operUp(c, o)
 		}
 	}
+	s.recheckRemoteOpers(id, "")
 }
 
 // snotice sends a server notice to opers with +s and writes it to the log.
