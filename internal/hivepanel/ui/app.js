@@ -1480,6 +1480,7 @@
   // ---------- Opers ----------
   const FLAGS = [
     ['a', 'admin', 'Settings, rehash, opers'],
+    ['b', 'bots', 'BotServ bots: add, change, delete'],
     ['c', 'links', 'Linked servers'],
     ['g', 'global', 'Notices to everyone'],
     ['h', 'hosts', 'See real hosts, HostServ'],
