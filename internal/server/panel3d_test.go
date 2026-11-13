@@ -67,7 +67,7 @@ func TestPanelOpers(t *testing.T) {
 
 	// Change: fern (a h) may not take ember's k away, nor remove ember.
 	save := func(as string, r control.Request) *control.Response { r.Cmd = control.CmdOperSave; return ask(as, r) }
-	if r := save("fern", control.Request{Name: "ember", Flags: "g", Hosts: "*@*"}); !strings.Contains(r.Error, "can't take flag k away") {
+	if r := save("fern", control.Request{Name: "ember", Flags: "g", Hosts: "*@*"}); !strings.Contains(r.Error, "can't change ember: they have flags g and k") {
 		t.Errorf("fern takes k: %+v", r)
 	}
 	if r := ask("fern", control.Request{Cmd: control.CmdOperDel, Name: "ember"}); !strings.Contains(r.Error, "they have flags g and k and you don't") {
@@ -142,5 +142,54 @@ func TestPanelBigRequest(t *testing.T) {
 		Hosts: strings.Join(hosts, " "), Password: "Ember-Big-2026", New: true})
 	if r.Changed == nil {
 		t.Errorf("big oper-save: %+v", r)
+	}
+}
+
+// TestPanelOperCover: an oper changes or undoes another oper's entry only
+// when they hold all of that oper's flags (as AdminServ OPER). Else fern
+// (a h) could set ember's (g h k) password or hosts, sign in as ember and
+// get g and k.
+func TestPanelOperCover(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	for _, n := range []string{"ember", "fern"} {
+		registered(t, s, n)
+	}
+	b.send("AS OPER fern ADD FLAGS ah HOST *@127.0.0.0/8 PASSWORD " + emberPW)
+	b.expect("fern is an oper now")
+	ask := func(as string, r control.Request) *control.Response {
+		r.As, r.IP = as, "127.0.0.1"
+		return panelAsk(t, s, r)
+	}
+	r := ask("Boss", control.Request{Cmd: control.CmdOperSave, New: true, Name: "ember", Class: "globop", Flags: "g", Hosts: "*@127.0.0.0/8", Password: "Ember-Panel-1"})
+	if r.Changed == nil {
+		t.Fatalf("add ember: %+v", r)
+	}
+	// Same flags, new password: would hand fern ember's g and k.
+	if r := ask("fern", control.Request{Cmd: control.CmdOperSave, Name: "ember", Class: "globop", Flags: "g", Hosts: "*@127.0.0.0/8", Password: "Fern-Took-It-1"}); !strings.Contains(r.Error, "You can't change ember") {
+		t.Errorf("fern set ember's password: %+v", r)
+	}
+	if r := panelAsk(t, s, control.Request{Cmd: control.CmdPanelLogin, Nick: "ember", Password: "Fern-Took-It-1", IP: "127.0.0.1"}); r.Oper != nil {
+		t.Fatalf("fern signs in as ember with the password fern set: %+v", r.Oper)
+	}
+	// Same flags, wider hosts.
+	if r := ask("fern", control.Request{Cmd: control.CmdOperSave, Name: "ember", Class: "globop", Flags: "g", Hosts: "*@*"}); !strings.Contains(r.Error, "You can't change ember") {
+		t.Errorf("fern widened ember's hosts: %+v", r)
+	}
+	// Undo of Boss's host change on ember: fern doesn't cover ember either.
+	r = ask("Boss", control.Request{Cmd: control.CmdOperSave, Name: "ember", Class: "globop", Flags: "g", Hosts: "*@127.0.0.1"})
+	if r.Changed == nil || r.Changed.ID == 0 {
+		t.Fatalf("boss narrows ember: %+v", r)
+	}
+	if u := ask("fern", control.Request{Cmd: control.CmdUndo, ID: r.Changed.ID}); !strings.Contains(u.Error, "You can't change ember") {
+		t.Errorf("fern undid a change on ember: %+v", u)
+	}
+	// fern still changes an oper fern covers.
+	registered(t, s, "gale")
+	if r := ask("fern", control.Request{Cmd: control.CmdOperSave, New: true, Name: "gale", Flags: "h", Hosts: "*@*", Password: "Gale-Panel-1"}); r.Changed == nil {
+		t.Fatalf("fern adds gale: %+v", r)
+	}
+	if r := ask("fern", control.Request{Cmd: control.CmdOperSave, Name: "gale", Flags: "h", Hosts: "*@127.0.0.1", Password: "Gale-Panel-2"}); r.Changed == nil {
+		t.Errorf("fern changes gale: %+v", r)
 	}
 }

@@ -119,6 +119,13 @@ func (s *Server) panelOperSave(po *control.PanelOper, ip string, req control.Req
 	case !req.New && cur == nil:
 		return fail("%s isn't an oper (any more).", a.Name)
 	}
+	// An entry with flags po lacks is out of po's reach (as AdminServ
+	// OPER): its password or hosts would let po sign in as it.
+	if cur != nil {
+		if l := lacking(po.Flags, s.viewOf(cur).flags); l != "" {
+			return fail("You can't change %s: they have %s and you don't.", a.Name, flagWords(l))
+		}
+	}
 	o := &store.Oper{AccountID: a.ID, Account: a.Name, AddedBy: po.Account, AddedAt: time.Now()}
 	if cur != nil {
 		cp := *cur
@@ -258,8 +265,12 @@ func (s *Server) panelOperUndo(po *control.PanelOper, ip string, ch store.Change
 	if o != nil {
 		after = s.viewOf(o).flags
 	}
-	if l := lacking(po.Flags, lacking(before, after)+lacking(after, before)); l != "" {
-		return control.Response{Error: fmt.Sprintf("You can't undo that: it changes %s and you don't have it.", flagWords(l))}
+	// po must cover the entry as it is and as it would be (as AS UNDO).
+	if l := lacking(po.Flags, before); l != "" {
+		return control.Response{Error: fmt.Sprintf("You can't change %s: they have %s and you don't.", a.Name, flagWords(l))}
+	}
+	if l := lacking(po.Flags, after); l != "" {
+		return control.Response{Error: fmt.Sprintf("You can't undo that: it gives %s and you don't have it.", flagWords(l))}
 	}
 	if irc.EqualFold(a.Name, po.Account) && strings.IndexByte(after, 'a') < 0 {
 		return control.Response{Error: "You can't take flag a from yourself here."}
