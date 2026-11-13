@@ -20,7 +20,7 @@ Classic IRC feel · services in the box · IRCv3 · light on a 1-CPU VPS
 </div>
 
 > [!NOTE]
-> BeeIRCd is a free, open-source IRC server by **BajuBesi Labs**, written from scratch in Go. It is **not released yet**: Stage 1.5 (services and modes) is almost done and runs on our test network. Follow the progress below.
+> BeeIRCd is a free, open-source IRC server by **BajuBesi Labs**, written from scratch in Go. It is in **release candidates for 1.0**: the server, server linking and the Hive Panel web admin ship together, and they run on our test network now. Follow the progress below.
 
 ---
 
@@ -28,7 +28,9 @@ Classic IRC feel · services in the box · IRCv3 · light on a 1-CPU VPS
 
 Running an IRC network usually means two programs that have to be wired together: a server (UnrealIRCd, InspIRCd) and a services package (Anope, Atheme). BeeIRCd is both. Start it once, and NickServ, ChanServ and friends are already there, sharing one database and one config.
 
-- 🧩 **All in one**: server and services in a single binary, no separate services package to link and babysit. Servers still link to each other to grow a network (BeeIRCd to BeeIRCd, Stage 2).
+- 🧩 **All in one**: server and services in a single binary, no separate services package to link and babysit.
+- 🔗 **Linking**: grow one server into a network. Links are TLS with pinned keys, no passwords, to other BeeIRCd servers or to UnrealIRCd 6.
+- 🍯 **Hive Panel**: a web admin built in (`beeircd web`). Opers sign in with their oper account and see only what their flags allow.
 - 🛡️ **Services you already know**: commands, syntax and replies follow **Anope 2.0** (the stable line), so admins and users feel at home.
 - 👑 **AdminServ**: run the server from IRC itself, ConferenceRoom style: settings, MOTD, ports, opers and classes, with history and undo.
 - ⚡ **Small and fast**: 5,000 users on a 1-CPU / 512 MB VPS with single-digit millisecond lag.
@@ -55,7 +57,25 @@ Running an IRC network usually means two programs that have to be wired together
 - **MemoServ**: memos, channel memos, notify by mail
 - **HostServ**: vhosts with requests and approval
 - **OperServ**: AKILL, sessions, news, SEEN, IGNORE
+- **BotServ**: channel bots, kickers, bad words, fantasy commands
 - **AdminServ**: live server settings with HISTORY / DIFF / UNDO
+
+</td></tr>
+<tr><td valign="top">
+
+**🔗 Linking**
+- Hub and leaf, TLS on its own port, locked by fingerprint
+- BeeIRCd to BeeIRCd, and UnrealIRCd 6 with services and SASL
+- One network: users, channels, bans, services and oper entries shared
+- `/MAP`, `beeircd link-info`, links shown in `beeircd status`
+
+</td><td valign="top">
+
+**🍯 Hive Panel**
+- Overview: network status, Spotlight, health, server details
+- People, Channels, Bans, Opers, Linked servers with a network map
+- Services, Settings and Backups; changes kept in HISTORY with Undo
+- Every click checked by the server against your oper flags
 
 </td></tr>
 <tr><td valign="top">
@@ -71,6 +91,8 @@ Running an IRC network usually means two programs that have to be wired together
 **✅ Tested**
 - Unit, integration and fuzz tests, race detector in CI
 - [irctest](https://github.com/progval/irctest) conformance: 270 passing
+- Linking test: 5,100 users on three servers, one cut off and rejoined 16 times, all agree after each
+- 6 hour soak with 2,000 users, and fuzzing of every parser before each release
 - Live checks against a real test network after every deploy
 
 </td></tr>
@@ -83,11 +105,12 @@ The full list, with what is planned and what is only an idea, is in [FEATURES.md
 | Stage | What | Status |
 | --- | --- | --- |
 | 1 | One server with all services working | ✅ Done |
-| 1.5 | Anope-style services, HostServ, oper classes, channel and user modes | ✅ Done |
-| 7 | Installer, `beeircd` command, systemd, Let's Encrypt, REHASH, signed updates | ✅ Done, v1.0 checks running |
-| 2 | Linking BeeIRCd to BeeIRCd | ⏳ Planned |
-| 3 | **Hive Panel**: web admin | 🚧 Started: every page built (sign-in, overview, people, channels, bans, opers, linked servers, services, settings); bug sweep and release gates next |
-| 4 | **BeeRoom**: web chat | ⏳ Planned |
+| 1.5 | Anope-style services, HostServ, BotServ, oper classes, channel and user modes | ✅ Done |
+| 7 | Installer, `beeircd` command, systemd, Let's Encrypt, REHASH, signed updates | ✅ Done |
+| 2 | Linking: BeeIRCd to BeeIRCd and to UnrealIRCd 6 | ✅ Done |
+| 3 | **Hive Panel**: web admin | ✅ Done |
+| **1.0** | **Stages 1 to 3 released together** | 🚧 Release candidates, testing on our network |
+| 4 | **BeeRoom**: web chat, as 1.1 | ⏳ Planned |
 
 ## 📦 Installing
 
@@ -97,7 +120,8 @@ curl -fsSL https://beeircd.org/install.sh | sudo sh
 
 Nine questions, then it runs. [INSTALL.md](INSTALL.md) has the details
 (firewall, certificates, proxies); [ADMIN.md](ADMIN.md) covers running it
-(`beeircd status`, AdminServ, backups, updates, every setting).
+(`beeircd status`, AdminServ, the Hive Panel, linking servers, backups,
+updates, every setting).
 
 ## 🛠️ Building
 

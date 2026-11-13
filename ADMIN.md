@@ -209,6 +209,18 @@ then open <http://127.0.0.1:8787>. `beeircd install` sets it up as the
   flags. Settings, Check and Rehash need flag `a`; Backup is for the
   owner (the `[services] admin`). Take an oper entry away and that oper is
   signed out at their next click.
+- **Overview** opens with a greeting that says if anything needs you, then
+  **Network status** (up or not, servers, services, version, last backup,
+  certificate, uptime) beside **Spotlight** (the busiest room right now,
+  the newest member, today's busiest moment, anniversaries, one at a
+  time). Below: Numbers, This server, the Network map (flag `c`), What
+  happened, Server actions (flag `a` or owner: Check, Rehash, Back up
+  now), **Server details** (ports with TLS and the link port, the system
+  it runs on, the names on the certificate, when it started, channel
+  history), **Health** (quiet in one line; otherwise how many were slowed
+  down, Z-lined or stopped by a blocklist today), Services and Linked
+  servers. Recent bans, Top channels and Opers online can be switched on
+  with Arrange (below).
 - **People** lists everyone online on every server: search, filters
   (logged in, guests, opers), 50 at a time. Click a person for their
   details and to send them a notice. Real hosts and addresses show only
