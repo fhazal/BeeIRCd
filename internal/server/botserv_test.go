@@ -3,6 +3,7 @@ package server
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fhazal/beeircd/internal/config"
 )
@@ -424,4 +425,45 @@ func TestBotServChangeKeepsPersist(t *testing.T) {
 	}
 	b.send("TOPIC #hive")
 	b.expect(" 332 Boss #hive :kept topic")
+}
+
+// BOT CHANGE with a new ident or host changes them in place (CHGHOST):
+// the bot never quits, so a PERSIST channel it holds stays open and
+// people in its channels see no QUIT/JOIN.
+func TestBotServChangeInPlace(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	b.send("BS BOT ADD Buzz bot bot.host Busy Bee")
+	b.expect("added to the bot list.")
+	bee := registered(t, s, "Bee")
+	bee.send("JOIN #hive")
+	bee.expect(" 366 Bee #hive ")
+	bee.send("CS REGISTER #hive the hive")
+	bee.expect("is registered to Bee")
+	bee.send("BS ASSIGN #hive Buzz")
+	bee.expect("has been assigned to #hive.")
+	ember := capLogin(t, s, "ember", "chghost")
+	ember.send("JOIN #hive")
+	ember.expect(" 366 ember #hive ")
+	ember.sync()
+
+	b.send("BS BOT CHANGE Buzz Buzz newid new.host Other Name")
+	b.expect("Bot Buzz has been changed to Buzz!newid@new.host (Other Name)")
+	ember.conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	for {
+		line, err := ember.r.ReadString('\n')
+		if err != nil {
+			t.Fatalf("no CHGHOST for the bot: %v", err)
+		}
+		if strings.Contains(line, " QUIT ") || strings.Contains(line, " JOIN ") {
+			t.Fatalf("bot left its channel: %s", strings.TrimSpace(line))
+		}
+		if strings.Contains(line, ":Buzz!bot@bot.host CHGHOST newid new.host") {
+			break
+		}
+	}
+	ember.send("WHO #hive")
+	ember.expect(" 352 ember #hive newid new.host ")
+	ember.send("WHOIS Buzz")
+	ember.expect(" 311 ember Buzz newid new.host * :Other Name")
 }

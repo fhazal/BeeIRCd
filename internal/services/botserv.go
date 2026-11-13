@@ -480,31 +480,19 @@ func bsBotChange(s *Services, c *Client, args []string) {
 		s.dbErr(c, s.botServ, err)
 		return
 	}
-	if user == "" {
-		// Only the nick (Anope sends a NICK change).
+	if nick != old {
 		s.emit(&state.NickChange{UID: sv.user.UID, Nick: b.Nick, TS: time.Now().Unix()})
 		delete(s.services, irc.Fold(old))
 		s.services[irc.Fold(b.Nick)] = sv
-	} else {
-		// A new ident or host: Anope quits the bot and brings it back.
-		var chans []string
-		for _, ch := range sv.user.Channels {
-			chans = append(chans, ch.Name)
-		}
-		s.emit(&state.UserQuit{UID: sv.user.UID, Reason: "Quit: Be right back"})
-		delete(s.services, irc.Fold(old))
-		delete(s.bots, id)
-		nsv := s.introduceBot(b)
-		for _, name := range chans {
-			reg, err := s.store.ChannelByName(name)
-			switch {
-			case err != nil || reg == nil:
-			case reg.Persist:
-				s.persistJoin(reg) // reopens the channel with its topic and modes
-			default:
-				s.botJoin(reg, nsv)
-			}
-		}
+	}
+	// Anope quits the bot and brings it back for a new ident or host; we
+	// change them in place (CHGHOST), so the bot never leaves its channels
+	// and a PERSIST channel it holds open stays open.
+	if b.Ident != sv.user.Ident || b.Host != sv.user.Host {
+		s.emit(&state.HostChange{UID: sv.user.UID, Host: b.Host, Ident: b.Ident})
+	}
+	if b.Realname != sv.user.Realname {
+		s.emit(&state.RealnameChange{UID: sv.user.UID, Realname: b.Realname})
 	}
 	s.bs(c, "Bot %s has been changed to %s!%s@%s (%s).", old, b.Nick, b.Ident, b.Host, b.Realname)
 	s.logCmd(c, s.botServ, logAdmin, "", "CHANGE "+old+" to "+b.Nick+"!"+b.Ident+"@"+b.Host+" "+b.Realname)

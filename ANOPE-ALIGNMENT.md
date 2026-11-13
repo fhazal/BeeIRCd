@@ -137,6 +137,9 @@ differ, on purpose:
 - AMSG kicker remembers the last line per person. Anope 2.0 keeps it per
   channel membership, so its AMSG check never fires.
 - Bots are network services: KICK refuses them, so no rejoin-on-kick.
+- BOT CHANGE with a new ident, host or real name changes them in place
+  (CHGHOST, SETNAME). Anope quits the bot and brings it back, which
+  briefly closes a PERSIST channel only that bot holds open.
 - No MUTE fantasy command (needs a quiet mode on BAN); no BOTSERV COPY or
   per-bot fantasy prefixes (Anope 2.1).
 
