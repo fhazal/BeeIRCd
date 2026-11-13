@@ -30,16 +30,24 @@ import (
 
 // Server is one running BeeIRCd.
 type Server struct {
-	cfg        *config.Config
-	log        *log.Logger
-	net        *state.Network
-	clients    map[string]*Client // by UID, registered or not
-	events     chan func()
-	done       chan struct{}
-	listeners  []listener
-	created    time.Time
-	whowas     []whowasEntry
-	maxLocal   int
+	cfg       *config.Config
+	log       *log.Logger
+	net       *state.Network
+	clients   map[string]*Client // by UID, registered or not
+	events    chan func()
+	done      chan struct{}
+	listeners []listener
+	created   time.Time
+	whowas    []whowasEntry
+	maxLocal  int
+	// Hive Panel Spotlight (spotlight3s.go): when each person last talked
+	// in each channel (times only), and today's most people at once.
+	talk       map[*state.Channel]map[string]int64
+	talkRoom   map[*state.Channel]*roomTalk // lines per minute and order of the last line
+	talkSeq    uint64
+	talkSwept  time.Time
+	dayPeak    int
+	dayPeakAt  time.Time
 	toKill     []*Client
 	local      int              // registered clients here
 	perIP      map[string]int   // connections per IP (session limit)

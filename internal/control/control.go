@@ -380,6 +380,38 @@ type Port struct {
 	Proxy   bool   `json:"proxy"`
 }
 
+// Spotlight is what the Hive Panel's Spotlight card tells, one story at a
+// time. Every part is optional; none of them repeats another number.
+type Spotlight struct {
+	Room          *SpotRoom    `json:"room,omitempty"`     // busiest room right now
+	Newest        *SpotMember  `json:"newest,omitempty"`   // newest account, last 7 days
+	DayPeak       *SpotPeak    `json:"day_peak,omitempty"` // most people at once today
+	Anniversaries []SpotMember `json:"anniversaries,omitempty"`
+}
+
+// SpotRoom is the channel where most people talked in the last 5 minutes
+// (never a +s or +p channel).
+type SpotRoom struct {
+	Name    string `json:"name"`
+	Talkers int    `json:"talkers"`
+	Members int    `json:"members"`
+	Topic   string `json:"topic,omitempty"`
+}
+
+// SpotMember is an account: when it registered, and for anniversaries how
+// many years ago.
+type SpotMember struct {
+	Name  string    `json:"name"`
+	Since time.Time `json:"since"`
+	Years int       `json:"years,omitempty"`
+}
+
+// SpotPeak is the most people on this server at once today.
+type SpotPeak struct {
+	People int       `json:"people"`
+	At     time.Time `json:"at"`
+}
+
 // Cert describes the certificate in use.
 type Cert struct {
 	Source   string    `json:"source"` // "Let's Encrypt", "own files", "self-signed"
@@ -436,6 +468,7 @@ type Status struct {
 	Memos      int       `json:"memos"`
 	LastBackup time.Time `json:"last_backup,omitzero"`
 	ServicesOn bool      `json:"services_on"`
+	Spotlight  Spotlight `json:"spotlight"`
 }
 
 // Link is one server link for the status screen.

@@ -273,9 +273,11 @@ func (s *Server) tryRegister(c *Client) {
 	c.registered = true
 	s.doneUnregistered(c)
 	s.local++
-	if n := s.localUsers(); n > s.maxLocal {
+	n := s.localUsers()
+	if n > s.maxLocal {
 		s.maxLocal = n
 	}
+	s.notePeak(n)
 	s.log.Printf("connect %s (%s@%s) %s", u.Nick, u.Ident, u.RealHost, c.ip)
 	connect := fmt.Sprintf("Connect: %s (%s@%s) [%s]", u.Nick, u.Ident, u.RealHost, c.ip)
 	s.snoticeOnly(connect)

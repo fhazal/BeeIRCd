@@ -682,6 +682,7 @@ func (s *Server) remoteMessage(l *linkConn, raw irc.Message, m *link.Message) {
 			s.recordHistory(ch, o)
 		}
 		if status == "" && m.Verb == "PRIVMSG" && from != nil {
+			s.noteTalk(ch, from.UID)                // Hive Panel Spotlight
 			s.svc.ChannelText(from.UID, ch, m.Text) // BotServ kickers for people on other servers
 		}
 		s.routeChannel(l, m.Source, ch, status, m.Verb, m.Text, linkTags(tags, msgid))

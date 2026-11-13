@@ -569,6 +569,33 @@
     for (const [dx, dy, a] of [[0, 0, 0.12], [w, 0, 0.07], [w / 2, -hh, 0.07]]) add(hex(26 + dx, H - 14 + dy, r - 2.2), { class: 'wall echo', 'stroke-opacity': a });
     return s;
   }
+  // healthItems: the Health card's rows as data (lvl 0 fine, 1 look at
+  // this, 2 needs you). The Overview header shows the worst one.
+  function healthItems(s) {
+    const out = [];
+    if (s.cert) {
+      const ce = s.cert, left = (new Date(ce.not_after) - Date.now()) / 86400000;
+      if (ce.renew_failures > 0) out.push({ lvl: 2, label: 'Certificate', text: ce.renew_failures + ' renewals failed', cls: 'bad-t' });
+      else if (left < 7) out.push({ lvl: left < 2 ? 2 : 1, label: 'Certificate', text: 'ends ' + day(ce.not_after) });
+      else out.push({ lvl: 0, label: 'Certificate', text: ce.renew_at ? 'renews ' + day(ce.renew_at) : 'until ' + day(ce.not_after) });
+    }
+    out.push({ lvl: 0, label: 'Database', text: bytes(s.db_bytes || 0) });
+    if (s.last_backup) out.push({ lvl: (Date.now() - new Date(s.last_backup)) / 86400000 > 2 ? 1 : 0, label: 'Last backup', text: when(s.last_backup) });
+    else out.push({ lvl: 1, label: 'Last backup', text: 'none yet' });
+    if (s.update) out.push({ lvl: 1, label: 'Update', text: s.update.version + ' is out' });
+    else out.push({ lvl: 0, label: 'Update', text: 'up to date' });
+    const sf = s.safety || {}, guards = (sf.throttled || 0) + (sf.zlined || 0) + (sf.dnsbl_hits || 0);
+    out.push({ lvl: 0, label: 'Guards today', text: guards ? fmt(guards) + ' stopped' : 'quiet' });
+    return out;
+  }
+  // plainIRC drops IRC bold, colour, italics and the like from a topic.
+  const plainIRC = t => (t || '').replace(/\x03(\d{1,2}(,\d{1,2})?)?|\x04([0-9a-fA-F]{6}(,[0-9a-fA-F]{6})?)?|[\x02\x0f\x11\x16\x1d\x1e\x1f]/g, '').trim();
+  // greeting: good morning / afternoon / evening, by the viewer's clock.
+  function greeting() {
+    const hr = new Date().getHours();
+    return hr < 5 ? 'Good evening' : hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
+  }
+
   // ovCard: a card with the header strip (icon box, title, one line about it)
   function ovCard(ic, title, desc, ...right) {
     const tail = h('div', { class: 'ch-r' }, right);
@@ -581,9 +608,8 @@
     let L = ovLoad(), editing = false;
     const eyebrow = h('div', { class: 'eyebrow', text: ' ' });
     const title = h('h1', { text: 'Overview' });
-    const sub = h('span', { class: 'sub', text: ' ' });
+    const sub = h('span', { class: 'sub', text: ' ', role: 'status' }); // the Health line; says it when the server stops answering
     const editBtn = h('button', { type: 'button', class: 'btn' }, icon('grip'), 'Arrange');
-    const notice = h('div', { class: 'notice', role: 'alert', hidden: true, text: "The server isn't answering. The numbers below are from before." });
     const toggles = h('div', { class: 'chips' });
     const said = h('span', { class: 'sr', role: 'status' }); // what a key move did, for screen readers
     const resetBtn = h('button', { type: 'button', class: 'btn' }, 'Reset');
@@ -597,7 +623,7 @@
     const foot = h('div', { class: 'ov-foot' }, h('span'), h('span'));
     const el = h('div', { class: 'main-stack ov-page' },
       h('header', { class: 'head', 'data-deco': '1' }, h('div', { class: 'head-text' }, eyebrow, title, sub), h('div', { class: 'head-btns' }, editBtn)),
-      arrange, notice, area, foot);
+      arrange, area, foot);
 
     const tile = (ic, label) => {
       const n = h('span', { class: 'num', text: '…' }), l = h('span', { class: 'foot-n', text: ' ' });
@@ -610,42 +636,86 @@
     // ---- the blocks ----
     const make = {
       hero() {
-        // Network status on the left, the uptime card with the calm comb
-        // (walls only, no honey; picked 13 Nov) on the right.
+        // Network status on the left; on the right the Spotlight card with
+        // the calm comb (picked 13 Nov): one story at a time, a new one every
+        // 10 s, never a number shown somewhere else (uptime is in the top
+        // bar badge).
         const eye = h('div', { class: 'eyebrow', text: 'Network status' });
         const head = h('h2', { text: '…' });
         const say = h('p', { class: 'hs-line', text: ' ' });
         const fact = label => { const b = h('b', { text: '…' }); return { el: h('div', {}, h('span', { text: label }), b), b }; };
         const fV = fact('Version'), fB = fact('Last backup'), fC = fact('Certificate');
-        const big = h('span', { class: 'up-n', text: '…' }), unit = h('span', { class: 'up-u', text: ' ' });
-        const card = h('div', { class: 'up-card', role: 'img', 'aria-label': 'Uptime' }, combSVG(),
-          h('span', { class: 'up-k', text: 'Uptime' }), h('div', { class: 'up-big' }, big, unit),
-          h('span', { class: 'up-k', text: 'Since the last restart' }), h('span', { class: 'up-foot', text: 'BeeIRCd / Hive' }));
+        const kind = h('span', { class: 'up-k sp-k' });
+        const big = h('span', { class: 'sp-big' }), pill = h('span', { class: 'up-u' });
+        const line = h('span', { class: 'sp-line' });
+        const main = h('button', { type: 'button', class: 'sp-main' }, h('span', { class: 'sp-row' }, big, pill), line);
+        const dots = h('div', { class: 'sp-dots', role: 'group', 'aria-label': 'Stories' });
+        const card = h('div', { class: 'up-card sp', role: 'group', 'aria-roledescription': 'carousel', 'aria-label': 'Spotlight' }, combSVG(),
+          kind, main, dots, h('span', { class: 'up-foot', text: 'BeeIRCd / Hive' }));
         const el = h('section', { class: 'card ov-hero' },
           h('div', { class: 'hs' }, eye, head, say, h('div', { class: 'hs-facts' }, fV.el, fB.el, fC.el)), card);
-        let last = null, off = false;
+        let last = null, off = false, stories = [], at = 0, held = false;
+        const still = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const clock = t => new Date(t).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+        function storiesOf(s) {
+          const sp = s.spotlight || {}, out = [];
+          if (sp.room) out.push({ key: 'room ' + sp.room.name, kind: 'Busiest room right now', big: sp.room.name, pill: sp.room.talkers + ' talking',
+            line: plainIRC(sp.room.topic) ? '“' + plainIRC(sp.room.topic) + '”' : plural(sp.room.members, 'person', 'people') + ' in the room',
+            go: () => { location.hash = '#/channels?q=' + encodeURIComponent(sp.room.name); }, title: 'Open ' + sp.room.name });
+          if (sp.newest) out.push({ key: 'new ' + sp.newest.name, kind: 'Newest member', big: sp.newest.name, pill: 'welcome', line: 'Registered ' + when(sp.newest.since) });
+          if (sp.day_peak) out.push({ key: 'peak', kind: 'Busiest moment today', big: fmt(sp.day_peak.people), pill: sp.day_peak.people === 1 ? 'person' : 'people', line: 'at once, at ' + clock(sp.day_peak.at) });
+          for (const a of sp.anniversaries || []) out.push({ key: 'year ' + a.name, kind: 'Anniversary', big: a.name, pill: plural(a.years, 'year', 'years'), line: 'Registered on this day in ' + new Date(a.since).getFullYear() });
+          if (!out.length) out.push({ key: 'quiet', kind: 'Spotlight', big: 'Quiet', pill: '', line: 'Nobody has talked in the last 5 minutes' });
+          return out;
+        }
+        function show() {
+          const x = stories[at];
+          kind.textContent = x.kind; big.textContent = x.big; pill.textContent = x.pill; pill.hidden = !x.pill; line.textContent = x.line;
+          main.disabled = !x.go || off; main.title = x.go && !off ? x.title : '';
+          main.onclick = x.go || null;
+          [...dots.children].forEach((d, i) => d.setAttribute('aria-current', String(i === at)));
+        }
         function draw() {
           const s = last;
           if (!s) return;
           const name = s.network || s.server;
           el.classList.toggle('down', off);
-          head.textContent = off ? name + " isn't answering" : name + ' is up';
+          head.textContent = off ? name : name + ' is up';
           const ls = s.links || [], up = ls.filter(l => l.state === 'up').length;
           const net = ls.length === 0 ? 'This server runs alone' : up === ls.length ? plural(ls.length + 1, 'server', 'servers') + ' linked' : (up + 1) + ' of ' + (ls.length + 1) + ' servers linked';
           const svc = !s.services_on ? 'services run on the hub' : (s.services || []).length ? 'all ' + plural(s.services.length, 'service', 'services') + ' up' : 'no services up';
-          say.textContent = off ? 'The numbers here are from before.' : net + ', ' + svc + '.';
+          say.textContent = (off ? 'Last known: ' + net.charAt(0).toLowerCase() + net.slice(1) : net) + ', ' + svc + '.';
           fV.b.textContent = s.version;
           fB.b.textContent = s.last_backup ? when(s.last_backup) : 'none yet';
           fC.b.textContent = s.cert ? (s.cert.source === 'self-signed' ? 'self-signed · ' : '') + 'until ' + day(s.cert.not_after) : 'none';
-          const sec = Math.max(0, (Date.now() - new Date(s.started).getTime()) / 1000);
-          const d = Math.floor(sec / 86400), hr = Math.floor(sec / 3600), m = Math.floor(sec / 60);
-          const [n, u] = d >= 1 ? [d, d === 1 ? 'day' : 'days'] : hr >= 1 ? [hr, hr === 1 ? 'hour' : 'hours'] : m >= 1 ? [m, 'min'] : ['<1', 'min'];
-          big.textContent = String(n); unit.textContent = u;
-          card.setAttribute('aria-label', 'Uptime ' + n + ' ' + u + ' since the last restart');
+          // Keep the story on screen if it is still there.
+          const cur = stories[at] && stories[at].key;
+          stories = storiesOf(s);
+          at = Math.max(0, stories.findIndex(x => x.key === cur));
+          if (dots.children.length !== stories.length) {
+            put(dots, stories.map((x, i) => {
+              const d = h('button', { type: 'button', class: 'sp-dot', 'aria-label': 'Story ' + (i + 1) + ' of ' + stories.length });
+              d.addEventListener('click', () => { at = i; show(); });
+              return d;
+            }));
+          }
+          dots.hidden = stories.length < 2;
+          show();
         }
+        // Next story every 10 s; held while the pointer or focus is on the
+        // card, never moving for people who asked for less motion.
+        card.addEventListener('pointerenter', () => { held = true; });
+        card.addEventListener('pointerleave', () => { held = false; });
+        card.addEventListener('focusin', () => { held = true; });
+        card.addEventListener('focusout', () => { held = false; });
+        const timer = setInterval(() => {
+          if (held || off || document.hidden || still() || stories.length < 2 || !card.isConnected) return;
+          at = (at + 1) % stories.length; show();
+        }, 10000);
         return { el, float: true,
           status(s) { last = s; draw(); },
-          offline(on) { off = on; draw(); } };
+          offline(on) { off = on; draw(); },
+          leave() { clearInterval(timer); } };
       },
       stats() {
         const tP = tile('people', 'People online'), tC = tile('hash', 'Channels'), tO = tile('opers', 'Opers online'), tS = tile('servers', 'Servers');
@@ -741,23 +811,8 @@
         c.card.append(rows);
         return { el: c.card, tail: c.tail,
           status(s) {
-            const out = [];
-            let worst = 0;
-            const mark = lvl => { worst = Math.max(worst, lvl); return ['', 'warn', 'bad'][lvl]; };
-            if (s.cert) {
-              const ce = s.cert, left = (new Date(ce.not_after) - Date.now()) / 86400000;
-              if (ce.renew_failures > 0) out.push(rowOf(mark(2), 'Certificate', ce.renew_failures + ' renewals failed', 'bad-t'));
-              else if (left < 7) out.push(rowOf(mark(left < 2 ? 2 : 1), 'Certificate', 'ends ' + day(ce.not_after)));
-              else out.push(rowOf(mark(0), 'Certificate', ce.renew_at ? 'renews ' + day(ce.renew_at) : 'until ' + day(ce.not_after)));
-            }
-            out.push(rowOf(mark(0), 'Database', bytes(s.db_bytes || 0)));
-            if (s.last_backup) out.push(rowOf(mark((Date.now() - new Date(s.last_backup)) / 86400000 > 2 ? 1 : 0), 'Last backup', when(s.last_backup)));
-            else out.push(rowOf(mark(1), 'Last backup', 'none yet'));
-            if (s.update) out.push(rowOf(mark(1), 'Update', s.update.version + ' is out'));
-            else out.push(rowOf(mark(0), 'Update', 'up to date'));
-            const sf = s.safety || {}, guards = (sf.throttled || 0) + (sf.zlined || 0) + (sf.dnsbl_hits || 0);
-            out.push(rowOf(mark(0), 'Guards today', guards ? fmt(guards) + ' stopped' : 'quiet'));
-            put(rows, out);
+            const items = healthItems(s), worst = Math.max(0, ...items.map(x => x.lvl));
+            put(rows, items.map(x => rowOf(['', 'warn', 'bad'][x.lvl], x.label, x.text, x.cls)));
             word.className = ['okword', 'warnword', 'badword'][worst];
             word.textContent = ['All fine', 'Look at this', 'Needs you'][worst];
           } };
@@ -1006,10 +1061,26 @@
       });
     }
 
+    // Header (13 Nov, option A): today's date, a greeting, and one line
+    // from Health. Network, servers, version and uptime live elsewhere.
+    function headLine(s, off) {
+      eyebrow.textContent = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+      title.textContent = greeting() + ', ' + me.account;
+      let lvl = 0, say = 'All quiet in the hive', more = 'nothing needs you right now';
+      // The top bar badge already says NOT ANSWERING; this line says what it means here.
+      if (off) { lvl = 2; say = 'Showing the last numbers'; more = 'until the server answers again'; }
+      else if (s) {
+        const items = healthItems(s), worst = Math.max(0, ...items.map(x => x.lvl));
+        if (worst) { const x = items.find(i => i.lvl === worst); lvl = worst; say = x.label + ': ' + x.text; more = 'see Health'; }
+      }
+      const toHealth = () => { const c = B.health && B.health.el; if (c && c.isConnected) { c.scrollIntoView({ behavior: 'smooth', block: 'center' }); } };
+      const btn = h('button', { type: 'button', class: 'hl hl-' + lvl, title: lvl ? 'Show Health' : '' }, h('span', { class: 'hl-dot' }), h('span', { class: 'hl-say', text: say }), h('span', { class: 'hl-more', text: '· ' + more }));
+      btn.disabled = !lvl || off;
+      btn.addEventListener('click', toHealth);
+      put(sub, btn);
+    }
     function onStatus(s) {
-      eyebrow.textContent = [s.network, (s.links || []).length ? plural((s.links || []).length + 1, 'server', 'servers') + ' linked' : 'one server'].filter(Boolean).join(' · ');
-      title.textContent = s.server;
-      sub.textContent = 'BeeIRCd ' + s.version + ' · running since ' + when(s.started);
+      headLine(s, false);
       put(foot, h('span', { text: 'BeeIRCd ' + s.version }), h('span', { text: 'Updated ' + new Date().toLocaleTimeString('en-GB') }));
       for (const id of visible()) if (B[id].status) B[id].status(s);
     }
@@ -1020,7 +1091,7 @@
       status: onStatus,
       events(list, before) { for (const id of visible()) if (B[id].events) B[id].events(list, before); },
       edit: setEditing,
-      offline(on) { notice.hidden = !on; for (const id of visible()) if (B[id].offline) B[id].offline(on); },
+      offline(on) { headLine(status, on); for (const id of visible()) if (B[id].offline) B[id].offline(on); },
       leave() { for (const x of Object.values(B)) if (x.leave) x.leave(); if (drag) dragEnd({}, true); },
     };
   }
@@ -2026,6 +2097,9 @@
     const tile = label => { const n = h('span', { class: 'num', text: '…' }), l = h('span', { class: 'lbl' }); return { n, l, el: h('section', { class: 'card tight' }, h('span', { class: 'lbl', text: label }), n, l) }; };
     const tOpen = tile('Channels open'), tReg = tile('Registered'), tBig = tile('Biggest'), tSus = tile('Suspended');
     const search = h('input', { class: 'search', type: 'search', placeholder: 'Search name or topic', 'aria-label': 'Search channels', autocomplete: 'off', spellcheck: 'false' });
+    // #/channels?q=#hive (the Spotlight's busiest room): that channel, opened.
+    const asked = new URLSearchParams(location.hash.split('?')[1] || '').get('q');
+    if (asked) { q = asked; search.value = asked; open = asked; }
     const segs = [['all', 'All'], ['registered', 'Registered'], ['unregistered', 'Not registered'], ['suspended', 'Suspended']].map(([v, label]) =>
       h('button', { type: 'button', 'aria-pressed': v === filter ? 'true' : 'false', 'data-f': v, text: label }));
     const tbody = h('tbody');

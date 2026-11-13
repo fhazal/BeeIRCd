@@ -109,6 +109,7 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 			if status == "" {
 				s.recordHistory(ch, o)
 				if verb == "PRIVMSG" {
+					s.noteTalk(ch, c.uid)              // Hive Panel Spotlight
 					s.svc.ChannelText(c.uid, ch, text) // BotServ kickers
 				}
 			}

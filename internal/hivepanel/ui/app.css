@@ -560,7 +560,7 @@ td.empty{padding:18px 16px;text-align:center;height:auto}
 .ov-hero .hs{display:flex;flex-direction:column;justify-content:center;min-width:0;padding:4px 2px}
 .ov-hero h2{margin:2px 0 6px;font:700 30px/1.15 var(--display);letter-spacing:-.6px;color:var(--ink)}
 .ov-hero .hs-line{margin:0;color:var(--muted);font-size:14px}
-.ov-hero.down .eyebrow,.ov-hero.down h2{color:var(--bad)}
+.ov-hero.down .eyebrow,.ov-hero.down h2{color:var(--muted)}
 .hs-facts{display:flex;flex-wrap:wrap;gap:12px 30px;margin-top:18px;padding-top:14px;border-top:1px dashed var(--line)}
 .hs-facts span{display:block;font:10px var(--mono);letter-spacing:1.2px;text-transform:uppercase;color:var(--dim);margin-bottom:3px}
 .hs-facts b{font:600 16px var(--display);color:var(--ink)}
@@ -572,9 +572,31 @@ td.empty{padding:18px 16px;text-align:center;height:auto}
 .up-card .comb .echo{fill:none;stroke-width:2.4}
 .up-card .comb .shine{fill:none;stroke:#fff6d6;stroke-width:1;stroke-linejoin:round}
 .up-k{font:600 11px var(--display);letter-spacing:.16em;text-transform:uppercase}
-.up-big{display:flex;align-items:center;gap:12px;margin:4px 0}
-.up-n{font:700 88px/1 var(--display);letter-spacing:-2px}
 .up-u{font:600 14px var(--display);text-transform:uppercase;padding:5px 13px;border-radius:999px;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.18)}
 .up-foot{position:absolute;right:14px;bottom:10px;font:500 9px var(--mono);letter-spacing:.14em;text-transform:uppercase;opacity:.6}
-@media (max-width:760px){.ov-hero{grid-template-columns:minmax(0,1fr);padding:16px;gap:14px}.ov-hero h2{font-size:25px}.up-card{min-height:165px}.up-n{font-size:64px}.hs-facts{gap:10px 20px}}
+@media (max-width:760px){.ov-hero{grid-template-columns:minmax(0,1fr);padding:16px;gap:14px}.ov-hero h2{font-size:25px}.up-card{min-height:165px}.sp-big{font-size:42px}.hs-facts{gap:10px 20px}}
 .ov-hero.down .up-card{filter:grayscale(.9);opacity:.6}
+
+/* Spotlight card (13 Nov): one story at a time on the honey card. */
+.sp-main{all:unset;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:8px;max-width:100%;padding:4px 8px;border-radius:12px;text-align:center;color:inherit}
+.sp-main:not(:disabled){cursor:pointer}
+.sp-main:not(:disabled):hover .sp-big{text-decoration:underline;text-decoration-thickness:3px;text-underline-offset:6px}
+.sp-main:focus-visible,.sp-dot:focus-visible{outline:2px solid currentColor;outline-offset:3px}
+.sp-row{display:flex;align-items:center;justify-content:center;gap:12px;max-width:100%;flex-wrap:wrap}
+.sp-big{font:700 56px/1.05 var(--display);letter-spacing:-1.5px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp-line{font-size:13px;font-style:italic;opacity:.8;max-width:min(380px,100%);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.sp-dots{display:flex;gap:7px;margin-top:10px}
+.sp-dots[hidden]{display:none}
+.sp-dot{all:unset;width:7px;height:7px;border-radius:99px;background:currentColor;opacity:.35;cursor:pointer;transition:width .25s,opacity .25s}
+.sp-dot[aria-current="true"]{width:20px;opacity:.85}
+/* Overview header line (option A): the worst Health item, or all quiet. */
+.hl{all:unset;display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px;color:var(--muted)}
+.hl:not(:disabled){cursor:pointer}
+.hl:not(:disabled):hover .hl-say{text-decoration:underline}
+.hl:focus-visible{outline:2px solid var(--honey);outline-offset:3px;border-radius:4px}
+.hl-dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--ok);box-shadow:0 0 0 4px rgba(143,209,154,.16)}
+.hl-say{color:var(--ok)}
+.hl-1 .hl-dot{background:var(--honey);box-shadow:0 0 0 4px var(--honey-tint)}
+.hl-1 .hl-say{color:var(--honey)}
+.hl-2 .hl-dot{background:var(--bad);box-shadow:0 0 0 4px var(--bad-soft)}
+.hl-2 .hl-say{color:var(--bad)}

@@ -186,6 +186,7 @@ func (s *Server) statusInfo() *control.Status {
 	}
 	sum := s.store.Summary()
 	st.Nicks, st.RegChans, st.Memos = sum.Nicks, sum.Channels, sum.Memos
+	st.Spotlight = s.spotlight(time.Now())
 	if t, ok := control.LastBackup(s.cfg.Backup.Dir); ok {
 		st.LastBackup = t
 	}
