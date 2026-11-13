@@ -1,6 +1,6 @@
 # BeeIRCd spec (draft 2, 11 Nov 2026)
 
-> **Historical.** This is the Stage 1 spec as approved. Stage 1 is done and Stage 1.5 is nearly done; what the server does now is in FEATURES.md, the order of work in HANDOFF/ASSESSMENT (superseded roadmap note).
+> **Historical record, not kept up to date.** This is the Stage 1 design as approved on 11 Nov 2026. Much has changed since (services now follow Anope 2.0.20, prefixes are an admin option, linking and the Hive Panel are built). What BeeIRCd does today is in [FEATURES.md](FEATURES.md); how to run it is in [ADMIN.md](ADMIN.md). Nothing in this file is open or waiting for a decision.
 
 BeeIRCd is one Go program: the IRC server, the five services, and later the Hive Panel (web admin) and BeeRoom (web chat). This spec covers **Stage 1**: one server with all services working, plus install and start. Everything is built so that Stage 2 (linking BeeIRCd to BeeIRCd) can be added without redoing it.
 
@@ -8,7 +8,7 @@ Mockups this spec follows:
 - Walkthrough (install, start, BChat): https://claude.ai/artifact/XW22t7xnzRnV5yw8tDJviw
 - Hive Panel: https://claude.ai/artifact/9aXWy4GSNFo9eEEPHucBTn
 
-Items marked **DRAFT** still need your OK. Everything else follows what you've already decided.
+Sections marked **DRAFT** were the first command lists; they were settled on 11 Nov 2026 (services follow Anope) and are kept here as written then.
 
 ---
 
@@ -21,7 +21,7 @@ Items marked **DRAFT** still need your OK. Everything else follows what you've a
 - Hosts are cloaked by default, for example `Bee@beenet-3f9a1c.cloak`. Opers and the person themself see the real host.
 
 ### 1.2 Prefixes and modes
-Only **@** and **+** exist in channels. There's no ~ & % and there never will be.
+Only **@** and **+** exist in channels. (Changed later: `[server] prefixes` lets the admin choose `@+` or `~&@%+`, see FEATURES.md.)
 
 | User mode | Meaning |
 |---|---|
@@ -66,7 +66,7 @@ How every service answers:
 | Command | Who | What it does |
 |---|---|---|
 | `REGISTER <password> [email]` | anyone | Registers the nick you're using. Email is optional and only used for oper resets in Stage 1. |
-| `IDENTIFY [nick] <password>` | anyone | Proves the nick is yours. Sets `+r`, and `+o` if you're an oper (see 2.6). |
+| `IDENTIFY [nick] <password>` | anyone | Proves the nick is yours. Sets `+r`. It never opers you (see 2.6). |
 | `LOGOUT` | identified | Stops being identified. |
 | `GHOST <nick> <password>` | anyone | Disconnects an old connection that's using your nick. |
 | `RECOVER <nick> <password>` | anyone | GHOST, then gives you the nick. |
@@ -247,7 +247,7 @@ Testing at every step: Go unit tests, plus an automatic test that runs a real se
 
 Test server (decided 11 Nov): a separate Docker container `beeircd-test` on the homelab, ports **26667** plain and **26697** TLS, open only on the home network. No router or VPS forward, nothing shared with the running UnrealIRCd, InspIRCd or ConferenceRoom.
 
-## 6. Still open
-1. The full command lists above (2.1 to 2.5): strike out, add or rename anything.
+## 6. Decisions
+Closed. The command lists were settled on 11 Nov 2026: services follow Anope (now 2.0.20), ConferenceRoom extras on top.
 
 Licence: AGPL-3.0-or-later (decided 11 Nov).

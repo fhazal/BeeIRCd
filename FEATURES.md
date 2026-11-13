@@ -7,7 +7,7 @@ Status words: **Implemented** (built and tested), **Partial**, **Planned**
 Update this file in the same commit as the code that changes a status. A
 capability is advertised to clients only when it is Implemented.
 
-Last updated: 12 Nov 2026 (Stage 1.5.9b).
+Last updated: 14 Nov 2026 (1.0 release candidates: server, linking and Hive Panel).
 
 ## Core server
 
@@ -42,11 +42,11 @@ Last updated: 12 Nov 2026 (Stage 1.5.9b).
 | Flood control (fake lag) | Implemented | opers are not slowed down (7a) |
 | Connect throttle and caps on connections still logging in | Implemented | 7a; per IP `connect_rate` 5:60 (refused with "Throttled", a 10-minute ZLINE after 3 refusals in 10 minutes, posted by OperServ in the log channel as THROTTLE), `max_unregistered_per_ip` 3, `max_unregistered` 500; before any DNS/DNSBL work; LAN, ELINE and session exceptions skip them; AdminServ SET connect-rate / max-unregistered / max-unregistered-per-ip |
 | Session limit per IP, max users | Implemented | |
-| Event layer (every network change is one event) | Implemented | 1.5.2; local delivery uses it; server links will (Stage 2) |
+| Event layer (every network change is one event) | Implemented | 1.5.2; local delivery and server links both use it |
 | Services data in memory, write-through SQLite | Implemented | 1.5.2; one BeeIRCd per database (locked) |
 | Loop timing in OperServ STATS | Implemented | 1.5.2 |
 | 5,000-client load test | Implemented | 1.5.2; `BEEIRCD_LOAD=1`, gate 99% of loop work < 5 ms |
-| Server linking | In progress (Stage 2, v1.1) | 2a built (branch stage2): TLS link port + autoconnect with backoff, own link certificate (never renewed) pinned by fingerprint (= UnrealIRCd spkifp), optional password, UnrealIRCd 6 handshake (tested both directions with a real UnrealIRCd 6.2.7, replay test from its recorded lines), server tree (SID/SQUIT/EOS, loops refused), PING/lag, sendq limit, notices for every link event, `beeircd link-info`, Links row in `status`, link lines in `check`, link cert in backups. 2b: burst both ways (UID, SJOIN with ranks/lists and setters, TOPIC, AWAY), nick collisions (rename between BeeIRCd, UnrealIRCd kill rule otherwise), channel TS merge, IRCv3 netjoin batch, split quits users ("near far"), WHOIS shows the remote server; tested against a real UnrealIRCd 6.2.7. 2c: live changes both ways (nick, join, part, quit, kick, modes, user modes, topic, away, setname, hosts, account login, invite, services nick changes), messages and numerics routed to the right server, KILL both ways, three-server trees, network bans as TKL (AKILL/ZLINE/SHUN/ELINE, burst + live), casemapping setting (ascii default) checked at link time, UnrealIRCd-compatible cloaks (`[cloak] method = "unreal"` for cloak_sha256, `"cloak_inspircd"` for that module), one services server per network (`[services] enabled`, leaves use the hub's bots); tested against a real UnrealIRCd 6.2.7. 2d: services on their own pseudo-server (`services.<domain>`), SASL relayed over links in UnrealIRCd's format (to BeeIRCd services or Anope), SVSJOIN/SVSPART both ways (AJOIN for people elsewhere), SVSKILL, oper class + flags over links (OperServ/AdminServ rights for remote opers; UnrealIRCd classes mapped), remote WHOIS (`WHOIS nick nick`, idle time), SQLINE network-wide (Q-lines), SNLINE between BeeIRCd servers, OperServ JUPE / NOOP / DEFCON / SERVER and a real STATS UPLINK, AdminServ `SERVER <name> STATUS|<command>` with `[link] remote_admin`; tested against a real UnrealIRCd 6.2.7 (SASL, AJOIN, Q-lines, jupes, remote opers). 2e: IRCv3 netsplit batch, `[link] hide_split`, rejoin settles (tested: same state on both sides after changes during a split), newest network ban wins per mask, /LINKS /MAP /CONNECT /SQUIT /STATS l c k u, /ADMIN, remote /MOTD /VERSION /ADMIN /TIME /STATS, K-lines (this server only); tested against a real UnrealIRCd 6.2.7 (remote queries both ways, SQUIT by an UnrealIRCd oper, relink by itself). 2f: the installer asks a leaf for its hub (name, address, fingerprint, cloak secret, not shown), writes the link block, turns a leaf's services off, makes the link certificate at install and prints the block the other server pastes (also `beeircd link-info`, now per role); /oper on a leaf for every oper (asked of the services server over the link: entry, host, password with lockout; `BEEOPER`, password masked in link debug logs; entry or class changes on the services server reach the leaf at once, 2g); ADMIN.md "Linking servers"; 3-server test network on the homelab (`deploy/testnet`, livecheck `net` suite 30/30) and a two-machine install test (`scripts/linkmachines.sh`). Next: 2g gates. PLAN-2.md |
+| Server linking | Implemented (1.0) | 2a: TLS link port + autoconnect with backoff, own link certificate (never renewed) pinned by fingerprint (= UnrealIRCd spkifp), optional password, UnrealIRCd 6 handshake (tested both directions with a real UnrealIRCd 6.2.7, replay test from its recorded lines), server tree (SID/SQUIT/EOS, loops refused), PING/lag, sendq limit, notices for every link event, `beeircd link-info`, Links row in `status`, link lines in `check`, link cert in backups. 2b: burst both ways (UID, SJOIN with ranks/lists and setters, TOPIC, AWAY), nick collisions (rename between BeeIRCd, UnrealIRCd kill rule otherwise), channel TS merge, IRCv3 netjoin batch, split quits users ("near far"), WHOIS shows the remote server; tested against a real UnrealIRCd 6.2.7. 2c: live changes both ways (nick, join, part, quit, kick, modes, user modes, topic, away, setname, hosts, account login, invite, services nick changes), messages and numerics routed to the right server, KILL both ways, three-server trees, network bans as TKL (AKILL/ZLINE/SHUN/ELINE, burst + live), casemapping setting (ascii default) checked at link time, UnrealIRCd-compatible cloaks (`[cloak] method = "unreal"` for cloak_sha256, `"cloak_inspircd"` for that module), one services server per network (`[services] enabled`, leaves use the hub's bots); tested against a real UnrealIRCd 6.2.7. 2d: services on their own pseudo-server (`services.<domain>`), SASL relayed over links in UnrealIRCd's format (to BeeIRCd services or Anope), SVSJOIN/SVSPART both ways (AJOIN for people elsewhere), SVSKILL, oper class + flags over links (OperServ/AdminServ rights for remote opers; UnrealIRCd classes mapped), remote WHOIS (`WHOIS nick nick`, idle time), SQLINE network-wide (Q-lines), SNLINE between BeeIRCd servers, OperServ JUPE / NOOP / DEFCON / SERVER and a real STATS UPLINK, AdminServ `SERVER <name> STATUS|<command>` with `[link] remote_admin`; tested against a real UnrealIRCd 6.2.7 (SASL, AJOIN, Q-lines, jupes, remote opers). 2e: IRCv3 netsplit batch, `[link] hide_split`, rejoin settles (tested: same state on both sides after changes during a split), newest network ban wins per mask, /LINKS /MAP /CONNECT /SQUIT /STATS l c k u, /ADMIN, remote /MOTD /VERSION /ADMIN /TIME /STATS, K-lines (this server only); tested against a real UnrealIRCd 6.2.7 (remote queries both ways, SQUIT by an UnrealIRCd oper, relink by itself). 2f: the installer asks a leaf for its hub (name, address, fingerprint, cloak secret, not shown), writes the link block, turns a leaf's services off, makes the link certificate at install and prints the block the other server pastes (also `beeircd link-info`, now per role); /oper on a leaf for every oper (asked of the services server over the link: entry, host, password with lockout; `BEEOPER`, password masked in link debug logs; entry or class changes on the services server reach the leaf at once, 2g); ADMIN.md "Linking servers"; 3-server test network (`deploy/testnet`, livecheck `net` suite 30/30) and a two-machine install test (`scripts/linkmachines.sh`). 2g: link port limits before the handshake (64 lines, 32 waiting), heavy link test (`deploy/testnet/heavy.sh` + `tools/netagree`: 5,100 users on three servers, one cut off and rejoined 16 times, all servers agree on users, channels, topics and modes after each), LUSERS counts every server. PLAN-2.md |
 | WebSocket | Planned | Stage 4 |
 | PROXY protocol | Implemented | 7a; v1 and v2 on `[[listen]]` ports with `proxy = true`, only from `proxy_from` IPs/CIDRs (anyone else, plain IRC or a bad header: closed without a word); LOCAL/UNKNOWN keep the proxy address; plain and TLS ports |
 | DNS blocklists (`[[dnsbl]]`: DroneBL, EFnetRBL, any list) | Implemented | 1.5.5b: answers per list, reject (default) / zline / akill / shun for ban_time, IPv4 + IPv6, lookups off the loop, registration waits at most 2 s, cache (hit 1 h, clean 10 min), LAN IPs never looked up, ELINE + session exceptions skip it, AdminServ DNSBL LIST/CHECK/ENABLE/DISABLE, hits in OS STATS ALL, Anope M_DNSBL log line |
@@ -74,7 +74,7 @@ Last updated: 12 Nov 2026 (Stage 1.5.9b).
 | account-extban | Implemented (1.5.5a, EXTBAN=~,amqrt; ACCOUNTEXTBAN=a token since the conformance step) |
 | STS | Implemented (7c): `sts=port=<tls port>,duration=2592000` on plain and `sts=duration=2592000` on TLS, to CAP 302 clients, only with a CA certificate (never self-signed or the stand-in); `[tls] sts = false` turns it off, `sts_port` when a tunnel shows another port; REQ sts is NAKed |
 | WebSocket, WebIRC | Planned (Stage 4) |
-| netsplit/netjoin batches | Implemented (Stage 2b/2e, branch stage2) |
+| netsplit/netjoin batches | Implemented (Stage 2b/2e) |
 | draft/chathistory | Implemented (1.5.9c) for +H channels you are in: LATEST BEFORE AFTER AROUND BETWEEN TARGETS, msgid and timestamp references, 005 CHATHISTORY=100 MSGREFTYPES=msgid,timestamp; no private-message history |
 | draft/account-registration, draft/multiline, draft/read-marker, draft/message-redaction | Planned (Stage 4, behind a switch while draft) |
 | draft/metadata, draft/channel-rename, draft/pre-away, extended-isupport, network-icon, oper-tag | Proposed |
@@ -85,7 +85,7 @@ Last updated: 12 Nov 2026 (Stage 1.5.9b).
 | Service | Status |
 | --- | --- |
 | Services in their own package, per-user records by UID, hooks from the event layer | Implemented (1.5.3) |
-| Commands and syntax follow Anope 2.1 (see ANOPE-ALIGNMENT.md), hidden aliases for old names | Implemented (1.5.3) |
+| Commands and syntax follow Anope 2.0.20, the stable line (first aligned to Anope 2.1 in 1.5.3, see ANOPE-ALIGNMENT.md; moved to 2.0.20 on 11 Nov 2026), hidden aliases for old names | Implemented |
 | HELP in Anope's layout: groups, HELP ALL, commands you can't use hidden | Implemented (1.5.3) |
 | NickServ (register, identify, SASL, recover, group, ungroup, alist, set, saset, info, drop, list), as Anope 2.0.20: ACCESS host list with SET SECURE (recognised connections), STATUS 0-3, SET KILL ON/QUICK/IMMED/OFF, SET HIDE EMAIL/STATUS/USERMASK/QUIT, DROP one nick at a time, UNGROUP makes a nick its own account | Implemented (2.0.20 shape 11 Nov 2026) |
 | NickServ CERT and SASL EXTERNAL (auto-identify by TLS client certificate, WHOIS 276) | Implemented (1.5.6a) |
@@ -104,17 +104,17 @@ Last updated: 12 Nov 2026 (Stage 1.5.9b).
 | MemoServ channel memo boxes (one box per channel like Anope, MEMO privilege, own limit and ignore list, notice on join and identify) | Implemented (1.5.4) |
 | OperServ (STATS AKILL/HASH/UPLINK/UPTIME/ALL/RESET, global, AKILL ZLINE SNLINE SHUN SQLINE with expiry (30 days by default, `ban_expiry`; +0 for good) and number lists, SNLINE mask:reason, EXCEPTION BAN (ELINE), kill, MODE incl. CLEAR [ALL], kick, FORBID nick/chan/email/register with expiry, sessions, exceptions with expiry and CIDR, logon news) | Implemented (ban engine 1.5.5a, 2.0.20 shape 11 Nov 2026) |
 | OperServ CHANKILL SVSNICK SVSJOIN SVSPART UMODE USERLIST CHANLIST INFO IGNORE OPERNEWS RANDOMNEWS SEEN, ChanServ SEEN (Anope 2.0.20) | Implemented (1.5.5b) |
-| OperServ JUPE, NOOP, DEFCON, SERVER; STATS UPLINK | Implemented (Stage 2d, branch stage2) | DEFCON levels fixed (4 no registrations, 3 no memos, 2 no new connections, 1 opers only), Global notice on change |
+| OperServ JUPE, NOOP, DEFCON, SERVER; STATS UPLINK | Implemented (Stage 2d) | DEFCON levels fixed (4 no registrations, 3 no memos, 2 no new connections, 1 opers only), Global notice on change |
 | AdminServ (settings saved to config, MOTD, ports, opers, restart, die) | Implemented |
 | HostServ as Anope 2.0.20: ON, OFF, GROUP, REQUEST; opers (flag h) SET, SETALL, DEL, DELALL, LIST, WAITING, ACTIVATE, REJECT; ident@host vhosts; vhost per nick, shown at identify; [hostserv] rules (vhost_chars, dots, lengths, activate_on_set, request memos) | Implemented (1.5.7) |
 | HelpServ | Planned (phase 6) |
-| Switch off built-in services, link Anope | In progress | 2c: `[services] enabled = false` (another BeeIRCd runs them); Anope as the services server: planned (after Stage 4) |
+| Switch off built-in services, link Anope | Partial | 2c: `[services] enabled = false` (another BeeIRCd runs them); Anope as the services server: planned (after Stage 4) |
 
 ## Opers and bans
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Oper flags a c g h k s | Implemented | |
+| Oper flags a b c g h k s | Implemented | b = BotServ BOT ADD/CHANGE/DEL (v1.0) |
 | /OPER with a separate oper password per oper | Implemented | identifying never opers; admin password hash in beeircd.conf |
 | /KILL, /WALLOPS, server notices (+s) | Implemented | |
 | Services log channel (`log_channel`, AdminServ `log-channel` / `log-connects`): every bot sits there with op; lines exactly as Anope 2.0.20 (COMMAND/ADMIN/OVERRIDE, USERS connect/disconnect/nick on by default, access denied, expiry), from the service they belong to | Implemented | 1.5.5a-log, Anope-exact 11 Nov 2026 |
@@ -122,14 +122,14 @@ Last updated: 12 Nov 2026 (Stage 1.5.9b).
 | Oper classes ([[operclass]] + built-in helper/globop/admin/netadmin, AS CLASS), oper vhost and swhois at /oper, admin_hosts/admin_vhost, CIDR oper hosts, OPER DISABLE/ENABLE, AdminServ HISTORY/DIFF/UNDO, OS OPER (Anope names) | Implemented | 1.5.8 |
 | Network ban engine: AKILL/G-line (user@host, CIDR), ZLINE (IP/CIDR, before DNS), SQLINE/Q-line (nicks), SNLINE/R-line (realname glob or regex), SHUN, ELINE exemptions, all with expiry | Implemented | 1.5.5a; one list behind OperServ and /GLINE /ZLINE /QLINE /RLINE /SHUN /ELINE; matches real host and IP, never the cloak |
 | Channel extbans ~a ~r ~m (~q) ~t, timed bans, CS BAN +expiry, AKICK extbans | Implemented | 1.5.5a |
-| K-line (this server only) | Implemented (Stage 2e, branch stage2) | /KLINE /UNKLINE, STATS k |
+| K-line (this server only) | Implemented (Stage 2e) | /KLINE /UNKLINE, STATS k |
 | Content filter (spamfilter) | Planned | |
 
 ## Hive Panel (web admin)
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| `beeircd-web`: loopback only, SSH tunnel or reverse proxy, page loads once and every action is AJAX, live numbers over Server-Sent Events | Implemented (Stage 3a, branch stage3) | strict CSP, bundled fonts, no outside requests |
+| `beeircd-web`: loopback only, SSH tunnel or reverse proxy, page loads once and every action is AJAX, live numbers over Server-Sent Events | Implemented (Stage 3a) | strict CSP, bundled fonts, no outside requests |
 | Sign in with oper nick + oper password (/oper's entry, hosts and lockout) + a per-address lock | Implemented (3a) | |
 | Every request re-checked by the server (entry, host, flags); removed opers signed out at their next click | Implemented (3a) | |
 | Overview: people online ring, channels, opers, servers, reply time, health, linked servers, services, What happened | Implemented (3a) | |
@@ -148,3 +148,7 @@ Last updated: 12 Nov 2026 (Stage 1.5.9b).
 | Bans page SNLINE (realname: spaces typed become ?, /regex/, a nick takes their realname; BeeIRCd servers only) | Implemented (3j) | |
 | Backups card: kept backups newest first (who made the panel ones), Back up now, download after the owner's password again, logged | Implemented (3i) | |
 | Services: counts, bots, the [services] settings AdminServ SET has (grouped, checked in the page and on the server), save + Undo, flag a | Implemented (3f) | |
+| Overview top: greeting that says if anything needs you, Network status card (up or not, servers, services, version, last backup, certificate, uptime with the honeycomb) and Spotlight (busiest room now, newest member, today's busiest moment, anniversaries) | Implemented (v1.0) | turns red and grey when the server stops answering |
+| Server details card (ports with TLS and the link port, OS / arch / cores, names on the certificate, started, channel history) and Health split into slowed down / Z-lined / blocklist today | Implemented (v1.0) | |
+| Top bar: Jump to and Theme as icons, uptime badge (red NOT ANSWERING when the server is down) | Implemented (v1.0) | |
+| Sessions end after `[web] session_idle` without a click (30 minutes) and after 12 hours; the auto refresh doesn't count as a click | Implemented (v1.0) | |

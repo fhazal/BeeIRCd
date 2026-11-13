@@ -601,7 +601,7 @@ under the SIL Open Font License; the licences are in
 
 ### [link]
 
-Server linking (v1.1; walk-through in [Linking servers](#linking-servers)).
+Server linking (part of 1.0; walk-through in [Linking servers](#linking-servers)).
 Linked servers share users, channels, every change, network bans and one
 set of services. BeeIRCd speaks the UnrealIRCd 6 server protocol, so it
 links with BeeIRCd and UnrealIRCd 6.
