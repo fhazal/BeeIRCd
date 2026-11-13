@@ -675,7 +675,7 @@
         c.card.append(rows);
         return { el: c.card, tail: c.tail,
           status(s) {
-            const out = [rowOf('warn', s.server, 'this one', null, true)];
+            const out = [rowOf('here', s.server, 'this one', null, true)];
             for (const l of s.links || []) {
               const cls = l.state === 'up' ? '' : l.state === 'down' ? 'bad' : 'warn';
               out.push(rowOf(cls, l.name, l.state === 'up' ? (l.lag_ms ? ms(l.lag_ms) : 'linked') : l.state, null, true));
