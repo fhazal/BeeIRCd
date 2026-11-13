@@ -236,7 +236,7 @@ func asClass(s *Server, c *Client, args []string) {
 		case "FLAGS":
 			flags, bad := cleanFlags(val)
 			if bad != 0 || flags == "" {
-				s.as(c, "Flags: a admin, c links, g global, h hosts, k kill, s services.")
+				s.as(c, "Flags: a admin, b bots, c links, g global, h hosts, k kill, s services.")
 				return
 			}
 			for i := 0; i < len(flags); i++ {

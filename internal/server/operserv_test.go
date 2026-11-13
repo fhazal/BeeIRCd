@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -88,13 +89,22 @@ func fileServerWith(t *testing.T, extra string, setup func(*Server)) (*Server, s
 	ctx, cancel := context.WithCancel(context.Background())
 	result := make(chan error, 1)
 	go func() { result <- s.Serve(ctx) }()
+	var once sync.Once
+	stop := func() {
+		once.Do(func() {
+			cancel()
+			select {
+			case err := <-result:
+				result <- err // still there for the caller
+				leakCheck()
+			case <-time.After(5 * time.Second):
+			}
+		})
+	}
+	stopFns[s] = stop // stopServer works on these too
 	t.Cleanup(func() {
-		cancel()
-		select {
-		case <-result:
-			leakCheck()
-		case <-time.After(5 * time.Second):
-		}
+		stop()
+		delete(stopFns, s)
 	})
 	return s, path, result
 }
@@ -119,7 +129,7 @@ func boss(t *testing.T, s *Server) *tc {
 	b.expect("Your oper password is set and saved to beeircd.conf.")
 	b.expect(":irc.test.local MODE Boss +os")
 	b.expect(" 381 Boss :You are now an IRC operator")
-	b.expect("Oper class netadmin: acghks (admin, links, global, hosts, kill, services)")
+	b.expect("Oper class netadmin: abcghks (admin, bots, links, global, hosts, kill, services)")
 	return b
 }
 
@@ -236,7 +246,7 @@ func TestOperEntries(t *testing.T) {
 
 	b.send("AS OPER LIST")
 	b.expect(asLine("Boss", "  Nick    Class       Flags   Online  Password  Hosts"))
-	b.expect(asLine("Boss", "  Boss    netadmin    acghks  yes     yes       any (server admin from beeircd.conf)"))
+	b.expect(asLine("Boss", "  Boss    netadmin    abcghks  yes     yes       any (server admin from beeircd.conf)"))
 	b.expect(asLine("Boss", "  ember   -           gk      yes     yes       *@127.0.0.1"))
 	b.expect(asLine("Boss", "2 opers."))
 

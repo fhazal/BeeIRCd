@@ -58,7 +58,7 @@ type Client struct {
 	monitor     map[string]string // MONITOR list: folded nick -> nick as given
 	silence     []string          // SILENCE masks (nick!ident@host)
 	knocks      []time.Time       // recent KNOCKs, for the knock flood limit
-	operFlags   string            // oper flags like "acghks", "" when not an oper
+	operFlags   string            // oper flags like "abcghks", "" when not an oper
 	operTitle   string
 	operClass   string    // oper class in use ("" = flags only)
 	operSwhois  []string  // extra WHOIS lines (320) while opered

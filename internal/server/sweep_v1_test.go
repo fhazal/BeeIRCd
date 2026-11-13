@@ -89,12 +89,12 @@ func TestOperCantTouchHigherEntry(t *testing.T) {
 
 	for _, cmd := range []string{"SET PASSWORD Taken-Over-2026", "SET HOST *@10.9.9.9", "DISABLE bye", "SET TITLE x", "DEL"} {
 		e.send("AS OPER Bee " + cmd)
-		e.expect(asLine("ember", "You can't change Bee: they have flag c and you don't."))
+		e.expect(asLine("ember", "You can't change Bee: they have flag b and you don't."))
 	}
 	// UNDO of the admin's own add would delete Bee: out of reach too.
 	n := lastChange(t, b)
 	e.send("AS UNDO " + n)
-	e.expect(asLine("ember", "You can't change Bee: they have flag c and you don't."))
+	e.expect(asLine("ember", "You can't change Bee: they have flag b and you don't."))
 	b.send("AS OPER Bee SET TITLE still mine")
 	b.expect("Bee")
 }

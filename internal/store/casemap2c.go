@@ -15,6 +15,7 @@ import (
 // foldedKeys are the folded key columns and the name each is made from.
 var foldedKeys = []struct{ table, key, from string }{
 	{"nicks", "nick_key", "nick"},
+	{"bots", "nick_key", "nick"},
 	{"buddies", "nick_key", "nick"},
 	{"memo_ignores", "nick_key", "nick"},
 	{"chan_memo_ignores", "nick_key", "nick"},

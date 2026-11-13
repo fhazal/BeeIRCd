@@ -107,6 +107,8 @@ type Services struct {
 	operServ *service
 	global   *service
 	hostServ *service
+	botServ  *service
+	bots     map[int64]*service // BotServ bots made with BOT ADD, by store ID
 	clients  map[string]*Client // by UID: every person on the network
 	lockouts map[int64]*lockout // wrong passwords per account
 	hashSem  chan struct{}      // limits password hashing running at once
@@ -262,6 +264,13 @@ func (s *Services) handle(ev state.Event) {
 		if ch := s.net.Channel(e.Channel); ch != nil && e.Source != s.chanServ.user.UID {
 			s.csTopicChanged(ch)
 		}
+	case *state.Part:
+		s.bsTidy(e.Channel)
+	case *state.Kick:
+		s.bsTidy(e.Channel)
+	}
+	if _, quit := ev.(*state.UserQuit); quit {
+		s.bsTidy("")
 	}
 }
 

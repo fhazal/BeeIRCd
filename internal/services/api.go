@@ -17,6 +17,7 @@ import (
 // AddBot.
 func (s *Services) Start() {
 	s.startServices()
+	s.startBots()
 	s.startPersist()
 	s.Flush()
 }

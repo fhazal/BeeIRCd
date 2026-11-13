@@ -12,7 +12,7 @@ import (
 // class is an UnrealIRCd operclass and an Anope opertype together.
 type OperClass struct {
 	Name string `toml:"name"`
-	// Flags: a admin, c links, g global, h hosts, k kill, s services.
+	// Flags: a admin, b bots, c links, g global, h hosts, k kill, s services.
 	Flags string `toml:"flags"`
 	// Title shows in WHOIS (313), like "is a Network Administrator".
 	Title string `toml:"title"`
@@ -23,7 +23,7 @@ type OperClass struct {
 }
 
 // OperFlagLetters are every oper flag, in order.
-const OperFlagLetters = "acghks"
+const OperFlagLetters = "abcghks"
 
 // BuiltinClasses are there without any [[operclass]] block: UnrealIRCd's
 // names with Anope's opertypes inside (Helper, Services Operator,
@@ -33,7 +33,7 @@ var BuiltinClasses = []OperClass{
 	{Name: "helper", Flags: "h", Title: "is a Network Helper"},
 	{Name: "globop", Flags: "hk", Title: "is an IRC Operator"},
 	{Name: "admin", Flags: "ghks", Title: "is a Server Administrator"},
-	{Name: "netadmin", Flags: "acghks", Title: "is a Network Administrator"},
+	{Name: "netadmin", Flags: "abcghks", Title: "is a Network Administrator"},
 }
 
 // Builtin reports whether name is one of BuiltinClasses.

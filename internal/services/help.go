@@ -156,6 +156,13 @@ func (s *Services) helpSetup() {
 	hs.groups = []helpGroup{{"Commands for IRC operators", []string{"SET", "SETALL", "DEL", "DELALL", "LIST", "WAITING", "ACTIVATE", "REJECT"}}}
 	hs.cmdNeed = map[string]byte{"SET": 'h', "SETALL": 'h', "DEL": 'h', "DELALL": 'h', "LIST": 'h', "WAITING": 'h', "ACTIVATE": 'h', "REJECT": 'h'}
 
+	bs := s.botServ
+	bs.groups = []helpGroup{
+		{"Your channel's bot", []string{"BOTLIST", "ASSIGN", "UNASSIGN", "INFO", "SET", "SAY", "ACT"}},
+		{"Commands for IRC operators", []string{"BOT"}},
+	}
+	bs.cmdNeed = map[string]byte{"BOT": 'b'}
+
 	s.operServ.cmdNeed = map[string]byte{
 		"GLOBAL": 'g', "LOGONNEWS": 'g', "OPERNEWS": 'g', "RANDOMNEWS": 'g', "AKILL": 'k', "ZLINE": 'k', "SNLINE": 'k', "SHUN": 'k', "SQLINE": 's', "KILL": 'k', "SESSION": 'k', "EXCEPTION": 'k',
 		"MODE": 's', "KICK": 's', "FORBID": 's',

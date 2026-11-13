@@ -25,19 +25,24 @@ type privilege struct {
 }
 
 // privileges in Anope's order (alphabetical). Defaults from Anope 2.1's
-// chanserv.example.conf.
+// chanserv.example.conf; the BotServ ones (ASSIGN, BADWORDS, FANTASIA,
+// GREET, SAY) from 2.0.20's chanserv and botserv example configs.
 var privileges = []privilege{
 	{"ACCESS_CHANGE", 10, "change the access lists"},
 	{"ACCESS_LIST", 3, "see the access lists"},
 	{"AKICK", 10, "use AKICK and ENFORCE"},
+	{"ASSIGN", store.LevelFounder, "assign or unassign a BotServ bot"},
 	{"AUTOHALFOP", 4, "halfop (%) on join"},
 	{"AUTOOP", 5, "op (@) on join"},
 	{"AUTOOWNER", 9999, "owner (~) on join"},
 	{"AUTOPROTECT", 10, "admin (&) on join"},
 	{"AUTOVOICE", 3, "voice (+) on join"},
+	{"BADWORDS", 10, "change the BotServ bad words list"},
 	{"BAN", 4, "use BAN"},
+	{"FANTASIA", 3, "use fantasy commands (!op, !kick ...)"},
 	{"FOUNDER", 10000, "founder rights (when SECUREFOUNDER is off)"},
 	{"GETKEY", 5, "use GETKEY"},
+	{"GREET", 5, "the bot shows your NickServ greet when you join"},
 	{"HALFOP", 5, "halfop and dehalfop others"},
 	{"HALFOPME", 4, "halfop yourself"},
 	{"INFO", 9999, "see every detail in INFO"},
@@ -52,6 +57,7 @@ var privileges = []privilege{
 	{"OWNERME", 9999, "owner (~) yourself"},
 	{"PROTECT", 9999, "give admin (&) to others"},
 	{"PROTECTME", 10, "admin (&) yourself"},
+	{"SAY", 5, "make the bot SAY and ACT in the channel"},
 	{"SET", 9999, "use SET, ENTRYMSG and LOG"},
 	{"SIGNKICK", 9999, "kicks you ask for don't show your nick"},
 	{"TOPIC", 5, "use TOPIC and change a locked topic"},

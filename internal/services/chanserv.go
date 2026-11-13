@@ -257,6 +257,9 @@ func (s *Services) channelGone(name string) {
 	if live.Member(s.chanServ.user) != nil {
 		s.emit(&state.Part{UID: s.chanServ.user.UID, Channel: live.Name})
 	}
+	for _, bot := range s.bots { // a BotServ bot leaves with the registration
+		s.botPart(name, bot, "")
+	}
 }
 
 func csInfo(s *Services, c *Client, args []string) {

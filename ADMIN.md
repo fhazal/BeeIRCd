@@ -98,7 +98,7 @@ from IRC. Add others with AdminServ:
 - Flags: `a` admin (AdminServ, REHASH, SA* commands), `c` links, `g` global,
   `h` hosts (CHGHOST and friends, HostServ), `k` kill, `s` services (OperServ).
 - Built-in classes: `helper` (h), `globop` (hk), `admin` (ghks), `netadmin`
-  (acghks). You can only give flags you have yourself.
+  (abcghks). You can only give flags you have yourself.
 - Opers skip the flood slowdown.
 
 ## Backups
@@ -356,7 +356,7 @@ that class.
 | Setting | Meaning |
 | --- | --- |
 | `name` | Up to 30 letters, digits, `_` or `-` |
-| `flags` | Letters from `acghks` |
+| `flags` | Letters from `abcghks` |
 | `title` | WHOIS line, like "is a Network Administrator" |
 | `vhost` | Host shown after `/oper` |
 | `swhois` | Up to 5 extra WHOIS lines |
