@@ -153,8 +153,47 @@
   function setTheme(t, keep) {
     if (t === 'bee') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
     if (keep) { try { localStorage.setItem('hive-theme', t); } catch { /* private window */ } }
-    document.querySelectorAll('.theme select').forEach(x => { x.value = t; });
+    document.querySelectorAll('.tmenu [data-theme-v]').forEach(x => x.setAttribute('aria-checked', String(x.dataset.themeV === t)));
     window.dispatchEvent(new Event('hive-theme'));
+  }
+  // Swatch colours: [ground, accent] of each theme, for the theme menu.
+  const THEME_SWATCH = { 'bee': ['#111214', '#f2c94c'], 'catppuccin-latte': ['#eff1f5', '#df8e1d'], 'catppuccin-mocha': ['#1e1e2e', '#f9e2af'], 'one-dark-pro': ['#282c34', '#e5c07b'], 'dracula': ['#282a36', '#ff79c6'] };
+  // themeMenu is the top bar's palette button with its menu of themes.
+  function themeMenu() {
+    const btn = h('button', { type: 'button', class: 'icon-btn tb-btn', 'aria-label': 'Theme', title: 'Theme', 'aria-haspopup': 'menu', 'aria-expanded': 'false' }, icon('palette'));
+    const items = THEMES.map(([v, t]) => {
+      const sw = h('span', { class: 'tsw' });
+      sw.style.setProperty('--sw-a', THEME_SWATCH[v][0]);
+      sw.style.setProperty('--sw-b', THEME_SWATCH[v][1]);
+      const it = h('button', { type: 'button', role: 'menuitemradio', 'aria-checked': String(getTheme() === v), 'data-theme-v': v, class: 'titem' }, sw, h('span', { class: 'tname', text: t }), icon('check', 'tcheck'));
+      it.addEventListener('click', () => { setTheme(v, true); close(true); });
+      return it;
+    });
+    const menu = h('div', { class: 'tmenu', role: 'menu', 'aria-label': 'Theme', hidden: true }, h('div', { class: 'tmhead', text: 'Theme' }), items);
+    const wrap = h('div', { class: 'tmwrap' }, btn, menu);
+    function onDoc(e) { if (!wrap.contains(e.target)) close(false); }
+    function open() {
+      menu.hidden = false; btn.setAttribute('aria-expanded', 'true');
+      (items.find(x => x.getAttribute('aria-checked') === 'true') || items[0]).focus();
+      document.addEventListener('pointerdown', onDoc, true);
+    }
+    function close(focusBtn) {
+      if (menu.hidden) return;
+      menu.hidden = true; btn.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('pointerdown', onDoc, true);
+      if (focusBtn) btn.focus();
+    }
+    btn.addEventListener('click', () => { if (menu.hidden) open(); else close(true); });
+    menu.addEventListener('keydown', e => {
+      const i = items.indexOf(document.activeElement);
+      if (e.key === 'Escape') { e.preventDefault(); close(true); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+      else if (e.key === 'Home') { e.preventDefault(); items[0].focus(); }
+      else if (e.key === 'End') { e.preventDefault(); items[items.length - 1].focus(); }
+      else if (e.key === 'Tab') close(false);
+    });
+    return wrap;
   }
   setTheme(getTheme());
   const brand = () => h('div', { class: 'brand' }, h('span', { class: 'mark' }, icon('hive')),
@@ -226,21 +265,19 @@
         h('div', { class: 'me-text' }, h('b', { text: me.account }), h('span', { class: 'lbl', text: me.owner ? 'Owner' : (me.class || 'Oper') + ' · ' + (me.flags || 'no flags') })),
         out));
     crumbEl = h('div', { class: 'crumb' });
-    pillEl = h('span', { class: 'pill', role: 'status' }, h('span', { class: 'dot' }), h('span', { text: '…' }));
+    pillEl = h('span', { class: 'pill', role: 'status' }, h('span', { class: 'dot' }),
+      h('span', { class: 'pl', text: 'Uptime' }), h('span', { class: 'psep' }), h('span', { class: 'pv', text: '…' }));
     const mac = /Mac|iPhone|iPad/.test(navigator.platform || '');
-    const jumpBtn = h('button', { type: 'button', class: 'jump', 'aria-label': 'Jump to a page or action', title: 'Jump to (' + (mac ? '⌘K' : 'Ctrl K') + ')' },
-      icon('search'), h('span', { text: 'Jump to…' }), h('span', { class: 'kbd', text: mac ? '⌘ K' : 'Ctrl K' }));
+    const jumpBtn = h('button', { type: 'button', class: 'icon-btn tb-btn', 'aria-label': 'Jump to a page or action', title: 'Jump to (' + (mac ? '⌘K' : 'Ctrl K') + ')' }, icon('search'));
     jumpBtn.addEventListener('click', openJump);
-    const themeSel = h('select', { 'aria-label': 'Theme' }, THEMES.map(([v, t]) => h('option', { value: v, text: t })));
-    themeSel.value = getTheme();
-    themeSel.addEventListener('change', () => setTheme(themeSel.value, true));
+    const themeBtn = themeMenu();
     const refresh = h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Refresh this page', title: 'Refresh' }, icon('refresh'));
     refresh.addEventListener('click', () => {
       route();
       api('GET', '/api/status').then(d => { setOffline(false); gotStatus(d.status); }).catch(() => setOffline(true));
     });
     const topbar = h('header', { class: 'topbar' }, crumbEl,
-      h('div', { class: 'tacts' }, jumpBtn, h('label', { class: 'theme' }, icon('palette'), h('span', { text: 'Theme' }), themeSel), pillEl, refresh));
+      h('div', { class: 'tacts' }, jumpBtn, themeBtn, pillEl, refresh));
     mainEl = h('main', { class: 'content', id: 'main', tabindex: '-1' });
     put(app, h('div', { class: 'hp' }, side, h('div', { class: 'mainwrap' }, topbar, mainEl)));
     if (deco) deco.disconnect();
@@ -389,7 +426,7 @@
   // ---------- live ----------
   function gotStatus(s) {
     status = s;
-    if (pillEl && !offline) { pillEl.className = 'pill'; pillEl.lastChild.textContent = 'Running · ' + since(s.started); }
+    if (!offline) showPill();
     if (page && page.status) page.status(s);
   }
   function gotEvents(list) {
@@ -435,11 +472,19 @@
   function setOffline(on) {
     if (on === offline) return;
     offline = on;
-    if (pillEl) {
-      pillEl.className = on ? 'pill bad' : 'pill';
-      pillEl.lastChild.textContent = on ? 'Not answering' : status ? 'Running · ' + since(status.started) : '…';
-    }
+    showPill();
     if (page && page.offline) page.offline(on);
+  }
+  // The top bar badge: "● UPTIME | 5 h 12 min", or "● NOT ANSWERING" in red.
+  function showPill() {
+    if (!pillEl) return;
+    const [lbl, sep, val] = pillEl.querySelectorAll('.pl, .psep, .pv');
+    pillEl.className = offline ? 'pill bad' : 'pill';
+    lbl.textContent = offline ? 'Not answering' : 'Uptime';
+    const up = !offline && status ? since(status.started) : '';
+    val.textContent = offline ? '' : status ? up : '…';
+    sep.hidden = val.hidden = offline;
+    pillEl.title = offline ? "The server isn't answering" : status ? 'Running for ' + up : '';
   }
 
   // ---------- what server actions answer, as lines ----------
