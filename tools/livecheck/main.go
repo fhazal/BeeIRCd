@@ -55,7 +55,7 @@ func main() {
 	flag.StringVar(&lc.key, "key", "zt-key.pem", "its key")
 	flag.StringVar(&lc.pw, "pw", "zt9-pass-word", "password for the zt* test accounts")
 	flag.StringVar(&lc.admin, "admin", "", "oper account for one wrong-password /oper check (counts toward its lockout)")
-	suites := flag.String("suites", "core,opers,modes", "which checks: core (1.5.x services and IRCv3), opers (1.5.8), modes (1.5.9a)")
+	suites := flag.String("suites", "core,opers,modes,bots", "which checks: core (1.5.x services and IRCv3), opers (1.5.8), modes (1.5.9a), bots (BotServ)")
 	flag.Parse()
 	if lc.addr == "" {
 		flag.Usage()
@@ -69,6 +69,8 @@ func main() {
 			lc.opers()
 		case "modes":
 			lc.modes()
+		case "bots":
+			lc.bots()
 		default:
 			lc.fatal("unknown suite %q", s)
 		}
