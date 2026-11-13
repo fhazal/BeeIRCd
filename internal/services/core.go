@@ -118,11 +118,20 @@ type Services struct {
 	operServ *service
 	global   *service
 	hostServ *service
-	clients  map[string]*Client // by UID: every person on the network
-	lockouts map[int64]*lockout // wrong passwords per account
-	hashSem  chan struct{}      // limits password hashing running at once
-	pending  []state.Event      // events not handled yet (see Event)
-	handling bool
+	botServ  *service
+	bots     map[int64]*service // BotServ bots made with BOT ADD, by store ID
+	// BotServ kickers (botserv_kick.go)
+	bsWatch    map[string]bool     // folded channels with a bot and a kicker on
+	kickRuns   map[string]*kickRun // by folded channel
+	amsg       map[string]*amsgLast
+	kickPurged time.Time
+	bsAmsgOn   bool               // a watched channel has the AMSG kicker on
+	fantasyBot *service           // while a fantasy command runs: answers for ChanServ
+	clients    map[string]*Client // by UID: every person on the network
+	lockouts   map[int64]*lockout // wrong passwords per account
+	hashSem    chan struct{}      // limits password hashing running at once
+	pending    []state.Event      // events not handled yet (see Event)
+	handling   bool
 
 	// Oper data, kept in memory.
 	netbans        []store.NetBan
@@ -280,6 +289,16 @@ func (s *Services) handle(ev state.Event) {
 		if ch := s.net.Channel(e.Channel); ch != nil && e.Source != s.chanServ.user.UID {
 			s.csTopicChanged(ch)
 		}
+	case *state.Part:
+		s.bsForget(e.UID, e.Channel)
+		s.bsTidy(e.Channel)
+	case *state.Kick:
+		s.bsForget(e.UID, e.Channel)
+		s.bsTidy(e.Channel)
+	}
+	if q, quit := ev.(*state.UserQuit); quit {
+		s.bsForget(q.UID, "")
+		s.bsTidy("")
 	}
 }
 

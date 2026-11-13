@@ -108,6 +108,9 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 			}
 			if status == "" {
 				s.recordHistory(ch, o)
+				if verb == "PRIVMSG" {
+					s.svc.ChannelText(c.uid, ch, text) // BotServ kickers
+				}
 			}
 			continue
 		}

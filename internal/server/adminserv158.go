@@ -237,7 +237,7 @@ func asClass(s *Server, c *Client, args []string) {
 		case "FLAGS":
 			flags, bad := cleanFlags(val)
 			if bad != 0 || flags == "" {
-				s.as(c, "Flags: a admin, c links, g global, h hosts, k kill, s services.")
+				s.as(c, "Flags: a admin, b bots, c links, g global, h hosts, k kill, s services.")
 				return
 			}
 			for i := 0; i < len(flags); i++ {
@@ -403,6 +403,9 @@ func asUndo(s *Server, c *Client, args []string) {
 			return
 		}
 		cur, _ := s.store.OperByAccount(a.ID)
+		if cur != nil && !s.coversOper(c, cur) {
+			return
+		}
 		if ch.Old == "" {
 			if cur != nil {
 				if _, err := s.store.DeleteOper(a.ID); err != nil {
@@ -420,6 +423,9 @@ func asUndo(s *Server, c *Client, args []string) {
 				Swhois: r.Swhois, Hosts: r.Hosts, Disabled: r.Disabled, AddedBy: c.user.Nick, AddedAt: time.Now()}
 			if cur != nil {
 				o.PassHash, o.DisabledBy = cur.PassHash, cur.DisabledBy
+			}
+			if !s.coversOper(c, o) {
+				return
 			}
 			if err := s.store.SaveOper(o); err != nil {
 				s.dbErr(c, s.adminServ, err)

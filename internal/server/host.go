@@ -169,6 +169,7 @@ func (s *Server) cmdMS(c *Client, m irc.Message) { s.toAlias(c, "ms", m) }
 func (s *Server) cmdOS(c *Client, m irc.Message) { s.toAlias(c, "os", m) }
 func (s *Server) cmdAS(c *Client, m irc.Message) { s.toAlias(c, "as", m) }
 func (s *Server) cmdHS(c *Client, m irc.Message) { s.toAlias(c, "hs", m) }
+func (s *Server) cmdBS(c *Client, m irc.Message) { s.toAlias(c, "bs", m) }
 
 func (h host) DefaultHost(uid string) string {
 	u := h.s.net.UserByUID(uid)

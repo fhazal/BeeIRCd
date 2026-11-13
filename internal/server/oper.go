@@ -12,10 +12,11 @@ import (
 )
 
 // allFlags are the oper flags, in the order they are shown.
-const allFlags = "acghks"
+const allFlags = "abcghks"
 
 var flagNames = map[byte]string{
 	'a': "admin",
+	'b': "bots",
 	'c': "links",
 	'g': "global",
 	'h': "hosts",

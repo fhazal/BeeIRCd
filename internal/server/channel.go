@@ -309,6 +309,10 @@ func (s *Server) cmdInvite(c *Client, m irc.Message) {
 		return
 	}
 	name := m.Params[1]
+	if !irc.ValidChannel(name, s.cfg.Limits.ChannelLen) {
+		s.reply(c, irc.ErrNoSuchChannel, name, "No such channel")
+		return
+	}
 	if ch := s.net.Channel(name); ch != nil {
 		mem := ch.Member(u)
 		switch {

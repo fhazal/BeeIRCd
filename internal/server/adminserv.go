@@ -34,7 +34,7 @@ func adminCommands() map[string]adminCmd {
 		"PORT": {"PORT ADD|DEL|LIST [port] [TLS]", "open or close a port",
 			"PORT LIST\nPORT ADD <port> [TLS]   opens it now, on the same address as the first port\nPORT ADD <address:port> [TLS]\nPORT DEL <port|address:port>\nPeople already connected through a closed port stay connected.", asPort},
 		"OPER": {"OPER LIST | OPER <nick> ADD|SET|DEL|DISABLE|ENABLE ...", "who is an IRC operator",
-			"OPER LIST\nOPER <nick> ADD CLASS <class>|FLAGS <letters> HOST <mask> [PASSWORD <password>] [TITLE <text>]\nOPER <nick> SET CLASS <class>|OFF\nOPER <nick> SET FLAGS <letters>|OFF   flags on top of the class\nOPER <nick> SET HOST <mask> [mask ...]   globs or CIDR, like *@192.168.50.0/24\nOPER <nick> SET PASSWORD <password>\nOPER <nick> SET TITLE|VHOST <text>|OFF   instead of the class's\nOPER <nick> SET SWHOIS <line> [| <line> ...]|OFF\nOPER <nick> DISABLE [reason]   keep the entry, refuse /oper\nOPER <nick> ENABLE\nOPER <nick> DEL\nClasses: /as class list (helper, globop, admin, netadmin are built in).\nFlags: a admin, c links, g global, h hosts, k kill, s services.\nThe nick must be registered. Opers oper up with /oper <nick> <oper password>\nfrom a matching host; the oper password is their own, not the NickServ one.\nYou can only give flags (and classes) you have.\nExample: /as oper ember add class globop host *@192.168.50.* password Hive-2026", asOper},
+			"OPER LIST\nOPER <nick> ADD CLASS <class>|FLAGS <letters> HOST <mask> [PASSWORD <password>] [TITLE <text>]\nOPER <nick> SET CLASS <class>|OFF\nOPER <nick> SET FLAGS <letters>|OFF   flags on top of the class\nOPER <nick> SET HOST <mask> [mask ...]   globs or CIDR, like *@192.168.50.0/24\nOPER <nick> SET PASSWORD <password>\nOPER <nick> SET TITLE|VHOST <text>|OFF   instead of the class's\nOPER <nick> SET SWHOIS <line> [| <line> ...]|OFF\nOPER <nick> DISABLE [reason]   keep the entry, refuse /oper\nOPER <nick> ENABLE\nOPER <nick> DEL\nClasses: /as class list (helper, globop, admin, netadmin are built in).\nFlags: a admin, b bots, c links, g global, h hosts, k kill, s services.\nThe nick must be registered. Opers oper up with /oper <nick> <oper password>\nfrom a matching host; the oper password is their own, not the NickServ one.\nYou can only give flags (and classes) you have.\nExample: /as oper ember add class globop host *@192.168.50.* password Hive-2026", asOper},
 		"CLASS": {"CLASS LIST | CLASS <name> ADD|SET|DEL ...", "oper classes",
 			"CLASS LIST\nCLASS <name> ADD FLAGS <letters>\nCLASS <name> SET FLAGS <letters>\nCLASS <name> SET TITLE <text>|OFF   WHOIS line, like: is a Network Administrator\nCLASS <name> SET VHOST <host>|OFF   shown host at /oper, like staff.example.org\nCLASS <name> SET SWHOIS <line> [| <line> ...]|OFF\nCLASS <name> DEL   a built-in class goes back to its defaults\nClasses are saved as [[operclass]] blocks in beeircd.conf.", asClass},
 		"HISTORY": {"HISTORY [count]", "the changes AdminServ made",
@@ -681,7 +681,7 @@ func asOper(s *Server, c *Client, args []string) {
 		flags, bad := cleanFlags(strings.TrimPrefix(raw, "+"))
 		switch {
 		case bad != 0:
-			s.as(c, "%c isn't an oper flag. Flags: a admin, c links, g global, h hosts, k kill, s services.", bad)
+			s.as(c, "%c isn't an oper flag. Flags: a admin, b bots, c links, g global, h hosts, k kill, s services.", bad)
 			return "", false
 		case flags == "":
 			s.as(c, "Give at least one flag, like ghks.")
@@ -709,6 +709,13 @@ func asOper(s *Server, c *Client, args []string) {
 			}
 		}
 		return oc.Name, true
+	}
+	// An entry with flags c lacks is out of c's reach: changing its
+	// password or host would let c /oper as it and get those flags.
+	if cur != nil && !strings.EqualFold(args[1], "ADD") {
+		if !s.coversOper(c, cur) {
+			return
+		}
 	}
 	switch strings.ToUpper(args[1]) {
 	case "DISABLE", "ENABLE":
@@ -960,14 +967,6 @@ func asOper(s *Server, c *Client, args []string) {
 		if cur == nil {
 			s.as(c, "%s isn't an oper.", a.Name)
 			return
-		}
-		if eff := s.viewOf(cur).flags; true {
-			for i := 0; i < len(eff); i++ {
-				if !c.can(eff[i]) {
-					s.as(c, "You can't remove %s: they have flag %c and you don't.", a.Name, eff[i])
-					return
-				}
-			}
 		}
 		if _, err := s.store.DeleteOper(a.ID); err != nil {
 			s.dbErr(c, s.adminServ, err)

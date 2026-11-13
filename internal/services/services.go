@@ -36,6 +36,9 @@ type service struct {
 	groups   []helpGroup
 	cmdNeed  map[string]byte        // oper flag a command needs, 'o' for any oper
 	cmdShown map[string]func() bool // false hides a command on this server
+
+	silent bool  // a BotServ bot: says nothing back to private messages
+	botID  int64 // its BotServ store ID (0 for the service bots)
 }
 
 // command finds a command by name or hidden alias.
@@ -49,7 +52,7 @@ func (sv *service) command(name string) (svcCmd, bool) {
 }
 
 // reservedNicks can't be used by people even before their service exists.
-var reservedNicks = []string{"NickServ", "ChanServ", "MemoServ", "OperServ", "HostServ", "AdminServ", "Global"}
+var reservedNicks = []string{"NickServ", "ChanServ", "MemoServ", "OperServ", "HostServ", "AdminServ", "Global", "BotServ"}
 
 func isReserved(nick string) bool {
 	for _, r := range reservedNicks {
@@ -92,6 +95,7 @@ func (s *Services) startServices() {
 	s.operServ.aliases = operServAliases
 	s.hostServ = s.addService("HostServ", "hs", "vHost Service", "HostServ gives nicks a vHost, a host shown instead of yours. Commands:", hostServCommands())
 	s.global = s.addService("Global", "", "Network Announcements", "Global sends network notices. It takes no commands.", map[string]svcCmd{})
+	s.botServ = s.addService("BotServ", "bs", "Bot Service", "BotServ puts a bot in your channel that sits there with op status. Commands:", botServCommands())
 	s.helpSetup()
 }
 
@@ -145,7 +149,7 @@ func (s *Services) toService(c *Client, sv *service, text string) {
 	if len(fields) == 0 {
 		return
 	}
-	if s.ignored(c) { // OperServ IGNORE: dropped without a word
+	if s.ignored(c) || sv.silent { // OperServ IGNORE, or a BotServ bot: dropped without a word
 		return
 	}
 	name := strings.ToUpper(fields[0])
@@ -189,6 +193,9 @@ func (s *Services) toService(c *Client, sv *service, text string) {
 
 // svcReply sends a notice from a service.
 func (s *Services) svcReply(c *Client, sv *service, text string) {
+	if s.fantasyBot != nil && sv == s.chanServ { // a fantasy command: the bot answers
+		sv = s.fantasyBot
+	}
 	s.host.Notice(sv.user.UID, c.user.UID, text)
 }
 

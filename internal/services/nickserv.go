@@ -46,7 +46,7 @@ func nickServCommands() map[string]svcCmd {
 		"ALIST": {"ALIST [nick]", "channels where you have access",
 			"Lists the channels where your account is on the access list, with your level.\nOpers may give someone else's nick.", nsAlist},
 		"SET": {"SET <option> <value>", "change your account",
-			"SET PASSWORD <new password>\nSET EMAIL <email>|OFF\nSET KILL {ON | QUICK | IMMED | OFF}   rename people who use your nick and don't\n    identify: ON after 60 s (default), QUICK after 20 s, IMMED at once (only\n    where the network allows it)\nSET SECURE {ON | OFF}   on (default): your ACCESS list never stands in for\n    your password\nSET HIDE {EMAIL | STATUS | USERMASK | QUIT} {ON | OFF}   what INFO shows others:\n    email, oper status, last user@host, last quit message (email and\n    user@host hidden)\nSET AUTOOP {ON | OFF}      ChanServ gives you your status when you join (on)\nSET DISPLAY <nick>         which of your nicks is the account's name\nSET KEEPMODES {ON | OFF}   your user modes (+iwx) come back when you identify\nSET PRIVATE {ON | OFF}     hide you from NickServ LIST (on)\nSET URL [url]              a URL in INFO; without one, it is removed", nsSet},
+			"SET PASSWORD <new password>\nSET EMAIL <email>|OFF\nSET KILL {ON | QUICK | IMMED | OFF}   rename people who use your nick and don't\n    identify: ON after 60 s (default), QUICK after 20 s, IMMED at once (only\n    where the network allows it)\nSET SECURE {ON | OFF}   on (default): your ACCESS list never stands in for\n    your password\nSET HIDE {EMAIL | STATUS | USERMASK | QUIT} {ON | OFF}   what INFO shows others:\n    email, oper status, last user@host, last quit message (email and\n    user@host hidden)\nSET AUTOOP {ON | OFF}      ChanServ gives you your status when you join (on)\nSET DISPLAY <nick>         which of your nicks is the account's name\nSET GREET [message]       what a channel bot says when you join (BotServ\n    SET GREET); without a message, it is removed\nSET KEEPMODES {ON | OFF}   your user modes (+iwx) come back when you identify\nSET PRIVATE {ON | OFF}     hide you from NickServ LIST (on)\nSET URL [url]              a URL in INFO; without one, it is removed", nsSet},
 		"SASET": {"SASET <option> <nick> <value>", "change someone's account (opers)",
 			"Like SET, for another account. Needs oper flag s.\nExample: /ns saset password Bee newpass42\nSASET NOEXPIRE <nick> {ON | OFF}   the account never expires", nsSaset},
 		"INFO": {"INFO [nick]", "who owns a nick, when last seen",
@@ -289,8 +289,15 @@ func nsRecover(s *Services, c *Client, args []string) {
 		s.ns(c, "You are using %s already.", c.user.Nick)
 		return
 	}
+	if a.Suspended(time.Now()) {
+		s.ns(c, "Nick %s is suspended.", a.Name)
+		return
+	}
 	if c.accountID != a.ID && len(args) < 2 {
 		s.ns(c, "Give the password of %s: /ns recover %s <password>", a.Name, nick)
+		return
+	}
+	if c.accountID != a.ID && s.loginsFull(c, a) {
 		return
 	}
 	s.withOwnership(c, a, argAt(args, 1), func() {
@@ -341,6 +348,9 @@ func nsGroup(s *Services, c *Client, args []string) {
 	}
 	if c.accountID != a.ID && len(args) < 2 {
 		s.ns(c, "Give the password of %s: /ns group %s <password>", a.Name, args[0])
+		return
+	}
+	if c.accountID != a.ID && s.loginsFull(c, a) {
 		return
 	}
 	nick := u.Nick
@@ -687,6 +697,22 @@ func (s *Services) setOption(c *Client, a *store.Account, cmd, opt string, args 
 			s.ns(c, "URL for %s set to %s.", a.Name, a.URL)
 		}
 		return true
+	case "GREET":
+		// Anope's greet module: shown by a channel's bot when you join a
+		// channel with BotServ SET GREET on and the GREET privilege.
+		greet := irc.Truncate(strings.Join(args, " "), 200)
+		if err := s.store.SetGreet(a.ID, greet); err != nil {
+			s.dbErr(c, s.nickServ, err)
+			return false
+		}
+		if greet == "" {
+			s.nsLog(c, a.ID, "to unset the greet of %s", a.Name)
+			s.ns(c, "Greet message for %s unset.", a.Name)
+		} else {
+			s.nsLog(c, a.ID, "to change the greet of %s", a.Name)
+			s.ns(c, "Greet message for %s changed to %s.", a.Name, greet)
+		}
+		return true
 	case "DISPLAY":
 		nicks, err := s.store.Nicks(a)
 		if err != nil {
@@ -712,7 +738,7 @@ func (s *Services) setOption(c *Client, a *store.Account, cmd, opt string, args 
 		s.ns(c, "The new display is now %s.", target)
 		return true
 	default:
-		s.ns(c, "Syntax: %s PASSWORD|EMAIL|KILL|SECURE|HIDE|AUTOOP|DISPLAY|KEEPMODES|PRIVATE|URL ... (see /ns help %s)", cmd, strings.ToLower(cmd))
+		s.ns(c, "Syntax: %s PASSWORD|EMAIL|KILL|SECURE|HIDE|AUTOOP|DISPLAY|GREET|KEEPMODES|PRIVATE|URL ... (see /ns help %s)", cmd, strings.ToLower(cmd))
 	}
 	return false
 }
@@ -788,6 +814,9 @@ func nsInfo(s *Services, c *Client, args []string) {
 	}
 	if a.URL != "" {
 		s.ns(c, "  URL           %s", a.URL)
+	}
+	if g := s.store.Greet(a.ID); g != "" {
+		s.ns(c, "  Greet         %s", g)
 	}
 	if a.Suspended(time.Now()) {
 		// ns_suspend show = "suspended, by, reason, on, expires" (everyone).

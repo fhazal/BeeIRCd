@@ -20,6 +20,7 @@ func (s *Services) Start() {
 	if s.off {
 		return
 	}
+	s.startBots()
 	s.startPersist()
 	s.Flush()
 }
@@ -105,6 +106,13 @@ func (s *Services) LoginSASL(uid string, a *store.Account) {
 		c.saslLogin = false
 		s.Flush()
 	}
+}
+
+// LoginsFull reports whether account id already has max_logins
+// connections identified to it (SASL checks it like IDENTIFY does).
+func (s *Services) LoginsFull(id int64) bool {
+	max := s.cfg.Services.MaxLogins
+	return max > 0 && len(s.onlineClients(id)) >= max
 }
 
 // LockedFor reports how long key (see CheckSecret) is still locked.
