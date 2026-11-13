@@ -43,6 +43,9 @@ type Client struct {
 	hostDone              bool
 	dnsblBusy             bool         // a DNSBL lookup is running
 	dnsblListed           *dnsblResult // a DNSBL hit, acted on once NICK and USER are in
+	lookupGen             int          // bumped by WEBIRC: DNS/DNSBL answers for the old IP are dropped
+	webirc                string       // the [[webirc]] gateway this person came through, "" = none
+	webircBusy            bool         // a hashed WEBIRC password is being checked
 	closed                bool
 	caps                  map[string]bool // IRCv3 capabilities this client asked for
 	capture               *[]string       // lines held back for labeled-response
@@ -119,7 +122,7 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 		s.quit(c, why)
 		return
 	}
-	if n, max := s.sessions(ip), s.svc.SessionLimit(ip); n > max {
+	if n, max := s.sessions(ip), s.svc.SessionLimit(ip); n > max && !s.webircGateway(ip) {
 		s.snotice("Too many connections from %s (%d, the limit is %d)", ip, n, max)
 		s.quit(c, fmt.Sprintf("Too many connections from your IP (the limit is %d)", max))
 		return
@@ -134,10 +137,11 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 		return
 	}
 	s.notice(c, "*** Looking up your hostname...")
+	gen := c.lookupGen
 	go func() {
 		name, ok := s.resolve(context.Background(), ip)
 		s.post(func() {
-			if c.closed {
+			if c.closed || c.lookupGen != gen {
 				return
 			}
 			if ok {

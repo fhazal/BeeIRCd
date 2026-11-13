@@ -50,6 +50,8 @@ type Config struct {
 	Services Services `toml:"services"`
 	Limits   Limits   `toml:"limits"`
 	DNSBL    []DNSBL  `toml:"dnsbl"`
+	// WebIRC are the trusted web gateways ([[webirc]], webirc.go).
+	WebIRC   []WebIRC `toml:"webirc"`
 	Mail     Mail     `toml:"mail"`
 	HostServ HostServ `toml:"hostserv"`
 	Channels Channels `toml:"channels"`
@@ -584,6 +586,9 @@ func (c *Config) Check() error {
 	}
 	if p := c.Services.AdminPassword; p != "" && !strings.HasPrefix(p, "$argon2id$") {
 		return fmt.Errorf("[services] admin_password must be a hash from `beeircd mkpasswd`, not the password itself")
+	}
+	if err := c.checkWebIRC(); err != nil {
+		return err
 	}
 	if c.Limits.NickLen > 50 || c.Limits.ChannelLen > 64 {
 		return fmt.Errorf("nick_length is at most 50 and channel_length at most 64")

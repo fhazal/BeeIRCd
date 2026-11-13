@@ -30,4 +30,14 @@ func TestLinkFileWarnings(t *testing.T) {
 	if w := linkFileWarnings(cfg, mode); len(w) != 0 {
 		t.Errorf("all private: %v", w)
 	}
+	cfg.WebIRC = []config.WebIRC{{Name: "beeroom", Password: "gateway-secret-0123456789", Hosts: []string{"127.0.0.1"}}}
+	modes[cfg.Path] = 0o644
+	if w := linkFileWarnings(cfg, mode); len(w) != 2 || !strings.Contains(w[1], "WEBIRC gateway password") {
+		t.Errorf("readable conf with a WEBIRC password: %v", w)
+	}
+	cfg.Link.Servers = nil
+	cfg.WebIRC[0].Password = "$argon2id$v=19$m=19456,t=2,p=1$x$y"
+	if w := linkFileWarnings(cfg, mode); len(w) != 0 {
+		t.Errorf("hashed WEBIRC password: %v", w)
+	}
 }

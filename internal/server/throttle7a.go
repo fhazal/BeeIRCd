@@ -39,7 +39,7 @@ func newConnThrottle() connThrottle {
 // throttleExempt: LAN and loopback IPs, ELINEs and session exceptions skip
 // the throttle and the unregistered caps (the same rules as DNSBL).
 func (s *Server) throttleExempt(ip string) bool {
-	return s.throttleSkip(ip) || s.svc.DnsblExempt(ip)
+	return s.throttleSkip(ip) || s.svc.DnsblExempt(ip) || s.webircGateway(ip)
 }
 
 // admitConn decides whether a new connection may go on; "" means yes, else

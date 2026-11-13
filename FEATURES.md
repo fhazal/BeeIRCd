@@ -73,7 +73,8 @@ Last updated: 14 Nov 2026 (1.0 release candidates: server, linking and Hive Pane
 | bot mode, UTF8ONLY, no-implicit-names | Planned (phase 3) |
 | account-extban | Implemented (1.5.5a, EXTBAN=~,amqrt; ACCOUNTEXTBAN=a token since the conformance step) |
 | STS | Implemented (7c): `sts=port=<tls port>,duration=2592000` on plain and `sts=duration=2592000` on TLS, to CAP 302 clients, only with a CA certificate (never self-signed or the stand-in); `[tls] sts = false` turns it off, `sts_port` when a tunnel shows another port; REQ sts is NAKed |
-| WebSocket, WebIRC | Planned (Stage 4) |
+| WebIRC | Implemented (BeeRoom w1): `[[webirc]]` gateways with password + host list; the real IP counts for bans, limits, throttle, DNSBL and cloaks |
+| WebSocket | Planned (Stage 4) |
 | netsplit/netjoin batches | Implemented (Stage 2b/2e) |
 | draft/chathistory | Implemented (1.5.9c) for +H channels you are in: LATEST BEFORE AFTER AROUND BETWEEN TARGETS, msgid and timestamp references, 005 CHATHISTORY=100 MSGREFTYPES=msgid,timestamp; no private-message history |
 | draft/account-registration, draft/multiline, draft/read-marker, draft/message-redaction | Planned (Stage 4, behind a switch while draft) |

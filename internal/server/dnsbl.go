@@ -169,7 +169,7 @@ func (s *Server) dnsblStart(c *Client) {
 		return
 	}
 	c.dnsblBusy = true
-	ip := c.ip
+	ip, gen := c.ip, c.lookupGen
 	go func() {
 		r := s.dnsblAsk(context.Background(), ip, lists)
 		s.post(func() {
@@ -177,7 +177,7 @@ func (s *Server) dnsblStart(c *Client) {
 				s.dnsbl.cache = make(map[string]dnsblResult)
 			}
 			s.dnsbl.cache[ip] = r
-			if c.closed {
+			if c.closed || c.lookupGen != gen {
 				return
 			}
 			c.dnsblBusy = false

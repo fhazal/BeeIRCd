@@ -369,6 +369,9 @@ unrealircd.conf; see [link] below for services and SASL there.
 - `session_limit` (3) caps connections per IP; OperServ `EXCEPTION` raises it
   for one IP.
 - `[[dnsbl]]` lists check new connections against DNS blocklists.
+- `[[webirc]]` gateways are trusted to tell the real IP; list only your own
+  gateway's IPs. A plain gateway password in a file others can read is warned
+  about at start.
 - TLS: 1.2 and 1.3 only; on 1.2 only forward secret AEAD suites (ECDHE with
   AES-GCM or ChaCha20), as in Mozilla's "intermediate" profile.
 - The control socket is a file (`0660`, owner `beeircd`), not a network port.
@@ -522,6 +525,31 @@ One block per DNS blocklist.
 | `ban_time` | `24h` | For zline, akill and shun |
 | `reason` | "Your IP %i is listed in %b (%r)" | `%i` IP, `%b` list, `%r` answer, `%n %u %h` nick, ident, host, `%N` network |
 | `enabled` | `true` | |
+
+### [[webirc]]
+
+One block per trusted web chat gateway (BeeRoom, The Lounge, KiwiIRC). The
+gateway sends `WEBIRC` before NICK and USER with each person's real IP, so
+Z-lines, bans, `session_limit`, the connect throttle, DNSBL, cloaks and WHOIS
+use the person, not the gateway. The gateway's own IP skips the per-IP limits.
+WEBIRC from any other IP, or with a wrong password, closes the connection with
+an oper notice.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `name` | – | Shown to opers in WHOIS and the connect notice, like `"beeroom"` |
+| `password` | – | The secret the gateway sends: 16+ random characters, or a `beeircd mkpasswd` hash (slower: checked for every connection) |
+| `hosts` | – | The gateway's IPs or CIDRs, like `["127.0.0.1"]`; names are not allowed |
+
+The person counts as TLS (+z) only when the gateway says `secure` and its own
+link to BeeIRCd is TLS or on the same machine.
+
+```toml
+[[webirc]]
+name = "beeroom"
+password = "a-long-random-secret-here"
+hosts = ["127.0.0.1"]
+```
 
 ### [mail]
 

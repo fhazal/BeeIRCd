@@ -166,6 +166,13 @@ func linkFileWarnings(cfg *config.Config, mode func(string) (os.FileMode, bool))
 	if m, ok := mode(cfg.Path); ok && hasPassword && m&0o004 != 0 {
 		out = append(out, fmt.Sprintf("%s holds a link password and every user on this machine can read it (chmod o-r %s)", cfg.Path, cfg.Path))
 	}
+	plainWebIRC := false
+	for _, w := range cfg.WebIRC {
+		plainWebIRC = plainWebIRC || !w.Hashed()
+	}
+	if m, ok := mode(cfg.Path); ok && plainWebIRC && m&0o004 != 0 {
+		out = append(out, fmt.Sprintf("%s holds a WEBIRC gateway password and every user on this machine can read it (chmod o-r %s)", cfg.Path, cfg.Path))
+	}
 	if m, ok := mode(cfg.Link.Key); ok && m&0o077 != 0 {
 		out = append(out, fmt.Sprintf("the link key %s can be read by other users; it proves this server's identity (chmod 600 %s)", cfg.Link.Key, cfg.Link.Key))
 	}

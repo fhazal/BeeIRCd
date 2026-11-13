@@ -102,6 +102,9 @@ func (s *Server) whoisOne(c *Client, u *state.User, reply func(code string, p ..
 	if (u == c.user || c.can('h')) && !u.Service && (u.Host != u.RealHost || u != c.user) {
 		reply(irc.RplWhoisHost, u.Nick, "is connecting from *@"+u.RealHost+" "+u.IP)
 	}
+	if tc := s.clientOf(u); tc != nil && tc.webirc != "" && (u == c.user || c.can('h')) {
+		reply(irc.RplWhoisSpecial, u.Nick, "is connecting through WEBIRC gateway "+tc.webirc)
+	}
 	reply(irc.RplWhoisServer, u.Nick, u.Server, s.serverDescription(u.Server))
 	if u.Away != "" {
 		reply(irc.RplAway, u.Nick, u.Away)

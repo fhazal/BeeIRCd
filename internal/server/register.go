@@ -216,7 +216,7 @@ func (s *Server) cmdQuit(c *Client, m irc.Message) {
 // tryRegister finishes registration once NICK, USER, CAP and the host
 // lookup are all done.
 func (s *Server) tryRegister(c *Client) {
-	if c.registered || c.closed || c.nick == "" || c.ident == "" || !c.hostDone || c.dnsblBusy || c.capBusy || c.saslBusy {
+	if c.registered || c.closed || c.nick == "" || c.ident == "" || !c.hostDone || c.dnsblBusy || c.capBusy || c.saslBusy || c.webircBusy {
 		return
 	}
 	if r := c.dnsblListed; r != nil {
@@ -281,6 +281,9 @@ func (s *Server) tryRegister(c *Client) {
 	s.notePeakGlobal()
 	s.log.Printf("connect %s (%s@%s) %s", u.Nick, u.Ident, u.RealHost, c.ip)
 	connect := fmt.Sprintf("Connect: %s (%s@%s) [%s]", u.Nick, u.Ident, u.RealHost, c.ip)
+	if c.webirc != "" {
+		connect += " (WEBIRC " + c.webirc + ")"
+	}
 	s.snoticeOnly(connect)
 	s.svc.LogUserConnect(u)
 	s.welcome(c)

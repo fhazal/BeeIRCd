@@ -22,6 +22,7 @@ func init() {
 		"NICK":         {0, true, (*Server).cmdNick},
 		"USER":         {4, true, (*Server).cmdUser},
 		"PASS":         {1, true, (*Server).cmdPass},
+		"WEBIRC":       {4, true, (*Server).cmdWebirc},
 		"PING":         {0, true, (*Server).cmdPing},
 		"PONG":         {0, true, (*Server).cmdPong},
 		"QUIT":         {0, true, (*Server).cmdQuit},
