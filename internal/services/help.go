@@ -158,7 +158,7 @@ func (s *Services) helpSetup() {
 
 	bs := s.botServ
 	bs.groups = []helpGroup{
-		{"Your channel's bot", []string{"BOTLIST", "ASSIGN", "UNASSIGN", "INFO", "SET", "SAY", "ACT"}},
+		{"Your channel's bot", []string{"BOTLIST", "ASSIGN", "UNASSIGN", "INFO", "SET", "SAY", "ACT", "KICK", "BADWORDS"}},
 		{"Commands for IRC operators", []string{"BOT"}},
 	}
 	bs.cmdNeed = map[string]byte{"BOT": 'b'}

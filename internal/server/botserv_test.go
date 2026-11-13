@@ -167,3 +167,120 @@ func TestBotServKeptOverRestart(t *testing.T) {
 	c.send("BS INFO Bzz")
 	c.expect("Used on: 1 channel(s)")
 }
+
+// Kickers and BADWORDS (Anope 2.0.20 bs_kick, bs_badwords).
+func TestBotServKickers(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	b.send("BS BOT ADD Bzz bot bot.host Busy Bee")
+	b.expect("added to the bot list.")
+	bee := registered(t, s, "Bee")
+	bee.send("JOIN #hive")
+	bee.expect(" 366 Bee #hive ")
+	bee.send("CS REGISTER #hive the hive")
+	bee.expect("is registered to Bee")
+	ann := registered(t, s, "Ann")
+	rejoin := func() {
+		ann.send("JOIN #hive")
+		ann.expect(" 366 Ann #hive ")
+	}
+	rejoin()
+
+	bee.send("BS KICK CAPS #hive ON")
+	bee.expect(bsLine("Bee", "You must assign a bot to the channel before using this command."))
+	bee.send("BS ASSIGN #hive Bzz")
+	bee.expect("has been assigned to #hive.")
+	ann.send("BS KICK CAPS #hive ON")
+	ann.expect(bsLine("Ann", "Access denied."))
+
+	// Caps: Anope's defaults, 10 capitals and 25%.
+	bee.send("BS KICK CAPS #hive ON")
+	bee.expect(bsLine("Bee", "Bot will now kick for caps (they must constitute at least 10 characters and 25% of the entire message)."))
+	ann.send("PRIVMSG #hive :Hello THERE")
+	ann.send("PRIVMSG #hive :WHY IS EVERYONE QUIET")
+	bee.expect(":Ann!")
+	bee.expect(":Bzz!bot@bot.host KICK #hive Ann :Turn caps lock OFF!")
+	rejoin()
+	// The founder (an op) is kicked too until DONTKICKOPS; NOKICK never is.
+	bee.send("BS SET #hive DONTKICKOPS ON")
+	bee.expect("Bot won't kick ops on channel #hive.")
+	bee.send("PRIVMSG #hive :I AM THE FOUNDER HERE")
+	bee.send("BS KICK CAPS #hive OFF")
+	bee.expect(bsLine("Bee", "Bot won't kick for caps anymore."))
+
+	// Bad words, with a ban after 2 kicks that lifts itself (BANEXPIRE).
+	bee.send("BS BADWORDS #hive LIST")
+	bee.expect(bsLine("Bee", "#hive bad words list is empty."))
+	bee.send("BS BADWORDS #hive ADD wasp")
+	bee.expect(bsLine("Bee", "wasp added to #hive bad words list."))
+	bee.send("BS BADWORDS #hive ADD Wasp")
+	bee.expect(bsLine("Bee", "wasp already exists in #hive bad words list."))
+	bee.send("BS BADWORDS #hive ADD hornet SINGLE")
+	bee.expect(bsLine("Bee", "hornet added to #hive bad words list."))
+	bee.send("BS BADWORDS #hive LIST")
+	bee.expect(bsLine("Bee", "Bad words list for #hive:"))
+	bee.expect("  1       wasp")
+	bee.expect("  2       hornet  (SINGLE)")
+	bee.expect(bsLine("Bee", "End of bad words list."))
+	bee.send("BS SET #hive BANEXPIRE 30m")
+	bee.expect("expire after 30 minutes.")
+	bee.send("BS KICK BADWORDS #hive ON 2")
+	bee.expect(bsLine("Bee", "Bot will now kick for badwords, and will place a ban after 2 kicks for the same user."))
+	ann.send("PRIVMSG #hive :hornets are fine")
+	ann.send("PRIVMSG #hive :a \x02WAS\x02P!")
+	bee.expect("hornets are fine")
+	bee.expect(":Bzz!bot@bot.host KICK #hive Ann :Watch your language!")
+	rejoin()
+	ann.send("PRIVMSG #hive :that hornet again")
+	bee.expect(":Bzz!bot@bot.host MODE #hive +b ~t:30:*!*@")
+	bee.expect(":Bzz!bot@bot.host KICK #hive Ann :Watch your language!")
+	bee.send("MODE #hive -b " + "~t:30:*!*@127.0.0.1")
+	bee.expect("MODE #hive -b")
+	bee.send("BS BADWORDS #hive DEL 1-2")
+	bee.expect(bsLine("Bee", "Deleted 2 entries from #hive bad words list."))
+	bee.send("BS KICK BADWORDS #hive OFF")
+	bee.expect("Bot won't kick for badwords anymore.")
+	rejoin()
+
+	// Colours, repeat and flood.
+	bee.send("BS KICK COLORS #hive ON")
+	bee.expect("Bot will now kick for colors.")
+	ann.send("PRIVMSG #hive :\x0304red")
+	bee.expect(":Bzz!bot@bot.host KICK #hive Ann :Don't use colors on this channel!")
+	rejoin()
+	bee.send("BS KICK REPEAT #hive ON 0 2")
+	bee.expect("Bot will now kick for repeats (users that repeat the same message 2 times).")
+	for i := 0; i < 3; i++ {
+		ann.send("PRIVMSG #hive :buzz")
+	}
+	bee.expect(":Bzz!bot@bot.host KICK #hive Ann :Stop repeating yourself!")
+	rejoin()
+	bee.send("BS KICK REPEAT #hive OFF")
+	bee.expect("anymore.")
+	bee.send("BS KICK FLOOD #hive ON 0 3 10")
+	bee.expect("Bot will now kick for flood (3 lines in 10 seconds).")
+	for _, l := range []string{"one", "two", "three"} {
+		ann.send("PRIVMSG #hive :" + l)
+	}
+	bee.expect(":Bzz!bot@bot.host KICK #hive Ann :Stop flooding!")
+	rejoin()
+
+	// INFO shows them.
+	bee.send("BS INFO #hive")
+	bee.expect("Don't kick ops: Enabled")
+	bee.expect("Bad words kicker: Disabled")
+	bee.expect("    Colors kicker: Enabled")
+	bee.expect("     Flood kicker: Enabled (3 lines in 10s)")
+	bee.expect("    Repeat kicker: Disabled")
+
+	// AMSG: the same line in two channels with the kicker on.
+	bee.send("BS KICK AMSG #hive ON")
+	bee.expect("Bot will now kick for AMSG.")
+	bee.send("BS KICK FLOOD #hive OFF")
+	bee.expect("anymore.")
+	ann.send("JOIN #comb")
+	ann.expect(" 366 Ann #comb ")
+	ann.send("PRIVMSG #comb :hello all")
+	ann.send("PRIVMSG #hive :hello all")
+	bee.expect(":Bzz!bot@bot.host KICK #hive Ann :Don't use AMSGs!")
+}

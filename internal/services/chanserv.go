@@ -260,6 +260,9 @@ func (s *Services) channelGone(name string) {
 	for _, bot := range s.bots { // a BotServ bot leaves with the registration
 		s.botPart(name, bot, "")
 	}
+	if s.bsWatch[irc.Fold(name)] {
+		s.bsWatchAll()
+	}
 }
 
 func csInfo(s *Services, c *Client, args []string) {

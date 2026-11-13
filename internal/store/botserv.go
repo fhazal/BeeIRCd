@@ -70,6 +70,9 @@ type bsCache struct {
 	bots   map[int64]*Bot
 	chans  map[int64]ChanBot // by channel ID
 	greets map[int64]string  // by account ID
+	// botserv_kick.go
+	kick     map[int64]Kickers   // by channel ID
+	badwords map[int64][]BadWord // by channel ID
 }
 
 func loadBotServ(db *sql.DB) (*bsCache, error) {
@@ -121,7 +124,10 @@ func loadBotServ(db *sql.DB) (*bsCache, error) {
 		}
 		b.greets[id] = g
 	}
-	return b, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return b, loadKickers(db, b)
 }
 
 func b2i(v bool) int {
@@ -295,7 +301,11 @@ func (s *Store) SetGreet(id int64, greet string) error {
 }
 
 // bsDropChannel forgets a channel's settings (the row went with it).
-func (s *Store) bsDropChannel(id int64) { delete(s.bs.chans, id) }
+func (s *Store) bsDropChannel(id int64) {
+	delete(s.bs.chans, id)
+	delete(s.bs.kick, id)
+	delete(s.bs.badwords, id)
+}
 
 // bsDropAccount forgets an account's greet (the row went with it).
 func (s *Store) bsDropAccount(id int64) { delete(s.bs.greets, id) }

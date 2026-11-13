@@ -68,6 +68,10 @@ func botServCommands() map[string]svcCmd {
 			"The bot does a /me with the text in the channel. Needs the SAY privilege.", bsAct},
 		"INFO": {"INFO {<#channel> | <nick>}", "about a bot or a channel's bot",
 			"For a bot: its mask, real name, when it was made and how many channels use it.\nFor a channel: its bot and the bot options. Needs the INFO privilege.", bsInfo},
+		"KICK": {"KICK <option> <#channel> {ON|OFF} [settings]", "make the bot kick for bad words, caps, floods ...",
+			kickHelp(), bsKickCmd},
+		"BADWORDS": {"BADWORDS <#channel> {ADD|DEL|LIST|CLEAR} [word|entry-num|list]", "the bad words list",
+			"BADWORDS <#channel> ADD <word> [SINGLE | START | END]\nBADWORDS <#channel> DEL {<word> | <entry-num> | <list>}\nBADWORDS <#channel> LIST [<mask> | <list>]\nBADWORDS <#channel> CLEAR\nWords the BADWORDS kicker kicks for (KICK BADWORDS). Without a type the\nword counts anywhere, even inside other words; SINGLE only as a whole\nword, START at the start of a word, END at the end. Up to 32 words.\nNeeds the BADWORDS privilege.", bsBadwords},
 		"SET": {"SET <#channel> <option> <value> | SET <nick> PRIVATE {ON | OFF}", "change the bot options",
 			"SET <#channel> GREET {ON | OFF}      the bot shows greets (NickServ SET GREET)\nSET <#channel> FANTASY {ON | OFF}    !op, !kick and the like in the channel\nSET <#channel> BANEXPIRE <time>      bans by the bot lift after this (0 = never)\nSET <#channel> DONTKICKOPS {ON | OFF}     kickers leave ops alone\nSET <#channel> DONTKICKVOICES {ON | OFF}  kickers leave voiced people alone\nThese need the SET privilege. For opers:\nSET <#channel> NOBOT {ON | OFF}      no bot may be assigned (flag b)\nSET <nick> PRIVATE {ON | OFF}        only opers may assign the bot (flag b)", bsSet},
 	}
@@ -83,6 +87,7 @@ func (s *Services) startBots() {
 		}
 		s.introduceBot(b)
 	}
+	s.bsWatchAll()
 }
 
 // introduceBot puts bot b on the network.
@@ -515,7 +520,9 @@ func bsBotDel(s *Services, c *Client, nick string) {
 		s.dbErr(c, s.botServ, err)
 		return
 	}
-	_ = chans
+	if len(chans) > 0 {
+		s.bsWatchAll()
+	}
 	s.emit(&state.UserQuit{UID: sv.user.UID, Reason: "Quit: Bot deleted by " + c.user.Nick})
 	delete(s.services, irc.Fold(sv.user.Nick))
 	delete(s.bots, id)
@@ -615,6 +622,7 @@ func bsAssign(s *Services, c *Client, args []string) {
 		return
 	}
 	s.bsLog(c, !has, reg.Name, "for %s", sv.user.Nick)
+	s.bsWatchUpdate(reg)
 	if old != nil && old != sv && !(old == s.chanServ && reg.Persist) {
 		s.botPart(reg.Name, old, "UNASSIGN from "+c.user.Nick)
 	}
@@ -651,6 +659,7 @@ func bsUnassign(s *Services, c *Client, args []string) {
 		s.dbErr(c, s.botServ, err)
 		return
 	}
+	s.bsWatchUpdate(reg)
 	if sv != nil {
 		s.bsLog(c, !has, reg.Name, "for %s", sv.user.Nick)
 		if reg.Persist {
@@ -797,14 +806,15 @@ func bsInfo(s *Services, c *Client, args []string) {
 		return "Disabled"
 	}
 	s.bs(c, "Information for channel %s:", reg.Name)
-	s.bs(c, "        Bot nick: %s", nick)
-	s.bs(c, "      Ban expiry: %s", banExpiryWords(cb.BanExpire))
-	s.bs(c, "        Fantasy: %s", onOff(cb.Fantasy))
-	s.bs(c, "           Greet: %s", onOff(cb.Greet))
-	s.bs(c, "   Don't kick ops: %s", onOff(cb.DontKickOps))
-	s.bs(c, "Don't kick voices: %s", onOff(cb.DontKickVoices))
+	line := func(label, v string) { s.bs(c, "%18s %s", label+":", v) }
+	line("Bot nick", nick)
+	line("Ban expiry", banExpiryWords(cb.BanExpire))
+	line("Fantasy", onOff(cb.Fantasy))
+	line("Greet", onOff(cb.Greet))
+	line("Don't kick ops", onOff(cb.DontKickOps))
+	line("Don't kick voices", onOff(cb.DontKickVoices))
 	if cb.NoBot {
-		s.bs(c, "          No bot: Enabled")
+		line("No bot", "Enabled")
 	}
 	s.bsKickInfo(c, reg)
 }
@@ -855,6 +865,7 @@ func bsSet(s *Services, c *Client, args []string) {
 			s.dbErr(c, s.botServ, err)
 			return
 		}
+		s.bsWatchUpdate(reg)
 		if on {
 			s.logCmd(c, s.botServ, logAdmin, reg.Name, "to enable nobot")
 			if bot != nil {
@@ -964,14 +975,5 @@ func bsSetPrivate(s *Services, c *Client, nick, val string) {
 		s.bs(c, "Private mode of bot %s is now on.", b.Nick)
 	} else {
 		s.bs(c, "Private mode of bot %s is now off.", b.Nick)
-	}
-}
-
-// bsKickInfo adds the kicker lines to INFO #channel (filled in by b2).
-var bsKickInfoHook func(s *Services, c *Client, reg *store.Channel)
-
-func (s *Services) bsKickInfo(c *Client, reg *store.Channel) {
-	if bsKickInfoHook != nil {
-		bsKickInfoHook(s, c, reg)
 	}
 }
