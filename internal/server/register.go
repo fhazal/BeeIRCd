@@ -278,6 +278,7 @@ func (s *Server) tryRegister(c *Client) {
 		s.maxLocal = n
 	}
 	s.notePeak(n)
+	s.notePeakGlobal()
 	s.log.Printf("connect %s (%s@%s) %s", u.Nick, u.Ident, u.RealHost, c.ip)
 	connect := fmt.Sprintf("Connect: %s (%s@%s) [%s]", u.Nick, u.Ident, u.RealHost, c.ip)
 	s.snoticeOnly(connect)
@@ -430,11 +431,25 @@ func (s *Server) sendISupport(c *Client) {
 
 func (s *Server) localUsers() int { return s.local }
 
+// notePeakGlobal keeps the most people on the whole network at once.
+func (s *Server) notePeakGlobal() {
+	if n, _, _ := s.net.PeopleCounts(); n > s.maxGlobal {
+		s.maxGlobal = n
+	}
+}
+
 func (s *Server) lusers(c *Client) {
 	total, invisible, opers := s.net.PeopleCounts() // services aren't people
 	local := s.localUsers()
 	unknown := len(s.clients) - local
-	s.reply(c, irc.RplLuserClient, fmt.Sprintf("There are %d users and %d invisible on 1 servers", total-invisible, invisible))
+	s.notePeakGlobal()
+	links := 0 // servers linked to this one directly
+	for l := range s.links.conns {
+		if l.up {
+			links++
+		}
+	}
+	s.reply(c, irc.RplLuserClient, fmt.Sprintf("There are %d users and %d invisible on %d servers", total-invisible, invisible, len(s.netServers())))
 	if opers > 0 {
 		s.reply(c, irc.RplLuserOp, strconv.Itoa(opers), "operator(s) online")
 	}
@@ -442,9 +457,9 @@ func (s *Server) lusers(c *Client) {
 		s.reply(c, irc.RplLuserUnknown, strconv.Itoa(unknown), "unknown connection(s)")
 	}
 	s.reply(c, irc.RplLuserChannels, strconv.Itoa(s.net.ChannelCount()), "channels formed")
-	s.reply(c, irc.RplLuserMe, fmt.Sprintf("I have %d clients and 0 servers", local))
+	s.reply(c, irc.RplLuserMe, fmt.Sprintf("I have %d clients and %d servers", local, links))
 	s.reply(c, irc.RplLocalUsers, strconv.Itoa(local), strconv.Itoa(s.maxLocal), fmt.Sprintf("Current local users %d, max %d", local, s.maxLocal))
-	s.reply(c, irc.RplGlobalUsers, strconv.Itoa(total), strconv.Itoa(s.maxLocal), fmt.Sprintf("Current global users %d, max %d", total, s.maxLocal))
+	s.reply(c, irc.RplGlobalUsers, strconv.Itoa(total), strconv.Itoa(s.maxGlobal), fmt.Sprintf("Current global users %d, max %d", total, s.maxGlobal))
 }
 
 func (s *Server) motd(c *Client) {

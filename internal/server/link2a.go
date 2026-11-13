@@ -360,7 +360,7 @@ func (s *Server) linkLocal() link.Local {
 		ChanModes: chanModesList + "," + chanModesKey + "," + chanModesParam + "," + chanModesFlags,
 		UserModes: userModes, Prefix: "(" + s.rankModes() + ")" + s.rankPrefixes(),
 		Casemapping: s.cfg.Server.Casemapping, Services: s.cfg.Services.On(),
-		CloakHash: s.cloakHash(), Booted: s.created.Unix(), MaxGlobal: s.maxLocal,
+		CloakHash: s.cloakHash(), Booted: s.created.Unix(), MaxGlobal: max(s.maxGlobal, s.maxLocal),
 		Now:   func() int64 { return time.Now().Unix() },
 		Known: s.linkKnown,
 		Block: func(name string) *config.LinkServer {

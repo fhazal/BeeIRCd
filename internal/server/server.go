@@ -40,6 +40,7 @@ type Server struct {
 	created   time.Time
 	whowas    []whowasEntry
 	maxLocal  int
+	maxGlobal int // most people on the network at once (LUSERS)
 	// Hive Panel Spotlight (spotlight3s.go): when each person last talked
 	// in each channel (times only), and today's most people at once.
 	talk       map[*state.Channel]map[string]int64
@@ -334,6 +335,7 @@ func (s *Server) Serve(ctx context.Context) error {
 			s.reap()
 			s.flushWrites()
 		case now := <-linkTick:
+			s.notePeakGlobal() // people coming in over links
 			s.linkTick(now)
 			s.reap()
 			s.flushWrites()
