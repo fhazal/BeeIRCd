@@ -166,6 +166,9 @@ func (s *Server) statusInfo() *control.Status {
 		PID:             os.Getpid(),
 		Server:          s.cfg.Server.Name,
 		Network:         s.cfg.Server.Network,
+		OS:              runtime.GOOS,
+		Arch:            runtime.GOARCH,
+		CPUs:            runtime.NumCPU(),
 		Online:          total,
 		Peak:            s.maxLocal,
 		Channels:        s.net.ChannelCount(),
@@ -201,6 +204,9 @@ func (s *Server) statusInfo() *control.Status {
 		st.Ports = append(st.Ports, control.Port{Address: l.addr, TLS: l.tls, Proxy: l.proxy})
 	}
 	s.lmu.Unlock()
+	if s.links.ln != nil {
+		st.LinkPort = s.cfg.Link.Port
+	}
 	if s.certs != nil {
 		leaf := s.certs.Leaf()
 		src := "own files"

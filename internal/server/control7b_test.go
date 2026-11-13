@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -198,4 +199,18 @@ func tlsLoginAny(t *testing.T, s *Server) *tls.Conn {
 	}
 	t.Cleanup(func() { conn.Close() })
 	return conn
+}
+
+// TestStatusSystem: Status tells the Hive Panel what the server runs on
+// (Server details card): OS, architecture and CPU count.
+func TestStatusSystem(t *testing.T) {
+	s := testServer(t, nil)
+	var st *control.Status
+	s.onLoop(func() { st = s.statusInfo() })
+	if st.OS != runtime.GOOS || st.Arch != runtime.GOARCH || st.CPUs != runtime.NumCPU() || st.CPUs < 1 {
+		t.Errorf("system: os %q arch %q cpus %d", st.OS, st.Arch, st.CPUs)
+	}
+	if st.LinkPort != 0 {
+		t.Errorf("link port %d with no link listener", st.LinkPort)
+	}
 }

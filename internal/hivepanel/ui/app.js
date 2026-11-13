@@ -316,7 +316,7 @@
   // heads. It runs again when a page redraws a part (a MutationObserver).
   const HEAD_ICON = {
     'Health': 'pulse', 'What happened': 'list', 'Services': 'services', 'Bots': 'services', 'Services run on the hub': 'services',
-    'Limits': 'gauge', 'Server actions': 'terminal', 'Backups': 'archive', 'Add a ban': 'plus', 'Network map': 'map',
+    'Limits': 'gauge', 'Server actions': 'terminal', 'Server details': 'cpu', 'Backups': 'archive', 'Add a ban': 'plus', 'Network map': 'map',
     'Settings': 'settings', 'What the flags allow': 'opers', 'Change an oper': 'opers', 'Add an oper': 'opers',
     'This server, for the other side': 'lock', 'Server tree': 'servers', 'Link blocks': 'servers', 'Link block': 'servers', 'Not linked': 'servers',
   };
@@ -518,6 +518,7 @@
     { id: 'map', label: 'Network map', wide: true, need: 'c' },
     { id: 'events', label: 'What happened', col: 'l' },
     { id: 'actions', label: 'Server actions', col: 'l', can: () => has('a') || me.owner },
+    { id: 'details', label: 'Server details', col: 'l' },
     { id: 'health', label: 'Health', col: 'r' },
     { id: 'services', label: 'Services', col: 'r' },
     { id: 'links', label: 'Linked servers', col: 'r' },
@@ -585,7 +586,14 @@
     if (s.update) out.push({ lvl: 1, label: 'Update', text: s.update.version + ' is out' });
     else out.push({ lvl: 0, label: 'Update', text: 'up to date' });
     const sf = s.safety || {}, guards = (sf.throttled || 0) + (sf.zlined || 0) + (sf.dnsbl_hits || 0);
-    out.push({ lvl: 0, label: 'Guards today', text: guards ? fmt(guards) + ' stopped' : 'quiet' });
+    // One calm line on a quiet day; the three guards each get a row once one caught something.
+    if (!guards) out.push({ lvl: 0, label: 'Guards today', text: 'quiet' });
+    else {
+      const n = (v, one, many) => v ? plural(v, one, many) : 'none';
+      out.push({ lvl: 0, label: 'Slowed down today', text: n(sf.throttled, 'connection', 'connections') },
+        { lvl: 0, label: 'Z-lined today', text: n(sf.zlined, 'blocked', 'blocked') },
+        { lvl: 0, label: 'Blocklist today', text: n(sf.dnsbl_hits, 'blocked', 'blocked') });
+    }
     return out;
   }
   // plainIRC drops IRC bold, colour, italics and the like from a topic.
@@ -803,6 +811,31 @@
           me.owner ? btn('archive', 'Back up now', '/api/backup', backupLines) : null,
           has('a') ? btn('refresh', 'Rehash', '/api/rehash', rehashLines) : null, res));
         return { el: c.card, tail: c.tail };
+      },
+      details() {
+        // What this server runs on. Version, certificate date, memory and
+        // uptime already show elsewhere on the page, so they are not here.
+        const c = ovCard('cpu', 'Server details', 'What this server runs on');
+        const rows = h('div');
+        c.card.append(rows);
+        const OSN = { linux: 'Linux', windows: 'Windows', darwin: 'macOS', freebsd: 'FreeBSD', openbsd: 'OpenBSD', netbsd: 'NetBSD' };
+        const row = (label, end) => h('div', { class: 'row' }, h('span', { text: label }), h('span', { class: 'end mono', text: end }));
+        return { el: c.card, tail: c.tail,
+          status(s) {
+            const seen = new Set(), ports = [];
+            for (const p of s.ports || []) {
+              const n = (p.address || '').split(':').pop(), tag = n + (p.tls ? ' TLS' : '') + (p.proxy ? ' proxy' : '');
+              if (n && !seen.has(tag)) { seen.add(tag); ports.push(tag); }
+            }
+            if (s.link_port) ports.push(s.link_port + ' link');
+            const st = new Date(s.started);
+            put(rows,
+              ports.length ? row('Ports', ports.join(' · ')) : null,
+              s.os ? row('System', [OSN[s.os] || s.os, s.arch, s.cpus ? plural(s.cpus, 'core', 'cores') : ''].filter(Boolean).join(' · ')) : null,
+              s.cert && (s.cert.names || []).length ? row('Certificate for', s.cert.names.join(', ')) : null,
+              s.started ? row('Started', day(st) + ' ' + pad(st.getHours()) + ':' + pad(st.getMinutes())) : null,
+              row('Channel history', s.history_channels ? plural(s.history_channels, 'channel', 'channels') + ' · ' + bytes(s.history_bytes || 0) : 'none yet'));
+          } };
       },
       health() {
         const word = h('span', { class: 'okword' });

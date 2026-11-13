@@ -439,6 +439,10 @@ type Status struct {
 	Server   string    `json:"server"`
 	Network  string    `json:"network"`
 	Ports    []Port    `json:"ports"`
+	LinkPort int       `json:"link_port,omitempty"` // TLS port for server links, 0 = none
+	OS       string    `json:"os"`                  // like "linux"
+	Arch     string    `json:"arch"`                // like "amd64"
+	CPUs     int       `json:"cpus"`
 	Online   int       `json:"online"`
 	Peak     int       `json:"peak"`
 	Channels int       `json:"channels"`
