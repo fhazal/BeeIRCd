@@ -54,6 +54,11 @@ admin = "ztnadmin"
 reg_delay = "0s"
 force_email = false
 
+[limits]
+# every test client comes from Docker's one gateway address (heavy.sh)
+session_limit = 10000
+max_users = 10000
+
 [control]
 socket = "/data/beeircd.sock"
 
