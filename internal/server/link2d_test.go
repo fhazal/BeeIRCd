@@ -93,7 +93,7 @@ func TestLinkOperFlags(t *testing.T) {
 		hub.s.onLoop(func() { f = host{hub.s}.OperFlags(uid) })
 		return f
 	}
-	waitLink(t, "flags on the hub", func() bool { return flags() == "acghks" })
+	waitLink(t, "flags on the hub", func() bool { return flags() == "abcghks" })
 	fay.send("OS STATS")
 	fay.expect(":OperServ!")
 	leaf.s.onLoop(func() { leaf.s.deoper(leaf.s.clients[uid], "") })

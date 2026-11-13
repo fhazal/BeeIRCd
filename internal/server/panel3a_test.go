@@ -50,7 +50,7 @@ func TestPanelLoginAndFlags(t *testing.T) {
 	}
 
 	r := panelAsk(t, s, control.Request{Cmd: control.CmdPanelLogin, Nick: "boss", Password: operPW, IP: "127.0.0.1"})
-	if r.Oper == nil || r.Oper.Account != "Boss" || r.Oper.Flags != "acghks" || !r.Oper.Owner {
+	if r.Oper == nil || r.Oper.Account != "Boss" || r.Oper.Flags != "abcghks" || !r.Oper.Owner {
 		t.Fatalf("owner login: %+v", r)
 	}
 	r = panelAsk(t, s, control.Request{Cmd: control.CmdPanelLogin, Nick: "ember", Password: emberPW, IP: "127.0.0.1"})

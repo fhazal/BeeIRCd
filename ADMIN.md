@@ -95,11 +95,28 @@ from IRC. Add others with AdminServ:
 - The nick must be registered with NickServ. Opers `/oper <nick> <oper
   password>` from a matching host; the oper password is their own, not the
   NickServ one.
-- Flags: `a` admin (AdminServ, REHASH, SA* commands), `c` links, `g` global,
-  `h` hosts (CHGHOST and friends, HostServ), `k` kill, `s` services (OperServ).
+- Flags: `a` admin (AdminServ, REHASH, SA* commands), `b` bots (BotServ BOT
+  ADD/CHANGE/DEL, SET PRIVATE, SET NOBOT), `c` links, `g` global, `h` hosts
+  (CHGHOST and friends, HostServ), `k` kill, `s` services (OperServ).
 - Built-in classes: `helper` (h), `globop` (hk), `admin` (ghks), `netadmin`
-  (acghks). You can only give flags you have yourself.
+  (abcghks). You can only give flags you have yourself.
 - Opers skip the flood slowdown.
+
+## Channel bots (BotServ)
+
+BeeIRCd starts with no bots, like Anope. An oper with flag `b` makes one,
+then channel founders can put it in their channel:
+
+```
+/bs bot add Buzz bot bots.example.org Channel Bee
+/bs assign #mychannel Buzz
+```
+
+The bot sits in the channel with op, can talk for it (`/bs say`), greets
+people (NickServ `SET GREET`), kicks for bad words, caps or floods (`/bs
+kick`, `/bs badwords`) and takes `!op`, `!kick` and the other fantasy
+commands. ChanServ's modes and kicks in that channel then come from the
+bot. `/bs help` lists everything.
 
 ## Backups
 
@@ -530,7 +547,7 @@ that class.
 | Setting | Meaning |
 | --- | --- |
 | `name` | Up to 30 letters, digits, `_` or `-` |
-| `flags` | Letters from `acghks` |
+| `flags` | Letters from `abcghks` |
 | `title` | WHOIS line, like "is a Network Administrator" |
 | `vhost` | Host shown after `/oper` |
 | `swhois` | Up to 5 extra WHOIS lines |

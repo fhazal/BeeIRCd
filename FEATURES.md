@@ -98,7 +98,8 @@ Last updated: 12 Nov 2026 (Stage 1.5.9b).
 | ChanServ MODE LOCK ADD/DEL/SET/LIST, MODE SET, MODE CLEAR, TOPIC SET/APPEND/PREPEND/LOCK/UNLOCK, ENTRYMSG (5 lines), ENFORCE, LOG (MESSAGE/NOTICE/MEMO, by status), SUSPEND/UNSUSPEND (+expiry) | Implemented (1.5.4) |
 | ChanServ SET: DESCRIPTION FOUNDER SUCCESSOR SECURE SECUREFOUNDER KEEPTOPIC KEEPMODES PEACE RESTRICTED SECUREOPS SIGNKICK AUTOOP PERSIST PRIVATE BANTYPE URL NOEXPIRE; CR shortcuts MEMOLEVEL AUTOVOP LEAVEOPS; DROP #chan #chan; UNBAN with no channel (Anope 2.0.20) | Implemented (1.5.4, 2.0.20 shape 11 Nov 2026) |
 | ChanServ SET OVERFLOW (send people on when full) | Implemented | 1.5.9a; locks +L in the mode lock |
-| ChanServ FLAGS, CLONE, SEEN; BotServ (ASSIGN, SAY, BADWORDS) | Planned |
+| BotServ as Anope 2.0.20: BOT ADD/CHANGE/DEL (oper flag b), BOTLIST, ASSIGN/UNASSIGN, SAY/ACT, INFO, SET GREET/FANTASY/BANEXPIRE/DONTKICKOPS/DONTKICKVOICES/NOBOT/PRIVATE, NickServ SET GREET, 10 kickers with times-to-ban, BADWORDS, fantasy commands (!op, !kick ...), ChanServ acts through the channel's bot | Implemented (v1.0, 13 Nov 2026) |
+| ChanServ FLAGS, CLONE | Planned |
 | MemoServ (nick memos, number lists, ignore) | Implemented |
 | MemoServ channel memo boxes (one box per channel like Anope, MEMO privilege, own limit and ignore list, notice on join and identify) | Implemented (1.5.4) |
 | OperServ (STATS AKILL/HASH/UPLINK/UPTIME/ALL/RESET, global, AKILL ZLINE SNLINE SHUN SQLINE with expiry (30 days by default, `ban_expiry`; +0 for good) and number lists, SNLINE mask:reason, EXCEPTION BAN (ELINE), kill, MODE incl. CLEAR [ALL], kick, FORBID nick/chan/email/register with expiry, sessions, exceptions with expiry and CIDR, logon news) | Implemented (ban engine 1.5.5a, 2.0.20 shape 11 Nov 2026) |

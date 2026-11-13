@@ -4,6 +4,7 @@ import "fmt"
 
 var flagNames = map[byte]string{
 	'a': "admin",
+	'b': "bots",
 	'c': "links",
 	'g': "global",
 	'h': "hosts",

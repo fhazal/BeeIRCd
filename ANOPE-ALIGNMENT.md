@@ -122,7 +122,26 @@ Where we differ from Anope, on purpose:
 - ENFORCE has no SSLONLY yet (no +z until 1.5.9). LIMIT kicks people with
   no status and no access first (we don't keep join order).
 - Not built: FLAGS, CLONE, SEEN, SET EMAIL; BotServ's ASSIGN, SAY,
-  BADWORDS, FANTASY.
+  BADWORDS, FANTASY. (BotServ was built later, see below.)
+
+## BotServ (built 13 Nov 2026, v1.0)
+
+Follows Anope 2.0.20 bs_*.cpp, fantasy.cpp, greet and botserv.example.conf
+defaults (defaults = greet fantasy, minusers 1, botmodes ao, badwordsmax
+32, keepdata 10m, gentlebadwordreason yes, fantasycharacter !). Where we
+differ, on purpose:
+- New oper flag `b` stands for botserv/bot/* privileges; botserv/
+  administration is flag `s`.
+- Bans after times-to-ban are `~t:` timed bans (BANEXPIRE rounded up to
+  whole minutes) instead of a timer.
+- AMSG kicker remembers the last line per person. Anope 2.0 keeps it per
+  channel membership, so its AMSG check never fires.
+- Bots are network services: KICK refuses them, so no rejoin-on-kick.
+- BOT CHANGE with a new ident, host or real name changes them in place
+  (CHGHOST, SETNAME). Anope quits the bot and brings it back, which
+  briefly closes a PERSIST channel only that bot holds open.
+- No MUTE fantasy command (needs a quiet mode on BAN); no BOTSERV COPY or
+  per-bot fantasy prefixes (Anope 2.1).
 
 ## Stage 1.5.5a (built 11 Nov 2026)
 

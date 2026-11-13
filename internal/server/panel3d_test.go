@@ -26,7 +26,7 @@ func TestPanelOpers(t *testing.T) {
 
 	// List: owner first and locked, then the entries.
 	o := ask("Boss", control.Request{Cmd: control.CmdOpers}).Opers
-	if o == nil || len(o.Rows) != 2 || !o.Rows[0].Owner || o.Rows[0].All != "acghks" || o.Rows[1].Account != "fern" || o.Rows[1].All != "ah" || len(o.Classes) < 4 {
+	if o == nil || len(o.Rows) != 2 || !o.Rows[0].Owner || o.Rows[0].All != "abcghks" || o.Rows[1].Account != "fern" || o.Rows[1].All != "ah" || len(o.Classes) < 4 {
 		t.Fatalf("opers: %+v", o)
 	}
 	if r := ask("Boss", control.Request{Cmd: control.CmdOperSave, Name: "Boss", Flags: "g", Hosts: "*@*"}); !strings.Contains(r.Error, "owner") {

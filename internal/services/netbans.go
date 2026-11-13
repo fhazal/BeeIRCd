@@ -148,6 +148,9 @@ func (s *Services) netbanMask(kind, arg string) (string, string) {
 			if !irc.IsCIDR(m) {
 				return "", m + " isn't a CIDR range. One looks like 203.0.113.0/24 or 2001:db8::/32."
 			}
+			if p, _ := netip.ParsePrefix(m); p.Bits() == 0 {
+				return "", "That mask matches everyone. Give a narrower one."
+			}
 			return m, ""
 		}
 		_, ipErr := netip.ParseAddr(m)

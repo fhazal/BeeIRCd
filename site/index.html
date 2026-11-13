@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="BeeIRCd is an IRC server with NickServ, ChanServ, MemoServ, OperServ and AdminServ built in. Inspired by ConferenceRoom, built for today's clients.">
+<meta name="description" content="BeeIRCd is an IRC server with NickServ, ChanServ, MemoServ, OperServ, HostServ and AdminServ built in. Inspired by ConferenceRoom, built for today's clients.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f2b33d' stroke-width='2' stroke-linejoin='round'%3E%3Cpath d='M12 2.8 20 7.4v9.2l-8 4.6-8-4.6V7.4z'/%3E%3Cpath d='M12 8.2 15.3 10v4L12 15.8 8.7 14v-4z'/%3E%3C/svg%3E">
 <style>html{-webkit-text-size-adjust:100%}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>BeeIRCd, IRC with the services built in</title>
@@ -11,20 +11,20 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap">
 <style>
-/* Layout: a split hero (claim left, a live IRC session right), then calm full-width bands on one 1080px column. Same family as the Hive Panel: dark ground, honey accent, one line-icon style. */
+/* Layout: a split hero (claim left, a live IRC session right), then calm full-width bands on one 1080px column. Black and yellow: black ground, honey accent, one line-icon style. */
 :root {
-  --ground: #f4f5f7;
-  --band: #eceef2;
+  --ground: #f4f4f2;
+  --band: #ebebe8;
   --panel: #ffffff;
-  --ink: #161b26;
-  --muted: #5b6272;
-  --line: #d9dce3;
+  --ink: #151515;
+  --muted: #5f5f5a;
+  --line: #d9d9d4;
   --honey: #a86a00;
   --honey-soft: #f6e3bd;
   --ok: #1d7a4f;
-  --term: #141925;
-  --term-ink: #dfe3ea;
-  --term-dim: #8a93a5;
+  --term: #141414;
+  --term-ink: #e6e6e2;
+  --term-dim: #8f8f8a;
   --term-honey: #f2b33d;
   --term-blue: #7fb2ff;
   --term-green: #7fd4a0;
@@ -35,15 +35,15 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --ground: #10141d; --band: #151a25; --panel: #1a2030; --ink: #e8e6e1; --muted: #9ba2b1;
-    --line: #273042; --honey: #f2b33d; --honey-soft: #3a2f17; --ok: #7fd4a0;
-    --term: #0b0f17; color-scheme: dark;
+    --ground: #0d0d0d; --band: #121212; --panel: #181818; --ink: #ecebe6; --muted: #9a9a94;
+    --line: #2a2a2a; --honey: #f2b33d; --honey-soft: #3a2f17; --ok: #7fd4a0;
+    --term: #0a0a0a; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --ground: #10141d; --band: #151a25; --panel: #1a2030; --ink: #e8e6e1; --muted: #9ba2b1;
-  --line: #273042; --honey: #f2b33d; --honey-soft: #3a2f17; --ok: #7fd4a0;
-  --term: #0b0f17; color-scheme: dark;
+  --ground: #0d0d0d; --band: #121212; --panel: #181818; --ink: #ecebe6; --muted: #9a9a94;
+  --line: #2a2a2a; --honey: #f2b33d; --honey-soft: #3a2f17; --ok: #7fd4a0;
+  --term: #0a0a0a; color-scheme: dark;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -77,8 +77,8 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--honey); outline
 .btn svg { width: 18px; height: 18px; }
 
 /* The IRC session */
-.session { background: var(--term); color: var(--term-ink); border-radius: 14px; font: 400 13.5px/1.75 var(--mono); overflow: hidden; border: 1px solid #222a3a; }
-.session .bar { display: flex; justify-content: space-between; gap: 12px; padding: 10px 16px; border-bottom: 1px solid #222a3a; color: var(--term-dim); font-size: 12.5px; }
+.session { background: var(--term); color: var(--term-ink); border-radius: 14px; font: 400 13.5px/1.75 var(--mono); overflow: hidden; border: 1px solid #2a2a2a; }
+.session .bar { display: flex; justify-content: space-between; gap: 12px; padding: 10px 16px; border-bottom: 1px solid #2a2a2a; color: var(--term-dim); font-size: 12.5px; }
 .session .log { padding: 14px 16px 18px; overflow-x: auto; }
 .session .l { white-space: pre; opacity: 1; }
 .session .me { color: var(--term-ink); }
@@ -129,6 +129,56 @@ h2 { font: 700 clamp(26px, 3vw, 34px)/1.15 var(--display); letter-spacing: -0.02
 .steps .next svg { color: var(--honey); }
 .steps .later { color: var(--muted); }
 
+/* Progress: two yellow ring gauges, what's happening now, and the log of what's done */
+.status-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+.updated { font-size: 14px; color: var(--muted); }
+.updated b { color: var(--ink); font-weight: 500; }
+.board { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.1fr); gap: 16px; margin-bottom: 40px; }
+.gauge { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 22px 20px 20px; text-align: center; }
+.gauge svg { display: block; width: 100%; max-width: 210px; margin: 0 auto; overflow: visible; }
+.gauge .track { fill: none; stroke: var(--line); stroke-width: 18; }
+.gauge .ring { fill: none; stroke: var(--honey); stroke-width: 18; }
+.gauge .pct { font: 700 46px/1 var(--display); letter-spacing: -0.03em; fill: var(--ink); }
+.gauge .pct tspan { font-size: 22px; fill: var(--muted); }
+.gauge .what { font: 500 13px/1 var(--body); fill: var(--muted); }
+.gauge h3 { font: 600 17px/1.3 var(--display); margin: 6px 0 4px; }
+.gauge p { margin: 0; color: var(--muted); font-size: 14px; }
+.now-card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 22px; display: grid; gap: 18px; align-content: start; }
+.now-card h3 { font: 600 15px/1.3 var(--display); margin: 0 0 6px; color: var(--muted); }
+.now-card .live { display: flex; gap: 10px; align-items: baseline; }
+.now-card .live i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); position: relative; top: -1px; }
+@media (prefers-reduced-motion: no-preference) {
+  .now-card .live i { animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--ok) 25%, transparent); } }
+}
+.now-card .live b { font-weight: 600; }
+.now-card p { margin: 0; color: var(--muted); font-size: 14.5px; }
+.bar-mini { height: 6px; border-radius: 3px; background: var(--band); border: 1px solid var(--line); overflow: hidden; margin-top: 10px; }
+.bar-mini span { display: block; height: 100%; background: var(--ok); }
+.now-card .next { border-top: 1px solid var(--line); padding-top: 16px; }
+
+.log-h { font: 600 19px/1.3 var(--display); margin: 0 0 14px; }
+.done-log { list-style: none; padding: 0; margin: 0; border-left: 2px solid var(--line); margin-left: 7px; }
+.done-log .day { font: 600 14px/1 var(--display); color: var(--muted); padding: 18px 0 8px 20px; position: relative; }
+.done-log .day:first-child { padding-top: 2px; }
+.done-log .item { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 12px; padding: 7px 0 7px 20px; position: relative; font-size: 15px; }
+.done-log .item::before { content: ""; position: absolute; left: -7px; top: 13px; width: 12px; height: 12px; border-radius: 3px; background: var(--panel); border: 2px solid var(--ok); clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: var(--ok); }
+.done-log .item.fresh::before { background: var(--honey); border-color: var(--honey); }
+.done-log time { font: 400 13px/1.6 var(--mono); color: var(--muted); padding-top: 1px; }
+.done-log .item span { color: var(--ink); }
+.done-log .item small { display: block; color: var(--muted); font-size: 13.5px; }
+.more { margin: 14px 0 0 22px; font: 500 14px/1 var(--body); background: none; border: 1px solid var(--line); border-radius: 8px; padding: 9px 14px; color: var(--ink); cursor: pointer; }
+.more:hover { border-color: var(--honey); }
+.road { margin-top: 40px; }
+
+@media (max-width: 860px) {
+  .board { grid-template-columns: 1fr 1fr; }
+  .now-card { grid-column: 1 / -1; }
+}
+@media (max-width: 520px) {
+  .board { grid-template-columns: 1fr; }
+}
+
 footer { padding-block: 36px 48px; color: var(--muted); font-size: 14px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 
 @media (max-width: 860px) {
@@ -152,6 +202,7 @@ footer { padding-block: 36px 48px; color: var(--muted); font-size: 14px; display
     <symbol id="i-hash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M9.5 3.5 7.5 20.5M16.5 3.5l-2 17M4 9h16.5M3.5 15H20"/></symbol>
     <symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="3.2" y="5.5" width="17.6" height="13" rx="2"/><path d="m4 7 8 6 8-6"/></symbol>
     <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3 19.5 6v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6z"/></symbol>
+    <symbol id="i-tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1 1 0 0 1 0 1.4l-7.3 7.3a1 1 0 0 1-1.4 0z"/><circle cx="8" cy="8" r="1.5"/></symbol>
     <symbol id="i-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 4v16M12 4v16M19 4v16"/><circle cx="5" cy="9" r="2" fill="var(--ground)"/><circle cx="12" cy="15" r="2" fill="var(--ground)"/><circle cx="19" cy="7" r="2" fill="var(--ground)"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
     <symbol id="i-dot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="5"/></symbol>
@@ -173,7 +224,7 @@ footer { padding-block: 36px 48px; color: var(--muted); font-size: 14px; display
   <div class="hero">
     <div>
       <h1>Your own IRC network, with the services built in.</h1>
-      <p class="lead">BeeIRCd is one program that runs the chat server and NickServ, ChanServ, MemoServ, OperServ and AdminServ. Set it up with a few questions, change it from IRC while it runs, and keep the IRC you already know.</p>
+      <p class="lead">BeeIRCd is one program that runs the chat server and NickServ, ChanServ, MemoServ, OperServ, HostServ and AdminServ. Set it up with a few questions, change it from IRC while it runs, and keep the IRC you already know.</p>
       <span class="state"><i></i>In development. Not ready for public networks yet.</span>
       <div class="actions">
         <a class="btn main" href="#status"><svg aria-hidden="true"><use href="#i-arrow"/></svg>See where it stands</a>
@@ -204,13 +255,14 @@ footer { padding-block: 36px 48px; color: var(--muted); font-size: 14px; display
 
 <div class="band" id="services">
   <section class="wrap">
-    <h2>Five services, one program</h2>
+    <h2>Six services, one program</h2>
     <p class="intro">No separate services package to link and keep in sync. The services answer the way they always have, with a short notice and the next step to take.</p>
     <div class="svcs">
       <div class="svc-row"><svg aria-hidden="true"><use href="#i-user"/></svg><b>NickServ</b><span>Keeps your nick yours. Identify with a password or SASL, group nicks, recover a ghost.</span><code>/ns register &lt;password&gt;</code></div>
       <div class="svc-row"><svg aria-hidden="true"><use href="#i-hash"/></svg><b>ChanServ</b><span>Keeps a channel yours. Founder, SOP, AOP, VOP and UOP levels, AKICK, mode and topic lock.</span><code>/cs register #channel &lt;description&gt;</code></div>
       <div class="svc-row"><svg aria-hidden="true"><use href="#i-mail"/></svg><b>MemoServ</b><span>Messages for people who are away, and memos to a channel's founder and SOPs.</span><code>/ms send ember see you at nine</code></div>
       <div class="svc-row"><svg aria-hidden="true"><use href="#i-shield"/></svg><b>OperServ</b><span>The oper toolbox. Network bans, kills, global notices, forbidden nicks and channels, session limits.</span><code>/os akill add *@203.0.113.* 7d spam</code></div>
+      <div class="svc-row"><svg aria-hidden="true"><use href="#i-tag"/></svg><b>HostServ</b><span>Gives a nick a vHost, a host shown instead of the real one. Users ask for one, opers approve it.</span><code>/hs request bee.beeircd.org</code></div>
       <div class="svc-row"><svg aria-hidden="true"><use href="#i-sliders"/></svg><b>AdminServ</b><span>Change the server while it runs. Every change is saved to the config file, with your comments kept.</span><code>/as port add 6697 tls</code></div>
     </div>
   </section>
@@ -234,11 +286,11 @@ footer { padding-block: 36px 48px; color: var(--muted); font-size: 14px; display
       <ul class="ticks">
         <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>IRCv3, so modern clients get typing, replies, history-ready message IDs and SASL.</span></li>
         <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>Cloaked hosts by default, TLS 1.2 or newer, flood control that slows senders down instead of dropping them.</span></li>
-        <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>Opers are opered when they identify, so no second password sits in client configs.</span></li>
+        <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>Each oper has an own oper password, separate from NickServ, locked after five wrong tries.</span></li>
         <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>Written in Go from scratch, with server linking designed in from day one.</span></li>
       </ul>
       <div class="caps" aria-label="IRCv3 capabilities BeeIRCd offers today">
-        <span>sasl</span><span>message-tags</span><span>server-time</span><span>echo-message</span><span>labeled-response</span><span>batch</span><span>account-tag</span><span>account-notify</span><span>away-notify</span><span>extended-join</span><span>invite-notify</span><span>chghost</span><span>multi-prefix</span><span>userhost-in-names</span><span>cap-notify</span>
+        <span>sasl</span><span>message-tags</span><span>server-time</span><span>echo-message</span><span>labeled-response</span><span>batch</span><span>account-tag</span><span>account-notify</span><span>away-notify</span><span>extended-join</span><span>invite-notify</span><span>chghost</span><span>multi-prefix</span><span>userhost-in-names</span><span>cap-notify</span><span>setname</span><span>draft/chathistory</span><span>sts</span>
       </div>
     </div>
   </div>
@@ -246,25 +298,50 @@ footer { padding-block: 36px 48px; color: var(--muted); font-size: 14px; display
 
 <div class="band" id="status">
   <section class="wrap">
-    <h2>Where it stands</h2>
-    <p class="intro">Built in four stages. Each stage is tested on a real server before the next one starts.</p>
+    <div class="status-head">
+      <h2>Where it stands</h2>
+      <span class="updated" id="updated"></span>
+    </div>
+    <p class="intro">Built in four stages. Each stage is tested on a real server before the next one starts. This page updates every time a step is finished.</p>
+
+    <div class="board">
+      <div class="gauge" id="g-v1"></div>
+      <div class="gauge" id="g-vision"></div>
+      <div class="now-card">
+        <div>
+          <h3>Running now</h3>
+          <div class="live"><i></i><b id="now-title"></b></div>
+          <p id="now-text"></p>
+          <div class="bar-mini" aria-hidden="true"><span id="now-bar"></span></div>
+        </div>
+        <div class="next">
+          <h3>Next</h3>
+          <p id="next-text"></p>
+        </div>
+      </div>
+    </div>
+
+    <h3 class="log-h">Done so far</h3>
+    <ol class="done-log" id="done-log"></ol>
+    <button class="more" id="more" type="button"></button>
+
     <div class="road">
       <div class="stage now">
-        <span class="n">Stage 1, in progress</span>
+        <span class="n">Stage 1, final checks</span>
         <h3>One server, all services</h3>
         <ul class="steps">
           <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>Core chat server</li>
           <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>IRCv3, SASL, cloaks</li>
-          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>NickServ and MemoServ</li>
-          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>ChanServ</li>
-          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>OperServ and AdminServ</li>
-          <li class="next"><svg aria-hidden="true"><use href="#i-dot"/></svg>Installer and the beeircd command</li>
+          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>NickServ, ChanServ, MemoServ</li>
+          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>OperServ, AdminServ, HostServ</li>
+          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>Installer and the beeircd command</li>
+          <li class="next"><svg aria-hidden="true"><use href="#i-dot"/></svg>24 hour test, then release candidate</li>
         </ul>
       </div>
       <div class="stage">
-        <span class="n">Stage 2, planned</span>
+        <span class="n">Stage 2, plan ready</span>
         <h3>Server linking</h3>
-        <p>Link BeeIRCd servers into one network, with services on the hub.</p>
+        <p>Link BeeIRCd servers into one network, and to UnrealIRCd 6 servers, with services on the hub.</p>
       </div>
       <div class="stage">
         <span class="n">Stage 3, planned</span>
@@ -284,5 +361,103 @@ footer { padding-block: 36px 48px; color: var(--muted); font-size: 14px; display
   <span>BeeIRCd by BajuBesi Labs. Free software under the AGPL-3.0.</span>
   <span>beeircd.org</span>
 </footer>
+
+<script>
+// Progress lives in progress.json next to this page; edit that file after each finished step.
+fetch('progress.json', { cache: 'no-cache' }).then(function (r) { if (!r.ok) throw r.status; return r.json(); }).then(function (data) {
+  var NS = 'http://www.w3.org/2000/svg';
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  // Dates are written in Malaysia time; show them as written.
+  function parts(s) { var m = s.match(/(\d+)-(\d+)-(\d+)T(\d+):(\d+)/); return { day: +m[3] + ' ' + months[+m[2] - 1], time: m[4] + ':' + m[5] }; }
+  var still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var u = parts(data.updated);
+  document.getElementById('updated').innerHTML = 'Updated <b>' + u.day + ', ' + u.time + '</b> MYT';
+
+  // Gauge: a yellow ring that fills clockwise from the top
+  data.gauges.forEach(function (g) {
+    var box = document.getElementById(g.id), cx = 115, cy = 115, R = 92;
+    var svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 230 230');
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', g.title + ': ' + g.pct + ' percent done');
+    function circle(cls) {
+      var c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', R);
+      c.setAttribute('class', cls); c.setAttribute('pathLength', 100);
+      c.setAttribute('transform', 'rotate(-90 ' + cx + ' ' + cy + ')');
+      svg.appendChild(c); return c;
+    }
+    circle('track');
+    var ring = circle('ring');
+    ring.setAttribute('stroke-dasharray', '0 100');
+    var t = document.createElementNS(NS, 'text');
+    t.setAttribute('x', cx); t.setAttribute('y', cy + 12); t.setAttribute('text-anchor', 'middle'); t.setAttribute('class', 'pct');
+    var num = document.createTextNode('0'); t.appendChild(num);
+    var sign = document.createElementNS(NS, 'tspan'); sign.textContent = '%'; t.appendChild(sign);
+    svg.appendChild(t);
+    var w = document.createElementNS(NS, 'text');
+    w.setAttribute('x', cx); w.setAttribute('y', cy + 38); w.setAttribute('text-anchor', 'middle'); w.setAttribute('class', 'what');
+    w.textContent = g.label; svg.appendChild(w);
+    box.appendChild(svg);
+    var h = document.createElement('h3'); h.textContent = g.title; box.appendChild(h);
+    var p = document.createElement('p'); p.textContent = g.text; box.appendChild(p);
+
+    function set(x) { ring.setAttribute('stroke-dasharray', x + ' 100'); num.nodeValue = Math.round(x); }
+    function fill() {
+      if (still) { set(g.pct); return; }
+      var start = performance.now(), dur = 1400;
+      (function step(now) {
+        var k = Math.min(1, (now - start) / dur), e = 1 - Math.pow(1 - k, 3);
+        set(g.pct * e);
+        if (k < 1) requestAnimationFrame(step);
+      })(start);
+    }
+    if ('IntersectionObserver' in window) {
+      var io = new IntersectionObserver(function (es) { if (es[0].isIntersecting) { io.disconnect(); fill(); } }, { threshold: 0.4 });
+      io.observe(box);
+    } else fill();
+  });
+
+  // Running now: progress of a timed job, kept current while the page is open
+  var n = data.now;
+  document.getElementById('now-title').textContent = n.title;
+  document.getElementById('now-text').textContent = n.text;
+  function tick() {
+    var s = Date.parse(n.start), e = Date.parse(n.end), k = Math.max(0, Math.min(1, (Date.now() - s) / (e - s)));
+    document.getElementById('now-bar').style.width = (k * 100).toFixed(1) + '%';
+  }
+  tick(); setInterval(tick, 60000);
+  document.getElementById('next-text').textContent = data.next;
+
+  // Done so far, newest first, grouped by day
+  var log = document.getElementById('done-log'), SHOW = 8, items = [], lastDay = '';
+  data.done.forEach(function (d, i) {
+    var p = parts(d[0]);
+    if (p.day !== lastDay) { var li = document.createElement('li'); li.className = 'day'; li.textContent = p.day; log.appendChild(li); items.push(li); lastDay = p.day; }
+    var it = document.createElement('li'); it.className = 'item' + (i === 0 ? ' fresh' : '');
+    var tm = document.createElement('time'); tm.dateTime = d[0]; tm.textContent = p.time;
+    var sp = document.createElement('span'); sp.textContent = d[1];
+    if (d[2]) { var sm = document.createElement('small'); sm.textContent = d[2]; sp.appendChild(sm); }
+    it.appendChild(tm); it.appendChild(sp); log.appendChild(it); items.push(it);
+    it.dataset.n = i;
+  });
+  var more = document.getElementById('more');
+  function collapse(open) {
+    var shown = 0;
+    items.forEach(function (li) {
+      if (li.className === 'day') { li.hidden = !open && shown >= SHOW; }
+      else { li.hidden = !open && +li.dataset.n >= SHOW; shown = +li.dataset.n + 1; }
+    });
+    more.textContent = open ? 'Show fewer' : 'Show all ' + data.done.length;
+    more.setAttribute('aria-expanded', open);
+  }
+  var open = false; collapse(open);
+  more.addEventListener('click', function () { open = !open; collapse(open); });
+}).catch(function () {
+  document.getElementById('updated').textContent = 'Progress could not load. Try again in a minute.';
+  document.querySelector('.board').hidden = true; document.getElementById('more').hidden = true;
+});
+</script>
 </body>
 </html>

@@ -252,6 +252,9 @@ func csDrop(s *Services, c *Client, args []string) {
 // channelGone tidies a live channel whose registration went: -r, and
 // ChanServ leaves if it was keeping it open.
 func (s *Services) channelGone(name string) {
+	if s.bsWatch[irc.Fold(name)] {
+		s.bsWatchAll()
+	}
 	live := s.net.Channel(name)
 	if live == nil {
 		return
@@ -259,6 +262,9 @@ func (s *Services) channelGone(name string) {
 	s.csMode(live, []modeChange{{false, 'r', ""}})
 	if live.Member(s.chanServ.user) != nil {
 		s.emit(&state.Part{UID: s.chanServ.user.UID, Channel: live.Name})
+	}
+	for _, bot := range s.allBots() { // an assigned bot leaves with the registration
+		s.botPart(name, bot, "")
 	}
 }
 
@@ -709,9 +715,9 @@ func (s *Services) signed(reg *store.Channel, c *Client, lvl int, reason string)
 	return reason
 }
 
-// csKickUser kicks u from ch as ChanServ.
+// csKickUser kicks u from ch as ChanServ (or the channel's bot).
 func (s *Services) csKickUser(ch *state.Channel, u *state.User, reason string) {
-	s.svcKick(s.chanServ, ch, u, reason)
+	s.svcKick(s.whoSends(ch), ch, u, reason)
 }
 
 // svcKick kicks u from ch as a service.
@@ -1446,10 +1452,11 @@ func csList(s *Services, c *Client, args []string) {
 	}
 }
 
-// csMode sets modes on ch as ChanServ. Changes that change nothing are
-// dropped when applied; the rest go out in lines of at most 4 parameters.
+// csMode sets modes on ch as ChanServ (or the channel's bot). Changes that
+// change nothing are dropped when applied; the rest go out in lines of at
+// most 4 parameters.
 func (s *Services) csMode(ch *state.Channel, changes []modeChange) {
-	s.svcMode(s.chanServ, ch, changes)
+	s.svcMode(s.whoSends(ch), ch, changes)
 }
 
 // svcMode sets channel modes as service sv. Status modes for people not in

@@ -695,6 +695,17 @@ func (s *Services) isOperUser(u *state.User) bool { return s.host.OperFlags(u.UI
 // persistJoin puts ChanServ in reg so the channel stays open, opening it
 // if nobody is in it.
 func (s *Services) persistJoin(reg *store.Channel) {
+	if bot, _ := s.chanBot(reg); bot != nil {
+		// BotServ: the assigned bot keeps a PERSIST channel open.
+		if live := s.net.Channel(reg.Name); live == nil || live.Member(bot.user) == nil {
+			created := s.net.Channel(reg.Name) == nil
+			s.botJoin(reg, bot)
+			if live := s.net.Channel(reg.Name); live != nil && created {
+				s.restoreChannel(reg, live)
+			}
+		}
+		return
+	}
 	if live := s.net.Channel(reg.Name); live != nil && live.Member(s.chanServ.user) != nil {
 		return
 	}

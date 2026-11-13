@@ -74,6 +74,7 @@ func (s *Services) csJoin(c *Client, ch *state.Channel, created bool) {
 		s.cs(c, "[%s] %s", ch.Name, e.Text)
 	}
 	s.chanMemoNotice(c, reg)
+	s.bsJoined(c, reg, ch)
 }
 
 // csOnIdentify gives a user who just identified the modes they earn in the
@@ -100,7 +101,7 @@ func (s *Services) csAfterUserModes(ch *state.Channel, changes []modeChange) {
 	if err != nil || reg == nil {
 		return
 	}
-	fix := mlockChanges(reg, ch)
+	fix := append(mlockChanges(reg, ch), s.bsKeepModes(reg, ch)...)
 	if reg.SecureOps {
 		for _, m := range changes {
 			if m.add && state.RankForMode(m.mode) != 0 {

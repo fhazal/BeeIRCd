@@ -55,7 +55,7 @@ func main() {
 	flag.StringVar(&lc.key, "key", "zt-key.pem", "its key")
 	flag.StringVar(&lc.pw, "pw", "zt9-pass-word", "password for the zt* test accounts")
 	flag.StringVar(&lc.admin, "admin", "", "oper account for one wrong-password /oper check (counts toward its lockout)")
-	suites := flag.String("suites", "core,opers,modes", "which checks: core (1.5.x services and IRCv3), opers (1.5.8), modes (1.5.9a), net (2f, needs -net)")
+	suites := flag.String("suites", "core,opers,modes,bots", "which checks: core (1.5.x services and IRCv3), opers (1.5.8), modes (1.5.9a), bots (BotServ), net (2f, needs -net)")
 	netList := flag.String("net", "", "net suite: hub=host:port,leaf1=host:port,leaf2=host:port (server names; the hub runs services)")
 	cut := flag.String("cut", "", "net suite: shell command that cuts leaf2's link")
 	heal := flag.String("heal", "", "net suite: shell command that gives it back")
@@ -82,6 +82,8 @@ func main() {
 			lc.opers()
 		case "modes":
 			lc.modes()
+		case "bots":
+			lc.bots()
 		case "net":
 			if nc.cut == "" || nc.heal == "" {
 				lc.fatal("the net suite needs -net, -cut and -heal")
