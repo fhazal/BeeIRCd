@@ -68,20 +68,25 @@ type amsgLast struct {
 	at      time.Time
 }
 
-// bsWatchUpdate decides whether reg's messages go through the kickers.
+// bsWatchUpdate decides whether reg's messages go to BotServ: a bot, and
+// a kicker or FANTASY on.
 func (s *Services) bsWatchUpdate(reg *store.Channel) {
+	s.bsWatchOne(reg)
+	s.bsAmsgRecount()
+}
+
+func (s *Services) bsWatchOne(reg *store.Channel) {
 	if s.bsWatch == nil {
 		s.bsWatch = map[string]bool{}
 	}
 	key := irc.Fold(reg.Name)
 	cb := s.store.ChanBot(reg)
-	if cb.BotID != 0 && s.store.ChanKickers(reg).Any() {
+	if cb.BotID != 0 && (cb.Fantasy || s.store.ChanKickers(reg).Any()) {
 		s.bsWatch[key] = true
 	} else {
 		delete(s.bsWatch, key)
 		delete(s.kickRuns, key)
 	}
-	s.bsAmsgRecount()
 }
 
 // bsAmsgRecount notes whether any watched channel has the AMSG kicker on:
@@ -103,13 +108,14 @@ func (s *Services) bsWatchAll() {
 	s.bsWatch = map[string]bool{}
 	for _, a := range s.store.BotAssignments() {
 		if reg, err := s.store.ChannelByName(a.Name); err == nil && reg != nil {
-			s.bsWatchUpdate(reg)
+			s.bsWatchOne(reg)
 		}
 	}
 	s.bsAmsgRecount()
 }
 
-// ChannelText runs the BotServ kickers on a PRIVMSG uid sent to ch.
+// ChannelText runs the BotServ kickers and fantasy commands on a PRIVMSG
+// uid sent to ch.
 func (s *Services) ChannelText(uid string, ch *state.Channel, text string) {
 	if len(s.bsWatch) == 0 {
 		return
@@ -125,11 +131,6 @@ func (s *Services) ChannelText(uid string, ch *state.Channel, text string) {
 	if c == nil || c.user == nil || c.user.Service {
 		return
 	}
-	s.bsKickers(c, ch, key, text)
-	s.Flush()
-}
-
-func (s *Services) bsKickers(c *Client, ch *state.Channel, key, text string) {
 	reg, err := s.store.ChannelByName(ch.Name)
 	if err != nil || reg == nil {
 		return
@@ -138,7 +139,16 @@ func (s *Services) bsKickers(c *Client, ch *state.Channel, key, text string) {
 	if bot == nil || ch.Member(bot.user) == nil {
 		return
 	}
-	k := s.store.ChanKickers(reg)
+	if k := s.store.ChanKickers(reg); k.Any() {
+		s.bsKickers(c, ch, reg, bot, cb, k, key, text)
+	}
+	if cb.Fantasy && ch.Member(c.user) != nil {
+		s.bsFantasy(c, ch, reg, bot, text)
+	}
+	s.Flush()
+}
+
+func (s *Services) bsKickers(c *Client, ch *state.Channel, reg *store.Channel, bot *service, cb store.ChanBot, k store.Kickers, key, text string) {
 	u := c.user
 	now := time.Now()
 	s.kickPurgeOld(now)

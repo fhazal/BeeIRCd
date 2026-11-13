@@ -192,7 +192,7 @@ func (s *Services) botJoin(reg *store.Channel, sv *service) {
 		return
 	}
 	if ch = s.net.Channel(reg.Name); ch != nil {
-		s.csMode(ch, s.botModes(sv.user))
+		s.svcMode(s.chanServ, ch, s.botModes(sv.user))
 	}
 }
 
@@ -899,6 +899,7 @@ func bsSet(s *Services, c *Client, args []string) {
 			s.dbErr(c, s.botServ, err)
 			return
 		}
+		s.bsWatchUpdate(reg) // FANTASY decides whether lines go to BotServ
 		if on {
 			s.bsLog(c, !has, reg.Name, "%s", logOn)
 			s.bs(c, onMsg, reg.Name)

@@ -284,3 +284,55 @@ func TestBotServKickers(t *testing.T) {
 	ann.send("PRIVMSG #hive :hello all")
 	bee.expect(":Bzz!bot@bot.host KICK #hive Ann :Don't use AMSGs!")
 }
+
+// Fantasy commands: !op, "Bzz deop", replies from the bot, FANTASIA.
+func TestBotServFantasy(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	b.send("BS BOT ADD Bzz bot bot.host Busy Bee")
+	b.expect("added to the bot list.")
+	bee := registered(t, s, "Bee")
+	bee.send("JOIN #hive")
+	bee.expect(" 366 Bee #hive ")
+	bee.send("CS REGISTER #hive the hive")
+	bee.expect("is registered to Bee")
+	bee.send("BS ASSIGN #hive Bzz")
+	bee.expect("has been assigned to #hive.")
+	ann := registered(t, s, "Ann")
+	ann.send("JOIN #hive")
+	ann.expect(" 366 Ann #hive ")
+
+	// No FANTASIA: nothing happens.
+	ann.send("PRIVMSG #hive :!op Ann")
+	ann.send("PRIVMSG #hive :marker one")
+	bee.expect("!op Ann")
+	bee.expect("marker one")
+
+	// The founder: !op and "<bot> deop"; the bot sets the modes.
+	bee.send("PRIVMSG #hive :!op Ann")
+	ann.expect(":Bzz!bot@bot.host MODE #hive +o Ann")
+	bee.send("PRIVMSG #hive :Bzz: deop Ann")
+	ann.expect(":Bzz!bot@bot.host MODE #hive -o Ann")
+	bee.send("PRIVMSG #hive :!help")
+	bee.expect(":Bzz!bot@bot.host NOTICE Bee :Fantasy commands")
+
+	// FANTASIA (3) lets Ann use them; ChanServ's answers come from the bot.
+	bee.send("CS ACCESS #hive ADD Ann 3")
+	bee.expect("Ann")
+	ann.send("PRIVMSG #hive :!op Bee")
+	ann.expect(":Bzz!bot@bot.host NOTICE Ann :")
+	ann.send("PRIVMSG #hive :!k Bee")
+	ann.expect(":Bzz!bot@bot.host NOTICE Ann :")
+	bee.send("PRIVMSG #hive :!kick Ann bye now")
+	ann.expect(":Bzz!bot@bot.host KICK #hive Ann :")
+	ann.send("JOIN #hive")
+	ann.expect(" 366 Ann #hive ")
+
+	// SET FANTASY OFF: plain text again.
+	bee.send("BS SET #hive FANTASY OFF")
+	bee.expect("Fantasy mode is now off on channel #hive.")
+	bee.send("PRIVMSG #hive :!op Ann")
+	bee.send("PRIVMSG #hive :marker two")
+	ann.expect("!op Ann")
+	ann.expect("marker two")
+}

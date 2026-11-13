@@ -179,6 +179,9 @@ func (s *Services) toService(c *Client, sv *service, text string) {
 
 // svcReply sends a notice from a service.
 func (s *Services) svcReply(c *Client, sv *service, text string) {
+	if s.fantasyBot != nil && sv == s.chanServ { // a fantasy command: the bot answers
+		sv = s.fantasyBot
+	}
 	s.host.Notice(sv.user.UID, c.user.UID, text)
 }
 

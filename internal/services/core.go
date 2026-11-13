@@ -115,6 +115,7 @@ type Services struct {
 	amsg       map[string]*amsgLast
 	kickPurged time.Time
 	bsAmsgOn   bool               // a watched channel has the AMSG kicker on
+	fantasyBot *service           // while a fantasy command runs: answers for ChanServ
 	clients    map[string]*Client // by UID: every person on the network
 	lockouts   map[int64]*lockout // wrong passwords per account
 	hashSem    chan struct{}      // limits password hashing running at once
