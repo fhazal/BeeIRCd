@@ -109,9 +109,16 @@ func New(o Options) *Panel {
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Write(b)
 	})
-	m.Handle("GET /app.js", files)
-	m.Handle("GET /netmap.js", files)
-	m.Handle("GET /app.css", files)
+	// The page's own code and styles: always asked for again, so a new
+	// panel build shows at the next load (embedded files have no date for
+	// the browser to check against, so without this it kept old copies).
+	fresh := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
+		files.ServeHTTP(w, r)
+	})
+	m.Handle("GET /app.js", fresh)
+	m.Handle("GET /netmap.js", fresh)
+	m.Handle("GET /app.css", fresh)
 	m.Handle("GET /fonts/{name}", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Only the font files themselves: no folder listing, no licences.
 		if !strings.HasSuffix(r.PathValue("name"), ".woff2") {

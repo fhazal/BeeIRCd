@@ -159,6 +159,12 @@ func TestPageAndHeaders(t *testing.T) {
 			t.Errorf("%s: %d %d bytes", f, w.Code, w.Body.Len())
 		}
 	}
+	// A new build must show at the next load: no cached code or styles.
+	for _, f := range []string{"/app.js", "/app.css", "/netmap.js"} {
+		if cc := rg.do("GET", f, "", "", nil).Header().Get("Cache-Control"); cc != "no-cache" {
+			t.Errorf("%s Cache-Control = %q", f, cc)
+		}
+	}
 	if w := rg.do("GET", "/fonts/", "", "", nil); w.Code == 200 && strings.Contains(w.Body.String(), "<a href") {
 		t.Errorf("font folder lists its files")
 	}
