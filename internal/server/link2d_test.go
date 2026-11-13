@@ -189,3 +189,48 @@ func TestLinkSASLServerBySID(t *testing.T) {
 		t.Errorf("sasl server %q", got)
 	}
 }
+
+// BotServ kickers and fantasy commands also catch people on a leaf: their
+// channel text reaches the hub's services over the link.
+func TestLinkBotServLeafText(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	own := login(t, hub.s, "own")
+	own.send("NS REGISTER " + pw)
+	own.expect("is now registered to you.")
+	uid := hub.user("own").UID
+	hub.s.onLoop(func() { hub.s.operUp(hub.s.clients[uid], &store.Oper{Class: "netadmin"}) })
+	own.expect(" 381 own ")
+	own.send("BS BOT ADD Buzz bot bot.host Busy Bee")
+	own.expect("added to the bot list.")
+	own.send("JOIN #hive")
+	own.expect(" 366 own #hive ")
+	own.send("CS REGISTER #hive the hive")
+	own.expect("is registered to own")
+	own.send("BS ASSIGN #hive Buzz")
+	own.expect("has been assigned to #hive.")
+	own.send("BS BADWORDS #hive ADD zzbad")
+	own.expect("zzbad added to #hive bad words list.")
+	own.send("BS KICK BADWORDS #hive ON")
+	own.expect("BotServ!")
+
+	lea := login(t, leaf.s, "lea")
+	hub.seen(t, "lea")
+	lea.send("JOIN #hive")
+	lea.expect(" 366 lea #hive ")
+	own.expect(":lea!")
+	lea.send("PRIVMSG #hive :a zzbad word")
+	lea.expect(":Buzz!bot@bot.host KICK #hive lea :")
+	own.expect(":Buzz!bot@bot.host KICK #hive lea :")
+
+	// Fantasy needs FANTASIA (channel access), like Anope.
+	lea.send("NS REGISTER " + pw)
+	lea.expect("is now registered to you.")
+	own.send("CS ACCESS #hive ADD lea 5")
+	own.expect("lea added to the access list of #hive")
+	lea.send("JOIN #hive")
+	lea.expect(" 366 lea #hive ")
+	lea.send("PRIVMSG #hive :!help")
+	lea.expect(":Buzz!bot@bot.host NOTICE lea :")
+	lea.send("PRIVMSG #hive :!topic leaf topic")
+	own.expect("TOPIC #hive :leaf topic")
+}
