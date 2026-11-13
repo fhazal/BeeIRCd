@@ -869,7 +869,7 @@ func (in *installer) finish(p *plan) int {
 	in.linkSteps(p)
 	start, err := in.yesNo("\n  Start BeeIRCd now?", true)
 	if err != nil || !start {
-		fmt.Fprintf(in.out, "\n  Start it later with:  beeircd start\n%s\n", firstSteps(p.Admin))
+		fmt.Fprintf(in.out, "\n  Start it later with:  beeircd start\n%s%s\n", firstSteps(p.Admin), beeroomHint)
 		return 0
 	}
 	if code := cmdService("start", []string{"-config", instConf}, in.out, in.out); code != 0 {
@@ -885,6 +885,7 @@ func (in *installer) finish(p *plan) int {
 		}
 		fmt.Fprint(in.out, webSteps(p.Name))
 	}
+	fmt.Fprint(in.out, beeroomHint)
 	fmt.Fprintln(in.out)
 	return 0
 }
@@ -908,6 +909,10 @@ func (in *installer) linkSteps(p *plan) {
 		fmt.Fprintf(in.out, "  %s\n", in.c.p.warn("! Copy [cloak] secret from the hub's beeircd.conf into "+instConf+" and restart, or people's cloaks differ per server."))
 	}
 }
+
+// beeroomHint points to the optional web chat; nothing is installed for it.
+const beeroomHint = "\n  Web chat for your users (optional, needs Node 22):\n" +
+	"    curl -fsSL https://beeircd.org/beeroom.sh | sudo sh\n"
 
 // webSteps tells the admin how to reach the Hive Panel from their computer.
 func webSteps(name string) string {

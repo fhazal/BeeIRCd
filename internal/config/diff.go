@@ -57,6 +57,8 @@ func listName(name string) string {
 		return "dnsbl lists"
 	case "operclass":
 		return "oper classes"
+	case "webirc":
+		return "web chat gateways"
 	}
 	return name
 }

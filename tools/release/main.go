@@ -6,6 +6,7 @@
 //	go run ./tools/release manifest -version 1.0.0 -dir dist [-notes notes.txt]
 //	go run ./tools/release sign     -in dist/release.json [-key ...]
 //	go run ./tools/release verify   -dir dist
+//	(add -product beeroom to manifest, sign and verify for a BeeRoom bundle)
 package main
 
 import (
@@ -32,6 +33,10 @@ import (
 	"github.com/fhazal/beeircd/internal/release"
 )
 
+// product and label pick what is signed: BeeIRCd programs, or BeeRoom
+// bundles (-product beeroom), each under its own signature label.
+var product, label = "beeircd", ""
+
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Fprintln(os.Stderr, "usage: release keygen | protect | manifest | sign | verify  (see RELEASING.md)")
@@ -45,7 +50,16 @@ func main() {
 	dir := fs.String("dir", "dist", "folder with the programs")
 	notes := fs.String("notes", "", "file with the release notes (optional)")
 	in := fs.String("in", "", "release.json to sign")
+	productFlag := fs.String("product", "beeircd", "beeircd, or beeroom for a BeeRoom web chat release")
 	fs.Parse(os.Args[2:])
+	switch *productFlag {
+	case "beeircd":
+	case "beeroom":
+		product, label = "beeroom", release.BeeRoomContext
+	default:
+		fmt.Fprintln(os.Stderr, "release: -product is beeircd or beeroom")
+		os.Exit(2)
+	}
 	var err error
 	switch os.Args[1] {
 	case "keygen":
@@ -249,7 +263,7 @@ func manifest(version, dir, notesFile string) error {
 		}
 		m.Notes = strings.TrimSpace(string(b))
 	}
-	names, _ := filepath.Glob(filepath.Join(dir, "beeircd-*"))
+	names, _ := filepath.Glob(filepath.Join(dir, product+"-*"))
 	sort.Strings(names)
 	for _, n := range names {
 		if strings.HasSuffix(n, ".sig") || strings.HasSuffix(n, ".json") {
@@ -262,7 +276,7 @@ func manifest(version, dir, notesFile string) error {
 		m.Files[filepath.Base(n)] = release.Sum(b)
 	}
 	if len(m.Files) == 0 {
-		return fmt.Errorf("no beeircd-* programs in %s", dir)
+		return fmt.Errorf("no %s-* files in %s", product, dir)
 	}
 	b, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
@@ -290,8 +304,8 @@ func sign(keyFile, in string) error {
 	if err != nil {
 		return err
 	}
-	sig := release.Sign(m, key)
-	if _, err := release.Verify(m, sig); err != nil {
+	sig := signed(m, key)
+	if _, err := verified(m, sig); err != nil {
 		return fmt.Errorf("signed, but BeeIRCd wouldn't trust it (is this key's public half in TrustedKeys?): %w", err)
 	}
 	if err := os.WriteFile(in+".sig", sig, 0o644); err != nil {
@@ -311,7 +325,7 @@ func verify(dir string) error {
 	if err != nil {
 		return err
 	}
-	man, err := release.Verify(m, sig)
+	man, err := verified(m, sig)
 	if err != nil {
 		return err
 	}
@@ -327,4 +341,18 @@ func verify(dir string) error {
 	}
 	fmt.Printf("release %s: signature and %d program(s) OK\n", man.Version, len(man.Files))
 	return nil
+}
+
+func signed(m []byte, key ed25519.PrivateKey) []byte {
+	if label != "" {
+		return release.SignAs(label, m, key)
+	}
+	return release.Sign(m, key)
+}
+
+func verified(m, sig []byte) (*release.Manifest, error) {
+	if label != "" {
+		return release.VerifyAs(label, m, sig)
+	}
+	return release.Verify(m, sig)
 }

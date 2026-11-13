@@ -57,3 +57,17 @@ program.
 GitHub release, which needs a public repository). Before v1.0 point it at
 any web folder holding the same files (`release.json`, `release.json.sig`,
 the programs).
+
+## BeeRoom (the web chat) releases
+
+BeeRoom is a separate download (`https://beeircd.org/beeroom.sh`), signed
+with the same key under its own label, so a BeeRoom signature never passes
+as a BeeIRCd one (and the other way round).
+
+1. In the BeeRoom repo, on Linux with Node 22: set the `beeroom` version in
+   `package.json`, then `scripts/bundle.sh dist-beeroom-1.1.0`.
+2. Here: `go run ./tools/release manifest -product beeroom -version 1.1.0 -dir <that folder>`
+3. `go run ./tools/release sign -product beeroom -in <that folder>/release.json` (you type the passphrase)
+4. `go run ./tools/release verify -product beeroom -dir <that folder>`
+5. Put `release.json`, `release.json.sig` and `beeroom-1.1.0.tar.gz` in
+   `https://beeircd.org/dl/beeroom/`, and `beeroom.sh` at the site root.

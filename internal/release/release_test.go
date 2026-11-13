@@ -60,6 +60,23 @@ func TestSignAndVerify(t *testing.T) {
 	}
 }
 
+// A BeeRoom bundle is signed with the same key under its own label: it
+// never passes as a BeeIRCd release, nor a BeeIRCd one as BeeRoom.
+func TestBeeRoomLabel(t *testing.T) {
+	key := testKey(t)
+	man := manifestFor(t, "1.1.0", map[string][]byte{"beeroom-1.1.0.tar.gz": []byte("bundle")})
+	room := SignAs(BeeRoomContext, man, key)
+	if m, err := VerifyAs(BeeRoomContext, man, room); err != nil || m.Version != "1.1.0" {
+		t.Fatalf("BeeRoom verify = %v, %v", m, err)
+	}
+	if _, err := Verify(man, room); !errors.Is(err, ErrBadSignature) {
+		t.Errorf("a BeeRoom signature passed as BeeIRCd: %v", err)
+	}
+	if _, err := VerifyAs(BeeRoomContext, man, Sign(man, key)); !errors.Is(err, ErrBadSignature) {
+		t.Errorf("a BeeIRCd signature passed as BeeRoom: %v", err)
+	}
+}
+
 func TestFetchAndDownload(t *testing.T) {
 	key := testKey(t)
 	prog := []byte("the real program")

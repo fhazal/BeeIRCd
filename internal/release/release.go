@@ -45,6 +45,11 @@ const DefaultURL = "https://github.com/fhazal/BeeIRCd/releases/latest/download"
 // signContext keeps these signatures from meaning anything elsewhere.
 const signContext = "BeeIRCd release v1\n"
 
+// BeeRoomContext is the label for BeeRoom (web chat) releases: the same key
+// signs them, but a BeeRoom signature never passes as a BeeIRCd one, nor the
+// other way round. The BeeRoom installer checks it against the same keys.
+const BeeRoomContext = "BeeRoom release v1\n"
+
 // Manifest is release.json.
 type Manifest struct {
 	Version string            `json:"version"`
@@ -57,8 +62,11 @@ type Manifest struct {
 func AssetName(goos, goarch string) string { return "beeircd-" + goos + "-" + goarch }
 
 // Sign signs manifest bytes; the result is the .sig file's content.
-func Sign(manifest []byte, key ed25519.PrivateKey) []byte {
-	sig := ed25519.Sign(key, append([]byte(signContext), manifest...))
+func Sign(manifest []byte, key ed25519.PrivateKey) []byte { return SignAs(signContext, manifest, key) }
+
+// SignAs signs manifest bytes under a label (signContext or BeeRoomContext).
+func SignAs(label string, manifest []byte, key ed25519.PrivateKey) []byte {
+	sig := ed25519.Sign(key, append([]byte(label), manifest...))
 	return []byte(base64.StdEncoding.EncodeToString(sig) + "\n")
 }
 
@@ -66,12 +74,15 @@ func Sign(manifest []byte, key ed25519.PrivateKey) []byte {
 var ErrBadSignature = errors.New("the release signature doesn't match BeeIRCd's key: not installing it")
 
 // Verify checks sig against the trusted keys and parses the manifest.
-func Verify(manifest, sig []byte) (*Manifest, error) {
+func Verify(manifest, sig []byte) (*Manifest, error) { return VerifyAs(signContext, manifest, sig) }
+
+// VerifyAs is Verify for a release signed under label.
+func VerifyAs(label string, manifest, sig []byte) (*Manifest, error) {
 	raw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(sig)))
 	if err != nil || len(raw) != ed25519.SignatureSize {
 		return nil, ErrBadSignature
 	}
-	msg := append([]byte(signContext), manifest...)
+	msg := append([]byte(label), manifest...)
 	ok := false
 	for _, k := range trusted() {
 		pub, err := base64.StdEncoding.DecodeString(k)

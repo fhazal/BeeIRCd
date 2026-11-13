@@ -19,6 +19,7 @@ through a local socket, so run them as root (`sudo`) on the server.
 | `beeircd backup [file]` | Saves config, database, history and certificates to one `.tar.gz` |
 | `beeircd update` | Installs the newest release (see [Updates](#updates)) |
 | `beeircd mkpasswd` | Reads a password and prints its hash, for `admin_password` |
+| `beeircd webirc add <name> <ip>` | Lets a web chat (BeeRoom) on that IP pass on each person's real IP; prints its password (see [[[webirc]]](#webirc)) |
 | `beeircd version` | Prints the version |
 | `beeircd run` | Runs in the foreground (what the service runs) |
 
@@ -543,6 +544,16 @@ an oper notice.
 
 The person counts as TLS (+z) only when the gateway says `secure` and its own
 link to BeeIRCd is TLS or on the same machine.
+
+The easy way to add one (the BeeRoom installer does this for you):
+
+```sh
+sudo beeircd webirc add beeroom 127.0.0.1
+```
+
+It adds the block, makes a password, re-reads the config and prints the
+password to put in the web chat's settings (`-q` prints only the password).
+A gateway on another machine: give that machine's IP instead.
 
 ```toml
 [[webirc]]
