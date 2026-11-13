@@ -395,3 +395,33 @@ func TestBotServSweep(t *testing.T) {
 		t.Errorf("OperServ stayed after DROP: %s", l)
 	}
 }
+
+// BOT CHANGE of ident/host quits the bot and brings it back (Anope); a
+// PERSIST channel only the bot held keeps its topic.
+func TestBotServChangeKeepsPersist(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	b.send("BS BOT ADD Buzz bot bot.host Busy Bee")
+	b.expect("added to the bot list.")
+	bee := registered(t, s, "Bee")
+	bee.send("JOIN #hive")
+	bee.expect(" 366 Bee #hive ")
+	bee.send("CS REGISTER #hive the hive")
+	bee.expect("is registered to Bee")
+	bee.send("CS SET PERSIST #hive ON")
+	bee.expect("Persist is now on")
+	bee.send("BS ASSIGN #hive Buzz")
+	bee.expect("has been assigned to #hive.")
+	bee.send("TOPIC #hive :kept topic")
+	bee.expect("TOPIC #hive :kept topic")
+	bee.send("PART #hive")
+	bee.expect("PART #hive")
+	b.send("BS BOT CHANGE Buzz Buzz newid")
+	b.expect("Bot Buzz has been changed to Buzz!newid@bot.host")
+	b.send("NAMES #hive")
+	if l := b.expect(" 353 Boss = #hive :"); !strings.Contains(l, "Buzz") {
+		t.Errorf("bot not back in #hive: %s", l)
+	}
+	b.send("TOPIC #hive")
+	b.expect(" 332 Boss #hive :kept topic")
+}

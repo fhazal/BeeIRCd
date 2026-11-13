@@ -496,7 +496,12 @@ func bsBotChange(s *Services, c *Client, args []string) {
 		delete(s.bots, id)
 		nsv := s.introduceBot(b)
 		for _, name := range chans {
-			if reg, err := s.store.ChannelByName(name); err == nil && reg != nil {
+			reg, err := s.store.ChannelByName(name)
+			switch {
+			case err != nil || reg == nil:
+			case reg.Persist:
+				s.persistJoin(reg) // reopens the channel with its topic and modes
+			default:
 				s.botJoin(reg, nsv)
 			}
 		}
