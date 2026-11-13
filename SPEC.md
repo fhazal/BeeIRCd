@@ -26,7 +26,7 @@ Only **@** and **+** exist in channels. There's no ~ & % and there never will be
 | User mode | Meaning |
 |---|---|
 | `+i` | invisible (on by default) |
-| `+o` | IRC operator (set by services on identify, or by /oper) |
+| `+o` | IRC operator (set by /oper only; identifying never opers) |
 | `+r` | identified to NickServ (only services set it) |
 | `+w` | sees wallops |
 | `+x` | host cloaked (on by default) |
