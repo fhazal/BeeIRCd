@@ -681,6 +681,9 @@ func (s *Server) remoteMessage(l *linkConn, raw irc.Message, m *link.Message) {
 		if status == "" && m.Verb != "TAGMSG" {
 			s.recordHistory(ch, o)
 		}
+		if status == "" && m.Verb == "PRIVMSG" && from != nil {
+			s.svc.ChannelText(from.UID, ch, m.Text) // BotServ kickers for people on other servers
+		}
 		s.routeChannel(l, m.Source, ch, status, m.Verb, m.Text, linkTags(tags, msgid))
 		return
 	}
