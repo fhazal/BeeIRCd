@@ -51,6 +51,9 @@ const (
 	linkRetryMax         = 5 * time.Minute
 	linkMaxPending       = 32       // TLS handshakes in progress on the link port
 	linkMaxLine          = 64 << 10 // BIGLINES lines plus tags fit easily
+	// linkMaxPreLines: lines a server may send before its handshake is
+	// done (PASS, a few PROTOCTL, SERVER: about 10 in real use).
+	linkMaxPreLines = 64
 )
 
 // linkRetryFirst is how soon we reconnect after a lost link (a variable
@@ -129,6 +132,7 @@ type linkConn struct {
 	codec    link.Codec      // reads and writes users and channels (2b)
 	eos      bool            // their burst is complete
 	netjoin  *netjoinBatch   // JOINs of their burst, for batch clients
+	preLines int             // lines before the handshake was done
 
 	mu      sync.Mutex
 	queue   []string
@@ -289,6 +293,21 @@ func (s *Server) newLink(conn net.Conn, outgoing bool, b *config.LinkServer, fp 
 		return
 	default:
 	}
+	if !outgoing {
+		// Anyone can get this far (any certificate does for TLS): only a
+		// few may wait in a handshake at once.
+		waiting := 0
+		for o := range s.links.conns {
+			if !o.up && !o.out {
+				waiting++
+			}
+		}
+		if waiting >= linkMaxPending {
+			s.log.Printf("link port: refused %s, %d handshakes are waiting already", conn.RemoteAddr(), waiting)
+			conn.Close()
+			return
+		}
+	}
 	now := time.Now()
 	limit := 20 << 20
 	if b != nil {
@@ -420,6 +439,10 @@ func (s *Server) handleLinkLine(l *linkConn, line string) {
 		return
 	}
 	if !l.up {
+		if l.preLines++; l.preLines > linkMaxPreLines {
+			s.dropLink(l, fmt.Sprintf("more than %d lines before the handshake was done", linkMaxPreLines))
+			return
+		}
 		out, err := l.hs.Handle(m)
 		for _, o := range out {
 			l.send(o)
