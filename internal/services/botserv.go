@@ -515,11 +515,25 @@ func bsBotDel(s *Services, c *Client, nick string) {
 		s.bs(c, "Bot %s is not deletable.", sv.user.Nick)
 		return
 	}
+	var names []string // its channels, for PERSIST below
+	for _, a := range s.store.BotAssignments() {
+		if a.BotID == id {
+			names = append(names, a.Name)
+		}
+	}
 	chans, err := s.store.DeleteBot(id)
 	if err != nil {
 		s.dbErr(c, s.botServ, err)
 		return
 	}
+	defer func() {
+		// ChanServ holds the PERSIST channels the bot held open.
+		for _, name := range names {
+			if reg, err := s.store.ChannelByName(name); err == nil && reg != nil && reg.Persist {
+				s.persistJoin(reg)
+			}
+		}
+	}()
 	if len(chans) > 0 {
 		s.bsWatchAll()
 	}

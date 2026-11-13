@@ -249,6 +249,9 @@ func csDrop(s *Services, c *Client, args []string) {
 // channelGone tidies a live channel whose registration went: -r, and
 // ChanServ leaves if it was keeping it open.
 func (s *Services) channelGone(name string) {
+	if s.bsWatch[irc.Fold(name)] {
+		s.bsWatchAll()
+	}
 	live := s.net.Channel(name)
 	if live == nil {
 		return
@@ -257,11 +260,8 @@ func (s *Services) channelGone(name string) {
 	if live.Member(s.chanServ.user) != nil {
 		s.emit(&state.Part{UID: s.chanServ.user.UID, Channel: live.Name})
 	}
-	for _, bot := range s.bots { // a BotServ bot leaves with the registration
+	for _, bot := range s.allBots() { // an assigned bot leaves with the registration
 		s.botPart(name, bot, "")
-	}
-	if s.bsWatch[irc.Fold(name)] {
-		s.bsWatchAll()
 	}
 }
 

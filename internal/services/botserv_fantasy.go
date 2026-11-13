@@ -57,7 +57,9 @@ func (s *Services) bsFantasy(c *Client, ch *state.Channel, reg *store.Channel, b
 	}
 	p0 := normalizeBuffer(fields[0])
 	switch {
-	case len(p0) >= len(bot.user.Nick) && irc.EqualFold(p0[:len(bot.user.Nick)], bot.user.Nick):
+	case irc.EqualFold(strings.TrimRight(p0, ":,"), bot.user.Nick):
+		// "Bzz op Ann", "Bzz: op Ann". Anope takes any word starting with
+		// the nick, so "Beers op me" ran OP for a bot named Bee.
 		fields = fields[1:]
 	case strings.HasPrefix(p0, fantasyChar):
 		fields[0] = fields[0][strings.Index(fields[0], fantasyChar)+1:]

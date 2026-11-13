@@ -1,6 +1,7 @@
 package server
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/fhazal/beeircd/internal/config"
@@ -335,4 +336,62 @@ func TestBotServFantasy(t *testing.T) {
 	bee.send("PRIVMSG #hive :marker two")
 	ann.expect("!op Ann")
 	ann.expect("marker two")
+}
+
+// Bug sweep: bot nick prefix, BOT DEL on a PERSIST channel, DROP with a
+// service bot assigned.
+func TestBotServSweep(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	b.send("BS BOT ADD Buzz bot bot.host Busy Bee")
+	b.expect("added to the bot list.")
+	bee := registered(t, s, "Bee")
+	bee.send("JOIN #hive")
+	bee.expect(" 366 Bee #hive ")
+	bee.send("CS REGISTER #hive the hive")
+	bee.expect("is registered to Bee")
+	bee.send("BS ASSIGN #hive Buzz")
+	bee.expect("has been assigned to #hive.")
+	ann := registered(t, s, "Ann")
+	ann.send("JOIN #hive")
+	ann.expect(" 366 Ann #hive ")
+
+	// Only the bot's own nick (with : or ,) starts a command.
+	bee.send("PRIVMSG #hive :Buzzing op Ann")
+	bee.send("PRIVMSG #hive :Buzz, voice Ann")
+	if l := ann.expect("MODE #hive"); !strings.HasSuffix(l, "MODE #hive +v Ann") {
+		t.Errorf("first mode = %q, want the +v (Buzzing must not run OP)", l)
+	}
+
+	// PERSIST held by the bot; deleting the bot hands it to ChanServ.
+	bee.send("CS SET PERSIST #hive ON")
+	bee.expect("Persist is now on")
+	ann.send("PART #hive")
+	ann.expect("PART #hive")
+	bee.send("PART #hive")
+	bee.expect("PART #hive")
+	b.send("BS BOT DEL Buzz")
+	b.expect(bsLine("Boss", "Bot Buzz has been deleted."))
+	b.send("NAMES #hive")
+	if l := b.expect(" 353 Boss = #hive :"); !strings.Contains(l, "ChanServ") {
+		t.Errorf("ChanServ isn't keeping #hive open: %s", l)
+	}
+
+	// A service bot leaves with the registration.
+	bee.send("JOIN #hive")
+	bee.expect(" 366 Bee #hive ")
+	bee.send("CS SET PERSIST #hive OFF")
+	bee.expect("Persist is now off")
+	bee.send("BS ASSIGN #hive OperServ")
+	bee.expect(":OperServ!")
+	bee.send("CS DROP #hive #hive")
+	bee.expect("#hive is no longer registered.")
+	b.send("NAMES #hive")
+	if l := b.expect(" 366 Boss #hive "); strings.Contains(l, "OperServ") {
+		t.Error(l)
+	}
+	bee.send("NAMES #hive")
+	if l := bee.expect(" 353 Bee "); strings.Contains(l, "OperServ") {
+		t.Errorf("OperServ stayed after DROP: %s", l)
+	}
 }
