@@ -554,3 +554,27 @@ td.empty{padding:18px 16px;text-align:center;height:auto}
 
 @media (max-width:760px){.tmwrap{position:static}.tmenu{right:8px;top:calc(100% + 4px)}}
 @media (max-width:480px){.topbar .crumb{display:none}.topbar .tacts{margin-left:auto}}
+
+/* Network status card (13 Nov): status on the left, the uptime card with the calm comb (walls only) on the right. */
+.ov-hero{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:22px;align-items:stretch;padding:22px}
+.ov-hero .hs{display:flex;flex-direction:column;justify-content:center;min-width:0;padding:4px 2px}
+.ov-hero h2{margin:2px 0 6px;font:700 30px/1.15 var(--display);letter-spacing:-.6px;color:var(--ink)}
+.ov-hero .hs-line{margin:0;color:var(--muted);font-size:14px}
+.ov-hero.down .eyebrow,.ov-hero.down h2{color:var(--bad)}
+.hs-facts{display:flex;flex-wrap:wrap;gap:12px 30px;margin-top:18px;padding-top:14px;border-top:1px dashed var(--line)}
+.hs-facts span{display:block;font:10px var(--mono);letter-spacing:1.2px;text-transform:uppercase;color:var(--dim);margin-bottom:3px}
+.hs-facts b{font:600 16px var(--display);color:var(--ink)}
+.up-card{position:relative;overflow:hidden;isolation:isolate;min-height:210px;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:18px;color:var(--on-honey);
+  background:linear-gradient(145deg,rgba(255,255,255,.2) 0,rgba(255,255,255,.2) 15%,transparent 15%),linear-gradient(145deg,var(--honey-hi),var(--honey) 55%,color-mix(in srgb,var(--honey) 84%,#000));
+  border:2px solid rgba(0,0,0,.35);box-shadow:0 14px 30px var(--shadow),inset 0 1px 0 rgba(255,255,255,.45)}
+.up-card .comb{position:absolute;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none}
+.up-card .comb .wall{fill:currentColor;stroke:currentColor;stroke-width:2.6;stroke-linejoin:round}
+.up-card .comb .echo{fill:none;stroke-width:2.4}
+.up-card .comb .shine{fill:none;stroke:#fff6d6;stroke-width:1;stroke-linejoin:round}
+.up-k{font:600 11px var(--display);letter-spacing:.16em;text-transform:uppercase}
+.up-big{display:flex;align-items:center;gap:12px;margin:4px 0}
+.up-n{font:700 88px/1 var(--display);letter-spacing:-2px}
+.up-u{font:600 14px var(--display);text-transform:uppercase;padding:5px 13px;border-radius:999px;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.18)}
+.up-foot{position:absolute;right:14px;bottom:10px;font:500 9px var(--mono);letter-spacing:.14em;text-transform:uppercase;opacity:.6}
+@media (max-width:760px){.ov-hero{grid-template-columns:minmax(0,1fr);padding:16px;gap:14px}.ov-hero h2{font-size:25px}.up-card{min-height:165px}.up-n{font-size:64px}.hs-facts{gap:10px 20px}}
+.ov-hero.down .up-card{filter:grayscale(.9);opacity:.6}

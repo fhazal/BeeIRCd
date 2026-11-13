@@ -340,7 +340,7 @@
       slab.append(lbl, h('span', { class: 'sico' }, icon(hit ? hit[1] : pg.icon || 'hive')));
     }
     for (const h2 of mainEl.querySelectorAll('.card h2')) {
-      if (h2.querySelector('.sico') || h2.closest('.nm-card, td')) continue;
+      if (h2.querySelector('.sico') || h2.closest('.nm-card, td, .ov-hero')) continue;
       const text = h2.textContent.trim();
       const name = HEAD_ICON[text] || (/AKILL|ZLINE|SHUN|SNLINE|Exception/.test(text) ? 'bans' : pg.icon || 'hive');
       h2.prepend(h('span', { class: 'sico' }, icon(name)));
@@ -512,6 +512,7 @@
   // or right column. Order, column and which are shown are kept per oper
   // account in this browser. Blocks the oper has no flag for never show.
   const OV = [
+    { id: 'hero', label: 'Network status', wide: true },
     { id: 'stats', label: 'Numbers', wide: true },
     { id: 'room', label: 'This server', wide: true },
     { id: 'map', label: 'Network map', wide: true, need: 'c' },
@@ -532,7 +533,13 @@
     if (!saved || typeof saved !== 'object') saved = {};
     const ids = OV.map(b => b.id), known = Array.isArray(saved.known) ? saved.known : [];
     const order = (Array.isArray(saved.order) ? saved.order : []).filter((id, n, a) => ids.includes(id) && a.indexOf(id) === n);
-    for (const id of ids) if (!order.includes(id)) order.push(id);
+    // A block this browser hasn't seen yet goes where it sits in OV (before
+    // the next block it knows), not at the end: Network status lands on top.
+    ids.forEach((id, n) => {
+      if (order.includes(id)) return;
+      const next = ids.slice(n + 1).find(x => order.includes(x));
+      order.splice(next ? order.indexOf(next) : order.length, 0, id);
+    });
     const col = {};
     for (const b of OV) if (!b.wide) col[b.id] = saved.col && (saved.col[b.id] === 'l' || saved.col[b.id] === 'r') ? saved.col[b.id] : b.col;
     const hidden = Array.isArray(saved.hidden) ? saved.hidden.filter(id => ids.includes(id)) : [];
@@ -541,6 +548,26 @@
   }
   function ovSave(L) {
     try { localStorage.setItem(ovKey(), JSON.stringify({ order: L.order, col: L.col, hidden: L.hidden, known: OV.map(b => b.id) })); } catch { /* private window */ }
+  }
+  // combSVG: the calm honeycomb for the uptime card, walls only. Cells start
+  // in the top-right corner and fade out; a small echo sits bottom-left.
+  // Walls use the card's text colour, so every theme gets a matching comb.
+  function combSVG() {
+    const NS = 'http://www.w3.org/2000/svg', W = 400, H = 250, r = 23, w = Math.sqrt(3) * r, hh = 1.5 * r;
+    const hex = (x, y, rr) => { let d = ''; for (let i = 0; i < 6; i++) { const a = Math.PI / 180 * (60 * i - 90); d += (i ? 'L' : 'M') + (x + rr * Math.cos(a)).toFixed(1) + ' ' + (y + rr * Math.sin(a)).toFixed(1); } return d + 'Z'; };
+    const s = document.createElementNS(NS, 'svg');
+    s.setAttribute('class', 'comb'); s.setAttribute('aria-hidden', 'true');
+    s.setAttribute('viewBox', `0 0 ${W} ${H}`); s.setAttribute('preserveAspectRatio', 'xMaxYMin slice');
+    const add = (d, attrs) => { const p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); for (const k in attrs) p.setAttribute(k, attrs[k]); s.append(p); };
+    for (let row = -1; row < 5; row++) for (let col = -1; col < 5; col++) {
+      const x = W - col * w - (row & 1 ? w / 2 : 0), y = row * hh;
+      const a = Math.max(0, 1 - Math.hypot((W - x) / 140, y / 150));
+      if (a <= 0.02) continue;
+      add(hex(x, y, r - 2.2), { class: 'wall', 'fill-opacity': (a * 0.05).toFixed(3), 'stroke-opacity': (a * 0.34).toFixed(3) });
+      add(hex(x, y + 0.9, r - 2.2), { class: 'shine', 'stroke-opacity': (a * 0.35).toFixed(3) });
+    }
+    for (const [dx, dy, a] of [[0, 0, 0.12], [w, 0, 0.07], [w / 2, -hh, 0.07]]) add(hex(26 + dx, H - 14 + dy, r - 2.2), { class: 'wall echo', 'stroke-opacity': a });
+    return s;
   }
   // ovCard: a card with the header strip (icon box, title, one line about it)
   function ovCard(ic, title, desc, ...right) {
@@ -582,6 +609,44 @@
 
     // ---- the blocks ----
     const make = {
+      hero() {
+        // Network status on the left, the uptime card with the calm comb
+        // (walls only, no honey; picked 13 Nov) on the right.
+        const eye = h('div', { class: 'eyebrow', text: 'Network status' });
+        const head = h('h2', { text: '…' });
+        const say = h('p', { class: 'hs-line', text: ' ' });
+        const fact = label => { const b = h('b', { text: '…' }); return { el: h('div', {}, h('span', { text: label }), b), b }; };
+        const fV = fact('Version'), fB = fact('Last backup'), fC = fact('Certificate');
+        const big = h('span', { class: 'up-n', text: '…' }), unit = h('span', { class: 'up-u', text: ' ' });
+        const card = h('div', { class: 'up-card', role: 'img', 'aria-label': 'Uptime' }, combSVG(),
+          h('span', { class: 'up-k', text: 'Uptime' }), h('div', { class: 'up-big' }, big, unit),
+          h('span', { class: 'up-k', text: 'Since the last restart' }), h('span', { class: 'up-foot', text: 'BeeIRCd / Hive' }));
+        const el = h('section', { class: 'card ov-hero' },
+          h('div', { class: 'hs' }, eye, head, say, h('div', { class: 'hs-facts' }, fV.el, fB.el, fC.el)), card);
+        let last = null, off = false;
+        function draw() {
+          const s = last;
+          if (!s) return;
+          const name = s.network || s.server;
+          el.classList.toggle('down', off);
+          head.textContent = off ? name + " isn't answering" : name + ' is up';
+          const ls = s.links || [], up = ls.filter(l => l.state === 'up').length;
+          const net = ls.length === 0 ? 'This server runs alone' : up === ls.length ? plural(ls.length + 1, 'server', 'servers') + ' linked' : (up + 1) + ' of ' + (ls.length + 1) + ' servers linked';
+          const svc = !s.services_on ? 'services run on the hub' : (s.services || []).length ? 'all ' + plural(s.services.length, 'service', 'services') + ' up' : 'no services up';
+          say.textContent = off ? 'The numbers here are from before.' : net + ', ' + svc + '.';
+          fV.b.textContent = s.version;
+          fB.b.textContent = s.last_backup ? when(s.last_backup) : 'none yet';
+          fC.b.textContent = s.cert ? (s.cert.source === 'self-signed' ? 'self-signed · ' : '') + 'until ' + day(s.cert.not_after) : 'none';
+          const sec = Math.max(0, (Date.now() - new Date(s.started).getTime()) / 1000);
+          const d = Math.floor(sec / 86400), hr = Math.floor(sec / 3600), m = Math.floor(sec / 60);
+          const [n, u] = d >= 1 ? [d, d === 1 ? 'day' : 'days'] : hr >= 1 ? [hr, hr === 1 ? 'hour' : 'hours'] : m >= 1 ? [m, 'min'] : ['<1', 'min'];
+          big.textContent = String(n); unit.textContent = u;
+          card.setAttribute('aria-label', 'Uptime ' + n + ' ' + u + ' since the last restart');
+        }
+        return { el, float: true,
+          status(s) { last = s; draw(); },
+          offline(on) { off = on; draw(); } };
+      },
       stats() {
         const tP = tile('people', 'People online'), tC = tile('hash', 'Channels'), tO = tile('opers', 'Opers online'), tS = tile('servers', 'Servers');
         return { el: h('div', { class: 'tiles4 ov-bold' }, tP.el, tC.el, tO.el, tS.el), float: true,
@@ -821,6 +886,7 @@
         const x = B[id];
         if (!shownBefore.has(id) && x.show) x.show();
         if (status && x.status) x.status(status);
+        if (x.offline && offline) x.offline(true);
         if (events && x.events) x.events(events, null);
       }
       for (const x of Object.values(B)) if (x.handle) x.handle.tabIndex = editing ? 0 : -1;
@@ -954,7 +1020,7 @@
       status: onStatus,
       events(list, before) { for (const id of visible()) if (B[id].events) B[id].events(list, before); },
       edit: setEditing,
-      offline(on) { notice.hidden = !on; },
+      offline(on) { notice.hidden = !on; for (const id of visible()) if (B[id].offline) B[id].offline(on); },
       leave() { for (const x of Object.values(B)) if (x.leave) x.leave(); if (drag) dragEnd({}, true); },
     };
   }
