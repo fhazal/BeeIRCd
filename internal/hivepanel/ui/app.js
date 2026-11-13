@@ -78,8 +78,13 @@
 
   // ---------- talking to the panel ----------
   class ApiError extends Error {}
+  // bg runs a timed refresh: the api() calls it starts say X-Hive-Auto, so
+  // the panel doesn't count them as clicks (an unattended tab signs out).
+  let bgDepth = 0;
+  const bg = f => { bgDepth++; try { return f(); } finally { bgDepth--; } };
   async function api(method, path, body) {
     const opt = { method, credentials: 'same-origin', headers: { 'X-Hive': '1' } };
+    if (bgDepth) opt.headers['X-Hive-Auto'] = '1';
     if (body !== undefined) {
       opt.headers['Content-Type'] = 'application/json';
       opt.body = JSON.stringify(body);
@@ -458,7 +463,7 @@
       } catch (e) { if (me) setOffline(true); }
     };
     tick();
-    poll = setInterval(tick, 15000);
+    poll = setInterval(() => bg(tick), 15000);
   }
   function stopLive() {
     if (live) { live.close(); live = null; }
@@ -777,7 +782,7 @@
           } catch (e) { /* the offline notice says it */ }
         }
         return { el: box, host: () => nm && !nm.el.hidden ? nm.el.querySelector('.nm-bar') : alone.querySelector('h2'),
-          show() { setTimeout(load, 0); clearInterval(timer); timer = setInterval(() => { if (!document.hidden) load(); }, 10000); },
+          show() { setTimeout(load, 0); clearInterval(timer); timer = setInterval(() => { if (!document.hidden) bg(load); }, 10000); },
           status() { if (nm) nm.refresh(); },
           leave() { clearInterval(timer); if (nm) nm.destroy(); } };
       },
@@ -897,7 +902,7 @@
           } catch (e) { put(rows, h('p', { class: 'empty', text: e.message })); }
         }
         return { el: c.card, tail: c.tail,
-          show() { setTimeout(load, 0); clearInterval(timer); timer = setInterval(() => { if (!document.hidden) load(); }, 30000); },
+          show() { setTimeout(load, 0); clearInterval(timer); timer = setInterval(() => { if (!document.hidden) bg(load); }, 30000); },
           leave() { clearInterval(timer); } };
       },
       chans() {
@@ -916,7 +921,7 @@
           } catch (e) { put(rows, h('p', { class: 'empty', text: e.message })); }
         }
         return { el: c.card, tail: c.tail,
-          show() { setTimeout(load, 0); clearInterval(timer); timer = setInterval(() => { if (!document.hidden) load(); }, 30000); },
+          show() { setTimeout(load, 0); clearInterval(timer); timer = setInterval(() => { if (!document.hidden) bg(load); }, 30000); },
           leave() { clearInterval(timer); } };
       },
       opers() {
@@ -932,7 +937,7 @@
           } catch (e) { put(rows, h('p', { class: 'empty', text: e.message })); }
         }
         return { el: c.card, tail: c.tail,
-          show() { setTimeout(load, 0); clearInterval(timer); timer = setInterval(() => { if (!document.hidden) load(); }, 30000); },
+          show() { setTimeout(load, 0); clearInterval(timer); timer = setInterval(() => { if (!document.hidden) bg(load); }, 30000); },
           leave() { clearInterval(timer); } };
       },
     };
@@ -1410,7 +1415,7 @@
     const onKey = e => { if (e.key === 'Escape' && openUID) { openUID = null; draw(); } };
     document.addEventListener('keydown', onKey);
     // Fresh list every 15 s, unless a person is open (don't move things under the oper's hands).
-    const timer = setInterval(() => { if (!openUID && !document.hidden) load(); }, 15000);
+    const timer = setInterval(() => { if (!openUID && !document.hidden) bg(load); }, 15000);
     load();
     return { el, leave() { clearInterval(timer); document.removeEventListener('keydown', onKey); } };
   }
@@ -1573,7 +1578,7 @@
           add)));
     typeChanged();
     load();
-    const timer = setInterval(() => { if (!document.hidden && !el.querySelector('.rm')) load(); }, 30000);
+    const timer = setInterval(() => { if (!document.hidden && !el.querySelector('.rm')) bg(load); }, 30000);
     return { el, leave() { clearInterval(timer); } };
   }
 
@@ -1982,7 +1987,7 @@
     }
 
     load();
-    timer = setInterval(() => { if (!document.hidden && !el.querySelector('.split-ask')) load(); }, 10000);
+    timer = setInterval(() => { if (!document.hidden && !el.querySelector('.split-ask')) bg(load); }, 10000);
     return { el, status() { if (nm) nm.refresh(); }, leave() { clearInterval(timer); if (nm) nm.destroy(); } };
   }
 
@@ -2288,7 +2293,7 @@
     next.addEventListener('click', () => { offset += PAGE; open = null; load(); });
     const onKey = e => { if (e.key === 'Escape' && open && !e.target.closest('input, select')) { open = null; draw(); } };
     document.addEventListener('keydown', onKey);
-    const timer = setInterval(() => { if (!open && !document.hidden) load(); }, 15000);
+    const timer = setInterval(() => { if (!open && !document.hidden) bg(load); }, 15000);
     load();
     return { el, leave() { clearInterval(timer); document.removeEventListener('keydown', onKey); } };
   }

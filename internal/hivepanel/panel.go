@@ -312,7 +312,9 @@ type operCtx struct {
 
 func (p *Panel) withOper(f func(http.ResponseWriter, *http.Request, operCtx)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		key, s := p.current(r, true)
+		// The page's own timed refreshes say X-Hive-Auto: they are not a
+		// click, so an open but unattended panel still signs out.
+		key, s := p.current(r, r.Header.Get("X-Hive-Auto") != "1")
 		if s == nil {
 			writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "Please sign in.", "signin": true})
 			return

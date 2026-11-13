@@ -527,3 +527,26 @@ func TestMapRoutes(t *testing.T) {
 		}
 	}
 }
+
+// TestAutoRefreshIsNotAClick: the page's own timed refreshes (X-Hive-Auto)
+// must not keep a session alive, or an open, unattended Overview never
+// signs out. A real click still does.
+func TestAutoRefreshIsNotAClick(t *testing.T) {
+	rg := newRig(t)
+	tok := rg.login()
+	auto := map[string]string{"X-Hive-Auto": "1"}
+	for i := 0; i < 4; i++ { // a card refreshing every 10 minutes for 40 minutes
+		rg.now = rg.now.Add(10 * time.Minute)
+		rg.do("GET", "/api/links", "", tok, auto)
+	}
+	if w := rg.do("GET", "/api/status", "", tok, auto); w.Code != 401 {
+		t.Errorf("auto refreshes kept the session alive past the idle limit: %d", w.Code)
+	}
+	tok = rg.login()
+	rg.now = rg.now.Add(20 * time.Minute)
+	rg.do("GET", "/api/status", "", tok, nil) // a click
+	rg.now = rg.now.Add(20 * time.Minute)
+	if w := rg.do("GET", "/api/status", "", tok, auto); w.Code != 200 {
+		t.Errorf("a click 20 minutes ago should keep the session: %d", w.Code)
+	}
+}
