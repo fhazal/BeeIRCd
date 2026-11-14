@@ -1036,7 +1036,7 @@ func (l *linkConn) readLoop() {
 		if line == "" {
 			continue
 		}
-		l.s.post(func() { l.s.handleLinkLine(l, line) })
+		l.s.post(func() { l.s.handleLinkLineSafe(l, line) })
 	}
 }
 

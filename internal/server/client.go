@@ -339,7 +339,7 @@ func (c *Client) readLoop() {
 				c.s.post(func() { c.s.reply(c, irc.ErrInputTooLong, "Input line was too long") })
 				continue
 			}
-			c.s.post(func() { c.s.handleLine(c, l) })
+			c.s.post(func() { c.s.handleLineSafe(c, l) })
 		}
 	}
 }
