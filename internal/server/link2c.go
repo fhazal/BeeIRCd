@@ -370,6 +370,8 @@ func (s *Server) linkLive(l *linkConn, m irc.Message, item any) bool {
 		s.remoteNumeric(l, m, it)
 	case *link.Ban:
 		s.remoteBan(l, m, it)
+	case *link.SpamFilter:
+		s.remoteSpam(l, m, it)
 	default:
 		return false
 	}

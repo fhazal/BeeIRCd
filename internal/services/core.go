@@ -137,6 +137,7 @@ type Services struct {
 	netbans        []store.NetBan
 	bansLoaded     bool                           // the first load is no change
 	banHook        func(b store.NetBan, add bool) // see OnBanChange
+	spam           spamState                      // spam filter rules (spamfilter.go)
 	operHook       func()                         // see OnOperData
 	banRegexps     map[string]*regexp.Regexp      // compiled SNLINE /regex/ masks
 	news           []store.News
@@ -201,6 +202,9 @@ func New(host Host, cfg *config.Config, logger *log.Logger, net *state.Network, 
 		off:        !cfg.Services.On(),
 	}
 	if err := s.loadOperData(); err != nil {
+		return nil, err
+	}
+	if err := s.loadSpamFilters(); err != nil {
 		return nil, err
 	}
 	if err := s.loadSeen(); err != nil {
@@ -348,6 +352,7 @@ func (s *Services) Tick(now time.Time) {
 func (s *Services) Expire(now time.Time) {
 	if s.off {
 		s.expireBans(now)
+		s.expireSpamFilters(now)
 		return
 	}
 	s.expireAccountSuspends(now)
@@ -355,6 +360,7 @@ func (s *Services) Expire(now time.Time) {
 	s.expireChannels(now)
 	s.expireSuspends(now)
 	s.expireBans(now)
+	s.expireSpamFilters(now)
 	s.expireSeen(now)
 	s.liveIgnores()
 	s.Flush()

@@ -147,6 +147,7 @@
     { id: 'people', label: 'People', icon: 'people', eyebrow: 'Live list', make: peoplePage },
     { id: 'channels', label: 'Channels', icon: 'hash', eyebrow: 'Live list', make: channelsPage },
     { id: 'bans', label: 'Bans', icon: 'bans', need: 'k', eyebrow: 'Network bans', make: bansPage },
+    { id: 'spamfilter', label: 'Spam filter', icon: 'filter', need: 'k', eyebrow: 'Spam filter', make: spamPage },
     { id: 'opers', label: 'Opers', icon: 'opers', need: 'a', eyebrow: 'Who may /oper', make: opersPage },
     { id: 'servers', label: 'Linked servers', icon: 'servers', need: 'c', eyebrow: 'Links', make: serversPage },
     { id: 'services', label: 'Services', icon: 'services', need: 'a', eyebrow: 'Built in', make: servicesPage },
@@ -360,8 +361,9 @@
     'Limits': 'gauge', 'Server actions': 'terminal', 'Server details': 'cpu', 'Backups': 'archive', 'Add a ban': 'plus', 'Network map': 'map',
     'Settings': 'settings', 'Members': 'people', 'What the flags allow': 'opers', 'Change an oper': 'opers', 'Add an oper': 'opers',
     'This server, for the other side': 'lock', 'Server tree': 'servers', 'Link blocks': 'servers', 'Link block': 'servers', 'Not linked': 'servers',
+    'Filters': 'list', 'Try a line': 'search', 'Add a filter': 'plus',
   };
-  const TILE_ICON = [[/oper/i, 'opers'], [/bot/i, 'services'], [/memo/i, 'message'], [/logged|nick/i, 'lock'], [/online|guest|people/i, 'people'],
+  const TILE_ICON = [[/^caught$/i, 'pulse'], [/^blocking$/i, 'bans'], [/^warn only$/i, 'eye'], [/^except$/i, 'check'], [/^filters$/i, 'filter'], [/oper/i, 'opers'], [/bot/i, 'services'], [/memo/i, 'message'], [/logged|nick/i, 'lock'], [/online|guest|people/i, 'people'],
     [/suspend|akill|zline|shun|snline/i, 'bans'], [/exception|registered/i, 'check'], [/channel|biggest/i, 'hash']];
   function decorate() {
     if (!mainEl || !page) return;
@@ -1638,6 +1640,188 @@
     load();
     const timer = setInterval(() => { if (!document.hidden && !el.querySelector('.rm')) bg(load); }, 30000);
     return { el, leave() { clearInterval(timer); } };
+  }
+
+  // ---------- Spam filter (after 1.0, flag k) ----------
+  // Rules that catch spam as it is sent; the same list as /SPAMFILTER.
+  const SF_CHECKS = [['c', 'Channel messages'], ['p', 'Private messages'], ['nN', 'Notices'], ['Pq', 'Part and quit'], ['t', 'Topics'], ['a', 'Away'], ['u', 'Nick and realname']];
+  const SF_ACTIONS = [['warn', 'Warn opers only (let through)'], ['block', 'Block the message'], ['kill', 'Kill (disconnect)'], ['tempshun', 'Shun until they reconnect'],
+    ['shun', 'Shun (timed)'], ['gline', 'AKILL (timed)'], ['gzline', 'ZLINE (timed)']];
+  const SF_BANS = { shun: 1, gline: 1, gzline: 1 };
+  const SF_TRY = [['c', 'Channel message'], ['p', 'Private message'], ['n', 'Notice'], ['P', 'Part or quit'], ['t', 'Topic'], ['a', 'Away'], ['u', 'Nick line']];
+  function spamPage() {
+    let data = null, freshID = 0, checkTimer = 0, checkSeq = 0, tryTimer = 0, trySeq = 0, unsafe = false;
+    const tile = (label, what) => {
+      const n = h('span', { class: 'num', text: '…' });
+      return { el: h('div', { class: 'card tile' }, h('span', { class: 'lbl', text: label }), n, h('span', { class: 'lbl', text: what })), n };
+    };
+    const tFilters = tile('Filters', 'on every server'), tCaught = tile('Caught', 'last 24 hours'), tBlock = tile('Blocking', 'stop or ban'),
+      tWarn = tile('Warn only', 'trying out, let through'), tExcept = tile('Except', 'channels never filtered');
+    const tbody = h('tbody');
+
+    // Add a filter
+    const match = h('input', { class: 'in mono', id: 'sf-match', type: 'text', autocomplete: 'off', spellcheck: 'false', maxlength: '500', placeholder: '*free nitro*' });
+    let type = 'simple';
+    const tSimple = h('button', { type: 'button', 'aria-pressed': 'true', text: 'Simple', title: '* and ? as wildcards' });
+    const tRegex = h('button', { type: 'button', 'aria-pressed': 'false', text: 'Expert regex', title: 'A regular expression (RE2)' });
+    for (const [b, v] of [[tSimple, 'simple'], [tRegex, 'regex']]) b.addEventListener('click', () => {
+      type = v; tSimple.setAttribute('aria-pressed', v === 'simple' ? 'true' : 'false'); tRegex.setAttribute('aria-pressed', v === 'regex' ? 'true' : 'false');
+      match.placeholder = v === 'simple' ? '*free nitro*' : '^[a-z]{3}[0-9]{5}!'; check();
+    });
+    const boxes = SF_CHECKS.map(([letters, label], i) => {
+      const cb = h('input', { type: 'checkbox', id: 'sf-c' + i });
+      if (letters === 'c' || letters === 'p') cb.checked = true;
+      cb.addEventListener('change', check);
+      return { letters, cb, el: h('label', { for: 'sf-c' + i }, cb, label) };
+    });
+    const action = h('select', { class: 'in', id: 'sf-action' }, SF_ACTIONS.map(([v, t]) => h('option', { value: v, text: t })));
+    const life = h('select', { class: 'in', id: 'sf-life' },
+      [['1h', '1 hour'], ['1d', '1 day'], ['7d', '7 days'], ['30d', '30 days'], ['0', 'until removed']].map(([v, t]) => h('option', { value: v, text: t })));
+    life.value = '1d';
+    const lifeRow = h('label', { class: 'f', for: 'sf-life', hidden: true }, 'Ban length', life);
+    const reason = h('input', { class: 'in', id: 'sf-reason', type: 'text', maxlength: '200', autocomplete: 'off', placeholder: 'Spam is not allowed here' });
+    const safe = h('div', { class: 'sf-safe', role: 'status', hidden: true });
+    const add = h('button', { type: 'button', class: 'btn main full', text: 'Add filter' });
+    const targets = () => boxes.filter(b => b.cb.checked).map(b => b.letters).join('');
+    const rule = force => ({ type, targets: targets(), action: action.value, life: SF_BANS[action.value] ? life.value : '', reason: reason.value.trim(), match: match.value.trim(), force: !!force });
+    action.addEventListener('change', () => { lifeRow.hidden = !SF_BANS[action.value]; });
+    function showSafe(kind, parts) {
+      safe.hidden = false;
+      safe.className = 'sf-safe ' + kind;
+      put(safe, icon(kind === 'ok' ? 'check' : 'alert'), h('span', {}, ...parts));
+    }
+    function check() {
+      clearTimeout(checkTimer);
+      unsafe = false;
+      add.textContent = 'Add filter';
+      match.classList.remove('wrong');
+      if (!match.value.trim()) { safe.hidden = true; return; }
+      const seq = ++checkSeq;
+      checkTimer = setTimeout(async () => {
+        try {
+          const d = (await api('POST', '/api/spam-check', rule())).spamCheck;
+          if (seq !== checkSeq) return;
+          if (d.problem) { showSafe('bad', [d.problem.charAt(0).toUpperCase() + d.problem.slice(1) + '.']); match.classList.add('wrong'); return; }
+          if (d.unsafe && d.unsafe.length) {
+            unsafe = true;
+            add.textContent = 'Add anyway';
+            showSafe('bad', [h('b', { text: 'It would also catch normal chat: ' }), d.unsafe.map(l => '"' + l + '"').join(' and '), '. Narrow the match, or add it anyway.']);
+            return;
+          }
+          showSafe('ok', ['Tried on ' + fmt(d.lines) + ' normal chat lines: catches none of them.']);
+        } catch (e) { if (seq === checkSeq) showSafe('bad', [e.message]); }
+      }, 300);
+    }
+    match.addEventListener('input', check);
+    add.addEventListener('click', () => busy(add, async () => {
+      if (!match.value.trim()) { match.classList.add('wrong'); match.focus(); return; }
+      if (!targets()) { showSafe('bad', ['Tick at least one place to check.']); return; }
+      try {
+        const d = await api('POST', '/api/spam-add', rule(unsafe));
+        toast([d.done.text]);
+        match.value = ''; reason.value = ''; safe.hidden = true; unsafe = false; add.textContent = 'Add filter';
+        freshID = -1;
+        await load();
+      } catch (e) { showSafe('bad', [e.message]); }
+    }));
+
+    // Try a line
+    const tryText = h('input', { class: 'in', id: 'sf-try', type: 'text', autocomplete: 'off', maxlength: '1000', placeholder: 'Paste a message to see which rule catches it' });
+    const tryWhere = h('select', { class: 'in', id: 'sf-try-where', 'aria-label': 'Where it was sent' }, SF_TRY.map(([v, t]) => h('option', { value: v, text: t })));
+    const tryRes = h('div', { class: 'sf-try-res', role: 'status' });
+    function tryIt() {
+      clearTimeout(tryTimer);
+      const v = tryText.value;
+      if (!v.trim()) { put(tryRes); return; }
+      const seq = ++trySeq;
+      tryTimer = setTimeout(async () => {
+        try {
+          const d = (await api('POST', '/api/spam-test', { targets: tryWhere.value, text: v })).spamTest;
+          if (seq !== trySeq) return;
+          if (!d.hits.length) { put(tryRes, h('span', { class: 'dot ok' }), 'Nothing would catch it.'); return; }
+          const f = d.hits[0];
+          put(tryRes, h('span', { class: 'dot bad' }), 'Caught by ', h('b', { class: 'mono', text: f.match }), ' → ' + f.does + '.',
+            d.hits.length > 1 ? ' ' + plural(d.hits.length - 1, 'more rule', 'more rules') + ' would too.' : '', h('span', { class: 'lbl', text: ' Nothing is sent: this only tests.' }));
+        } catch (e) { if (seq === trySeq) put(tryRes, h('span', { class: 'dot bad' }), e.message); }
+      }, 250);
+    }
+    tryText.addEventListener('input', tryIt);
+    tryWhere.addEventListener('change', tryIt);
+
+    async function load() {
+      try {
+        data = (await api('GET', '/api/spam')).spam;
+        draw();
+      } catch (e) {
+        put(tbody, h('tr', {}, h('td', { colspan: 5, class: 'empty', text: e.message })));
+      }
+    }
+    function draw() {
+      const rules = data.rules.slice().sort((a, b) => b.hits - a.hits || new Date(b.set_at) - new Date(a.set_at));
+      tFilters.n.textContent = fmt(rules.length);
+      tCaught.n.textContent = fmt(data.caught24h);
+      tBlock.n.textContent = fmt(rules.filter(r => r.action !== 'warn').length);
+      tWarn.n.textContent = fmt(rules.filter(r => r.action === 'warn').length);
+      tExcept.n.textContent = fmt(data.except.length);
+      tExcept.el.title = data.except.join(' ') || 'none ([spamfilter] except in beeircd.conf)';
+      if (freshID === -1) freshID = rules.reduce((m, r) => Math.max(m, r.id), 0);
+      if (!rules.length) {
+        put(tbody, h('tr', {}, h('td', { colspan: 5, class: 'empty', text: 'No filters yet. Add one on the right; start with "Warn opers only" to try it out.' })));
+        return;
+      }
+      put(tbody, ...rules.map(r => {
+        const cell = h('td', { class: 'end-cell' });
+        const trash = h('button', { type: 'button', class: 'x', 'aria-label': 'Remove the filter on ' + r.match, title: 'Remove' }, icon('trash'));
+        cell.append(trash);
+        trash.addEventListener('click', () => {
+          const yes = h('button', { type: 'button', class: 'btn bad', text: 'Remove' });
+          const no = h('button', { type: 'button', class: 'btn ghost', text: 'Keep' });
+          no.addEventListener('click', () => put(cell, trash));
+          yes.addEventListener('click', () => busy(yes, async () => {
+            try {
+              const d = await api('POST', '/api/spam-del', { id: r.id });
+              toast([d.done.text]);
+              load();
+            } catch (e) { toastErr(e.message); put(cell, trash); }
+          }));
+          put(cell, h('span', { class: 'rm' }, yes, no));
+          yes.focus();
+        });
+        const caught = h('td', { class: 'mono' }, fmt(r.hits), h('span', { class: 'sf-ago', text: r.hits ? ago(r.last) : 'never' }));
+        return h('tr', { class: r.id === freshID ? 'fresh' : null, title: 'Set by ' + r.set_by + ' · ' + r.reason },
+          h('td', { class: 'mono' }, r.match, r.type === 'regex' ? h('span', { class: 'tag sf-exp', text: 'expert' }) : null,
+            r.unusable ? h('span', { class: 'tag sus', text: 'not used here', title: 'This regex came from another server and does not work here' }) : null),
+          h('td', {}, ...r.words.filter(Boolean).map(w => h('span', { class: 'tag', text: w }))),
+          h('td', { class: r.action === 'warn' ? 'sf-warn' : null, text: r.does }),
+          caught, cell);
+      }));
+      freshID = 0;
+    }
+
+    const el = h('div', { class: 'main-stack' },
+      h('header', { class: 'head' }, h('div', { class: 'head-text' }, h('h1', { text: 'Spam filter' }),
+        h('span', { class: 'sub', text: 'Rules that catch spam as it is sent, on every linked server' }))),
+      h('div', { class: 'tiles5' }, [tFilters, tCaught, tBlock, tWarn, tExcept].map(t => t.el)),
+      h('div', { class: 'band21' },
+        h('div', { class: 'sf-col' },
+          h('section', { class: 'card list-card' },
+            h('div', { class: 'ch tools' }, h('h2', { text: 'Filters' }), h('span', { class: 'lbl', text: 'most caught first' })),
+            h('div', { class: 'wrap' }, h('table', { class: 'bans sf-tbl' },
+              h('thead', {}, h('tr', {}, ['Match', 'Checks', 'Action', 'Caught'].map(t => h('th', { scope: 'col', text: t })), h('th', { scope: 'col' }, h('span', { class: 'sr', text: 'Remove' })))),
+              tbody))),
+          h('section', { class: 'card' }, h('h2', { text: 'Try a line' }),
+            h('div', { class: 'sf-try' }, tryText, tryWhere), tryRes)),
+        h('section', { class: 'card' }, h('h2', { text: 'Add a filter' }),
+          h('label', { class: 'f', for: 'sf-match' }, 'Match', match),
+          h('div', { class: 'seg sf-seg', role: 'group', 'aria-label': 'Match type' }, tSimple, tRegex),
+          h('fieldset', { class: 'sf-checks' }, h('legend', { class: 'f', text: 'Checks' }), boxes.map(b => b.el)),
+          h('label', { class: 'f', for: 'sf-action' }, 'Action', action),
+          lifeRow,
+          h('label', { class: 'f', for: 'sf-reason' }, 'Reason', reason),
+          safe, add)));
+    load();
+    const timer = setInterval(() => { if (!document.hidden && !el.querySelector('.rm')) bg(load); }, 30000);
+    return { el, leave() { clearInterval(timer); clearTimeout(checkTimer); clearTimeout(tryTimer); } };
   }
 
   // ---------- Backups card (Settings, owner only) ----------

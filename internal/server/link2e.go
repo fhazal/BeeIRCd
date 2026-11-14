@@ -257,6 +257,10 @@ func (s *Server) statsHere(c *Client, letter string) {
 			user, host, _ := strings.Cut(b.Mask, "@")
 			s.reply(c, rplStatsKLine, "K", host, "*", user, b.Reason)
 		}
+	case "f", "F":
+		if c.can('k') {
+			s.statsSpam(c)
+		}
 	case "u", "U":
 		up := time.Since(s.created)
 		days := int(up.Hours()) / 24

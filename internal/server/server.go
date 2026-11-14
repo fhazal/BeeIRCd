@@ -183,6 +183,7 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	s.svc = svc
 	svc.OnSecretDone(s.releaseHeld)
 	svc.OnBanChange(s.linkBanChanged)
+	svc.OnSpamChange(s.linkSpamChanged)
 	svc.OnOperData(s.syncQlines)
 	s.sinks = append(s.sinks, svc.Event)
 	svc.Start()

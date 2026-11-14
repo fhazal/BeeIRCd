@@ -141,26 +141,29 @@ type Response struct {
 	Backup *Backup `json:"backup,omitempty"`
 	Rehash *Rehash `json:"rehash,omitempty"`
 
-	Oper     *PanelOper   `json:"oper,omitempty"`
-	Settings []Setting    `json:"settings,omitempty"`
-	Changed  *Changed     `json:"changed,omitempty"`
-	Events   []Event      `json:"events,omitempty"`
-	People   *People      `json:"people,omitempty"`
-	Person   *Person      `json:"person,omitempty"`
-	Done     *Done        `json:"done,omitempty"`
-	Bans     *Bans        `json:"bans,omitempty"`
-	Match    *Match       `json:"match,omitempty"`
-	Opers    *Opers       `json:"opers,omitempty"`
-	Links    *Links       `json:"links,omitempty"`
-	Channels *Channels    `json:"channels,omitempty"`
-	Channel  *ChannelInfo `json:"channel,omitempty"`
-	Backups  *BackupList  `json:"backups,omitempty"`
-	MyNick   *MyNick      `json:"myNick,omitempty"`
-	Hello    *Hello       `json:"hello,omitempty"`
-	Chat     *ChatKey     `json:"chat,omitempty"`
-	Home     *MyHome      `json:"home,omitempty"`
-	Memos    *MyMemos     `json:"memos,omitempty"`
-	Chan     *MyChan      `json:"chan,omitempty"`
+	Oper      *PanelOper   `json:"oper,omitempty"`
+	Settings  []Setting    `json:"settings,omitempty"`
+	Changed   *Changed     `json:"changed,omitempty"`
+	Events    []Event      `json:"events,omitempty"`
+	People    *People      `json:"people,omitempty"`
+	Person    *Person      `json:"person,omitempty"`
+	Done      *Done        `json:"done,omitempty"`
+	Bans      *Bans        `json:"bans,omitempty"`
+	Match     *Match       `json:"match,omitempty"`
+	Opers     *Opers       `json:"opers,omitempty"`
+	Links     *Links       `json:"links,omitempty"`
+	Channels  *Channels    `json:"channels,omitempty"`
+	Channel   *ChannelInfo `json:"channel,omitempty"`
+	Backups   *BackupList  `json:"backups,omitempty"`
+	MyNick    *MyNick      `json:"myNick,omitempty"`
+	Hello     *Hello       `json:"hello,omitempty"`
+	Chat      *ChatKey     `json:"chat,omitempty"`
+	Home      *MyHome      `json:"home,omitempty"`
+	Memos     *MyMemos     `json:"memos,omitempty"`
+	Chan      *MyChan      `json:"chan,omitempty"`
+	Spam      *Spam        `json:"spam,omitempty"`
+	SpamCheck *SpamCheck   `json:"spamCheck,omitempty"`
+	SpamTest  *SpamTest    `json:"spamTest,omitempty"`
 	// Denied is set (with Error) when the oper may not do this: signed
 	// out, or missing a flag. The panel then signs them out or says so.
 	Denied string `json:"denied,omitempty"` // "signin" or "flag"

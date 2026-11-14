@@ -46,6 +46,7 @@ type Client struct {
 	lookupGen             int          // bumped by WEBIRC: DNS/DNSBL answers for the old IP are dropped
 	webirc                string       // the [[webirc]] gateway this person came through, "" = none
 	webircBusy            bool         // a hashed WEBIRC password is being checked
+	tempShun              bool         // a spam filter shunned this connection (until it reconnects)
 	closed                bool
 	caps                  map[string]bool // IRCv3 capabilities this client asked for
 	capture               *[]string       // lines held back for labeled-response

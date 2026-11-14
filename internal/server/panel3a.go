@@ -361,6 +361,16 @@ func (s *Server) panelControl(req control.Request, setDeadline func(time.Duratio
 		return run('k', func(po *control.PanelOper) { resp = s.panelKill(po, req.IP, req.UID, req.Value) }), true
 	case control.CmdBan:
 		return run('k', func(po *control.PanelOper) { resp = s.panelBan(po, req.IP, req.UID, req.Value, req.Life) }), true
+	case control.CmdSpam:
+		return run('k', func(*control.PanelOper) { resp = *s.panelSpam() }), true
+	case control.CmdSpamCheck:
+		return run('k', func(*control.PanelOper) { resp = *s.panelSpamCheck(req) }), true
+	case control.CmdSpamAdd:
+		return run('k', func(po *control.PanelOper) { resp = *s.panelSpamAdd(po, req) }), true
+	case control.CmdSpamDel:
+		return run('k', func(po *control.PanelOper) { resp = *s.panelSpamDel(po, req) }), true
+	case control.CmdSpamTest:
+		return run('k', func(*control.PanelOper) { resp = *s.panelSpamTest(req) }), true
 	case control.CmdBans:
 		return run('k', func(*control.PanelOper) { resp = s.panelBans(req.Kind) }), true
 	case control.CmdBanAdd:

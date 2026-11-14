@@ -119,6 +119,39 @@ kick`, `/bs badwords`) and takes `!op`, `!kick` and the other fantasy
 commands. ChanServ's modes and kicks in that channel then come from the
 bot. `/bs help` lists everything.
 
+## Spam filter
+
+Rules that catch spam as it is sent, like UnrealIRCd's spamfilter. Opers
+with flag `k` manage them on IRC or on the Hive Panel's **Spam filter**
+page. Rules reach every linked server, BeeIRCd and UnrealIRCd 6 alike.
+
+```
+/spamfilter add cp gline 1d Spam_is_not_allowed *free nitro*
+/spamfilter add -regex u kill - Bot_nicks ^[a-z]{3}[0-9]{5}!
+/spamfilter test cp hey, free nitro here
+/stats F
+/spamfilter del 1
+```
+
+- **Targets** say where to look: `c` channel messages, `p` private
+  messages, `n` private notices, `N` channel notices, `P` part reasons,
+  `q` quit reasons, `t` topics, `a` away messages, `u` the person as
+  `nick!user@host:realname` (at connect and on a nick change).
+- **Actions**: `warn` (tell opers, let it through), `block` (drop it,
+  tell the sender), `kill`, `tempshun` (until they reconnect), `shun`,
+  `gline` (an AKILL) and `gzline` (a ZLINE) for the ban time given
+  (`-` = until removed). `kline` and `zline` work too and also set
+  network bans.
+- **Matching** is simple (`*` and `?`) or `-regex` (Go RE2: always fast,
+  no backreferences), never case-sensitive, on the text without colours
+  and bold. The reason uses `_` for spaces, as on UnrealIRCd.
+- **Safety net**: a new rule is first tried on about 200 normal chat lines
+  (English and Malay). If it would catch any, it is refused and the lines
+  are shown; add `-force` (or press **Add anyway** on the panel) if you
+  are sure. Start a new rule with `warn` to see what it catches.
+- Opers, Exceptions (ELINE) and channels in `[spamfilter] except` are
+  never filtered.
+
 ## Backups
 
 The `beeircd-backup` timer makes a backup every day at 04:00 server time in
@@ -620,6 +653,14 @@ name = "beeroom"
 password = "a-long-random-secret-here"
 hosts = ["127.0.0.1"]
 ```
+
+### [spamfilter]
+
+The rules themselves are in the services database (see [Spam filter](#spam-filter)).
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `except` | none | Channels whose messages, notices, parts and topics are never filtered, like `["#help"]` |
 
 ### [mail]
 
