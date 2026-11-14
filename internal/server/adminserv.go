@@ -183,6 +183,8 @@ func settings() []setting {
 		{name: "find-place-by-ip", table: "server", key: "find_place_by_ip", help: "ask ipinfo.io once where this server's own IP is, for the network map (city level)", kind: 'b',
 			get: func(c *config.Config) string { return onoff(c.FindPlaceByIP()) }, apply: func(d, s *config.Config) { d.Server.FindPlaceByIP = s.Server.FindPlaceByIP },
 			after: func(s *Server, _ string) { s.startPlaceLookup(); s.announcePlace() }},
+		{name: "members", table: "web", key: "members", help: "people with a registered nick may sign in to the Hive Panel with their NickServ password, to their own pages only", kind: 'b',
+			get: func(c *config.Config) string { return onoff(c.Web.Members) }, apply: func(d, s *config.Config) { d.Web.Members = s.Web.Members }},
 		{name: "nick-expire", table: "services", key: "nick_expire", help: "unused accounts are dropped after", kind: 'd', lo: day, hi: 3650 * day,
 			get: dur(func(c *config.Config) time.Duration { return c.Services.NickExpire.Duration }), apply: servicesApply},
 		{name: "chan-expire", table: "services", key: "chan_expire", help: "unused channels are dropped after", kind: 'd', lo: day, hi: 3650 * day,

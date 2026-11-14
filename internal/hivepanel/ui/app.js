@@ -358,7 +358,7 @@
   const HEAD_ICON = {
     'Health': 'pulse', 'What happened': 'list', 'Services': 'services', 'Bots': 'services', 'Services run on the hub': 'services',
     'Limits': 'gauge', 'Server actions': 'terminal', 'Server details': 'cpu', 'Backups': 'archive', 'Add a ban': 'plus', 'Network map': 'map',
-    'Settings': 'settings', 'What the flags allow': 'opers', 'Change an oper': 'opers', 'Add an oper': 'opers',
+    'Settings': 'settings', 'Members': 'people', 'What the flags allow': 'opers', 'Change an oper': 'opers', 'Add an oper': 'opers',
     'This server, for the other side': 'lock', 'Server tree': 'servers', 'Link blocks': 'servers', 'Link block': 'servers', 'Not linked': 'servers',
   };
   const TILE_ICON = [[/oper/i, 'opers'], [/bot/i, 'services'], [/memo/i, 'message'], [/logged|nick/i, 'lock'], [/online|guest|people/i, 'people'],
@@ -1204,6 +1204,7 @@
       try {
         const d = await api('GET', '/api/settings');
         const byName = Object.fromEntries((d.settings || []).map(s => [s.name, s]));
+        if (byName.members) { membersCard.hidden = false; membersBox.checked = byName.members.value === 'on'; }
         fields.length = 0;
         put(grid, ...LIMITS.filter(l => byName[l.name]).map(l => {
           const s = byName[l.name];
@@ -1273,12 +1274,33 @@
     actions.append(updateRow);
     const backups = me.owner ? backupsCard() : null;
 
+    // Member sign-in: people with a registered nick get their own pages
+    // (Home, Chat, My nick, My channels, Memos), never the admin ones.
+    const membersBox = h('input', { type: 'checkbox', id: 'set-members' });
+    membersBox.addEventListener('change', async () => {
+      membersBox.disabled = true;
+      try {
+        const d = await api('POST', '/api/set', { name: 'members', value: membersBox.checked ? 'on' : 'off' });
+        toast([d.changed.new === 'on' ? 'Members can sign in now' : 'Member sign-in is off; member sessions end'], async () => {
+          await api('POST', '/api/undo', { id: d.changed.id });
+          membersBox.checked = d.changed.old === 'on';
+          toast(['Put back as it was']);
+        });
+      } catch (e) { membersBox.checked = !membersBox.checked; toastErr(e.message); }
+      membersBox.disabled = false;
+    });
+    const membersCard = h('section', { class: 'card', hidden: true }, h('h2', { text: 'Members' }),
+      h('div', { class: 'my-row' }, h('label', { class: 'ck', for: 'set-members' }, membersBox, 'Let members sign in'),
+        h('span', { class: 'hint', text: 'Anyone with a registered nick signs in with their NickServ password and sees only their own pages: Home, Chat, My nick, My channels and Memos. The server checks every request.' })),
+      h('p', { class: 'note', text: 'To let them in from outside, put the panel behind HTTPS on your web server and list it in [web] trusted_proxy (ADMIN.md, "Let members reach the Hive Panel").' }));
+
     const el = h('div', { class: 'main-stack' },
       h('header', { class: 'head' }, h('div', { class: 'head-text' }, h('h1', { text: 'Settings' }),
         h('span', { class: 'sub', text: 'Saved to beeircd.conf and applied at once' }))),
       h('div', { class: 'two' },
         h('section', { class: 'card' }, h('h2', { text: 'Limits' }), grid, bar),
         h('section', { class: 'card' }, h('h2', { text: 'Server actions' }), actions)),
+      membersCard,
       backups && backups.el);
     load();
     return {

@@ -320,10 +320,42 @@ then open <http://127.0.0.1:8787>. `beeircd install` sets it up as the
   in with their oper password for the admin pages, or with their NickServ
   password for the member pages only. Wrong NickServ passwords count on
   the same lock as IDENTIFY on IRC. A new NickServ password, a
-  suspension or turning `members` off (then rehash) ends member sessions.
+  suspension or turning members off (Settings → Members, or `members` in
+  the file then rehash) ends member sessions.
 - Behind a reverse proxy on the same machine, list the proxy in
   `[web] trusted_proxy` so the panel believes its `X-Forwarded-For` and
   `X-Forwarded-Proto` (https makes the session cookie Secure).
+
+### Let members reach the Hive Panel
+
+Opers reach the panel through an SSH tunnel. Normal users can't, so to let
+them sign in from anywhere, put the panel behind HTTPS on the web server
+of the same machine:
+
+1. A name for it, like `panel.example.org`, pointing at the server.
+2. Your web server sends it to the panel. Caddy:
+
+   ```
+   panel.example.org {
+       reverse_proxy 127.0.0.1:8787
+   }
+   ```
+
+   nginx: a `server` block for that name with your certificate and
+   `location / { proxy_pass http://127.0.0.1:8787; proxy_set_header Host $host;
+   proxy_set_header X-Forwarded-For $remote_addr; proxy_set_header
+   X-Forwarded-Proto https; }`.
+3. In `beeircd.conf`: `[web] trusted_proxy = ["127.0.0.1"]`, then
+   `sudo systemctl restart beeircd-web` (the panel only, IRC stays up).
+4. Settings → **Members** → **Let members sign in**.
+5. With BeeRoom: `[web] chat_url = "https://chat.example.org"` (then
+   restart beeircd-web), and add `"https://panel.example.org"` to
+   `frameAncestors` in BeeRoom's `config.js` (`BEEROOM_PANEL` in Docker), so
+   the Chat tab may show it.
+
+The panel still answers only on 127.0.0.1; the web server is the only way
+in. Opers keep signing in with their oper password; every page checks the
+person's own rights on the server.
 
 
 **Find your way round.** The menu on the left holds every page your flags
@@ -657,7 +689,7 @@ The Hive Panel (`beeircd web`, the `beeircd-web` service). The server reads only
 | `listen` | `127.0.0.1:8787` | Where the panel answers; a loopback address only |
 | `trusted_proxy` | none | Reverse proxies (IP addresses) whose forwarded address and https the panel believes |
 | `session_idle` | `30m` | Signed out after this long without a click (1m to 24h) |
-| `members` | `false` | Registered nicks may sign in with their NickServ password, to the YOU pages only (Home, Chat, My nick, My channels, Memos) |
+| `members` | `false` | Registered nicks may sign in with their NickServ password, to the YOU pages only (Home, Chat, My nick, My channels, Memos). Also the Members switch in Settings (saved here, applied at once) |
 | `chat_url` | none | BeeRoom's address, like `https://chat.example.org`: the Chat tab shows it, signed in as the person with a key that works once, for one minute. BeeRoom's `frameAncestors` (or `BEEROOM_PANEL` in Docker) must list the panel's address |
 
 The panel's fonts (Inter, Space Grotesk, JetBrains Mono) are bundled

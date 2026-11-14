@@ -163,3 +163,29 @@ func TestPanelOperOrMember(t *testing.T) {
 		t.Errorf("status for the member session of an oper: %+v", st)
 	}
 }
+
+// The Settings page's Members switch: on and off at once, saved to the file.
+func TestPanelMembersSwitch(t *testing.T) {
+	s, path, _ := fileServer(t, "")
+	boss(t, s)
+	registered(t, s, "ember")
+	set := func(v string) *control.Response {
+		return panelAsk(t, s, control.Request{Cmd: control.CmdSet, As: "Boss", IP: "127.0.0.1", Name: "members", Value: v})
+	}
+	if r := set("on"); r.Changed == nil || r.Changed.New != "on" {
+		t.Fatalf("members on: %+v", r)
+	}
+	if h := panelAsk(t, s, control.Request{Cmd: control.CmdPanelHello}); h.Hello == nil || !h.Hello.Members {
+		t.Errorf("hello after members on: %+v", h)
+	}
+	if raw, _ := os.ReadFile(path); !strings.Contains(string(raw), "members = true") {
+		t.Errorf("not saved:\n%s", raw)
+	}
+	m := memberSession(t, s, "ember", pw)
+	if r := set("off"); r.Changed == nil || r.Changed.New != "off" {
+		t.Fatalf("members off: %+v", r)
+	}
+	if r := panelAsk(t, s, as(m, control.CmdMyNick)); r.Denied != "signin" {
+		t.Errorf("member session after the switch went off: %+v", r)
+	}
+}
