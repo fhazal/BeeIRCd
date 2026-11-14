@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// Network ban kinds (step 1.5.5). They share one table and one shape.
+// Network ban kinds. They share one table and one shape.
 const (
 	BanAkill  = "akill"  // user@host (host may be CIDR): disconnect, refuse
 	BanZline  = "zline"  // IP or CIDR: refused before anything else

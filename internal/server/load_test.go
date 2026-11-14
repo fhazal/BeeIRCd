@@ -14,7 +14,7 @@ import (
 	"github.com/fhazal/beeircd/internal/store"
 )
 
-// TestLoad5000 is the Stage 1.5.2 gate: 5,000 clients connect, register,
+// TestLoad5000 is the gate: 5,000 clients connect, register,
 // join registered and unregistered channels, change nicks, talk and set
 // topics and modes, and 99% of the loop's work must finish within 5 ms.
 //

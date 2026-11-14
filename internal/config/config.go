@@ -163,7 +163,7 @@ type Listen struct {
 
 // TLS points at the certificate. With SelfSigned, missing files are made.
 // With ACME the server gets and renews a Let's Encrypt certificate into
-// Cert and Key itself (7c).
+// Cert and Key itself.
 type TLS struct {
 	Cert       string `toml:"cert"`
 	Key        string `toml:"key"`
@@ -399,7 +399,7 @@ func (c *Config) SetDefaults() {
 type Services struct {
 	// Enabled runs NickServ, ChanServ and the other bots on this server
 	// (on by default). A network has one services server: set false on
-	// the others, they use the hub's over the link (Stage 2c/2d).
+	// the others, they use the hub's over the link.
 	Enabled *bool `toml:"enabled"`
 	// ServerName and ServerSID are the pseudo-server the bots sit on when
 	// this server links (services.<domain> and our SID with 9 first by
@@ -695,7 +695,7 @@ func validHostPort(a string) bool {
 // ValidServerName reports whether name may be a server name.
 func ValidServerName(name string) bool { return serverRe.MatchString(name) && len(name) <= 63 }
 
-// checkCloak checks [cloak] method, keys and prefix (Stage 2c), with
+// checkCloak checks [cloak] method, keys and prefix, with
 // UnrealIRCd's own rules for the keys.
 func (c *Config) checkCloak() error {
 	k := c.Cloak

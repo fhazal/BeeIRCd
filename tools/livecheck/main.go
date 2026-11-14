@@ -1,6 +1,6 @@
 // Command livecheck tests a running BeeIRCd over the network, the way a
 // person would: it connects test clients, sends real IRC lines and checks
-// the replies. It replaces the Python live scripts (live157/158/159a).
+// the replies.
 //
 // It is non-destructive: it only uses its own zt* nicks and channels,
 // never opers up, and drops what it registered at the end. Point it at a
@@ -55,7 +55,7 @@ func main() {
 	flag.StringVar(&lc.key, "key", "zt-key.pem", "its key")
 	flag.StringVar(&lc.pw, "pw", "zt9-pass-word", "password for the zt* test accounts")
 	flag.StringVar(&lc.admin, "admin", "", "oper account for one wrong-password /oper check (counts toward its lockout)")
-	suites := flag.String("suites", "core,opers,modes,bots", "which checks: core (1.5.x services and IRCv3), opers (1.5.8), modes (1.5.9a), bots (BotServ), net (2f, needs -net)")
+	suites := flag.String("suites", "core,opers,modes,bots", "which checks: core (services and IRCv3), opers, modes, bots (BotServ), net (needs -net)")
 	netList := flag.String("net", "", "net suite: hub=host:port,leaf1=host:port,leaf2=host:port (server names; the hub runs services)")
 	cut := flag.String("cut", "", "net suite: shell command that cuts leaf2's link")
 	heal := flag.String("heal", "", "net suite: shell command that gives it back")

@@ -1,5 +1,5 @@
 #!/bin/bash
-# 24 h soak test for a release: a throwaway BeeIRCd on the homelab with a
+# 24 h soak test for a release: a throwaway BeeIRCd on a test machine with a
 # steady crowd plus constant connect/quit churn, sampled every 5 minutes.
 # Memory should stay flat after the first hour.
 #

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Anope 2.0 smoke test (Stage 2g): a SANDBOX copy of Anope (program and
+# Anope 2.0 smoke test: a SANDBOX copy of Anope (program and
 # modules only, fresh config from Anope's own example files, its own empty
 # database) linked to a BeeIRCd hub with built-in services off, all on
 # 127.0.0.1. The live Anope's config and database are never read or used.

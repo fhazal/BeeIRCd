@@ -8,7 +8,7 @@ import (
 	"github.com/fhazal/beeircd/internal/irc"
 )
 
-// Channel data added in step 1.5.4: per-channel LEVELS, entry messages,
+// Channel data: per-channel LEVELS, entry messages,
 // LOG settings and the channel memo box.
 
 // DefaultChanMemoLimit is how many memos a channel box keeps at first.
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS chan_memo_ignores (
 );
 `
 
-// migrateChannels adds the 1.5.4 channel columns and moves the old one-line
+// migrateChannels adds the newer channel columns and moves the old one-line
 // entry message into chan_entrymsg. Both are safe to run on every start.
 func migrateChannels(db *sql.DB) error {
 	cols := []struct{ name, def string }{
@@ -116,7 +116,7 @@ func migrateChannels(db *sql.DB) error {
 	return tx.Commit()
 }
 
-// loadChanExtra reads the 1.5.4 channel tables into c.
+// loadChanExtra reads the extra channel tables into c.
 func loadChanExtra(db *sql.DB, c *cache) error {
 	steps := []struct {
 		q    string

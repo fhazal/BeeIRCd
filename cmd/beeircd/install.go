@@ -34,7 +34,7 @@ import (
 	"github.com/fhazal/beeircd/internal/version"
 )
 
-// supportedOS are the systems the installer is tested on (PLAN-7 D7).
+// supportedOS are the systems the installer is tested on.
 var supportedOS = map[string]bool{"debian 12": true, "debian 13": true, "ubuntu 22.04": true, "ubuntu 24.04": true}
 
 var errStopped = errors.New("stopped, nothing was changed")

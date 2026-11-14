@@ -1,6 +1,6 @@
 package services
 
-// Stage 2e: K-lines, bans for this server only (/KLINE, /UNKLINE). They
+// K-lines, bans for this server only (/KLINE, /UNKLINE). They
 // live in the network ban table as kind "kline" but never go over links.
 
 import (

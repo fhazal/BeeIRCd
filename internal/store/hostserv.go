@@ -9,7 +9,7 @@ import (
 	"github.com/fhazal/beeircd/internal/irc"
 )
 
-// Step 1.5.7: HostServ. A vhost belongs to a nick (Anope's NickAlias), so
+// HostServ. A vhost belongs to a nick (Anope's NickAlias), so
 // each grouped nick may have its own; one pending request per nick. Both
 // go when the nick (or its account) goes.
 

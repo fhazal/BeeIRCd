@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// Fuzz targets (audit T0). `go test` runs the seeds every time; longer runs:
+// Fuzz targets. `go test` runs the seeds every time; longer runs:
 //   go test -fuzz=FuzzParse -fuzztime=5m ./internal/irc/
 
 func FuzzParse(f *testing.F) {

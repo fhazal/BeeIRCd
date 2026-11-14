@@ -11,7 +11,7 @@ import (
 
 // Event is one change to the network. Every change goes through
 // Network.Apply as an event, so the same events can be delivered to local
-// clients and, from Stage 2, sent to linked servers, which apply them to
+// clients and sent to linked servers, which apply them to
 // their own copy of the network.
 //
 // Events name users by UID and channels by name, never by pointer, so they
@@ -489,7 +489,7 @@ func (u *User) Copy() *User {
 	return &cp
 }
 
-// Clone returns a deep copy of the network. A link burst (Stage 2) and the
+// Clone returns a deep copy of the network. A link burst and the
 // tests that check events against the real network start from one.
 func (n *Network) Clone() *Network {
 	c := NewNetwork(n.SID)

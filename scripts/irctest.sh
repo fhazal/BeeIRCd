@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs the independent irctest conformance suite against a throwaway
-# BeeIRCd, on the homelab, inside a disposable container.
+# BeeIRCd, on a test machine, inside a disposable container.
 #
 #   scripts/irctest.sh <beeircd linux binary> [extra pytest args]
 #

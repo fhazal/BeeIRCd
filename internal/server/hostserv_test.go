@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// Step 1.5.7: HostServ as Anope 2.0.20.
+// HostServ as Anope 2.0.20.
 
 func hsLine(nick, text string) string {
 	return ":HostServ!services@irc.test.local NOTICE " + nick + " :" + text

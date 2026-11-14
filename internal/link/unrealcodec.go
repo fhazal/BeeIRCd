@@ -19,7 +19,7 @@ type unrealCodec struct {
 	// paramModes are the other side's channel modes that take a
 	// parameter when set (CHANMODES groups B and C).
 	paramModes string
-	// For live MODE lines (2c): CHANMODES groups A (lists), B (always an
+	// For live MODE lines: CHANMODES groups A (lists), B (always an
 	// argument), C (an argument when set), and the PREFIX rank letters.
 	listModes, alwaysModes, setModes, rankModes string
 }

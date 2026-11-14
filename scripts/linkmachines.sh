@@ -1,5 +1,5 @@
 #!/bin/sh
-# Two-machine link test for `beeircd install` (Stage 2f). Runs on a host
+# Two-machine link test for `beeircd install`. Runs on a host
 # with LXD: two fresh system containers on a private bridge (no NAT, no
 # internet). The hub is installed first; the leaf is installed with only
 # what the hub's installer printed (fingerprint) and its cloak secret; the

@@ -51,7 +51,7 @@ type Account struct {
 	MemoMail   bool // a mail when a memo arrives (MEMO_MAIL)
 	MemoLimit  int
 
-	// Step 1.5.6a (Anope 2.0.20 NickServ).
+	// Anope 2.0.20 NickServ.
 	AutoOp        bool   // SET AUTOOP: ChanServ gives status on join
 	KeepModes     bool   // SET KEEPMODES: user modes come back on identify
 	LastModes     string // with KeepModes: the user modes, like "+iw"
@@ -167,7 +167,7 @@ func Open(path string) (*Store, error) {
 		}
 		return fail(err)
 	}
-	if _, err := db.Exec(schema + channelSchema + operSchema + chanExtraSchema + netbanSchema + ns156Schema + ms156Schema + hostServSchema + historySchema + panelSchema + botServSchema + botKickSchema + spamfilterSchema); err != nil {
+	if _, err := db.Exec(schema + channelSchema + operSchema + chanExtraSchema + netbanSchema + nsMoreSchema + msMoreSchema + hostServSchema + historySchema + panelSchema + botServSchema + botKickSchema + spamfilterSchema); err != nil {
 		return fail(err)
 	}
 	if err := migrateLevels(db); err != nil {
@@ -179,10 +179,10 @@ func Open(path string) (*Store, error) {
 	if err := migrateAccounts(db); err != nil {
 		return fail(err)
 	}
-	if err := migrateNS156(db); err != nil {
+	if err := migrateNSMore(db); err != nil {
 		return fail(err)
 	}
-	if err := migrateMS156(db); err != nil {
+	if err := migrateMSMore(db); err != nil {
 		return fail(err)
 	}
 	notes, err := migrate2020(db)
@@ -195,7 +195,7 @@ func Open(path string) (*Store, error) {
 	if err := migrateNetbans(db); err != nil {
 		return fail(err)
 	}
-	if err := migrate155b(db); err != nil {
+	if err := migrateOperMore(db); err != nil {
 		return fail(err)
 	}
 	if note, err := migrateCasemapping(db); err != nil {
@@ -573,7 +573,7 @@ func without[T any](list []T, drop func(T) bool) []T {
 	return out
 }
 
-// migrateAccounts adds the columns of Stage 1.5.3 to older databases.
+// migrateAccounts adds the columns to older databases.
 func migrateAccounts(db *sql.DB) error {
 	for _, col := range []struct{ table, name, def string }{
 		{"accounts", "hide_status", "INTEGER NOT NULL DEFAULT 0"},
@@ -597,8 +597,7 @@ func migrateAccounts(db *sql.DB) error {
 	return nil
 }
 
-// migrate2020 moves settings to their Anope 2.0.20 shape (Stage 1.5.5,
-// "services follow Anope 2.0.20"):
+// migrate2020 moves settings to their Anope 2.0.20 shape:
 //   - SET PROTECT delays become SET KILL modes: 0 stays ON, anything up to
 //     30 s becomes QUICK (20 s), longer becomes ON.
 //   - The UNBANME privilege is gone (2.0.20 has only UNBAN); channels that

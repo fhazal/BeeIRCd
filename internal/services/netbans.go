@@ -12,7 +12,7 @@ import (
 	"github.com/fhazal/beeircd/internal/store"
 )
 
-// The network ban engine (step 1.5.5): AKILL, ZLINE, SNLINE, SHUN and
+// The network ban engine: AKILL, ZLINE, SNLINE, SHUN and
 // ELINE share one list and one set of sub-commands. Bans match the real
 // host and the IP, never the cloak.
 

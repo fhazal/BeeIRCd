@@ -166,7 +166,7 @@ func TestPanelOperOrMember(t *testing.T) {
 
 // An oper who signs in with their NickServ password (the member pages) is
 // not trying a wrong oper password: doing it again and again must never
-// lock their /oper (release test 14 Nov 2026).
+// lock their /oper.
 func TestPanelMemberSignInDoesNotLockOper(t *testing.T) {
 	s, _, _ := fileServer(t, membersOn)
 	b := boss(t, s)
@@ -186,7 +186,7 @@ func TestPanelMemberSignInDoesNotLockOper(t *testing.T) {
 }
 
 // A suspension that ran out lets the member in at once, as on IRC, before
-// the hourly sweep clears it (release test 14 Nov 2026).
+// the hourly sweep clears it.
 func TestPanelMemberSuspensionRanOut(t *testing.T) {
 	s, _, _ := fileServer(t, membersOn)
 	registered(t, s, "ember")
@@ -240,7 +240,7 @@ func TestPanelMembersSwitch(t *testing.T) {
 }
 
 // With Members off, a right NickServ password is not a wrong password: it
-// says sign-in is off and uses up no lock (QA 1.0.0 round, bug 2).
+// says sign-in is off and uses up no lock.
 func TestPanelMembersOffRightPasswordNotCounted(t *testing.T) {
 	s, _, _ := fileServer(t, "")
 	b := boss(t, s)

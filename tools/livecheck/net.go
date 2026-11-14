@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// netCheck is the multi-server suite (Stage 2f): three linked servers,
+// netCheck is the multi-server suite: three linked servers,
 // the first one running services. -net names them "name=host:port,...";
 // -cut and -heal are shell commands that cut the third server's link and
 // give it back (the test network uses iptables in its network namespace).

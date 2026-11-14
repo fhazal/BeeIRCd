@@ -145,7 +145,7 @@ func (s *Services) userHas(reg *store.Channel, u *state.User, name string) bool 
 
 // needWords says who has a privilege, for "you need ..." replies, in the
 // level names people know: a number between them (Anope's 9999) is the
-// lowest name that covers it, "the founder" when none does (QA 1.0.0).
+// lowest name that covers it, "the founder" when none does.
 func (s *Services) needWords(need int) string {
 	if need == store.LevelFounder {
 		return "the founder"

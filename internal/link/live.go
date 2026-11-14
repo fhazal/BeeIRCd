@@ -1,6 +1,6 @@
 package link
 
-// Live changes after the burst (Stage 2c), independent of any protocol.
+// Live changes after the burst, independent of any protocol.
 // Source is the UID or SID doing it, the way the wire names it.
 
 // Nick renames a user.

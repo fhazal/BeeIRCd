@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// UnrealIRCd-compatible cloaks (Stage 2c): the same three keys give the
+// UnrealIRCd-compatible cloaks: the same three keys give the
 // same cloak as UnrealIRCd 6's cloak_sha256 module, so a person has one
 // cloak on a network that mixes BeeIRCd and UnrealIRCd servers and bans
 // on cloaks work on all of them.

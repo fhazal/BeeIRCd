@@ -63,7 +63,7 @@ func testUpdater(t *testing.T, current, url string, fs *fakeSystem, answers stri
 	os.MkdirAll(filepath.Dir(exe), 0o755)
 	os.WriteFile(exe, []byte("PROGRAM "+current), 0o755)
 	cfgPath := filepath.Join(dir, "beeircd.conf")
-	conf := strings.Replace(good7e, "URL", url, 1)
+	conf := strings.Replace(goodConf, "URL", url, 1)
 	os.WriteFile(cfgPath, []byte(conf), 0o640)
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
@@ -127,7 +127,7 @@ func testUpdater(t *testing.T, current, url string, fs *fakeSystem, answers stri
 	return u, out
 }
 
-const good7e = `
+const goodConf = `
 [server]
 name = "irc.beenet.org"
 network = "BeeNet"

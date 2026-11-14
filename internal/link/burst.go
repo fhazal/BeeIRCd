@@ -84,7 +84,7 @@ type Codec interface {
 	// live change (see Encode), or nil when it isn't one of those. The sender's SID or UID is in
 	// m.Source.
 	Decode(m irc.Message) any
-	// Encode writes a live change (2c: *Nick, *Quit, *Part, *Kick,
+	// Encode writes a live change (*Nick, *Quit, *Part, *Kick,
 	// *Mode, *UMode, *Login, *Host, *Ident, *Realname, *Invite,
 	// *ForceNick, *Message, *Numeric, *Ban); nil when it has no form.
 	Encode(item any) []string

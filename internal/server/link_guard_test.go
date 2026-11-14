@@ -1,0 +1,297 @@
+package server
+
+import (
+	"sort"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/fhazal/beeircd/internal/irc"
+	"github.com/fhazal/beeircd/internal/state"
+)
+
+// A linked server (here the leaf, seen from
+// the hub) sends lines it has no right to send. Each case runs on a fresh
+// hub + leaf: alice and carol are on the hub (alice op in #x, both in
+// it), bob on the leaf. The leaf's link then speaks for alice (a user not
+// behind it) or uses services-only commands on her. Nothing may change on
+// the hub, and carol must not see anything from it.
+func TestRogueServerSpoofs(t *testing.T) {
+	cases := []struct {
+		name, line string // A = alice's UID, B = bob's, L = the leaf's SID
+	}{
+		{"message as a user not behind the link", ":A PRIVMSG #x :spoofmsg"},
+		{"notice as a user not behind the link", ":A NOTICE carol :spoofmsg"},
+		{"nick change for a user not behind the link", ":A NICK spoofnick 1700000000"},
+		{"quit for a user not behind the link", ":A QUIT :spoofmsg"},
+		{"part for a user not behind the link", ":A PART #x :spoofmsg"},
+		{"topic as a user not behind the link", ":A TOPIC #x A 1700000000 :spoofmsg"},
+		{"away for a user not behind the link", ":A AWAY :spoofmsg"},
+		{"kick as a user not behind the link", ":A KICK #x carol :spoofmsg"},
+		{"channel mode as a user not behind the link", ":A MODE #x +o B"},
+		{"user mode for a user not behind the link", ":A UMODE2 +W"},
+		{"SVSLOGIN from a server that isn't the services server", ":L SVSLOGIN * A Boss"},
+		{"SVSKILL from a server that isn't the services server", ":L SVSKILL A :spoofmsg"},
+		{"SVSJOIN from a server that isn't the services server", ":L SVSJOIN A #spoofchan"},
+		{"SVSPART from a server that isn't the services server", ":L SVSPART A #x"},
+		{"SVSNICK from a server that isn't the services server", ":L SVSNICK A spoofnick 1700000000"},
+		{"SVSMODE from a server that isn't the services server", ":L SVSMODE A +W"},
+		{"CHGHOST as a user not behind the link", ":A CHGHOST carol spoof.host"},
+		{"CHGHOST by the server itself (not services)", ":L CHGHOST A spoof.host"},
+		{"SETHOST for a user not behind the link", ":A SETHOST spoof.host"},
+		{"CHGNAME by the server itself (not services)", ":L CHGNAME A :spoofmsg"},
+		{"INVITE as a user not behind the link", ":A INVITE B #x"},
+		{"oper flags for a user not behind the link", ":L MD client A bee-operflags :acghks"},
+		{"KILL as a user not behind the link", ":A KILL carol :spoofmsg"},
+		{"CHGHOST by a user who isn't an oper", ":B CHGHOST A spoof.host"},
+		{"SAJOIN by a user who isn't an oper", ":B SAJOIN A #spoofchan"},
+		{"SVSNICK from a non-services server to a nick", ":L SVSNICK A spoofnick 0"},
+		{"KILL by a user who isn't an oper", ":B KILL A :spoofmsg"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			hub, leaf := linkedPair(t)
+			alice := login(t, hub.s, "alice")
+			carol := login(t, hub.s, "carol")
+			bob := login(t, leaf.s, "bob")
+			alice.send("JOIN #x")
+			alice.expect("366")
+			carol.send("JOIN #x")
+			carol.expect("366")
+			bob.send("JOIN #x")
+			bob.expect("366")
+			hub.seen(t, "bob")
+			leaf.seen(t, "carol")
+			waitLink(t, "bob in #x on the hub", func() bool {
+				var in bool
+				hub.s.onLoop(func() {
+					ch := hub.s.net.Channel("#x")
+					in = ch != nil && ch.Members[hub.s.net.UserByNick("bob").UID] != nil
+				})
+				return in
+			})
+			before := hubView(hub)
+			var a, b string
+			hub.s.onLoop(func() { a, b = hub.s.net.UserByNick("alice").UID, hub.s.net.UserByNick("bob").UID })
+			line := strings.NewReplacer(":A ", ":"+a+" ", " A ", " "+a+" ", ":B ", ":"+b+" ", " B", " "+b, ":L ", ":"+leaf.sid+" ").Replace(tc.line)
+			carol.quiet("spoof") // drain what came so far
+			hub.fromLink(t, line)
+			time.Sleep(100 * time.Millisecond)
+			if after := hubView(hub); after != before {
+				t.Errorf("%s changed the hub:\nbefore %s\nafter  %s", line, before, after)
+			}
+			carol.quiet("spoof")
+		})
+	}
+}
+
+// hubView is what the rogue tests compare: alice's and carol's nick,
+// account, host, ident, realname, modes, oper flags; #x's members, ranks
+// and topic; the channels alice is in.
+func hubView(n *linkNode) string {
+	var b strings.Builder
+	n.s.onLoop(func() {
+		for _, nick := range []string{"alice", "carol"} {
+			u := n.s.net.UserByNick(nick)
+			if u == nil {
+				b.WriteString(nick + " gone; ")
+				continue
+			}
+			modes := ""
+			for _, m := range "BDHRTWZdiopqrswxz" {
+				if u.Modes[byte(m)] {
+					modes += string(m)
+				}
+			}
+			flags := ""
+			if c := n.s.clients[u.UID]; c != nil {
+				flags = c.operFlags
+			}
+			b.WriteString(u.Nick + " acc=" + u.Account + " host=" + u.Host + " ident=" + u.Ident + " real=" + u.Realname +
+				" modes=" + modes + " flags=" + flags + " operflags=" + u.OperFlags + " chans=" + strings.Join(chanNames(u.Channels), ",") + "; ")
+		}
+		if ch := n.s.net.Channel("#x"); ch != nil {
+			b.WriteString("#x topic=" + ch.Topic + " members=")
+			for _, m := range ch.SortedMembers() {
+				b.WriteString(m.User.Nick + "/" + strconv.Itoa(int(m.Ranks)) + " ")
+			}
+		}
+	})
+	return b.String()
+}
+
+func chanNames(m map[string]*state.Channel) []string {
+	var out []string
+	for _, ch := range m {
+		out = append(out, ch.Name)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// Server-tree tricks and broken lines from a linked server: the link may
+// be dropped, but nothing may crash and the hub's own users stay as they
+// were.
+func TestRogueServerTreeAndJunk(t *testing.T) {
+	cases := []struct {
+		line string
+		drop bool // the link must be dropped
+	}{
+		{":L SID evil.test.local 2 0HB :our SID", true},
+		{":L SID hub.test.local 2 9ZZ :our name", true},
+		{":L SID services.test.local 2 9ZZ :our services server", true},
+		{":L SID leaf.test.local 2 9ZY :the leaf's own name again", true},
+		{":9QQ SID ghost.test.local 3 9QR :from a server nobody introduced", false}, // refused by the gate
+		{":L SID bad_name 2 9ZX :not a server name", true},
+		{":L UID x 1 1700000000 u h 0HBAAAAAZ * +i * * * :a user with our SID", true},
+		{":L UID", false},
+		{":L SJOIN", false},
+		{":L SJOIN 1700000000 #x", false},
+		{":L SJOIN notanumber #x + :@" + "B", false},
+		{":L MODE #x +bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", false},
+		{":L MODE #x +l", false},
+		{":L MODE #x +k", false},
+		{":L TKL + G", false},
+		{":L TKL + G * * x 0 0 :", false},
+		{":L TKL + G * *.* x 0 0 :matches everyone", false},
+		{":L TKL + Z * * x 0 0 :matches everyone", false},
+		{":L TKL + Q * * x 0 0 :every nick", false},
+		{":L MD client", false},
+		{":L MD client A", false},
+		{":L SASL", false},
+		{":L BEEOPER", false},
+		{":L BEEOPERR", false},
+		{":L BEEADMIN", false},
+		{":L 001", false},
+		{":L EOS extra junk here", false},
+		{":L SQUIT", false},
+		{":L NETINFO", false},
+		{":L TOPIC #nosuchchannel :x", false},
+		{":L KICK #nosuchchannel A :x", false},
+		{":L INVITE A #x junk junk junk", false},
+	}
+	for i, tc := range cases {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			hub, leaf := linkedPair(t)
+			alice := login(t, hub.s, "alice")
+			alice.send("JOIN #x")
+			alice.expect("366")
+			before := hubView(hub)
+			var a string
+			hub.s.onLoop(func() { a = hub.s.net.UserByNick("alice").UID })
+			line := strings.NewReplacer(" A ", " "+a+" ", ":L ", ":"+leaf.sid+" ").Replace(tc.line)
+			if strings.HasSuffix(line, " A") {
+				line = strings.TrimSuffix(line, " A") + " " + a
+			}
+			hub.fromLink(t, line)
+			time.Sleep(50 * time.Millisecond)
+			dropped := false
+			hub.s.onLoop(func() { dropped = len(hub.s.links.conns) == 0 })
+			if tc.drop && !dropped {
+				t.Errorf("%s: link not dropped", line)
+			}
+			after := hubView(hub)
+			if !dropped && after != before {
+				t.Errorf("%s changed the hub:\nbefore %s\nafter  %s", line, before, after)
+			}
+			alice.send("PING :alive") // the hub still answers
+			alice.expect("PONG")
+		})
+	}
+}
+
+// A Q-line for every nick from a link is refused; a normal one is kept.
+func TestRogueQlineEveryone(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	hub.fromLink(t, ":"+leaf.sid+" TKL + Q * * x 0 0 :every nick")
+	hub.fromLink(t, ":"+leaf.sid+" TKL + Q * *Serv x 0 0 :reserved")
+	var masks []string
+	hub.s.onLoop(func() {
+		for _, q := range hub.s.links.qlines {
+			masks = append(masks, q.mask)
+		}
+	})
+	if len(masks) != 1 || masks[0] != "*Serv" {
+		t.Errorf("qlines %v", masks)
+	}
+}
+
+// Seeded random lines from a linked server through the real handlers
+// Every command the link code knows, with sources and parameters
+// from a pool of real and broken values. The server loop has no recover,
+// so any panic fails this. Lines that end the link (SID, UID, SQUIT, EOS,
+// ERROR) have their own tests above.
+func TestRogueRandomLines(t *testing.T) {
+	for seed := uint64(20261112); seed < 20261117; seed++ {
+		t.Run(strconv.FormatUint(seed, 10), func(t *testing.T) { rogueRandom(t, seed) })
+	}
+}
+
+func rogueRandom(t *testing.T, seed uint64) {
+	hub, leaf := linkedPair(t)
+	alice := login(t, hub.s, "alice")
+	alice.send("JOIN #x")
+	alice.expect("366")
+	bob := login(t, leaf.s, "bob")
+	bob.send("JOIN #x")
+	bob.expect("366")
+	hub.seen(t, "bob")
+	var a, b string
+	hub.s.onLoop(func() { a, b = hub.s.net.UserByNick("alice").UID, hub.s.net.UserByNick("bob").UID })
+	cmds := []string{"PRIVMSG", "NOTICE", "TAGMSG", "NICK", "QUIT", "PART", "KICK", "MODE", "UMODE2", "SVSMODE", "SVS2MODE",
+		"SVSLOGIN", "SETHOST", "CHGHOST", "SETIDENT", "CHGIDENT", "SETNAME", "CHGNAME", "INVITE", "SVSNICK", "TKL", "TOPIC",
+		"AWAY", "KILL", "SVSKILL", "SVSJOIN", "SAJOIN", "SVSPART", "SAPART", "SJOIN", "MD", "SASL", "WHOIS", "MOTD", "VERSION",
+		"ADMIN", "TIME", "STATS", "SVSNOOP", "BEEADMIN", "BEEOPER", "BEEOPERR", "NETINFO", "PING", "PONG", "001", "311", "SINFO"}
+	sources := []string{leaf.sid, b, "", "9ZZ", "0ZZAAAAAA", "bob", "leaf.test.local", "services.test.local"}
+	pool := []string{a, b, "#x", "#y", "*", "", "+", "-", "0", "1700000000", "-5", "99999999999999999999", "+ovbk", "-ovbk+l",
+		"+bbbbbbbbbbbbbbbbbbbb", "*!*@*", "*@*", "G", "Z", "Q", "n", "s", "e", "+G", "client", "channel", "bee-operflags",
+		"operclass", "saslmechlist", "OK", "FAIL", "UPDATE", "DEOPER", "{", "{\"flags\":\"aaaa\"}", "H", "S", "C", "D", "F",
+		"hub.test.local", "leaf.test.local", "9HB", "0HB", "alice", "bob", ":", "::", strings.Repeat("x", 600), "\x01ACTION\x01",
+		"@", "%", "+", "&*!*@x", "~", "#", "!", "0LF", "0LFAAAAAZ", "ÿ", "a,b,c,#x,#y"}
+	rnd, ran := seed, 0
+	next := func(n int) int { rnd = rnd*6364136223846793005 + 1442695040888963407; return int(rnd>>33) % n }
+	for i := 0; i < 3000; i++ {
+		var line strings.Builder
+		if src := sources[next(len(sources))]; src != "" {
+			line.WriteString(":" + src + " ")
+		}
+		line.WriteString(cmds[next(len(cmds))])
+		for j, n := 0, next(9); j < n; j++ {
+			p := pool[next(len(pool))]
+			if j == n-1 && next(2) == 0 {
+				line.WriteString(" :" + p)
+				break
+			}
+			if p == "" || strings.HasPrefix(p, ":") || strings.Contains(p, " ") {
+				p = "x"
+			}
+			line.WriteString(" " + p)
+		}
+		m, err := irc.Parse(line.String())
+		if err != nil {
+			continue
+		}
+		hub.s.onLoop(func() {
+			for l := range hub.s.links.conns {
+				ran++
+				hub.s.linkCommand(l, m)
+				return
+			}
+		})
+		if i%250 == 0 {
+			// A server may KILL (collisions, server kills), so alice may be
+			// gone: a new connection shows the hub is still alive.
+			c := login(t, hub.s, "zz"+strconv.Itoa(i))
+			c.send("QUIT")
+			c.expect("ERROR")
+		}
+	}
+	c := login(t, hub.s, "zzend")
+	c.send("QUIT")
+	c.expect("ERROR")
+	t.Logf("%d of 3000 lines ran on a live link", ran)
+	if ran < 1000 {
+		t.Errorf("only %d lines reached a link (it kept dropping)", ran)
+	}
+}

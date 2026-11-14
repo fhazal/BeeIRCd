@@ -22,7 +22,7 @@ const (
 	// the text), so `beeircd update` can say why everyone is leaving.
 	CmdQuitReason = "quit-reason"
 
-	// Hive Panel (Stage 3). Every panel request names the oper it acts for
+	// Hive Panel. Every panel request names the oper it acts for
 	// (As) and the web address they come from (IP); the server checks that
 	// oper again each time, so a removed or changed oper is stopped at once.
 	CmdPanelLogin = "panel-login" // Nick + Password + IP -> Oper
@@ -33,32 +33,32 @@ const (
 	CmdUndo       = "undo"        // ID (a HISTORY entry) -> Changed (flag a)
 	CmdPanelLog   = "panel-log"   // -> Events
 
-	// People page (3b).
+	// People page.
 	CmdPeople = "people" // Query + Filter + Offset + Limit -> People
 	CmdPerson = "person" // UID -> Person
 	CmdNotice = "notice" // UID + Value (the text) -> Done
 	CmdKill   = "kill"   // UID + Value (the reason) -> Done (flag k)
 	CmdBan    = "ban"    // UID + Value (reason) + Life -> Done (flag k: OperServ AKILL)
 
-	// Bans page (3c), all flag k like OperServ's ban commands.
+	// Bans page, all flag k like OperServ's ban commands.
 	CmdBans     = "bans"      // Kind -> Bans
 	CmdBanAdd   = "ban-add"   // Kind + Mask + Reason + Life -> Done
 	CmdBanDel   = "ban-del"   // Kind + Mask -> Done
 	CmdBanMatch = "ban-match" // Kind + Mask -> Match (who it would hit now)
 
-	// Opers page (3d), flag a like AdminServ OPER. Undo is CmdUndo.
+	// Opers page, flag a like AdminServ OPER. Undo is CmdUndo.
 	CmdOpers    = "opers"     // -> Opers
 	CmdOperSave = "oper-save" // Name + Class + Flags + Hosts + Password + New -> Changed
 	CmdOperDel  = "oper-del"  // Name -> Changed
 
-	// Linked servers page (3e), flag c like /CONNECT and /SQUIT.
+	// Linked servers page, flag c like /CONNECT and /SQUIT.
 	CmdLinks       = "links"        // -> Links
 	CmdLinkConnect = "link-connect" // Name -> Done
 	CmdLinkSplit   = "link-split"   // Name + Reason -> Done
 	CmdLinkSave    = "link-save"    // Block + New -> Done
 	CmdLinkDel     = "link-del"     // Name -> Done
 
-	// Channels page (3h).
+	// Channels page.
 	CmdChannels      = "channels"       // Query + Filter + Offset + Limit -> Channels
 	CmdChannel       = "channel"        // Name -> ChannelInfo
 	CmdChanNotice    = "chan-notice"    // Name + Value -> Done (flag g)
@@ -66,11 +66,11 @@ const (
 	CmdChanSuspend   = "chan-suspend"   // Name + Reason + Life -> Done (flag s)
 	CmdChanUnsuspend = "chan-unsuspend" // Name -> Done (flag s)
 
-	// Backups card (3i), owner only.
+	// Backups card, owner only.
 	CmdBackups   = "backups"    // -> Backups
 	CmdBackupGet = "backup-get" // Name + Password -> Backup (the file the panel may send)
 
-	// Network map (3k).
+	// Network map.
 	CmdMapPlace = "map-place" // Name (server) + Value (place name) + Lat + Lon -> Done; no Lat/Lon = remove (flag c)
 
 	// Members (Hive Chat h1): anyone signed in with a NickServ account,
@@ -300,8 +300,8 @@ type Links struct {
 	Map         []MapServer `json:"map"`
 	Blocks      []LinkBlock `json:"blocks"`
 	Status      []Link      `json:"status"`
-	Places      []MapPlace  `json:"places"`     // where the owner put the servers (3k)
-	FindByIP    bool        `json:"find_by_ip"` // [server] find_place_by_ip (3l)
+	Places      []MapPlace  `json:"places"`     // where the owner put the servers
+	FindByIP    bool        `json:"find_by_ip"` // [server] find_place_by_ip
 }
 
 // MapPlace is where a server is on the network map: set by the owner,
@@ -656,10 +656,10 @@ type Status struct {
 	Safety          Safety `json:"safety"`
 	// Update is a newer release the daily check found (nil: none).
 	Update *UpdateInfo `json:"update,omitempty"`
-	// Links are the server links (hub and leaf only; Stage 2).
+	// Links are the server links (hub and leaf only).
 	Links []Link `json:"links,omitempty"`
 
-	// Stage 3 (Hive Panel overview).
+	// Hive Panel overview.
 	MaxUsers   int       `json:"max_users"`
 	OperNicks  []string  `json:"oper_nicks,omitempty"` // opers on this server
 	Nicks      int       `json:"nicks"`                // registered

@@ -1,6 +1,6 @@
 package services
 
-// Stage 2d: OperServ DEFCON (Anope's os_defcon, with its usual levels
+// OperServ DEFCON (Anope's os_defcon, with its usual levels
 // fixed instead of configured). 5 is normal; each lower level adds to
 // the one above:
 //   4  no new nick or channel registrations

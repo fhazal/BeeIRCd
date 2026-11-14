@@ -1,0 +1,4 @@
+Welcome to the BeeIRCd test server
+be kind, stay curious
+
+Services: /ns /cs /ms /hs /bs /os /as.

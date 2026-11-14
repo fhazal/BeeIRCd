@@ -1,6 +1,6 @@
 # Standard checks on every push and pull request. Heavy work (benchmarks,
-# soak, long fuzzing, irctest, live checks) runs on the homelab, never here:
-# this workflow has no secrets and no route to the homelab.
+# soak, long fuzzing, irctest, live checks) runs on a separate test machine, never here:
+# this workflow has no secrets and no route to the test machine.
 name: ci
 
 on:

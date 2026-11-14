@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// QA 14 Nov 2026: with admin_password empty and no admin_hosts, anyone who
+// With admin_password empty and no admin_hosts, anyone who
 // registered the admin's nick first could set the admin oper password with
 // their first /oper and take the admin oper over.
 func TestFirstOperNeedsAdminHosts(t *testing.T) {

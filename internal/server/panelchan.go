@@ -10,7 +10,7 @@ import (
 	"github.com/fhazal/beeircd/internal/store"
 )
 
-// The channel manager (user, 14 Nov 2026: Option A). A channel's page for
+// The channel manager. A channel's page for
 // someone on its access list; changes run the real ChanServ commands.
 
 // panelChan is channel name's page for po.

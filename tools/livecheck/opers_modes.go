@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// opers is live158.py: the 1.5.8 oper side as a non-oper sees it.
+// opers: the oper side as a non-oper sees it.
 func (lc *liveCheck) opers() {
 	const deny = "AdminServ is for server admins|OperServ is for IRC operators"
 	a := lc.connect("zt8a", "")
@@ -39,7 +39,7 @@ func (lc *liveCheck) opers() {
 	a.send("QUIT :done")
 }
 
-// modes is live159a.py: the 1.5.9a channel modes.
+// modes: the channel modes.
 func (lc *liveCheck) modes() {
 	join := func(c *client, ch string) string {
 		c.send("JOIN " + ch)

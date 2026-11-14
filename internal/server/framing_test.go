@@ -7,7 +7,7 @@ import (
 	"github.com/fhazal/beeircd/internal/config"
 )
 
-// S1 regression tests (audit 11 Nov 2026): line framing over real TCP.
+// Regression tests: line framing over real TCP.
 
 // sendRaw writes bytes exactly as given (no CRLF added).
 func (c *tc) sendRaw(b string) {

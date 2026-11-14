@@ -8,7 +8,7 @@ import (
 	"github.com/fhazal/beeircd/internal/store"
 )
 
-// Step 1.5.8: oper classes. What an oper may do and how they look is their
+// Oper classes. What an oper may do and how they look is their
 // class (an [[operclass]] or a built-in one) with the entry's own extras on
 // top: more flags, and a title, vhost or swhois lines of its own.
 

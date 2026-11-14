@@ -1,4 +1,4 @@
-// Package link is server-to-server linking (Stage 2, PLAN-2.md): the link
+// Package link is server-to-server linking: the link
 // certificate, fingerprints and the wire protocols.
 //
 // The network logic in package server never depends on one protocol's

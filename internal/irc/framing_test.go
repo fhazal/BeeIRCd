@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// S1 (audit 11 Nov 2026): CR, LF and NUL must never let one message carry
+// S1: CR, LF and NUL must never let one message carry
 // a second line.
 
 func TestSplitFraming(t *testing.T) {
@@ -48,7 +48,7 @@ func TestStringNeverBreaksLines(t *testing.T) {
 	}
 }
 
-// Fuzz findings (audit T0, 11 Nov 2026), kept as plain tests.
+// Fuzz findings, kept as plain tests.
 func TestFuzzFindings(t *testing.T) {
 	// F1: an empty or invalid tag key is dropped.
 	if m, err := Parse("@=x;+ok=1;a.b=2;+/c=3 CMD"); err != nil || len(m.Tags) != 1 || m.Tags["+ok"] != "1" {

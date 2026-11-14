@@ -120,7 +120,7 @@ func TestOpersMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The opers table as step 6 first shipped it, without pass_hash.
+	// The opers table as an early version shipped it, without pass_hash.
 	if _, err := old.Exec(`CREATE TABLE opers (account_id INTEGER PRIMARY KEY, flags TEXT NOT NULL, title TEXT NOT NULL DEFAULT '',
 		hosts TEXT NOT NULL DEFAULT '', added_by TEXT NOT NULL DEFAULT '', added_at INTEGER NOT NULL)`); err != nil {
 		t.Fatal(err)
@@ -152,7 +152,7 @@ func TestLevelsMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Pretend this database is from step 5: AOP stored as 3, schema 1.
+	// Pretend this database is from an early version: AOP stored as 3, schema 1.
 	if _, err := s.db.Exec("INSERT INTO chan_access (channel_id, account_id, level, added_by, added_at) VALUES (?, ?, 3, 'Bee', 0)", c.ID, ember.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +197,7 @@ func TestAccountsMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The accounts table as step 4 shipped it, with one account.
+	// The accounts table as an early version shipped it, with one account.
 	if _, err := old.Exec(`CREATE TABLE accounts (id INTEGER PRIMARY KEY, name TEXT NOT NULL, pass_hash TEXT NOT NULL,
 		email TEXT NOT NULL DEFAULT '', registered INTEGER NOT NULL, last_seen INTEGER NOT NULL, last_host TEXT NOT NULL DEFAULT '',
 		enforce INTEGER NOT NULL DEFAULT 1, hide_email INTEGER NOT NULL DEFAULT 1, hide_host INTEGER NOT NULL DEFAULT 1,
@@ -280,7 +280,7 @@ func TestNetBansAndMigration(t *testing.T) {
 
 // Opening an older database moves SET PROTECT delays to SET KILL modes and
 // drops the UNBANME privilege (Anope 2.0.20), saying which channels lost it.
-func TestMigrate2020(t *testing.T) {
+func TestMigrateAnope(t *testing.T) {
 	s, path := open(t)
 	now := time.Unix(1_800_000_000, 0)
 	var ids []int64
@@ -355,7 +355,7 @@ func TestSplitAndRename(t *testing.T) {
 	}
 }
 
-func TestOper155bTables(t *testing.T) {
+func TestOperMoreTables(t *testing.T) {
 	s, path := open(t)
 	now := time.Unix(1_800_000_000, 0)
 	a, _ := s.CreateAccount("Bee", "h", "", now)

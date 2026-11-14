@@ -9,7 +9,7 @@ import (
 )
 
 // Link is the [link] section: this server's place in a network and the
-// servers it links with (Stage 2, PLAN-2.md).
+// servers it links with.
 type Link struct {
 	// Role is "standalone" (the default), "hub" (other servers link to
 	// it) or "leaf" (it links to one hub).

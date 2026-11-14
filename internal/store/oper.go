@@ -15,7 +15,7 @@ import (
 type Oper struct {
 	AccountID int64
 	Account   string
-	Class     string // oper class (1.5.8), "" = none: only Flags
+	Class     string // oper class, "" = none: only Flags
 	Flags     string // flags on top of the class
 	Title     string // "" = the class's
 	Vhost     string // "" = the class's

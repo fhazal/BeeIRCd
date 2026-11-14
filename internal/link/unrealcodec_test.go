@@ -114,8 +114,8 @@ func TestUnrealCodecOthers(t *testing.T) {
 	}
 }
 
-// Lines a real UnrealIRCd 6.2.7 sent in its burst (homelab sandbox, 12 Nov
-// 2026), tags included.
+// Lines a real UnrealIRCd 6.2.7 sent in its burst (recorded in a
+// sandbox), tags included.
 func TestUnrealCodecRecorded(t *testing.T) {
 	c := &unrealCodec{paramModes: "fkLlFH"}
 	u := decode(t, c, "@s2s-md/server_port=18667;s2s-md/creationtime=1794436327;s2s-md/local_port=49972 :0SD UID ualice 0 1794436326 ualice localhost 0SDJR3001 0 +iwx * Clk-6D4627E9 fwAAAQ== :ualice test").(*User)

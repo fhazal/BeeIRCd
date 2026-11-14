@@ -25,7 +25,7 @@ import (
 	"github.com/fhazal/beeircd/internal/version"
 )
 
-// updater carries out `beeircd update` (mockups/update/update.html). The
+// updater carries out `beeircd update`. The
 // fields that touch the machine are replaceable so tests run it end to end
 // in a temp folder.
 type updater struct {

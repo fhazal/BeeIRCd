@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// OperClass is an [[operclass]] block (step 1.5.8): what an oper may do and
+// OperClass is an [[operclass]] block: what an oper may do and
 // how they look once opered. BeeIRCd is IRCd and services in one, so a
 // class is an UnrealIRCd operclass and an Anope opertype together.
 type OperClass struct {

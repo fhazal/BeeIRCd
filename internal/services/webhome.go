@@ -10,8 +10,7 @@ import (
 	"github.com/fhazal/beeircd/internal/store"
 )
 
-// Member Home and the Memos page of the Hive Panel (user, 14 Nov 2026,
-// Option A + Memos). Reading is direct and only ever about the signed-in
+// Member Home and the Memos page of the Hive Panel. Reading is direct and only ever about the signed-in
 // account; sending is the real MemoServ SEND through a stand-in client, so
 // the same limits, ignores, notices and log lines apply as on IRC.
 

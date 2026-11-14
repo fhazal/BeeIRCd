@@ -93,7 +93,7 @@ type Services struct {
 	// off: [services] enabled = false. The bots are made but never put
 	// on the network, events are ignored and nobody is tracked; only the
 	// network ban list (bans that arrive over links) stays in force.
-	// People use the services server's bots over the link (Stage 2c).
+	// People use the services server's bots over the link.
 	off bool
 
 	host Host
@@ -108,7 +108,7 @@ type Services struct {
 
 	// secretDone runs on the loop (as a new job) after every password
 	// check or hash finished, so the server can go on with that client's
-	// held lines in order (audit O1).
+	// held lines in order.
 	secretDone func()
 
 	services map[string]*service // by folded nick

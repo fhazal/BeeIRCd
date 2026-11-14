@@ -4,7 +4,7 @@ import (
 	"strings"
 )
 
-// Step 1.5.8: Anope's OperServ OPER (os_oper) over BeeIRCd's one oper list:
+// Anope's OperServ OPER (os_oper) over BeeIRCd's one oper list:
 // LIST and INFO for opers, ADD and DEL for flag a (they run AdminServ OPER,
 // which answers).
 

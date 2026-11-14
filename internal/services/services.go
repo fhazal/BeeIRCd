@@ -72,7 +72,7 @@ func (s *Services) startServices() {
 			nsCmds[name] = cmd
 		}
 	}
-	for name, cmd := range ns156bCommands() {
+	for name, cmd := range nsMailCommands() {
 		nsCmds[name] = cmd
 	}
 	s.nickServ = s.addService("NickServ", "ns", "Nickname Services", "NickServ keeps your nick yours. Commands:", nsCmds)
@@ -80,12 +80,12 @@ func (s *Services) startServices() {
 	s.chanServ = s.addService("ChanServ", "cs", "Channel Services", "ChanServ keeps a channel yours. Commands:", chanServCommands())
 	s.chanServ.aliases = chanServAliases
 	msCmds := memoServCommands()
-	for name, cmd := range ms156Commands() {
+	for name, cmd := range msMoreCommands() {
 		msCmds[name] = cmd
 	}
 	s.memoServ = s.addService("MemoServ", "ms", "Memo Services", "MemoServ keeps messages for people who are away. Commands:", msCmds)
 	osCmds := operServCommands()
-	for name, cmd := range operServ155bCommands() {
+	for name, cmd := range operServMoreCommands() {
 		osCmds[name] = cmd
 	}
 	osCmds["OPER"] = svcCmd{"OPER LIST | INFO [class] | ADD <nick> <class> | DEL <nick>", "show and change the oper list",
@@ -240,7 +240,7 @@ const (
 
 // lockKey is one account (or oper entry) tried from one source IP. Wrong
 // passwords lock that pair only: a stranger who guesses wrong locks
-// themselves out, never the real owner (QA 14 Nov 2026).
+// themselves out, never the real owner.
 type lockKey struct {
 	id  int64
 	src string

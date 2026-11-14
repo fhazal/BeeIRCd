@@ -9,7 +9,7 @@ import (
 )
 
 // FuzzParseMlock: ChanServ MODE LOCK never panics, and a lock it stored
-// reads back the same (audit T0).
+// reads back the same.
 func FuzzParseMlock(f *testing.F) {
 	for _, s := range []string{"+nt-s", "+k secret", "+l 50", "+fC [5j]:10", "+L #more", "-k", "+P", "+-+", "+l x", "+f"} {
 		f.Add(s)

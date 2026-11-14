@@ -121,7 +121,7 @@ func (c *Client) build(o *outMsg) string {
 func (c *Client) deliver(o *outMsg) {
 	if line, ok := c.format(o); ok {
 		if nj := c.s.netjoin; nj != nil && o.msg.Command == "JOIN" && c.caps["batch"] {
-			line = nj.tag(c, line) // a burst from a server link (2b)
+			line = nj.tag(c, line) // a burst from a server link
 		}
 		if ns := c.s.netsplit; ns != nil && o.msg.Command == "QUIT" {
 			if ns.hidden(c) {
@@ -131,7 +131,7 @@ func (c *Client) deliver(o *outMsg) {
 				line, _ = c.format(&h)
 			}
 			if c.caps["batch"] {
-				line = ns.tag(c, line) // a split (2e)
+				line = ns.tag(c, line) // a split
 			}
 		}
 		c.queueLine(line)

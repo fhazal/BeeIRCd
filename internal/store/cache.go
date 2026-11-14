@@ -195,13 +195,13 @@ func loadCache(db *sql.DB) (*cache, error) {
 	if err := loadChanExtra(db, c); err != nil {
 		return nil, err
 	}
-	if err := loadNS156(db, c); err != nil {
+	if err := loadNSMore(db, c); err != nil {
 		return nil, err
 	}
 	if err := loadHostServ(db, c); err != nil {
 		return nil, err
 	}
-	if err := loadMS156(db, c); err != nil {
+	if err := loadMSMore(db, c); err != nil {
 		return nil, err
 	}
 	return c, nil

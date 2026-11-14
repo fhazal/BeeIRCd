@@ -1,6 +1,6 @@
 package main
 
-// Stage 2a: the CLI side of server links: `beeircd link-info`, the link
+// The CLI side of server links: `beeircd link-info`, the link
 // lines of `beeircd check` and the Links row of `beeircd status`.
 
 import (

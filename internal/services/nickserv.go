@@ -58,9 +58,9 @@ func nickServCommands() map[string]svcCmd {
 	}
 }
 
-func init() { nickServExtras = ns156Commands }
+func init() { nickServExtras = nsMoreCommands }
 
-// nickServExtras adds the commands from other files (ns156.go).
+// nickServExtras adds the commands from other files (nickserv_more.go).
 var nickServExtras func() map[string]svcCmd
 
 // identified returns c's account, or tells them to identify first.
@@ -634,7 +634,7 @@ func (s *Services) setOption(c *Client, a *store.Account, cmd, opt string, args 
 		}
 		msg := fmt.Sprintf("%s %s is %s others in INFO.", whose, what, shown)
 		if field == "STATUS" {
-			if o, _ := s.store.OperByAccount(a.ID); o == nil { // QA 1.0.0: not an oper, so say what it means
+			if o, _ := s.store.OperByAccount(a.ID); o == nil { // not an oper, so say what it means
 				msg += " " + a.Name + " has no oper entry now, so INFO shows no oper status anyway; this applies if it gets one."
 			}
 		}

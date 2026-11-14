@@ -1,4 +1,4 @@
-// Hive Panel network map (step 3k): a flat world map that wraps round
+// Hive Panel network map: a flat world map that wraps round
 // left and right like a globe, zooms to a city, and shows each server as a
 // small icon with its links. Places come from beeircd.conf ([[map.place]],
 // set here by the owner); nothing is looked up from an address and no

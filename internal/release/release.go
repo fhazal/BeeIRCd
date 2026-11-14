@@ -24,7 +24,7 @@ import (
 // TrustedKeys are the public keys (base64) a release may be signed with.
 // A new key is added here one release before the old one is dropped.
 var TrustedKeys = []string{
-	"pRAtMw63e82bKkYiU3B27vbKRPXwkBO89U0d8oIP0ng=", // 12 Nov 2026, ~/.beeircd-release/release.key on the maintainer PC
+	"pRAtMw63e82bKkYiU3B27vbKRPXwkBO89U0d8oIP0ng=", // release key, 2026
 }
 
 // TestKey is an extra trusted public key for test builds only (set with

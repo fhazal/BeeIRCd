@@ -1,6 +1,6 @@
 // Package state is the network as BeeIRCd sees it: users, channels and who
 // is in which channel. Everything is keyed by unique ID (UID), never by nick,
-// so linked servers (Stage 2) can share the same model.
+// so linked servers can share the same model.
 //
 // Network is not safe for concurrent use; the server owns it from a single
 // goroutine.
@@ -42,7 +42,7 @@ type User struct {
 	// client), so services here know what they may do.
 	OperClass, OperFlags string
 	// Cloak is the host +x shows, for users on other servers: their
-	// server made it (2c). Ours are made on the spot (cloakFor).
+	// server made it. Ours are made on the spot (cloakFor).
 	Cloak    string
 	SignOn   time.Time
 	NickTS   int64

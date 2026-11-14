@@ -7,7 +7,7 @@ import (
 	"github.com/fhazal/beeircd/internal/irc"
 )
 
-// Fuzz targets for the server-link parser (Stage 2g). Longer runs:
+// Fuzz targets for the server-link parser. Longer runs:
 //   go test -run '^$' -fuzz=FuzzLinkLine -fuzztime=5m ./internal/link/
 // scripts/fuzz.sh runs every target for an hour.
 
@@ -109,7 +109,7 @@ func FuzzLinkSJOIN(f *testing.F) {
 	})
 }
 
-// Found by FuzzLinkLine (2g): "TKL + :" (an empty ban type) crashed the
+// Found by FuzzLinkLine: "TKL + :" (an empty ban type) crashed the
 // decoder, and with it the whole server.
 func TestDecodeBanEmptyType(t *testing.T) {
 	for _, line := range []string{":0AB TKL + :", ":0AB TKL - ", ":0AB TKL + GG * * x", ":0AB TKL"} {

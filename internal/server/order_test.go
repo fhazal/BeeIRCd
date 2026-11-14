@@ -2,7 +2,7 @@ package server
 
 import "testing"
 
-// O1 regression tests (audit 11 Nov 2026): a client's commands run in the
+// Regression tests: a client's commands run in the
 // order it sent them, even while one of its passwords is checked off the
 // loop. Each test sends the password command and what follows in ONE write,
 // so the follow-up is already waiting when the check starts.

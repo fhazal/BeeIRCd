@@ -17,7 +17,7 @@ import (
 )
 
 // DNSBL: new connections are looked up in the [[dnsbl]] lists of
-// beeircd.conf (Stage 1.5.5b, like UnrealIRCd's blacklist{} and Anope's
+// beeircd.conf (like UnrealIRCd's blacklist{} and Anope's
 // m_dnsbl). Lookups run off the loop; registration waits for them at most
 // dnsblWait, then goes on. LAN and loopback IPs are never looked up, and
 // ELINEs and session exceptions skip the check.

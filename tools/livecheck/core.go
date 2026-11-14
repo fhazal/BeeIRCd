@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// core is live157.py: IRCv3 basics, ChanServ/NickServ/MemoServ/OperServ
+// core: IRCv3 basics, ChanServ/NickServ/MemoServ/OperServ
 // (non-oper side), MONITOR, CERT + SASL EXTERNAL, HostServ, 1.5.1-1.5.7.
 func (lc *liveCheck) core() {
 	PW := lc.pw

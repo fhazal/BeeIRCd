@@ -41,7 +41,7 @@ type Server struct {
 	whowas    []whowasEntry
 	maxLocal  int
 	maxGlobal int // most people on the network at once (LUSERS)
-	// Hive Panel Spotlight (spotlight3s.go): when each person last talked
+	// Hive Panel Spotlight (spotlight.go): when each person last talked
 	// in each channel (times only), and today's most people at once.
 	talk       map[*state.Channel]map[string]int64
 	talkRoom   map[*state.Channel]*roomTalk // lines per minute and order of the last line
@@ -60,7 +60,7 @@ type Server struct {
 	sinks      []func(state.Event) // get every event after it was applied
 	beforeEmit func(state.Event)   // tests: runs before each event
 	timedBans  []timedBan          // ~t: channel list entries waiting to lift
-	// 1.5.9a channel modes: flood guard counters (by folded channel),
+	// Channel modes: flood guard counters (by folded channel),
 	// parsed +f values, flood modes waiting to lift, +J rejoin blocks.
 	floods      map[string]*chanFloodState
 	floodCache  map[string]floodSet
@@ -70,13 +70,13 @@ type Server struct {
 	rejoinBlock map[string]time.Time
 	// held are the clients with lines waiting for a password check (O1).
 	held map[*Client]struct{}
-	hist histState // 1.5.9c channel history (+H, CHATHISTORY)
+	hist histState // channel history (+H, CHATHISTORY)
 	// 7a connect throttle and unregistered caps; throttleSkip says which
 	// IPs skip them (LAN), replaceable in tests.
 	throttle     connThrottle
 	throttleSkip func(ip string) bool
 	noticeAt     map[string]time.Time // snoticeEvery
-	// 7b: control socket, reloadable certificate, today's safety counts.
+	// Control socket, reloadable certificate, today's safety counts.
 	ctl         net.Listener
 	certs       *tlsutil.Reloader
 	certChecked time.Time
@@ -88,10 +88,10 @@ type Server struct {
 	chatKeys    map[string]chatKey          // one-time SASL keys for the Hive Panel's Chat tab (chatkey.go)
 	watchers    map[string]map[*Client]bool // MONITOR: folded nick -> clients watching it
 	loop        loopStats                   // how long each piece of loop work took
-	links       linkState                   // Stage 2 server links
+	links       linkState                   // server links
 	netjoin     *netjoinBatch               // set while a link's burst is handled
-	netsplit    *netjoinBatch               // set while the users of a split server quit (2e)
-	origin      *linkOrigin                 // where the next emitted event came from (2c)
+	netsplit    *netjoinBatch               // set while the users of a split server quit
+	origin      *linkOrigin                 // where the next emitted event came from
 	banFrom     *linkConn                   // the link a ban change came from, while it is applied
 	wg          sync.WaitGroup
 
@@ -115,7 +115,7 @@ type Server struct {
 	dnsbl     dnsblState
 
 	// panelGone keeps the password hash of oper entries the Hive Panel
-	// removed, so its Undo brings the password back too (3d).
+	// removed, so its Undo brings the password back too.
 	panelGone map[int64]string
 }
 
@@ -123,7 +123,7 @@ type listener struct {
 	net.Listener // plain TCP; TLS is added per connection
 	tls          bool
 	addr         string // as written in the config
-	proxy        bool   // PROXY protocol header first (7a)
+	proxy        bool   // PROXY protocol header first
 	proxyFrom    []*net.IPNet
 	tlsConf      *tls.Config // captured: accept goroutines must not read Server.tlsConf
 }

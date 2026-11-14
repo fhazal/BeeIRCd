@@ -1,5 +1,0 @@
-Welcome to the BeeIRCd test server
-be kind, stay curious
-
-This is Stage 1 step 6: all five services (/ns /cs /ms /os /as).
-Opers: identify, and services oper you up.

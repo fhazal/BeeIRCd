@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Step 1.5.8: AdminServ HISTORY / DIFF / UNDO. Every change AdminServ makes
+// AdminServ HISTORY / DIFF / UNDO. Every change AdminServ makes
 // to beeircd.conf or the oper list is recorded; the last HistoryKeep stay.
 // Not cached: it is read only when an admin asks.
 

@@ -19,7 +19,7 @@ func leafAnswers(hubName, hubAddr, hubFP string) string {
 	}, "\n") + "\n"
 }
 
-// Step 2f: a leaf asks for its hub, writes the [[link.server]] block, makes
+// A leaf asks for its hub, writes the [[link.server]] block, makes
 // its link certificate at install and prints the block the hub pastes.
 func TestInstallLeafWithHub(t *testing.T) {
 	hubFP := "nYOJpqgJ3EM6dJbZ6r0vNcGoxJk1LTw0Ny1bwTl1Ezs="

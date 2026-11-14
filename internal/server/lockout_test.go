@@ -7,7 +7,7 @@ import (
 	"github.com/fhazal/beeircd/internal/control"
 )
 
-// QA 14 Nov 2026: wrong passwords locked the account for everyone, so a
+// Wrong passwords locked the account for everyone, so a
 // stranger could keep any nick locked out with 5 lines per 10 minutes.
 // Now they lock only the source they came from.
 func TestWrongPasswordsLockOnlyTheirSource(t *testing.T) {

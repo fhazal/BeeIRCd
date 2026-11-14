@@ -10,7 +10,7 @@ import (
 	"github.com/fhazal/beeircd/internal/store"
 )
 
-// Member Home and the Memos page (user, 14 Nov 2026: Option A + Memos).
+// Member Home and the Memos page.
 // Home only reads; the memo actions run MemoServ's own rules. Everything
 // is about the signed-in account (po) only.
 

@@ -1,7 +1,7 @@
 package main
 
 // The admin commands: status, check, backup, rehash, start, stop, restart
-// (step 7b). They read beeircd.conf to find the control socket, and talk
+// They read beeircd.conf to find the control socket, and talk
 // to the running server through it.
 
 import (

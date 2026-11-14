@@ -102,7 +102,7 @@ func ValidChannel(name string, maxLen int) bool {
 		}
 	}
 	// Valid UTF-8 only, like UnrealIRCd's default allowed-channelchars
-	// utf8: linked servers must agree on which names exist (Stage 2).
+	// utf8: linked servers must agree on which names exist.
 	return utf8.ValidString(name)
 }
 

@@ -11,7 +11,7 @@ import (
 	"github.com/fhazal/beeircd/internal/store"
 )
 
-// Step 1.5.7: HostServ, as Anope 2.0.20 (modules/commands/hs_*.cpp and
+// HostServ, as Anope 2.0.20 (modules/commands/hs_*.cpp and
 // pseudoclients/hostserv.cpp). A vhost belongs to a nick; it shows when
 // someone identifies using that nick, or with ON. Oper commands need flag h
 // (Anope's hostserv/set, /del and /list).

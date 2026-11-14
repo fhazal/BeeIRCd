@@ -1,5 +1,5 @@
 #!/bin/sh
-# Heavy link test (2g), for the homelab: the 3-server test net under load,
+# Heavy link test, for a test machine: the 3-server test net under load,
 # leaf2 cut off and given back again and again, and after every return
 # netagree checks that all three servers see the same network.
 #

@@ -6,8 +6,8 @@ import (
 )
 
 // emit is how the server changes the network: it applies ev, tells the
-// local clients who should see it, and hands ev to every sink (server links
-// from Stage 2; tests). Command handlers check permissions and send their
+// local clients who should see it, and hands ev to every sink (server links,
+// tests). Command handlers check permissions and send their
 // own numerics; everything others see comes from here, so a change that
 // arrives over a link later reaches local clients the same way.
 func (s *Server) emit(ev state.Event) error {

@@ -427,7 +427,7 @@ func TestChanServOperDropAndFounder(t *testing.T) {
 }
 
 // "You need to be ..." names a level people know, not Anope's 9999
-// (QA 1.0.0 round, bug 3).
+// .
 func TestChanServNeedWordsNamesTheLevel(t *testing.T) {
 	s := testServer(t, nil)
 	f := founded(t, s, "Fee")

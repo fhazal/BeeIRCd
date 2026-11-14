@@ -10,8 +10,8 @@ import (
 	"github.com/fhazal/beeircd/internal/irc"
 )
 
-// TestUnrealReplay feeds a real UnrealIRCd 6.2.7 link (recorded on the
-// homelab sandbox, 12 Nov 2026, Unreal connecting to a BeeIRCd hub) to the
+// TestUnrealReplay feeds a real UnrealIRCd 6.2.7 link (recorded in a
+// sandbox, Unreal connecting to a BeeIRCd hub) to the
 // hub's handshake and checks it answers exactly what that UnrealIRCd
 // accepted.
 func TestUnrealReplay(t *testing.T) {

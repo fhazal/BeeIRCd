@@ -240,7 +240,7 @@ select.in option{background:var(--card);color:var(--ink)}
 /* lists (People, Channels, Bans, Opers, Links) */
 .tiles4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
 
-/* Overview number tiles: bold tinted cards (approved mockup H, 13 Nov).
+/* Overview number tiles: bold tinted cards.
    Only the Overview's tiles; every other page keeps the flat tiles. The
    four tints are theme tokens, so all themes get their own colours. */
 .ov-bold>.card.tight{--t:var(--honey-rgb);position:relative;overflow:hidden;border-radius:18px;padding:18px 18px 16px;gap:2px;

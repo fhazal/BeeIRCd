@@ -294,7 +294,7 @@ func (h *unreal) server(m irc.Message) ([]string, error) {
 	return out, nil
 }
 
-// agree checks the network-wide settings both sides must share (2c):
+// agree checks the network-wide settings both sides must share:
 // the casemapping, and that only one server runs services. UnrealIRCd 6
 // always folds ascii and runs no services of its own (a services server
 // behind it is caught in the burst, by its NickServ).

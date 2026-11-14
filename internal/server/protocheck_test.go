@@ -9,8 +9,6 @@ import (
 	"time"
 )
 
-// T0 test foundation (audit 11 Nov 2026).
-//
 // checkLine is an independent check of every line a test client reads:
 // it does not use internal/irc, so the server's own parser is not checking
 // the server. It only holds rules every IRC line must follow (RFC 1459 /

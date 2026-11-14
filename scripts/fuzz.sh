@@ -1,7 +1,7 @@
 #!/bin/bash
 # Long fuzzing for a release: every Fuzz target for TIME (default 1h), all
 # at once, each in its own golang container with 3 workers. Run on the
-# homelab from a copy of the tree:
+# test machine from a copy of the tree:
 #
 #   scripts/fuzz.sh /opt/beeircd-test/src [1h]
 #

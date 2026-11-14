@@ -9,7 +9,7 @@ import (
 	"github.com/fhazal/beeircd/internal/irc"
 )
 
-// Live lines in UnrealIRCd 6's wire format (Stage 2c), as its modules
+// Live lines in UnrealIRCd 6's wire format, as its modules
 // send them: nick.c, part.c, quit.c, kick.c, mode.c, umode2/svsmode.c,
 // svslogin.c, sethost/chghost.c, chgident.c, setname/chgname.c,
 // invite.c, svsnick.c, message.c, tkl.c.

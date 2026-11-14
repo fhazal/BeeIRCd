@@ -11,7 +11,7 @@ import (
 	"github.com/fhazal/beeircd/internal/store"
 )
 
-// ChanServ commands added in step 1.5.4 (Anope's MODE, TOPIC, ENTRYMSG,
+// ChanServ commands (Anope's MODE, TOPIC, ENTRYMSG,
 // ENFORCE, LOG, SUSPEND, SYNC) and what PERSIST and KEEPMODES need.
 
 func csModeCommand(s *Services, c *Client, args []string) {

@@ -12,7 +12,7 @@ import (
 	"github.com/fhazal/beeircd/internal/store"
 )
 
-// Spam filter rules (after 1.0, PLAN-spamfilter.md). Services keep the
+// Spam filter rules (after 1.0). Services keep the
 // list (in the database, like the network bans) and a compiled set the
 // server checks text against; every change goes to the links through
 // OnSpamChange, rules from links come in through RemoteSpamFilter.

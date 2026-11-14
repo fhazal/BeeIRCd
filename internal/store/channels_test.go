@@ -79,7 +79,7 @@ func TestEntryMsgMigration(t *testing.T) {
 	s, path := open(t)
 	bee, _ := s.CreateAccount("Bee", "x", "", time.Now())
 	c, _ := s.CreateChannel("#bchat", bee, "", time.Now())
-	// A database from before 1.5.4 kept one line in channels.entrymsg.
+	// An older database kept one line in channels.entrymsg.
 	if _, err := s.db.Exec("UPDATE channels SET entrymsg = 'Welcome!' WHERE id = ?", c.ID); err != nil {
 		t.Fatal(err)
 	}

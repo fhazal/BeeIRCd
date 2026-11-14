@@ -8,7 +8,7 @@ import (
 	"github.com/fhazal/beeircd/internal/store"
 )
 
-// Step 1.5.5a: the network ban engine, IRCd-style ban commands, extbans
+// The network ban engine, IRCd-style ban commands, extbans
 // and timed bans.
 
 // addBan puts a ban straight into the store (for masks that would match

@@ -298,7 +298,7 @@ func (s *Server) firstOperPassword(c *Client, a *store.Account, o *store.Oper, p
 		return
 	}
 	// Without admin_hosts anyone could register the admin's nick first and
-	// set the password (QA 14 Nov 2026): then it must be in the config.
+	// set the password: then it must be in the config.
 	if len(s.cfg.Services.AdminHosts) == 0 {
 		s.reply(c, irc.ErrNoOperHost, "No oper password is set for "+o.Account+" yet")
 		s.notice(c, "*** Put the admin's oper password in beeircd.conf: [services] admin_password from `beeircd mkpasswd`, then rehash. "+

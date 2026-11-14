@@ -1,5 +1,5 @@
 #!/bin/sh
-# BeeIRCd 3-server test network (Stage 2f), for the homelab.
+# BeeIRCd 3-server test network, for a test machine.
 #
 #   hub.beenet.test    services on   clients 127.0.0.1:27011
 #   leaf1.beenet.test  services off  clients 127.0.0.1:27012
@@ -16,12 +16,12 @@
 #   sh testnet.sh down    stop and remove everything (keeps nothing)
 #
 # Needs in this folder: beeircd and livecheck (linux/amd64 builds) and
-# ../homelab-test/Dockerfile. Ports are bound to 127.0.0.1 only.
+# ../test-server/Dockerfile. Ports are bound to 127.0.0.1 only.
 set -eu
 cd "$(dirname "$0")"
 DIR=$(pwd)
 NET=beenet-link CLI=beenet-cli IMG=beeircd-testnet:dev
-SUB=10.77.77 CLISUB=10.77.78.0/24 # free on the homelab (Docker's 172.x pool is full)
+SUB=10.77.77 CLISUB=10.77.78.0/24 # free on the test machine (Docker's 172.x pool is full)
 NODES="hub leaf1 leaf2"
 
 ip_of() { case $1 in hub) echo $SUB.2 ;; leaf1) echo $SUB.3 ;; leaf2) echo $SUB.4 ;; esac; }
@@ -97,9 +97,9 @@ heal() {
 
 up() {
 	[ -x ./beeircd ] || { echo "put a linux beeircd build here first" >&2; exit 1; }
-	cp ./beeircd ../homelab-test/beeircd
-	docker build -q -t $IMG ../homelab-test >/dev/null
-	rm -f ../homelab-test/beeircd
+	cp ./beeircd ../test-server/beeircd
+	docker build -q -t $IMG ../test-server >/dev/null
+	rm -f ../test-server/beeircd
 	docker network inspect $NET >/dev/null 2>&1 || docker network create --internal --subnet $SUB.0/24 $NET >/dev/null
 	docker network inspect $CLI >/dev/null 2>&1 || docker network create --subnet $CLISUB $CLI >/dev/null
 	CLOAK=$(openssl rand -hex 20)

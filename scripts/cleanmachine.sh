@@ -1,5 +1,5 @@
 #!/bin/sh
-# Clean-machine test for `beeircd install` (PLAN-7 7d). Runs on a host with
+# Clean-machine test for `beeircd install`. Runs on a host with
 # LXD: makes a fresh system container per OS, installs BeeIRCd inside it
 # with scripted answers, tests it, reboots it, tests again, removes it.
 # The containers have no network; the host is not changed.

@@ -108,7 +108,7 @@ func (s *Server) cmdPass(c *Client, m irc.Message) {
 	if c.registered {
 		s.reply(c, irc.ErrAlreadyRegistered, "You may not reregister")
 	}
-	// No server password in Stage 1; SASL and NickServ come later.
+	// No server password; accounts are SASL and NickServ.
 }
 
 func (s *Server) cmdNick(c *Client, m irc.Message) {

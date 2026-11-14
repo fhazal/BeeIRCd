@@ -10,7 +10,7 @@ import (
 	"github.com/fhazal/beeircd/internal/store"
 )
 
-// The spam filter (after 1.0, PLAN-spamfilter.md): every PRIVMSG, NOTICE,
+// The spam filter (after 1.0): every PRIVMSG, NOTICE,
 // PART, QUIT, TOPIC and AWAY from a local person goes past the rules
 // before the command runs, and so do nick!user@host:realname at connect
 // and on a nick change. Opers and Exceptions (ELINE) are never filtered;

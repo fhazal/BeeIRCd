@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// Fuzz targets (audit T0). Longer runs:
+// Fuzz targets. Longer runs:
 //   go test -run '^$' -fuzz=FuzzParseFlood -fuzztime=5m ./internal/server/
 
 func FuzzParseFlood(f *testing.F) {

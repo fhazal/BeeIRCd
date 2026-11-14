@@ -1,5 +1,5 @@
 #!/bin/sh
-# Real-machine test of `beeircd update` (7e), on a host with LXD. Needs a kit
+# Real-machine test of `beeircd update`, on a host with LXD. Needs a kit
 # made by scripts/updatetest-kit.sh: v1 (1.0.0-test, installed first), r2
 # (1.0.1-test, good), r3 (1.0.2-test, never answers: must roll back), rbad
 # (a release.json changed after signing: must be refused), installcheck.

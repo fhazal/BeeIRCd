@@ -6,7 +6,7 @@ import (
 	"github.com/fhazal/beeircd/internal/store"
 )
 
-// The Hive Panel's channel manager (user, 14 Nov 2026: "Yes, build A").
+// The Hive Panel's channel manager.
 // A channel page shows what the person's ChanServ level may see; every
 // change is the real ChanServ command through a stand-in client, so the
 // checks, answers and log lines are the ones IRC has. No oper overrides:
