@@ -92,6 +92,11 @@ func TestAccessLevelsAndStatus(t *testing.T) {
 	ember.expect(csLine("ember", "Only the founder of #bchat can do that."))
 	bee.send("CS LEVELS #bchat SET NOPE 1")
 	bee.expect(csLine("Bee", "NOPE isn't a privilege. See /cs levels #bchat list."))
+	// QA 14 Nov 2026: no privilege name gives the syntax, not " isn't a privilege".
+	bee.send("CS LEVELS #bchat SET")
+	bee.expect(csLine("Bee", "Syntax: LEVELS #bchat SET <privilege> {<0-10000> | FOUNDER}"))
+	bee.send("CS LEVELS #bchat DISABLE")
+	bee.expect(csLine("Bee", "Syntax: LEVELS #bchat DISABLE <privilege>"))
 	bee.send("CS LEVELS #bchat RESET")
 	bee.expect(csLine("Bee", "Every level of #bchat is back to its default."))
 	ember.send("CS KICK #bchat y")
