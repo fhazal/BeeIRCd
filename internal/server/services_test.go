@@ -511,3 +511,11 @@ func TestHelpLayout(t *testing.T) {
 	x.send("OS HELP AKILL")
 	x.expect(osLine("x", "No help for AKILL. Type /os help for a list."))
 }
+
+// HIDE STATUS for someone who isn't an oper says so (QA 1.0.0 round, bug 4).
+func TestNickServHideStatusNonOper(t *testing.T) {
+	s := testServer(t, nil)
+	c := registered(t, s, "plain")
+	c.send("NS SET HIDE STATUS ON")
+	c.expect("plain has no oper entry now, so INFO shows no oper status anyway; this applies if it gets one.")
+}

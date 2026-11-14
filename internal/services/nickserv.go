@@ -632,7 +632,13 @@ func (s *Services) setOption(c *Client, a *store.Account, cmd, opt string, args 
 		if on {
 			shown = "hidden from"
 		}
-		return save(fmt.Sprintf("%s %s is %s others in INFO.", whose, what, shown), "to change hide "+typed+" to "+strings.ToUpper(argAt(args, 1))+" for "+a.Name)
+		msg := fmt.Sprintf("%s %s is %s others in INFO.", whose, what, shown)
+		if field == "STATUS" {
+			if o, _ := s.store.OperByAccount(a.ID); o == nil { // QA 1.0.0: not an oper, so say what it means
+				msg += " " + a.Name + " has no oper entry now, so INFO shows no oper status anyway; this applies if it gets one."
+			}
+		}
+		return save(msg, "to change hide "+typed+" to "+strings.ToUpper(argAt(args, 1))+" for "+a.Name)
 	case "AUTOOP":
 		on, ok := onOff(val)
 		if !ok {
