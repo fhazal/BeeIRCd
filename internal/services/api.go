@@ -231,7 +231,7 @@ func (s *Services) DnsblExempt(ip string) bool {
 		return true
 	}
 	now := time.Now()
-	for _, e := range s.sessionExcepts {
+	for _, e := range s.allExcepts() {
 		if (e.Expires.IsZero() || now.Before(e.Expires)) && irc.MatchHost(e.Mask, ip) {
 			return true
 		}

@@ -142,6 +142,7 @@ type Services struct {
 	banRegexps     map[string]*regexp.Regexp      // compiled SNLINE /regex/ masks
 	news           []store.News
 	sessionExcepts []store.SessionExcept
+	linkedExcepts  []store.SessionExcept     // from the services server, on a server whose services are off
 	forbids        map[string][]store.Forbid // by kind
 	randNews       int                       // the RANDOMNEWS line the next connection gets
 	ignores        []store.Ignore            // OperServ IGNORE

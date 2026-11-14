@@ -18,6 +18,7 @@ import (
 var servicesOnly = map[string]bool{
 	"SVSLOGIN": true, "SVSKILL": true, "SVSJOIN": true, "SVSPART": true,
 	"SVSNICK": true, "SVSMODE": true, "SVS2MODE": true, "SVSNOOP": true,
+	"BEESESS": true,
 }
 
 // operOnly are commands a user sends only as an IRC operator.

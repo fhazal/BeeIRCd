@@ -37,6 +37,7 @@ import (
 	"github.com/fhazal/beeircd/internal/control"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/link"
+	"github.com/fhazal/beeircd/internal/store"
 	"github.com/fhazal/beeircd/internal/tlsutil"
 	"github.com/fhazal/beeircd/internal/version"
 )
@@ -79,15 +80,19 @@ type linkState struct {
 	// sent, by folded mask.
 	qlines    map[string]qline
 	qlineSent map[string]*link.Ban
-	stand     map[string]*Client    // stand-ins for people elsewhere (link_operserv.go)
-	jupes     map[string]*jupe      // OperServ JUPE, by lower-case name
-	noop      bool                  // NOOP: nobody may be an IRC operator here
-	pending   atomic.Int32          // TLS handshakes running on the link port
-	operBusy  map[string]*bool      // relayed /oper password checks running, by UID (link_oper.go)
-	places    map[string]heardPlace // what servers said about their own place, by lower name (map_places.go)
-	zone      string                // time zone for our own place, "" = the machine's (tests set it)
-	ipPlace   *control.MapPlace     // where our IP address is (map_places.go), nil = not known
-	ipAsked   bool                  // the lookup has started this run
+	// exceptsSent sums up the session exceptions we last sent (link_excepts.go);
+	// exceptsFrom is the SID of the server whose list we use (services off).
+	exceptsSent string
+	exceptsFrom string
+	stand       map[string]*Client    // stand-ins for people elsewhere (link_operserv.go)
+	jupes       map[string]*jupe      // OperServ JUPE, by lower-case name
+	noop        bool                  // NOOP: nobody may be an IRC operator here
+	pending     atomic.Int32          // TLS handshakes running on the link port
+	operBusy    map[string]*bool      // relayed /oper password checks running, by UID (link_oper.go)
+	places      map[string]heardPlace // what servers said about their own place, by lower name (map_places.go)
+	zone        string                // time zone for our own place, "" = the machine's (tests set it)
+	ipPlace     *control.MapPlace     // where our IP address is (map_places.go), nil = not known
+	ipAsked     bool                  // the lookup has started this run
 	// remoteOpers: opers we granted on other servers, by UID (2g live changes).
 	remoteOpers map[string]remoteGrant
 }
@@ -110,29 +115,30 @@ type remoteServer struct {
 
 // linkConn is one server link, from TCP connect until it closes.
 type linkConn struct {
-	s        *Server
-	conn     net.Conn
-	out      bool   // we connected
-	want     string // outgoing: the block's server name
-	addr     string // remote IP:port
-	hs       link.Handshake
-	up       bool
-	peer     link.Peer
-	limit    int // send queue limit in bytes
-	started  time.Time
-	since    time.Time // link up since
-	lastRecv time.Time
-	pingSent time.Time
-	lag      time.Duration
-	lastPong time.Time
-	synced   time.Duration // how long their burst took
-	closed   bool
-	ignored  map[string]bool // commands not handled yet, logged once
-	warned   bool            // NETINFO mismatch reported
-	codec    link.Codec      // reads and writes users and channels
-	eos      bool            // their burst is complete
-	netjoin  *netjoinBatch   // JOINs of their burst, for batch clients
-	preLines int             // lines before the handshake was done
+	s         *Server
+	conn      net.Conn
+	out       bool   // we connected
+	want      string // outgoing: the block's server name
+	addr      string // remote IP:port
+	hs        link.Handshake
+	up        bool
+	peer      link.Peer
+	limit     int // send queue limit in bytes
+	started   time.Time
+	since     time.Time // link up since
+	lastRecv  time.Time
+	pingSent  time.Time
+	lag       time.Duration
+	lastPong  time.Time
+	synced    time.Duration // how long their burst took
+	closed    bool
+	ignored   map[string]bool       // commands not handled yet, logged once
+	exceptsIn []store.SessionExcept // a BEESESS list coming in (START .. END), nil = none
+	warned    bool                  // NETINFO mismatch reported
+	codec     link.Codec            // reads and writes users and channels
+	eos       bool                  // their burst is complete
+	netjoin   *netjoinBatch         // JOINs of their burst, for batch clients
+	preLines  int                   // lines before the handshake was done
 
 	mu      sync.Mutex
 	queue   []string
@@ -588,6 +594,7 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 			l.synced = time.Since(l.since)
 			s.snotice("Link with %s: sync done in %s", r.name, l.synced.Round(time.Millisecond))
 			s.sendPlaces(l)
+			s.sendExcepts(l)
 		}
 		s.linkBroadcast(l, ":"+r.sid+" EOS")
 	case "SQUIT":
@@ -614,6 +621,8 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		s.operAnswered(l, m)
 	case "BEEPLACE":
 		s.remotePlace(l, m.Source, m.Params)
+	case "BEESESS":
+		s.remoteExcepts(l, m)
 	case "SINFO", "SMOD", "GLOBOPS", "SENDUMODE", "SENDSNO", "SLOG", "SWHOIS", "BOTMOTD", "REPUTATION":
 		// Server info, module lists and notices for opers: nothing to do,
 		// and nothing worth a log line.

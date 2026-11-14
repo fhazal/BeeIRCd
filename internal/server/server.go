@@ -184,7 +184,7 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	svc.OnSecretDone(s.releaseHeld)
 	svc.OnBanChange(s.linkBanChanged)
 	svc.OnSpamChange(s.linkSpamChanged)
-	svc.OnOperData(s.syncQlines)
+	svc.OnOperData(func() { s.syncQlines(); s.syncExcepts() })
 	s.sinks = append(s.sinks, svc.Event)
 	svc.Start()
 	s.adminServ = svc.AddBot("AdminServ", "as", "Admin Services",

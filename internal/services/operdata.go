@@ -62,7 +62,7 @@ const Unlimited = 1 << 30
 // sessionLimit is how many connections ip may have.
 func (s *Services) sessionLimit(ip string) int {
 	now := time.Now()
-	for _, e := range s.sessionExcepts {
+	for _, e := range s.allExcepts() {
 		if (e.Expires.IsZero() || now.Before(e.Expires)) && irc.MatchHost(e.Mask, ip) {
 			if e.Max == 0 {
 				return Unlimited
@@ -77,7 +77,7 @@ func (s *Services) sessionLimit(ip string) int {
 // exceptions on host names (*.example.org) count too.
 func (s *Services) SessionLimitFor(ip, host string) int {
 	now := time.Now()
-	for _, e := range s.sessionExcepts {
+	for _, e := range s.allExcepts() {
 		if !(e.Expires.IsZero() || now.Before(e.Expires)) {
 			continue
 		}
@@ -94,7 +94,7 @@ func (s *Services) SessionLimitFor(ip, host string) int {
 // HostExcepts reports whether any session exception is on a host name,
 // so a connection over its IP's limit waits for its hostname first.
 func (s *Services) HostExcepts() bool {
-	for _, e := range s.sessionExcepts {
+	for _, e := range s.allExcepts() {
 		if hostMask(e.Mask) {
 			return true
 		}
@@ -165,4 +165,28 @@ func (s *Services) emailForbidden(email string) string {
 		return "That email can't be used here (" + f.Reason + ")."
 	}
 	return ""
+}
+
+// allExcepts are the session exceptions in force here: our own, and on a
+// server whose services are off, those the services server sent.
+func (s *Services) allExcepts() []store.SessionExcept {
+	if len(s.linkedExcepts) == 0 {
+		return s.sessionExcepts
+	}
+	return append(append([]store.SessionExcept(nil), s.sessionExcepts...), s.linkedExcepts...)
+}
+
+// SessionExcepts are this server's own session exceptions (empty when its
+// services are off), for sending to linked servers.
+func (s *Services) SessionExcepts() []store.SessionExcept {
+	return append([]store.SessionExcept(nil), s.sessionExcepts...)
+}
+
+// SetLinkedExcepts replaces the session exceptions the services server
+// sent (a server whose services are off uses those).
+func (s *Services) SetLinkedExcepts(ex []store.SessionExcept) { s.linkedExcepts = ex }
+
+// LinkedExcepts are the session exceptions the services server sent.
+func (s *Services) LinkedExcepts() []store.SessionExcept {
+	return append([]store.SessionExcept(nil), s.linkedExcepts...)
 }
