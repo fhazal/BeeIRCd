@@ -969,8 +969,8 @@ func (in *installer) linkSteps(p *plan) {
 	}
 }
 
-// beeroomHint points to the optional web chat; nothing is installed for it.
-const beeroomHint = "\n  Web chat for your users (optional, needs Node 22):\n" +
+// beeroomHint points to BeeRoom, BeeIRCd's web chat (its own installer).
+const beeroomHint = "\n  BeeRoom, the web chat for your users (needs Node 22):\n" +
 	"    curl -fsSL https://beeircd.org/beeroom.sh | sudo sh\n"
 
 // webSteps tells the admin how to reach the Hive Panel from their computer.

@@ -1,7 +1,7 @@
 # Builds the BeeIRCd Docker image for amd64 and arm64 from main, tests it
 # on both (arm64 emulated: setup, start, status, IRC), and only then pushes
 # ghcr.io/fhazal/beeircd:edge. Release tags (built from the signed release
-# programs) come later with 1.1; see INSTALL.md "Docker".
+# programs) come with the 1.0 release; see INSTALL.md "Docker".
 name: docker
 
 on:
@@ -40,7 +40,7 @@ jobs:
           mkdir -p dist
           for arch in amd64 arm64; do
             CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath \
-              -ldflags "-s -w -X github.com/fhazal/beeircd/internal/version.Version=1.1.0-dev -X github.com/fhazal/beeircd/internal/version.Commit=${GITHUB_SHA::7}" \
+              -ldflags "-s -w -X github.com/fhazal/beeircd/internal/version.Version=1.0.0-dev -X github.com/fhazal/beeircd/internal/version.Commit=${GITHUB_SHA::7}" \
               -o dist/beeircd-linux-$arch ./cmd/beeircd
           done
       - uses: docker/setup-qemu-action@v3

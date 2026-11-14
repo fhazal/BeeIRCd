@@ -109,8 +109,8 @@ The full list, with what is planned and what is only an idea, is in [FEATURES.md
 | 7 | Installer, `beeircd` command, systemd, Let's Encrypt, REHASH, signed updates | ✅ Done |
 | 2 | Linking: BeeIRCd to BeeIRCd and to UnrealIRCd 6 | ✅ Done |
 | 3 | **Hive Panel**: web admin | ✅ Done |
-| **1.0** | **Stages 1 to 3 released together** | 🚧 Release candidates, testing on our network |
-| 4 | **BeeRoom**: web chat, as 1.1 | ⏳ Planned |
+| 4 | **BeeRoom**: web chat for your users, and member pages in the Hive Panel | ✅ Done |
+| **1.0** | **Stages 1 to 4 released together** | 🚧 Final testing |
 
 ## 📦 Installing
 

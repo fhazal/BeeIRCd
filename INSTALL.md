@@ -204,6 +204,27 @@ the last backup and the certificate. `check` tests the config, certificate,
 database and history file, and says if a restart would be safe. More in
 [ADMIN.md](ADMIN.md).
 
+## BeeRoom (web chat)
+
+BeeRoom is the web chat that comes with BeeIRCd: people chat from the
+browser, and the Hive Panel's Chat tab shows it. It has its own signed
+installer; on the same server as BeeIRCd it needs only Node.js 22:
+
+```sh
+curl -fsSL https://beeircd.org/beeroom.sh | sudo sh
+```
+
+It checks the download's signature, then asks a few questions: the web
+chat's address, the channels people join, and how your web server sends
+visitors to it (Apache, nginx or Caddy are set up for you; "none" or
+another machine work too). On the BeeIRCd machine it adds its WEBIRC
+gateway by itself (`beeircd webirc add`), so BeeIRCd sees each person's
+real IP. Run the same line again later to update. With Docker it is one
+profile instead: see Docker below.
+
+To show it in the Hive Panel's Chat tab, see ADMIN.md "Let members reach
+the Hive Panel".
+
 ## Uninstall
 
 ```sh

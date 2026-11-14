@@ -153,3 +153,13 @@ Last updated: 14 Nov 2026 (1.0 release candidates: server, linking and Hive Pane
 | Server details card (ports with TLS and the link port, OS / arch / cores, names on the certificate, started, channel history) and Health split into slowed down / Z-lined / blocklist today | Implemented (v1.0) | |
 | Top bar: Jump to and Theme as icons, uptime badge (red NOT ANSWERING when the server is down) | Implemented (v1.0) | |
 | Sessions end after `[web] session_idle` without a click (30 minutes) and after 12 hours; the auto refresh doesn't count as a click | Implemented (v1.0) | |
+| Members (`[web] members` or Settings → Members): registered nicks sign in with their NickServ password to their own pages only: Home (memos, channels now, access additions, connections, "Needs you"), Chat (BeeRoom inside, one-time SASL key), My nick (NickServ SET as switches), My channels + channel manager (People, Access, AKICK, Settings, Memo box, Hand over / Drop, by ChanServ level, real ChanServ commands), Memos (read, reply, delete, send) | Implemented (v1.0) | HTTPS proxy needed to reach it from outside (ADMIN.md) |
+
+## BeeRoom (web chat)
+
+| Feature | Status | Notes |
+| --- | --- | --- |
+| Web chat built on The Lounge (MIT), Bee theme (default) + Catppuccin Mocha, one locked BeeIRCd network, guests by default | Implemented (v1.0) | fhazal/BeeRoom |
+| Each person's real IP over WEBIRC; `beeircd webirc add`; fake X-Forwarded-For ignored | Implemented (v1.0) | |
+| Own signed installer (`beeroom.sh`: Node inside, Apache / nginx / Caddy / none / remote), Docker image + compose profile next to BeeIRCd | Implemented (v1.0) | |
+| Shown in the Hive Panel's Chat tab, signed in as the person; only the panel may frame it (CSP frame-ancestors) | Implemented (v1.0) | |
