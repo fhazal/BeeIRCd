@@ -109,6 +109,7 @@ Last updated: 14 Nov 2026 (1.0 release candidates: server, linking and Hive Pane
 | AdminServ (settings saved to config, MOTD, ports, opers, restart, die) | Implemented |
 | HostServ as Anope 2.0.20: ON, OFF, GROUP, REQUEST; opers (flag h) SET, SETALL, DEL, DELALL, LIST, WAITING, ACTIVATE, REJECT; ident@host vhosts; vhost per nick, shown at identify; [hostserv] rules (vhost_chars, dots, lengths, activate_on_set, request memos) | Implemented (1.5.7) |
 | HelpServ | Planned (phase 6) |
+| Import an Anope database (`beeircd import-anope`: 2.0 db_flatfile, nicks, channels, access, AKICK, memos, vhosts, bots, bans; old Anope password hashes work and move to argon2id at the first login) | Planned (1.1) | PLAN-anope-import.md |
 | Switch off built-in services, link Anope | Partial | 2c: `[services] enabled = false` (another BeeIRCd runs them); Anope as the services server: planned (after Stage 4) |
 
 ## Opers and bans

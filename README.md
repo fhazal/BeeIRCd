@@ -111,6 +111,7 @@ The full list, with what is planned and what is only an idea, is in [FEATURES.md
 | 3 | **Hive Panel**: web admin | ✅ Done |
 | 4 | **BeeRoom**: web chat for your users, and member pages in the Hive Panel | ✅ Done |
 | **1.0** | **Stages 1 to 4 released together** | 🚧 Final testing |
+| 1.1 | Import an Anope database: move a network from Anope to BeeIRCd services | 📋 Planned ([plan](PLAN-anope-import.md)) |
 
 ## 📦 Installing
 
