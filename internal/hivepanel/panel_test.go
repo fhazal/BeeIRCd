@@ -34,7 +34,19 @@ func (f *fakeServer) ask(r control.Request, _ time.Duration) (*control.Response,
 	if f.offline {
 		return nil, control.ErrNotRunning
 	}
+	if r.Cmd == control.CmdPanelHello {
+		return &control.Response{Hello: &control.Hello{Members: true}}, nil
+	}
+	if r.As == "Bel" && r.Seal == "m1" { // a member session: only its own pages
+		if r.Cmd == control.CmdMyNick || r.Cmd == control.CmdPanelWho {
+			return &control.Response{MyNick: &control.MyNick{Name: "Bel"}, Oper: &control.PanelOper{Account: "Bel", Member: true, Seal: "m1"}}, nil
+		}
+		return &control.Response{Error: "Only opers can do that.", Denied: "flag"}, nil
+	}
 	if r.Cmd == control.CmdPanelLogin {
+		if r.Nick == "Bel" && r.Password == "mpw" && r.IP != "" {
+			return &control.Response{Oper: &control.PanelOper{Account: "Bel", Member: true, Seal: "m1"}}, nil
+		}
 		if r.Nick == "Bee" && r.Password == "pw" && r.IP != "" {
 			return &control.Response{Oper: &control.PanelOper{Account: "Bee", Flags: "acghks", Owner: true, Seal: "s1"}}, nil
 		}
@@ -548,5 +560,34 @@ func TestAutoRefreshIsNotAClick(t *testing.T) {
 	rg.now = rg.now.Add(20 * time.Minute)
 	if w := rg.do("GET", "/api/status", "", tok, auto); w.Code != 200 {
 		t.Errorf("a click 20 minutes ago should keep the session: %d", w.Code)
+	}
+}
+
+// A member session (NickServ password, Hive Chat h1) gets its own pages;
+// the live overview and the admin routes stay closed to it. The sign-in
+// page may ask whether members can sign in, without a session.
+func TestMemberSession(t *testing.T) {
+	rg := newRig(t)
+	if w := rg.do("GET", "/api/hello", "", "", nil); w.Code != 200 || !strings.Contains(w.Body.String(), `"members":true`) {
+		t.Fatalf("hello: %d %s", w.Code, w.Body)
+	}
+	w := rg.do("POST", "/api/login", `{"nick":"Bel","password":"mpw"}`, "", nil)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"member":true`) || strings.Contains(w.Body.String(), "m1") {
+		t.Fatalf("member login: %d %s", w.Code, w.Body)
+	}
+	var tok string
+	for _, c := range w.Result().Cookies() {
+		if c.Name == cookieName {
+			tok = c.Value
+		}
+	}
+	if w := rg.do("GET", "/api/my-nick", "", tok, nil); w.Code != 200 || !strings.Contains(w.Body.String(), `"name":"Bel"`) {
+		t.Errorf("my-nick: %d %s", w.Code, w.Body)
+	}
+	if w := rg.do("GET", "/api/live", "", tok, nil); w.Code != http.StatusForbidden {
+		t.Errorf("live for a member: %d %s", w.Code, w.Body)
+	}
+	if w := rg.do("GET", "/api/status", "", tok, nil); w.Code != http.StatusForbidden {
+		t.Errorf("status for a member: %d %s", w.Code, w.Body)
 	}
 }

@@ -193,6 +193,10 @@ func (s *Services) toService(c *Client, sv *service, text string) {
 
 // svcReply sends a notice from a service.
 func (s *Services) svcReply(c *Client, sv *service, text string) {
+	if c.reply != nil {
+		c.reply(text)
+		return
+	}
 	if s.fantasyBot != nil && sv == s.chanServ { // a fantasy command: the bot answers
 		sv = s.fantasyBot
 	}

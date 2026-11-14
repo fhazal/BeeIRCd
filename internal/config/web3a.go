@@ -18,6 +18,10 @@ type Web struct {
 	TrustedProxy []string `toml:"trusted_proxy"`
 	// SessionIdle signs an oper out after this long without a click.
 	SessionIdle Duration `toml:"session_idle"`
+	// Members lets everyone with a registered nick sign in with their
+	// NickServ password, to the member pages only (Chat, My nick, My
+	// channels). Off: only opers sign in, as before.
+	Members bool `toml:"members"`
 }
 
 // InContainer is set in the Docker image: the panel then listens inside

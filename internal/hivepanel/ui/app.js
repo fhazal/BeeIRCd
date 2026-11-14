@@ -137,6 +137,8 @@
   let live = null;        // EventSource
   let poll = 0, liveFails = 0;
   const pages = [
+    { id: 'mynick', label: 'My nick', icon: 'user', you: true, eyebrow: 'NickServ', make: myNickPage },
+    { id: 'mychannels', label: 'My channels', icon: 'hash', you: true, eyebrow: 'ChanServ', make: myChannelsPage },
     { id: 'overview', label: 'Overview', icon: 'overview', make: overviewPage },
     { id: 'people', label: 'People', icon: 'people', eyebrow: 'Live list', make: peoplePage },
     { id: 'channels', label: 'Channels', icon: 'hash', eyebrow: 'Live list', make: channelsPage },
@@ -146,7 +148,9 @@
     { id: 'services', label: 'Services', icon: 'services', need: 'a', eyebrow: 'Built in', make: servicesPage },
     { id: 'settings', label: 'Settings', icon: 'settings', need: 'a', eyebrow: 'beeircd.conf', make: settingsPage },
   ];
-  const allowed = p => !p.need || has(p.need);
+  // A member (signed in with the NickServ password) sees only the YOU
+  // pages; the server refuses the rest anyway.
+  const allowed = p => p.you || !!me && !me.member && (!p.need || has(p.need));
 
   // ---------- themes (kept in this browser only) ----------
   const THEMES = [['bee', 'Bee'], ['catppuccin-latte', 'Catppuccin Latte'], ['catppuccin-mocha', 'Catppuccin Mocha'], ['one-dark-pro', 'One Dark Pro'], ['dracula', 'Dracula']];
@@ -223,19 +227,28 @@
     });
     const err = h('span', { class: 'err', id: 'err', role: 'alert', text: msg && msg !== 'Please sign in.' ? msg : '' });
     const go = h('button', { type: 'submit', class: 'btn main', text: 'Sign in' });
+    const intro = h('p', { class: 'intro', text: 'The same oper nick and oper password as /oper.' });
+    const nickLbl = h('span', { text: 'Oper nick' }), pwLbl = h('span', { text: 'Oper password' });
+    let members = false;
+    api('GET', '/api/hello').then(d => {
+      if (!d.members) return;
+      members = true;
+      intro.textContent = 'Your nick and NickServ password. Opers: your oper password opens the admin pages too.';
+      nickLbl.textContent = 'Nick'; pwLbl.textContent = 'Password';
+    }).catch(() => {});
     const form = h('form', { novalidate: true },
       brand(),
       h('h2', { text: 'Sign in to your server' }),
-      h('p', { class: 'intro', text: 'The same oper nick and oper password as /oper.' }),
-      h('label', { class: 'f', for: 'nick' }, 'Oper nick', nick),
-      h('label', { class: 'f pw', for: 'pw' }, 'Oper password', pw, eye),
+      intro,
+      h('label', { class: 'f', for: 'nick' }, nickLbl, nick),
+      h('label', { class: 'f pw', for: 'pw' }, pwLbl, pw, eye),
       err, go);
     form.addEventListener('submit', async e => {
       e.preventDefault();
       err.textContent = '';
       nick.classList.remove('wrong'); pw.classList.remove('wrong');
-      if (!nick.value.trim()) { nick.classList.add('wrong'); err.textContent = 'Type your oper nick.'; nick.focus(); return; }
-      if (!pw.value) { pw.classList.add('wrong'); err.textContent = 'Type your oper password.'; pw.focus(); return; }
+      if (!nick.value.trim()) { nick.classList.add('wrong'); err.textContent = members ? 'Type your nick.' : 'Type your oper nick.'; nick.focus(); return; }
+      if (!pw.value) { pw.classList.add('wrong'); err.textContent = members ? 'Type your password.' : 'Type your oper password.'; pw.focus(); return; }
       await busy(go, async () => {
         try {
           const d = await api('POST', '/api/login', { nick: nick.value.trim(), password: pw.value });
@@ -265,9 +278,9 @@
     const out = h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Sign out', title: 'Sign out' }, icon('signout'));
     out.addEventListener('click', signOut);
     const side = h('nav', { class: 'side', 'aria-label': 'Hive Panel' },
-      brand(), h('div', { class: 'nlabel', text: 'Server' }), navEl,
+      brand(), navEl,
       h('div', { class: 'me' }, h('div', { class: 'av', text: me.account.slice(0, 1) }),
-        h('div', { class: 'me-text' }, h('b', { text: me.account }), h('span', { class: 'lbl', text: me.owner ? 'Owner' : (me.class || 'Oper') + ' · ' + (me.flags || 'no flags') })),
+        h('div', { class: 'me-text' }, h('b', { text: me.account }), h('span', { class: 'lbl', text: me.member ? 'Member' : me.owner ? 'Owner' : (me.class || 'Oper') + ' · ' + (me.flags || 'no flags') })),
         out));
     crumbEl = h('div', { class: 'crumb' });
     pillEl = h('span', { class: 'pill', role: 'status' }, h('span', { class: 'dot' }),
@@ -282,7 +295,7 @@
       api('GET', '/api/status').then(d => { setOffline(false); gotStatus(d.status); }).catch(() => setOffline(true));
     });
     const topbar = h('header', { class: 'topbar' }, crumbEl,
-      h('div', { class: 'tacts' }, jumpBtn, themeBtn, pillEl, refresh));
+      h('div', { class: 'tacts' }, jumpBtn, themeBtn, me.member ? null : pillEl, me.member ? null : refresh));
     mainEl = h('main', { class: 'content', id: 'main', tabindex: '-1' });
     put(app, h('div', { class: 'hp' }, side, h('div', { class: 'mainwrap' }, topbar, mainEl)));
     if (deco) deco.disconnect();
@@ -290,18 +303,21 @@
     deco.observe(mainEl, { childList: true, subtree: true });
     drawNav();
     route();
-    startLive();
+    if (!me.member) startLive(); // the live overview is for opers
   }
   function drawNav() {
-    put(navEl, ...pages.filter(allowed).map(p =>
-      h('a', { href: '#/' + p.id, 'data-page': p.id, class: page && page.id === p.id ? 'on' : null,
-        'aria-current': page && page.id === p.id ? 'page' : null }, icon(p.icon), p.label)));
+    const link = p => h('a', { href: '#/' + p.id, 'data-page': p.id, class: page && page.id === p.id ? 'on' : null,
+      'aria-current': page && page.id === p.id ? 'page' : null }, icon(p.icon), p.label);
+    const you = pages.filter(p => p.you && allowed(p)), server = pages.filter(p => !p.you && allowed(p));
+    put(navEl, you.length ? h('div', { class: 'nlabel', text: 'You' }) : null, ...you.map(link),
+      server.length ? h('div', { class: 'nlabel', text: 'Server' }) : null, ...server.map(link));
   }
   function route() {
     if (!me) return;
-    const id = (location.hash.match(/^#\/([a-z]+)/) || [])[1] || 'overview';
+    const home = me.member ? 'mynick' : 'overview';
+    const id = (location.hash.match(/^#\/([a-z]+)/) || [])[1] || home;
     let p = pages.find(x => x.id === id && allowed(x));
-    if (!p) { p = pages[0]; history.replaceState(null, '', '#/overview'); }
+    if (!p) { p = pages.find(x => x.id === home); history.replaceState(null, '', '#/' + home); }
     if (page && page.leave) page.leave();
     page = p.make();
     page.id = p.id;
@@ -366,7 +382,7 @@
       has('a') ? { grp: 'Actions', label: 'Check the config', icon: 'check', run: () => quick('/api/check', checkLines, 'Check') } : null,
       has('a') ? { grp: 'Actions', label: 'Rehash', icon: 'refresh', run: () => quick('/api/rehash', rehashLines, 'Rehash') } : null,
       me.owner ? { grp: 'Actions', label: 'Back up now', icon: 'archive', run: () => quick('/api/backup', backupLines, 'Backup') } : null,
-      { grp: 'Actions', label: 'Arrange the Overview', icon: 'grip', run: () => { editNext = true; if (page && page.id === 'overview' && page.edit) { editNext = false; page.edit(true); } else location.hash = '#/overview'; } },
+      me.member ? null : { grp: 'Actions', label: 'Arrange the Overview', icon: 'grip', run: () => { editNext = true; if (page && page.id === 'overview' && page.edit) { editNext = false; page.edit(true); } else location.hash = '#/overview'; } },
       ...THEMES.map(([v, t]) => ({ grp: 'Theme', label: 'Theme: ' + t, icon: 'palette', hint: getTheme() === v ? 'now' : '', run: () => setTheme(v, true) })),
       { grp: 'You', label: 'Sign out', icon: 'signout', run: signOut },
     ].filter(Boolean);
@@ -2018,6 +2034,78 @@
     return m ? Number(m[1]) * { '': 1, s: 1, m: 60, h: 3600, d: 86400, w: 604800 }[m[2].toLowerCase()] : -1;
   }
   function secs(d) { return d >= 86400 && d % 86400 === 0 ? d / 86400 + 'd' : d >= 3600 && d % 3600 === 0 ? d / 3600 + 'h' : d >= 60 && d % 60 === 0 ? d / 60 + 'm' : d + 's'; }
+  // ---------- My nick and My channels (members and opers) ----------
+  // NickServ SET as switches: each change runs the real SET on the server
+  // and shows NickServ's own answer.
+  const KILL_TEXT = { on: 'on, after a minute', quick: 'on, quickly', immed: 'on, at once', off: 'off' };
+  async function mySet(name, value) {
+    const d = await api('POST', '/api/my-set', { name, value });
+    toast([d.done ? d.done.text : 'Saved.']);
+  }
+  function myNickPage() {
+    const sub = h('span', { class: 'sub', text: 'Your NickServ account. A change applies at once, as if you typed the command.' });
+    const title = h('h1', { text: me.account });
+    const settings = h('div', {}, h('p', { class: 'empty', text: 'Loading…' }));
+    const about = h('div', {});
+    const el = h('div', { class: 'main-stack' },
+      h('header', { class: 'head' }, h('div', { class: 'head-text' }, title, sub)),
+      h('div', { class: 'band21' },
+        h('section', { class: 'card' }, h('h2', { text: 'Settings' }), settings),
+        h('section', { class: 'card' }, h('h2', { text: 'Your account' }), about)));
+    const sw = (id, label, hint, on, opt, val) => {
+      const input = h('input', { type: 'checkbox', id });
+      input.checked = on;
+      input.addEventListener('change', async () => {
+        input.disabled = true;
+        try { await mySet(opt, val(input.checked)); } catch (e) { input.checked = !input.checked; toastErr(e.message); }
+        input.disabled = false;
+      });
+      return h('div', { class: 'my-row' }, h('label', { class: 'ck', for: id }, input, label), h('span', { class: 'hint', text: hint }));
+    };
+    async function load() {
+      let d;
+      try { d = (await api('GET', '/api/my-nick')).myNick; } catch (e) { put(settings, h('p', { class: 'empty', text: e.message })); return; }
+      title.textContent = d.name;
+      const greet = h('input', { class: 'in', id: 'my-greet', type: 'text', maxlength: '200', value: d.greet || '', placeholder: 'hi all' });
+      const save = h('button', { type: 'button', class: 'btn', text: 'Save' });
+      save.addEventListener('click', () => busy(save, async () => {
+        try { await mySet('GREET', greet.value.trim()); } catch (e) { toastErr(e.message); }
+      }));
+      put(settings,
+        sw('my-kill', 'Protect my nick', 'Someone using it without your password is renamed (now ' + (KILL_TEXT[d.kill] || d.kill) + ').',
+          d.kill !== 'off', 'KILL', on => on ? 'ON' : 'OFF'),
+        sw('my-hide-email', 'Hide my email', 'Others don\'t see it in NickServ INFO.', d.hideEmail, 'HIDE', on => 'EMAIL ' + (on ? 'ON' : 'OFF')),
+        me.member ? null : sw('my-hide-status', 'Hide that I am an oper', 'NickServ INFO doesn\'t say it.', d.hideStatus, 'HIDE', on => 'STATUS ' + (on ? 'ON' : 'OFF')),
+        sw('my-autoop', 'Get my status when I join', 'ChanServ gives you @ or + in your channels.', d.autoOp, 'AUTOOP', on => on ? 'ON' : 'OFF'),
+        sw('my-private', 'Keep me out of the nick list', 'NickServ LIST doesn\'t show you.', d.private, 'PRIVATE', on => on ? 'ON' : 'OFF'),
+        h('div', { class: 'my-row' }, h('label', { class: 'f', for: 'my-greet' }, 'Greet message', h('div', { class: 'my-inline' }, greet, save)),
+          h('span', { class: 'hint', text: 'A channel bot says it when you join, where the channel allows greets. Empty removes it.' })));
+      const reg = new Date(d.registered);
+      put(about,
+        h('div', { class: 'row' }, h('span', { text: 'Registered' }), h('span', { class: 'end mono', text: isNaN(reg) ? '' : reg.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) })),
+        d.email ? h('div', { class: 'row' }, h('span', { text: 'Email' }), h('span', { class: 'end mono', text: d.email })) : null,
+        h('div', { class: 'row' }, h('span', { text: 'Nicks in your account' }), h('span', { class: 'end mono', text: (d.nicks || [d.name]).join(', ') })),
+        h('p', { class: 'note', text: 'Password and email are changed on IRC for now: /msg NickServ SET PASSWORD or SET EMAIL.' }));
+    }
+    load();
+    return { el };
+  }
+  function myChannelsPage() {
+    const list = h('div', {}, h('p', { class: 'empty', text: 'Loading…' }));
+    const el = h('div', { class: 'main-stack' },
+      h('header', { class: 'head' }, h('div', { class: 'head-text' }, h('h1', { text: 'My channels' }),
+        h('span', { class: 'sub', text: 'Where you are the founder or on the access list.' }))),
+      h('section', { class: 'card' }, h('h2', { text: 'Channels' }), list));
+    api('GET', '/api/my-nick').then(d => {
+      const chans = (d.myNick && d.myNick.channels) || [];
+      put(list, chans.length ? chans.map(c => h('div', { class: 'row' },
+        h('span', {}, h('b', { class: 'mono', text: c.name }), h('span', { class: 'hint', text: '  ' + c.users + ' here' })),
+        h('span', { class: 'role' + (c.level === 'Founder' ? ' on' : ''), text: c.level })))
+        : h('p', { class: 'empty', text: 'You aren\'t on the access list of any channel yet. Register one on IRC: /msg ChanServ REGISTER #channel' }));
+    }).catch(e => put(list, h('p', { class: 'empty', text: e.message })));
+    return { el };
+  }
+
   function servicesPage() {
     const tile = label => { const n = h('span', { class: 'num', text: '…' }); return { n, el: h('section', { class: 'card tight' }, h('span', { class: 'lbl', text: label }), n) }; };
     const tNicks = tile('Registered nicks'), tChans = tile('Registered channels'), tMemos = tile('Memos waiting'), tBots = tile('Bots');

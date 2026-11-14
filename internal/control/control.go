@@ -26,6 +26,7 @@ const (
 	// (As) and the web address they come from (IP); the server checks that
 	// oper again each time, so a removed or changed oper is stopped at once.
 	CmdPanelLogin = "panel-login" // Nick + Password + IP -> Oper
+	CmdPanelHello = "panel-hello" // -> Hello (no sign-in: what the sign-in page says)
 	CmdPanelWho   = "panel-who"   // the oper's current flags -> Oper
 	CmdSettings   = "settings"    // -> Settings (flag a)
 	CmdSet        = "set"         // Name + Value -> Changed (flag a)
@@ -71,6 +72,11 @@ const (
 
 	// Network map (3k).
 	CmdMapPlace = "map-place" // Name (server) + Value (place name) + Lat + Lon -> Done; no Lat/Lon = remove (flag c)
+
+	// Members (Hive Chat h1): anyone signed in with a NickServ account,
+	// opers too. Their own account only.
+	CmdMyNick = "my-nick" // -> MyNick
+	CmdMySet  = "my-set"  // Name (NickServ SET option) + Value -> Done (NickServ's answer)
 )
 
 // MaxRequest is the most bytes one request may be (the Hive Panel takes
@@ -136,6 +142,8 @@ type Response struct {
 	Channels *Channels    `json:"channels,omitempty"`
 	Channel  *ChannelInfo `json:"channel,omitempty"`
 	Backups  *BackupList  `json:"backups,omitempty"`
+	MyNick   *MyNick      `json:"myNick,omitempty"`
+	Hello    *Hello       `json:"hello,omitempty"`
 	// Denied is set (with Error) when the oper may not do this: signed
 	// out, or missing a flag. The panel then signs them out or says so.
 	Denied string `json:"denied,omitempty"` // "signin" or "flag"
@@ -147,6 +155,9 @@ type PanelOper struct {
 	Class   string `json:"class,omitempty"`
 	Flags   string `json:"flags"`
 	Owner   bool   `json:"owner,omitempty"`
+	// Member is a sign-in with the NickServ password: only the member
+	// pages (Chat, My nick, My channels), never the admin ones.
+	Member bool `json:"member,omitempty"`
 	// Seal changes when the oper password does; the panel keeps it from
 	// sign-in and sends it back, so a new password ends old sessions. It
 	// stays between the panel and the server (never sent to browsers).
@@ -355,6 +366,33 @@ type ChannelInfo struct {
 // Done is what an action did, in words.
 type Done struct {
 	Text string `json:"text"`
+}
+
+// Hello is what the sign-in page may know before anyone signs in.
+type Hello struct {
+	Members bool `json:"members"` // [web] members: NickServ accounts may sign in
+}
+
+// MyNick is a member's own NickServ account (My nick and My channels).
+type MyNick struct {
+	Name       string      `json:"name"`
+	Registered time.Time   `json:"registered"`
+	Email      string      `json:"email,omitempty"` // shown masked: b•••@example.org
+	Nicks      []string    `json:"nicks"`           // the account's grouped nicks
+	Kill       string      `json:"kill"`            // on, quick, immed or off (SET KILL)
+	HideEmail  bool        `json:"hideEmail"`
+	HideStatus bool        `json:"hideStatus"`
+	AutoOp     bool        `json:"autoOp"`
+	Private    bool        `json:"private"`
+	Greet      string      `json:"greet,omitempty"`
+	Channels   []MyChannel `json:"channels"`
+}
+
+// MyChannel is one channel where the member is founder or on the list.
+type MyChannel struct {
+	Name  string `json:"name"`
+	Level string `json:"level"` // Founder, Successor, SOP, AOP, HOP, VOP or a number
+	Users int    `json:"users"` // in the channel now
 }
 
 // Changed is what one set or undo did.

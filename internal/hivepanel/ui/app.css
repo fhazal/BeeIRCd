@@ -600,3 +600,14 @@ td.empty{padding:18px 16px;text-align:center;height:auto}
 .hl-1 .hl-say{color:var(--honey)}
 .hl-2 .hl-dot{background:var(--bad);box-shadow:0 0 0 4px var(--bad-soft)}
 .hl-2 .hl-say{color:var(--bad)}
+
+/* My nick and My channels (members): one setting per row, its words under it */
+.my-row{padding:10px 0;border-bottom:1px solid var(--line-soft)}
+.my-row:last-child{border-bottom:0}
+.my-row .hint{display:block;padding-left:26px;min-height:0}
+.my-row .f .hint,.my-row>.hint:last-child{padding-left:0}
+.my-row>label.f+.hint{padding-left:0}
+.my-inline{display:flex;gap:8px;margin-top:6px}
+.my-inline .in{flex:1}
+.role{font:11px var(--mono);padding:2px 8px;border:1px solid var(--line);color:var(--muted)}
+.role.on{color:var(--honey);border-color:var(--honey)}

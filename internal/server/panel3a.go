@@ -108,6 +108,11 @@ func (s *Server) panelLogin(req control.Request, done func(control.Response)) {
 		return
 	}
 	po, a, o, problem := s.panelOper(nick, ip)
+	members := s.cfg.Web.Members && a != nil
+	if po == nil && members {
+		s.memberLogin(a, nick, pw, ip, done)
+		return
+	}
 	if po == nil {
 		if a == nil && o == nil && strings.HasPrefix(problem, "Sign in") || strings.HasPrefix(problem, "Something") {
 			done(control.Response{Error: problem, Denied: "signin"})
@@ -121,6 +126,10 @@ func (s *Server) panelLogin(req control.Request, done func(control.Response)) {
 			panelDummyCheck(pw)
 			s.post(func() { done(wrong) })
 		}()
+		return
+	}
+	if o.PassHash == "" && members {
+		s.memberLogin(a, nick, pw, ip, done)
 		return
 	}
 	if o.PassHash == "" {
@@ -138,6 +147,10 @@ func (s *Server) panelLogin(req control.Request, done func(control.Response)) {
 		case services.PwLocked:
 			done(control.Response{Error: "Too many wrong passwords for this oper. Try again in " + services.RoundUp(s.lockedFor(key)) + ".", Denied: "signin"})
 		default:
+			if members { // maybe their NickServ password: the member pages
+				s.memberLogin(a, nick, pw, ip, done)
+				return
+			}
 			s.panelEvent(nick, ip, "could not sign in: wrong password")
 			s.snotice("Hive Panel: wrong password for %s from %s", nick, ip)
 			done(wrong)
@@ -146,8 +159,17 @@ func (s *Server) panelLogin(req control.Request, done func(control.Response)) {
 }
 
 // panelAllowed checks req's oper again for flag need (0: any oper; 'O':
-// the owner). The answer is nil when allowed.
+// the owner; 'm': members too). The answer is nil when allowed.
 func (s *Server) panelAllowed(req control.Request, need byte) (*control.PanelOper, *control.Response) {
+	if mp, deny, ok := s.panelMember(req); ok {
+		switch {
+		case deny != nil:
+			return nil, deny
+		case need == 'm':
+			return mp, nil
+		}
+		return mp, &control.Response{Error: "Only opers can do that.", Denied: "flag"}
+	}
 	po, _, _, problem := s.panelOper(req.As, req.IP)
 	if po == nil {
 		if !strings.HasPrefix(problem, "Something") && !strings.HasPrefix(problem, "Sign in") {
@@ -160,7 +182,7 @@ func (s *Server) panelAllowed(req control.Request, need byte) (*control.PanelOpe
 		return nil, &control.Response{Error: "Your oper password changed. Please sign in again.", Denied: "signin"}
 	case need == 'O' && !po.Owner:
 		return po, &control.Response{Error: "Only the owner can do that.", Denied: "flag"}
-	case need != 0 && need != 'O' && strings.IndexByte(po.Flags, need) < 0:
+	case need != 0 && need != 'O' && need != 'm' && strings.IndexByte(po.Flags, need) < 0:
 		return po, &control.Response{Error: fmt.Sprintf("You need oper flag %c (%s) for that.", need, flagNames[need]), Denied: "flag"}
 	}
 	return po, nil
@@ -274,8 +296,17 @@ func (s *Server) panelControl(req control.Request, setDeadline func(time.Duratio
 		case <-s.done:
 			return stopping, true
 		}
+	case control.CmdPanelHello:
+		if !s.onLoop(func() { resp.Hello = &control.Hello{Members: s.cfg.Web.Members && !s.svc.Off()} }) {
+			return stopping, true
+		}
+		return resp, true
 	case control.CmdPanelWho:
-		return run(0, func(po *control.PanelOper) { resp.Oper = po }), true
+		return run('m', func(po *control.PanelOper) { resp.Oper = po }), true
+	case control.CmdMyNick:
+		return run('m', func(po *control.PanelOper) { resp = *s.panelMyNick(po) }), true
+	case control.CmdMySet:
+		return run('m', func(po *control.PanelOper) { resp = *s.panelMySet(po, req.IP, req.Name, req.Value) }), true
 	case control.CmdPanelLog:
 		return run(0, func(po *control.PanelOper) {
 			evs, err := s.panelEvents(po)

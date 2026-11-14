@@ -297,6 +297,15 @@ then open <http://127.0.0.1:8787>. `beeircd install` sets it up as the
   where.
 - A session ends after `session_idle` without a click (30 minutes) and
   after 12 hours in any case.
+- **Members** (`[web] members = true`, off by default): everyone with a
+  registered nick may sign in with their NickServ password and gets only
+  **My nick** (NickServ SET KILL, HIDE, AUTOOP, PRIVATE and GREET as
+  switches, run as the real SET with NickServ's own answer) and **My
+  channels** (where they are founder or on the access list). Opers sign
+  in with their oper password for the admin pages, or with their NickServ
+  password for the member pages only. Wrong NickServ passwords count on
+  the same lock as IDENTIFY on IRC. A new NickServ password, a
+  suspension or turning `members` off (then rehash) ends member sessions.
 - Behind a reverse proxy on the same machine, list the proxy in
   `[web] trusted_proxy` so the panel believes its `X-Forwarded-For` and
   `X-Forwarded-Proto` (https makes the session cookie Secure).
@@ -626,13 +635,14 @@ that class.
 
 ### [web]
 
-The Hive Panel (`beeircd web`, the `beeircd-web` service); the server itself doesn't use it.
+The Hive Panel (`beeircd web`, the `beeircd-web` service). The server reads only `members`.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `listen` | `127.0.0.1:8787` | Where the panel answers; a loopback address only |
 | `trusted_proxy` | none | Reverse proxies (IP addresses) whose forwarded address and https the panel believes |
 | `session_idle` | `30m` | Signed out after this long without a click (1m to 24h) |
+| `members` | `false` | Registered nicks may sign in with their NickServ password, to My nick and My channels only |
 
 The panel's fonts (Inter, Space Grotesk, JetBrains Mono) are bundled
 under the SIL Open Font License; the licences are in

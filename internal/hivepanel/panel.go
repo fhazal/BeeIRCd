@@ -130,6 +130,7 @@ func New(o Options) *Panel {
 	}))
 	m.HandleFunc("GET /map/{name}", p.mapFile)
 	m.HandleFunc("POST /api/login", p.login)
+	m.HandleFunc("GET /api/hello", p.hello)
 	m.HandleFunc("POST /api/logout", p.logout)
 	m.HandleFunc("GET /api/me", p.withOper(p.me))
 	m.HandleFunc("GET /api/status", p.withOper(p.simple(control.CmdStatus)))
@@ -166,6 +167,8 @@ func New(o Options) *Panel {
 	m.HandleFunc("POST /api/chan-topic", p.withOper(p.chanAct(control.CmdChanTopic)))
 	m.HandleFunc("POST /api/chan-suspend", p.withOper(p.chanAct(control.CmdChanSuspend)))
 	m.HandleFunc("POST /api/chan-unsuspend", p.withOper(p.chanAct(control.CmdChanUnsuspend)))
+	m.HandleFunc("GET /api/my-nick", p.withOper(p.simple(control.CmdMyNick)))
+	m.HandleFunc("POST /api/my-set", p.withOper(p.mySet))
 	m.HandleFunc("GET /api/live", p.live)
 	p.mux = m
 	return p
@@ -394,6 +397,16 @@ func (p *Panel) set(w http.ResponseWriter, r *http.Request, oc operCtx) {
 		return
 	}
 	p.send(w, oc, control.Request{Cmd: control.CmdSet, Name: in.Name, Value: in.Value}, 10*time.Second)
+}
+
+// mySet changes a member's own NickServ setting (My nick).
+func (p *Panel) mySet(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	var in struct{ Name, Value string }
+	if json.NewDecoder(r.Body).Decode(&in) != nil || in.Name == "" || len(in.Value) > 400 {
+		writeErr(w, http.StatusBadRequest, "Bad request.")
+		return
+	}
+	p.send(w, oc, control.Request{Cmd: control.CmdMySet, Name: in.Name, Value: in.Value}, 10*time.Second)
 }
 
 func (p *Panel) undo(w http.ResponseWriter, r *http.Request, oc operCtx) {
@@ -715,6 +728,17 @@ func (p *Panel) login(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"oper": &o})
 }
 
+// hello tells the sign-in page whether members may sign in (no session
+// needed, nothing else told).
+func (p *Panel) hello(w http.ResponseWriter, r *http.Request) {
+	resp, err := p.ask(control.Request{Cmd: control.CmdPanelHello}, 5*time.Second)
+	if err != nil || resp == nil || resp.Hello == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"members": false})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"members": resp.Hello.Members})
+}
+
 func (p *Panel) logout(w http.ResponseWriter, r *http.Request) {
 	if key, _ := p.current(r, false); key != "" {
 		p.drop(key)
@@ -731,6 +755,13 @@ func (p *Panel) live(w http.ResponseWriter, r *http.Request) {
 	key, s := p.current(r, false)
 	if s == nil {
 		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "Please sign in.", "signin": true})
+		return
+	}
+	p.mu.Lock()
+	member := s.oper.Member
+	p.mu.Unlock()
+	if member { // the live overview is for opers
+		writeErr(w, http.StatusForbidden, "Only opers can do that.")
 		return
 	}
 	fl, ok := w.(http.Flusher)
