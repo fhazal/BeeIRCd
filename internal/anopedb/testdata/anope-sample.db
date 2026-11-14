@@ -1,0 +1,748 @@
+OBJECT BotInfo
+DATA nick BotServ
+DATA user services
+DATA host services.sandbee.local
+DATA realname Bot Service
+DATA created 1794673219
+DATA oper_only 0
+END
+OBJECT BotInfo
+DATA nick ChanServ
+DATA user services
+DATA host services.sandbee.local
+DATA realname Channel Registration Service
+DATA created 1794673219
+DATA oper_only 0
+END
+OBJECT BotInfo
+DATA nick Global
+DATA user services
+DATA host services.sandbee.local
+DATA realname Global Noticer
+DATA created 1794673219
+DATA oper_only 0
+END
+OBJECT BotInfo
+DATA nick HostServ
+DATA user services
+DATA host services.sandbee.local
+DATA realname vHost Service
+DATA created 1794673219
+DATA oper_only 0
+END
+OBJECT BotInfo
+DATA nick MemoServ
+DATA user services
+DATA host services.sandbee.local
+DATA realname Memo Service
+DATA created 1794673219
+DATA oper_only 0
+END
+OBJECT BotInfo
+DATA nick NickServ
+DATA user services
+DATA host services.sandbee.local
+DATA realname Nickname Registration Service
+DATA created 1794673219
+DATA oper_only 0
+END
+OBJECT BotInfo
+DATA nick OperServ
+DATA user services
+DATA host services.sandbee.local
+DATA realname Operator Service
+DATA created 1794673219
+DATA oper_only 0
+END
+OBJECT Stats
+DATA maxusercnt 14
+DATA maxusertime 1794673323
+END
+OBJECT SeenInfo
+DATA nick zfill
+DATA vhost ~zfill@localhost
+DATA type 0
+DATA nick2 
+DATA channel 
+DATA message 
+DATA last 1794673219
+END
+OBJECT NickCore
+DATA display zfill
+DATA uniqueid 0
+DATA pass sha256:a165dd2574ee26d67d19f117a07c7f455d2ae0f30b06d2b0c5a3a27adc567bb9:464a0dbc0dc8e51248c6137e55e30214076ccb616dfe82f47d4177ad53aad2e2
+DATA email zfill@example.org
+DATA language 
+DATA memomax 20
+DATA NS_PRIVATE 1
+DATA MEMO_SIGNON 1
+DATA MEMO_RECEIVE 1
+DATA HIDE_EMAIL 1
+DATA HIDE_MASK 1
+DATA AUTOOP 1
+DATA KILLPROTECT 1
+DATA NS_SECURE 1
+END
+OBJECT NickAlias
+DATA nick zfill
+DATA last_quit 
+DATA last_realname anope fill zfill
+DATA last_usermask ~zfill@beesand-247b3108.cloak
+DATA last_realhost ~zfill@localhost
+DATA time_registered 1794673220
+DATA last_seen 1794673220
+DATA nc zfill
+END
+OBJECT SeenInfo
+DATA nick alice
+DATA vhost ~alice@beesand-247b3108.cloak
+DATA type 3
+DATA nick2 
+DATA channel #bee
+DATA message 
+DATA last 1794673268
+END
+OBJECT NickCore
+DATA display alice
+DATA uniqueid 0
+DATA pass sha256:22b2466cfe64e4b62a4ab522c8325d7f786962dbe772d114f1fc6ec2cfb11c49:71ed34a8059ae0c149dfb539039600fb1d334b233101ee8d62e5a81841def821
+DATA email alice@example.org
+DATA language 
+DATA access alice@10.0.0.* 
+DATA memomax 20
+DATA NS_PRIVATE 1
+DATA greet hello from alice
+DATA MEMO_SIGNON 1
+DATA MEMO_RECEIVE 1
+DATA HIDE_EMAIL 1
+DATA HIDE_MASK 1
+DATA HIDE_QUIT 1
+DATA KILLPROTECT 1
+DATA KILL_QUICK 1
+DATA NS_SECURE 1
+DATA NS_KEEP_MODES 1
+DATA last_modes CLOAK DEAF INVIS REGISTERED
+END
+OBJECT NickAlias
+DATA nick alice
+DATA last_quit 
+DATA last_realname anope fill alice
+DATA last_usermask ~alice@beesand-247b3108.cloak
+DATA last_realhost ~alice@localhost
+DATA time_registered 1794673222
+DATA last_seen 1794673222
+DATA nc alice
+DATA vhost_ident 
+DATA vhost_host cool.alice.vhost
+DATA vhost_creator zfill
+DATA vhost_time 1794673341
+END
+OBJECT SeenInfo
+DATA nick bob
+DATA vhost ~bob@beesand-247b3108.cloak
+DATA type 6
+DATA nick2 ChanServ
+DATA channel #hive
+DATA message testing the import
+DATA last 1794673320
+END
+OBJECT NickCore
+DATA display bob
+DATA uniqueid 0
+DATA pass sha256:c9dedf9b6b637872e62aa2219704f56a11d7f78b3babb3ea8e454c4b5ff96ce4:5ec77d9f59800876090cc1197278128631b8234a3d5ca9c00b015a1d44cc661a
+DATA email bob@example.org
+DATA language 
+DATA memomax 7
+DATA memoignores carol 
+DATA NS_PRIVATE 1
+DATA MEMO_SIGNON 1
+DATA HIDE_EMAIL 1
+DATA HIDE_MASK 1
+DATA AUTOOP 1
+DATA KILLPROTECT 1
+DATA NS_SECURE 1
+END
+OBJECT NickAlias
+DATA nick bob
+DATA last_quit 
+DATA last_realname anope fill bob
+DATA last_usermask ~bob@beesand-247b3108.cloak
+DATA last_realhost ~bob@localhost
+DATA time_registered 1794673224
+DATA last_seen 1794673224
+DATA nc bob
+END
+OBJECT SeenInfo
+DATA nick carol
+DATA vhost ~carol@beesand-247b3108.cloak
+DATA type 1
+DATA nick2 Guest9551
+DATA channel 
+DATA message 
+DATA last 1794673265
+END
+OBJECT NickCore
+DATA display carol
+DATA uniqueid 0
+DATA pass sha256:a77a181def93e51241532bde6ce09443c3292849324b2fabd6e2e35873c7afe1:65fc5dc7027a1fe933ecb42c60dd60de0f98bd10073774da753f7bdd55e2cacc
+DATA email carol@example.org
+DATA language 
+DATA memomax 20
+DATA NS_PRIVATE 1
+DATA MEMO_SIGNON 1
+DATA MEMO_RECEIVE 1
+DATA HIDE_EMAIL 1
+DATA HIDE_MASK 1
+DATA AUTOOP 1
+DATA KILLPROTECT 1
+DATA NS_SECURE 1
+END
+OBJECT NickAlias
+DATA nick carol
+DATA last_quit testing the import
+DATA last_realname anope fill carol
+DATA last_usermask ~carol@beesand-247b3108.cloak
+DATA last_realhost ~carol@localhost
+DATA time_registered 1794673226
+DATA last_seen 1794673226
+DATA nc carol
+END
+OBJECT SeenInfo
+DATA nick dave
+DATA vhost ~dave@beesand-247b3108.cloak
+DATA type 3
+DATA nick2 
+DATA channel #quiet
+DATA message 
+DATA last 1794673273
+END
+OBJECT NickCore
+DATA display dave
+DATA uniqueid 0
+DATA pass sha256:e82f79e86c3235760a31bea34995fedb6a036d8c030d154a904e7b5c04c64e67:150059ed3e058f5b2bc5cce11c6d254e2c04124f2907448e7017f8301df146f7
+DATA email dave@example.org
+DATA language 
+DATA memomax 20
+DATA NS_PRIVATE 1
+DATA MEMO_SIGNON 1
+DATA MEMO_RECEIVE 1
+DATA HIDE_EMAIL 1
+DATA HIDE_MASK 1
+DATA AUTOOP 1
+DATA KILLPROTECT 1
+DATA NS_SECURE 1
+END
+OBJECT NickAlias
+DATA nick dave
+DATA last_quit 
+DATA last_realname anope fill dave
+DATA last_usermask ~dave@beesand-247b3108.cloak
+DATA last_realhost ~dave@localhost
+DATA time_registered 1794673228
+DATA last_seen 1794673228
+DATA nc dave
+DATA vhost_ident dave
+DATA vhost_host ident.vhost
+DATA vhost_creator zfill
+DATA vhost_time 1794673342
+DATA NS_NO_EXPIRE 1
+END
+OBJECT SeenInfo
+DATA nick eve
+DATA vhost ~eve@localhost
+DATA type 5
+DATA nick2 
+DATA channel 
+DATA message OperServ (Session limit exceeded)
+DATA last 1794673230
+END
+OBJECT AJoinEntry
+DATA owner alice
+DATA channel #bee
+DATA key 
+END
+OBJECT AJoinEntry
+DATA owner alice
+DATA channel #keyed
+DATA key sekrit
+END
+OBJECT NSMiscData
+DATA nc alice
+DATA name ns_set_misc:URL
+DATA data https://alice.example.org
+END
+OBJECT SeenInfo
+DATA nick alice2
+DATA vhost ~alice2@localhost
+DATA type 5
+DATA nick2 
+DATA channel 
+DATA message OperServ (Session limit exceeded)
+DATA last 1794673255
+END
+OBJECT NSSuspendInfo
+DATA nick carol
+DATA by zfill
+DATA reason testing the import
+DATA time 1794673265
+DATA expires 1795278065
+END
+OBJECT SeenInfo
+DATA nick Guest9551
+DATA vhost ~carol@beesand-247b3108.cloak
+DATA type 2
+DATA nick2 carol
+DATA channel 
+DATA message 
+DATA last 1794673265
+END
+OBJECT ChannelInfo
+DATA name #bee
+DATA founder alice
+DATA successor bob
+DATA description the bee channel
+DATA time_registered 1794673269
+DATA last_used 1794673353
+DATA last_topic Welcome to the hive
+DATA last_topic_setter alice
+DATA last_topic_time 1794673275
+DATA bantype 3
+DATA levels ACCESS_CHANGE 10 ACCESS_LIST 3 AKICK 10 ASSIGN 10001 AUTOHALFOP 4 AUTOOP 5 AUTOOWNER 9999 AUTOPROTECT 10 AUTOVOICE 3 BADWORDS 10 BAN 4 FANTASIA 3 FOUNDER 10000 GETKEY -10000 GREET 5 HALFOP 5 HALFOPME 4 INFO 9999 INVITE 5 KICK 4 MEMO 10 MODE 9999 NOKICK 1 OP 5 OPME 5 OWNER 10001 OWNERME 9999 PROTECT 9999 PROTECTME 10 SAY 5 SET 9999 SIGNKICK 9999 TOPIC 4 UNBAN 4 VOICE 4 VOICEME 3 
+DATA bi Honey
+DATA banexpire 60
+DATA memomax 20
+DATA kickerdata:amsgs 0
+DATA kickerdata:badwords 1
+DATA kickerdata:bolds 0
+DATA kickerdata:caps 1
+DATA kickerdata:colors 0
+DATA kickerdata:flood 1
+DATA kickerdata:italics 0
+DATA kickerdata:repeat 0
+DATA kickerdata:reverses 0
+DATA kickerdata:underlines 0
+DATA capsmin 10
+DATA capspercent 25
+DATA floodlines 6
+DATA floodsecs 10
+DATA repeattimes 0
+DATA dontkickops 1
+DATA dontkickvoices 0
+DATA ttb 0 0 0 0 2 3 0 0 0 0 
+DATA BS_GREET 1
+DATA BS_FANTASY 1
+DATA CS_PRIVATE 1
+DATA PEACE 1
+DATA SECUREFOUNDER 1
+DATA CS_SECURE 1
+DATA SECUREOPS 1
+DATA SIGNKICK 1
+DATA PERSIST 1
+DATA CS_KEEP_MODES 1
+DATA last_modes KEY,honey LIMIT,50 NOEXTERNAL PERM REGISTERED TOPIC
+DATA TOPICLOCK 1
+DATA KEEPTOPIC 1
+END
+OBJECT ChannelInfo
+DATA name #hive
+DATA founder bob
+DATA description the hive channel
+DATA time_registered 1794673271
+DATA last_used 1794673271
+DATA last_topic 
+DATA last_topic_setter ChanServ
+DATA last_topic_time 0
+DATA bantype 2
+DATA levels ACCESS_CHANGE 10 ACCESS_LIST 3 AKICK 10 ASSIGN 10001 AUTOHALFOP 4 AUTOOP 5 AUTOOWNER 9999 AUTOPROTECT 10 AUTOVOICE 3 BADWORDS 10 BAN 4 FANTASIA 3 FOUNDER 10000 GETKEY 5 GREET 5 HALFOP 5 HALFOPME 4 INFO 9999 INVITE 5 KICK 4 MEMO 10 MODE 9999 NOKICK 1 OP 5 OPME 5 OWNER 10001 OWNERME 9999 PROTECT 9999 PROTECTME 10 SAY 5 SET 9999 SIGNKICK 9999 TOPIC 5 UNBAN 4 VOICE 4 VOICEME 3 
+DATA banexpire 0
+DATA memomax 20
+DATA BS_GREET 1
+DATA BS_FANTASY 1
+DATA PEACE 1
+DATA SECUREFOUNDER 1
+DATA CS_SECURE 1
+DATA SIGNKICK 1
+DATA KEEPTOPIC 1
+END
+OBJECT ModeLock
+DATA ci #hive
+DATA set 1
+DATA name NOEXTERNAL
+DATA param 
+DATA setter bob
+DATA created 1794673271
+END
+OBJECT ModeLock
+DATA ci #hive
+DATA set 1
+DATA name TOPIC
+DATA param 
+DATA setter bob
+DATA created 1794673271
+END
+OBJECT ChannelInfo
+DATA name #quiet
+DATA founder dave
+DATA description the quiet channel
+DATA time_registered 1794673274
+DATA last_used 1794673339
+DATA last_topic 
+DATA last_topic_setter ChanServ
+DATA last_topic_time 0
+DATA bantype 2
+DATA levels ACCESS_CHANGE 10 ACCESS_LIST 3 AKICK 10 ASSIGN 10001 AUTOHALFOP 4 AUTOOP 5 AUTOOWNER 9999 AUTOPROTECT 10 AUTOVOICE 3 BADWORDS 10 BAN 4 FANTASIA 3 FOUNDER 10000 GETKEY 5 GREET 5 HALFOP 5 HALFOPME 4 INFO 9999 INVITE 5 KICK 4 MEMO 10 MODE 9999 NOKICK 1 OP 5 OPME 5 OWNER 10001 OWNERME 9999 PROTECT 9999 PROTECTME 10 SAY 5 SET 9999 SIGNKICK 9999 TOPIC 5 UNBAN 4 VOICE 4 VOICEME 3 
+DATA bi Drone
+DATA banexpire 0
+DATA memomax 20
+DATA BS_GREET 1
+DATA BS_FANTASY 1
+DATA PEACE 1
+DATA SECUREFOUNDER 1
+DATA CS_SECURE 1
+DATA SIGNKICK 1
+DATA KEEPTOPIC 1
+END
+OBJECT ModeLock
+DATA ci #quiet
+DATA set 1
+DATA name NOEXTERNAL
+DATA param 
+DATA setter dave
+DATA created 1794673274
+END
+OBJECT ModeLock
+DATA ci #quiet
+DATA set 1
+DATA name TOPIC
+DATA param 
+DATA setter dave
+DATA created 1794673274
+END
+OBJECT ModeLock
+DATA ci #bee
+DATA set 1
+DATA name PERM
+DATA param 
+DATA setter alice
+DATA created 1794673284
+END
+OBJECT CSMiscData
+DATA ci #bee
+DATA name cs_set_misc:URL
+DATA data https://bee.example.org
+END
+OBJECT CSMiscData
+DATA ci #bee
+DATA name cs_set_misc:EMAIL
+DATA data bee@example.org
+END
+OBJECT ModeLock
+DATA ci #bee
+DATA set 1
+DATA name NOEXTERNAL
+DATA param 
+DATA setter alice
+DATA created 1794673294
+END
+OBJECT ModeLock
+DATA ci #bee
+DATA set 1
+DATA name TOPIC
+DATA param 
+DATA setter alice
+DATA created 1794673294
+END
+OBJECT ModeLock
+DATA ci #bee
+DATA set 1
+DATA name KEY
+DATA param honey
+DATA setter alice
+DATA created 1794673294
+END
+OBJECT ModeLock
+DATA ci #bee
+DATA set 0
+DATA name SECRET
+DATA param 
+DATA setter alice
+DATA created 1794673296
+END
+OBJECT ModeLock
+DATA ci #bee
+DATA set 1
+DATA name LIMIT
+DATA param 50
+DATA setter alice
+DATA created 1794673297
+END
+OBJECT ChanAccess
+DATA provider access/access
+DATA ci #bee
+DATA mask bob
+DATA creator alice
+DATA last_seen 1794673311
+DATA created 1794673299
+DATA data 5
+END
+OBJECT ChanAccess
+DATA provider access/access
+DATA ci #bee
+DATA mask carol
+DATA creator alice
+DATA last_seen 0
+DATA created 1794673300
+DATA data 10
+END
+OBJECT ChanAccess
+DATA provider access/access
+DATA ci #bee
+DATA mask *!*@trusted.host
+DATA creator alice
+DATA last_seen 0
+DATA created 1794673302
+DATA data 3
+END
+OBJECT ChanAccess
+DATA provider access/xop
+DATA ci #bee
+DATA mask dave
+DATA creator alice
+DATA last_seen 1794673311
+DATA created 1794673303
+DATA data AOP
+END
+OBJECT ChanAccess
+DATA provider access/xop
+DATA ci #bee
+DATA mask zfill
+DATA creator alice
+DATA last_seen 1794673311
+DATA created 1794673305
+DATA data SOP
+END
+OBJECT AutoKick
+DATA ci #bee
+DATA mask *!*@bad.host
+DATA reason spammer
+DATA creator alice
+DATA addtime 1794673309
+DATA last_used 0
+END
+OBJECT AutoKick
+DATA ci #bee
+DATA mask eve2!*@*
+DATA reason not welcome
+DATA creator alice
+DATA addtime 1794673311
+DATA last_used 0
+END
+OBJECT EntryMsg
+DATA ci #bee
+DATA creator alice
+DATA message Be kind, stay curious
+DATA when 1794673315
+END
+OBJECT EntryMsg
+DATA ci #bee
+DATA creator alice
+DATA message Second line
+DATA when 1794673317
+END
+OBJECT LogSetting
+DATA ci #bee
+DATA service_name chanserv/access
+DATA command_service ChanServ
+DATA command_name ACCESS
+DATA method MESSAGE
+DATA extra 
+DATA creator alice
+DATA created 1794673318
+END
+OBJECT CSSuspendInfo
+DATA chan #hive
+DATA by zfill
+DATA reason testing the import
+DATA time 1794673320
+DATA expires 1795278120
+END
+OBJECT SeenInfo
+DATA nick Honey
+DATA vhost honey@bee.example.org
+DATA type 3
+DATA nick2 
+DATA channel #bee
+DATA message 
+DATA last 1794673324
+END
+OBJECT BotInfo
+DATA nick Honey
+DATA user honey
+DATA host bee.example.org
+DATA realname Honey the bot
+DATA created 1794673321
+DATA oper_only 0
+END
+OBJECT SeenInfo
+DATA nick Drone
+DATA vhost drone@drone.example.org
+DATA type 3
+DATA nick2 
+DATA channel #quiet
+DATA message 
+DATA last 1794673339
+END
+OBJECT BotInfo
+DATA nick Drone
+DATA user drone
+DATA host drone.example.org
+DATA realname Drone
+DATA created 1794673323
+DATA oper_only 0
+END
+OBJECT BadWord
+DATA ci #bee
+DATA word spam
+DATA type 0
+END
+OBJECT BadWord
+DATA ci #bee
+DATA word casino
+DATA type 0
+END
+OBJECT HostRequest
+DATA nick bob
+DATA ident 
+DATA host bob.wants.vhost
+DATA time 1794673344
+END
+OBJECT Memo
+DATA owner bob
+DATA time 1794673348
+DATA sender alice
+DATA text Hello bob, this memo should survive the move
+DATA unread 1
+DATA receipt 0
+END
+OBJECT Memo
+DATA owner #bee
+DATA time 1794673353
+DATA sender alice
+DATA text Channel memo for #bee
+DATA unread 1
+DATA receipt 0
+END
+OBJECT XLine
+DATA mask *@203.0.113.9
+DATA by zfill
+DATA created 1794673354
+DATA expires 1795278154
+DATA reason [zfill] test akill
+DATA uid P4T31EST33
+DATA manager xlinemanager/sgline
+END
+OBJECT XLine
+DATA mask *@198.51.100.0/24
+DATA by zfill
+DATA created 1794673356
+DATA expires 0
+DATA reason [zfill] forever
+DATA uid 5BIT26K75C
+DATA manager xlinemanager/sgline
+END
+OBJECT XLine
+DATA mask BadNick*
+DATA by zfill
+DATA created 1794673357
+DATA expires 1795278157
+DATA reason [zfill] reserved
+DATA uid 2G5XEICPNU
+DATA manager xlinemanager/sqline
+END
+OBJECT XLine
+DATA mask *bot*
+DATA by zfill
+DATA created 1794673359
+DATA expires 1795278159
+DATA reason [zfill] bots are not welcome
+DATA uid FDXC80JX3T
+DATA manager xlinemanager/snline
+END
+OBJECT ForbidData
+DATA mask evil*
+DATA creator zfill
+DATA reason no evil nicks
+DATA created 1794673360
+DATA expires 1797265360
+DATA type 1
+END
+OBJECT ForbidData
+DATA mask #warez*
+DATA creator zfill
+DATA reason no warez
+DATA created 1794673362
+DATA expires 0
+DATA type 2
+END
+OBJECT ForbidData
+DATA mask *@spam.example
+DATA creator zfill
+DATA reason no spam mail
+DATA created 1794673363
+DATA expires 0
+DATA type 3
+END
+OBJECT ForbidData
+DATA mask #nope*
+DATA creator zfill
+DATA reason no
+DATA created 1794673365
+DATA expires 0
+DATA type 4
+END
+OBJECT Exception
+DATA mask 192.0.2.10
+DATA limit 10
+DATA who zfill
+DATA reason the office
+DATA time 1794673366
+DATA expires 1797265366
+END
+OBJECT Exception
+DATA mask 192.0.2.11
+DATA limit 0
+DATA who zfill
+DATA reason unlimited
+DATA time 1794673368
+DATA expires 0
+END
+OBJECT NewsItem
+DATA type 2
+DATA text for opers only
+DATA who zfill
+DATA time 1794673371
+END
+OBJECT NewsItem
+DATA type 1
+DATA text a random tip
+DATA who zfill
+DATA time 1794673372
+END
+OBJECT OperInfo
+DATA target alice
+DATA info good person
+DATA adder zfill
+DATA created 1794673374
+END
+OBJECT OperInfo
+DATA target #bee
+DATA info main channel
+DATA adder zfill
+DATA created 1794673375
+END
+OBJECT IgnoreData
+DATA mask *!*@ignored.example
+DATA creator zfill
+DATA reason noisy
+DATA time 1794676977
+END
