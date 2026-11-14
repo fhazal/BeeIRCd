@@ -49,13 +49,13 @@ func (s *Server) memberLogin(a *store.Account, nick, pw, ip string, done func(co
 		done(control.Response{Error: a.Name + " is suspended.", Denied: "signin"})
 		return
 	}
-	s.svc.CheckSecret(new(bool), func() bool { return false }, a.ID, a.PassHash, pw, func(res services.PwResult) {
+	s.svc.CheckSecret(new(bool), func() bool { return false }, a.ID, ip, a.PassHash, pw, func(res services.PwResult) {
 		switch res {
 		case services.PwOK:
 			s.panelEvent(a.Name, ip, "signed in as a member")
 			done(control.Response{Oper: &control.PanelOper{Account: a.Name, Member: true, Seal: memberSeal(a), Chat: s.cfg.Web.ChatURL}})
 		case services.PwLocked:
-			done(control.Response{Error: "Too many wrong passwords for this nick. Try again in " + services.RoundUp(s.lockedFor(a.ID)) + ".", Denied: "signin"})
+			done(control.Response{Error: "Too many wrong passwords for this nick. Try again in " + services.RoundUp(s.lockedFor(a.ID, ip)) + ".", Denied: "signin"})
 		default:
 			s.panelEvent(nick, ip, "could not sign in as a member: wrong password")
 			done(wrong)

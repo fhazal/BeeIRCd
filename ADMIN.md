@@ -206,6 +206,9 @@ then open <http://127.0.0.1:8787>. `beeircd install` sets it up as the
   hostname masks don't, the panel only knows the address).
 - Wrong passwords count toward the same lock as `/oper` (5 wrong: 10
   minutes), and the panel also locks an address after 5 wrong tries.
+  Every password lock (IDENTIFY, SASL, /oper, the panel) holds one nick
+  or oper entry *from one address*: someone guessing wrong locks
+  themselves out, never the real owner coming from elsewhere.
 - **Every click is checked by the server** against your oper entry and
   flags. Settings, Check and Rehash need flag `a`; Backup is for the
   owner (the `[services] admin`). Take an oper entry away and that oper is

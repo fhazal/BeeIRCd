@@ -333,7 +333,7 @@ func (s *Server) saslServe(l *linkConn, from, uid, mode, data string, extra []st
 		done(false)
 		return
 	}
-	s.svc.CheckSecret(&ss.busy, func() bool { return ss.gone || l.closed }, a.ID, a.PassHash, pw, func(r services.PwResult) {
+	s.svc.CheckSecret(&ss.busy, func() bool { return ss.gone || l.closed }, a.ID, ss.ip, a.PassHash, pw, func(r services.PwResult) {
 		if ss.gone || l.closed {
 			return
 		}

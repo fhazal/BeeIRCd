@@ -138,14 +138,14 @@ func (s *Server) panelLogin(req control.Request, done func(control.Response)) {
 		return
 	}
 	key := operLockKey(a.ID)
-	s.svc.CheckSecret(new(bool), func() bool { return false }, key, o.PassHash, pw, func(res services.PwResult) {
+	s.svc.CheckSecret(new(bool), func() bool { return false }, key, ip, o.PassHash, pw, func(res services.PwResult) {
 		switch res {
 		case services.PwOK:
 			s.panelEvent(po.Account, ip, "signed in")
 			s.snotice("Hive Panel: %s signed in from %s: %s", po.Account, ip, po.Flags)
 			done(control.Response{Oper: po})
 		case services.PwLocked:
-			done(control.Response{Error: "Too many wrong passwords for this oper. Try again in " + services.RoundUp(s.lockedFor(key)) + ".", Denied: "signin"})
+			done(control.Response{Error: "Too many wrong passwords for this oper. Try again in " + services.RoundUp(s.lockedFor(key, ip)) + ".", Denied: "signin"})
 		default:
 			if members { // maybe their NickServ password: the member pages
 				s.memberLogin(a, nick, pw, ip, done)

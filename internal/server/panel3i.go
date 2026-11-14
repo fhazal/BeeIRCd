@@ -51,14 +51,14 @@ func (s *Server) panelBackupGet(req control.Request, done func(control.Response)
 		return
 	}
 	key := operLockKey(a.ID)
-	s.svc.CheckSecret(new(bool), func() bool { return false }, key, o.PassHash, req.Password, func(res services.PwResult) {
+	s.svc.CheckSecret(new(bool), func() bool { return false }, key, req.IP, o.PassHash, req.Password, func(res services.PwResult) {
 		switch res {
 		case services.PwOK:
 			s.panelEvent(po.Account, req.IP, "downloaded backup "+name)
 			s.snotice("Hive Panel: %s downloaded backup %s from %s", po.Account, name, req.IP)
 			done(control.Response{Backup: &control.Backup{File: path, Bytes: fi.Size()}})
 		case services.PwLocked:
-			done(control.Response{Error: "Too many wrong passwords for this oper. Try again in " + services.RoundUp(s.lockedFor(key)) + "."})
+			done(control.Response{Error: "Too many wrong passwords for this oper. Try again in " + services.RoundUp(s.lockedFor(key, req.IP)) + "."})
 		default:
 			s.panelEvent(po.Account, req.IP, "could not download backup "+name+": wrong password")
 			s.snotice("Hive Panel: wrong password for %s's backup download from %s", po.Account, req.IP)

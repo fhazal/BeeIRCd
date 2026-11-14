@@ -262,7 +262,7 @@ func (s *Server) cmdOper(c *Client, m irc.Message) {
 		case services.PwOK:
 			s.operUp(c, o)
 		case services.PwLocked:
-			s.reply(c, irc.ErrPasswdMismatch, "Too many wrong passwords. Try again in "+services.RoundUp(s.lockedFor(operLockKey(a.ID))))
+			s.reply(c, irc.ErrPasswdMismatch, "Too many wrong passwords. Try again in "+services.RoundUp(s.lockedFor(operLockKey(a.ID), c.ip)))
 		case services.PwBusy:
 			s.notice(c, "*** Still checking your last password. Try again in a moment.")
 		default:
@@ -400,7 +400,7 @@ func (s *Server) sessions(ip string) int { return s.perIP[ip] }
 
 // checkSecret checks an oper or SASL password off the loop for c.
 func (s *Server) checkSecret(c *Client, key int64, hash, pw string, result func(services.PwResult)) {
-	s.svc.CheckSecret(&c.pwBusy, func() bool { return c.closed }, key, hash, pw, result)
+	s.svc.CheckSecret(&c.pwBusy, func() bool { return c.closed }, key, c.ip, hash, pw, result)
 }
 
 // hashPassword hashes pw off the loop for c and calls done with the hash.

@@ -116,7 +116,7 @@ func (s *Services) LoginsFull(id int64) bool {
 }
 
 // LockedFor reports how long key (see CheckSecret) is still locked.
-func (s *Services) LockedFor(key int64) time.Duration { return s.lockedFor(key) }
+func (s *Services) LockedFor(key int64, src string) time.Duration { return s.lockedFor(key, src) }
 
 // RoundUp says a lockout time in whole minutes.
 func RoundUp(d time.Duration) string { return roundUp(d) }
@@ -203,7 +203,7 @@ func Plural(n int, word string) string { return plural(n, word) }
 func RandomCode() string { return randomCode() }
 
 // ClearLockout forgets wrong passwords for key.
-func (s *Services) ClearLockout(key int64) { delete(s.lockouts, key) }
+func (s *Services) ClearLockout(key int64) { s.clearLockouts(key) }
 
 // ReloadBans rereads network bans, forbids, news and session exceptions
 // from the store (after something outside services changed them).
