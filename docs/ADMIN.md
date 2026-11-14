@@ -19,6 +19,7 @@ through a local socket, so run them as root (`sudo`) on the server.
 | `beeircd backup [file]` | Saves config, database, history and certificates to one `.tar.gz` |
 | `beeircd update` | Installs the newest release (see [Updates](#updates)) |
 | `beeircd mkpasswd` | Reads a password and prints its hash, for `admin_password` |
+| `beeircd import-anope <anope.db>` | Brings accounts, channels and settings over from Anope 2.0 (see [Moving from Anope](#moving-from-anope)) |
 | `beeircd webirc add <name> <ip>` | Lets a web chat (BeeRoom) on that IP pass on each person's real IP; prints its password (see [[[webirc]]](#webirc)) |
 | `beeircd version` | Prints the version |
 | `beeircd run` | Runs in the foreground (what the service runs) |
@@ -187,6 +188,58 @@ rm -rf /tmp/restore
 To move to a new machine: install there with the same server name, then
 restore the backup the same way. Keep the backup's `beeircd.conf` (its cloak
 and history secrets go with the data).
+
+## Moving from Anope
+
+`beeircd import-anope` reads the `anope.db` that Anope 2.0 writes (its
+default `db_flatfile` module) and brings everything into BeeIRCd's services:
+accounts and their nicks, passwords, certificates, auto-joins, vhosts and
+vhost requests, memos, channels with founder, successor, topic, settings,
+access lists, AKICKs, LEVELS, mode locks and entry messages, BotServ bots
+with their settings, kickers and bad words, AKILLs, SQLINEs, SNLINEs,
+forbids, session exceptions, news, oper notes, services ignores and seen
+entries.
+
+**Passwords keep working.** Accounts keep Anope's password hash (enc_sha256,
+enc_bcrypt, enc_md5, enc_sha1 or enc_none). The first right IDENTIFY, SASL
+login or Hive Panel sign-in swaps it for BeeIRCd's own. Only Anope's old
+`enc_old` hashes can't be checked: those accounts need NickServ RESETPASS
+(the report names them).
+
+Steps:
+
+1. Copy `anope.db` from Anope's data folder (Anope can keep running).
+2. Look first, nothing is written:
+   ```sh
+   sudo beeircd import-anope -dry-run /root/anope.db
+   ```
+   The report lists what comes in, what changes on the way, names that
+   exist on both sides, and what is left out and why.
+3. Stop Anope (and unlink it from your network), then stop BeeIRCd:
+   `sudo beeircd stop`.
+4. Copy a fresh `anope.db` and import it:
+   ```sh
+   sudo beeircd import-anope /root/anope.db
+   ```
+   It shows the report again, asks, makes a normal backup and a copy of
+   `services.db`, then imports. It prints the one command that undoes it.
+5. `sudo beeircd start`. Opers come from `beeircd.conf` and AdminServ OPER,
+   not from Anope's `oper {}` blocks.
+
+Run it on the server that runs the services (the hub). What comes over
+differently:
+
+- A nick that BeeIRCd has already (the admin nick made at install) keeps
+  BeeIRCd's account; `-replace` takes Anope's instead. The same goes for
+  channels and bots.
+- ChanServ FLAGS entries become the nearest level: access or founder flags
+  SOP, op AOP, halfop HOP, voice VOP.
+- Access entries on a mask instead of a registered nick, and settings
+  BeeIRCd doesn't have (like channel SET EMAIL), are listed and left out.
+- Anope's service bots (NickServ, ChanServ, ...) are not imported: BeeIRCd
+  has its own.
+
+`-yes` skips the question (for scripts).
 
 ## Updates
 

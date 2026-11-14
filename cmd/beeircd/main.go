@@ -59,6 +59,8 @@ const usage = `Usage: beeircd <command>
             another BeeIRCd or UnrealIRCd server needs to link
   webirc    add <name> <ip>: let a web chat (BeeRoom) on <ip>
             pass on each person's real IP
+  import-anope <anope.db>: bring accounts, channels and settings
+            over from Anope 2.0 (server stopped; shows them first)
   web       run the Hive Panel, the web admin (used by the
             beeircd-web service; reach it with an SSH tunnel)
   version   show the version
@@ -105,6 +107,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdLinkInfo(args[1:], stdout, stderr)
 	case cmd == "webirc":
 		return cmdWebirc(args[1:], stdout, stderr)
+	case cmd == "import-anope":
+		return cmdImportAnope(args[1:], stdout, stderr)
 	case cmd == "web":
 		return cmdWeb(args[1:], stderr)
 	case cmd == "rehash":

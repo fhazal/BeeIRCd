@@ -109,6 +109,7 @@ Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few 
 | `beeircd status`, `check`, `backup`, `rehash`, `start`, `stop`, `restart` | ✅ | over a local socket, no network port |
 | Signed updates (`beeircd update`) | ✅ | checks the signature, backs up, rolls back by itself if the new version doesn't start; `--rollback` goes back |
 | Docker image (amd64, arm64) | ✅ | `ghcr.io/fhazal/beeircd` |
+| Moving from Anope 2.0 (`beeircd import-anope`) | 🔜 | accounts, passwords (no resets), channels, bots, bans and the rest of anope.db |
 | `beeircd uninstall` | ✅ | keeps your data unless `--purge` |
 
 ## Hive Panel (web admin)

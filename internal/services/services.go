@@ -322,10 +322,24 @@ func (s *Services) CheckSecret(busy *bool, gone func() bool, key int64, src, has
 	go func() {
 		s.hashSem <- struct{}{}
 		ok := passwd.Check(pw, hash)
+		upgraded := ""
+		if ok && key > 0 && passwd.IsAnope(hash) {
+			// An account brought over from Anope: from now on it gets
+			// BeeIRCd's own hash.
+			upgraded, _ = passwd.Hash(pw)
+		}
 		<-s.hashSem
 		s.post(func() {
 			*busy = false
 			defer s.afterSecret()
+			if upgraded != "" {
+				if a, _ := s.store.AccountByID(key); a != nil && a.PassHash == hash {
+					a.PassHash = upgraded
+					if err := s.store.SaveAccount(a); err != nil {
+						s.log.Printf("services database: %s's new password hash: %v", a.Name, err)
+					}
+				}
+			}
 			if gone() {
 				return
 			}

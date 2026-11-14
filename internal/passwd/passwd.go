@@ -44,6 +44,9 @@ var errFormat = errors.New("not an argon2id hash")
 
 // Check reports whether password matches the encoded hash.
 func Check(password, encoded string) bool {
+	if IsAnope(encoded) {
+		return checkAnope(password, encoded)
+	}
 	ok, err := check(password, encoded)
 	return err == nil && ok
 }
