@@ -253,6 +253,17 @@ func (s *Server) cmdOper(c *Client, m irc.Message) {
 		s.snotice("Failed /oper as %s from %s (%s@%s): entry disabled", o.Account, u.Nick, u.TrueIdent(), u.RealHost)
 		return
 	}
+	if len(o.CertFPs) > 0 {
+		if !certMatches(o.CertFPs, u.CertFP) {
+			s.reply(c, irc.ErrNoOperHost, "No oper entry for you from this host")
+			s.snotice("Failed /oper as %s from %s (%s@%s): TLS certificate doesn't match", o.Account, u.Nick, u.TrueIdent(), u.RealHost)
+			return
+		}
+		if o.PassHash == "" { // the certificate alone, like UnrealIRCd's certfp blocks
+			s.operUp(c, o)
+			return
+		}
+	}
 	if o.PassHash == "" {
 		s.firstOperPassword(c, a, o, pw)
 		return

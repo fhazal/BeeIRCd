@@ -34,7 +34,7 @@ func adminCommands() map[string]adminCmd {
 		"PORT": {"PORT ADD|DEL|LIST [port] [TLS]", "open or close a port",
 			"PORT LIST\nPORT ADD <port> [TLS]   opens it now, on the same address as the first port\nPORT ADD <address:port> [TLS]\nPORT DEL <port|address:port>\nPeople already connected through a closed port stay connected.", asPort},
 		"OPER": {"OPER LIST | OPER <nick> ADD|SET|DEL|DISABLE|ENABLE ...", "who is an IRC operator",
-			"OPER LIST\nOPER <nick> ADD CLASS <class>|FLAGS <letters> HOST <mask> [PASSWORD <password>] [TITLE <text>]\nOPER <nick> SET CLASS <class>|OFF\nOPER <nick> SET FLAGS <letters>|OFF   flags on top of the class\nOPER <nick> SET HOST <mask> [mask ...]   globs or CIDR, like *@192.168.50.0/24\nOPER <nick> SET PASSWORD <password>\nOPER <nick> SET TITLE|VHOST <text>|OFF   instead of the class's\nOPER <nick> SET SWHOIS <line> [| <line> ...]|OFF\nOPER <nick> DISABLE [reason]   keep the entry, refuse /oper\nOPER <nick> ENABLE\nOPER <nick> DEL\nClasses: /as class list (helper, globop, admin, netadmin are built in).\nFlags: a admin, b bots, c links, g global, h hosts, k kill, s services.\nThe nick must be registered. Opers oper up with /oper <nick> <oper password>\nfrom a matching host; the oper password is their own, not the NickServ one.\nYou can only give flags (and classes) you have.\nExample: /as oper ember add class globop host *@192.168.50.* password Hive-2026", asOper},
+			"OPER LIST\nOPER <nick> ADD CLASS <class>|FLAGS <letters> HOST <mask> [PASSWORD <password>] [TITLE <text>]\nOPER <nick> SET CLASS <class>|OFF\nOPER <nick> SET FLAGS <letters>|OFF   flags on top of the class\nOPER <nick> SET HOST <mask> [mask ...]   globs or CIDR, like *@192.168.50.0/24\nOPER <nick> SET PASSWORD <password>|OFF   OFF: certificate only\nOPER <nick> SET CERT <fingerprint> [...]|OFF   /oper needs this TLS client certificate\nOPER <nick> SET TITLE|VHOST <text>|OFF   instead of the class's\nOPER <nick> SET SWHOIS <line> [| <line> ...]|OFF\nOPER <nick> DISABLE [reason]   keep the entry, refuse /oper\nOPER <nick> ENABLE\nOPER <nick> DEL\nClasses: /as class list (helper, globop, admin, netadmin are built in).\nFlags: a admin, b bots, c links, g global, h hosts, k kill, s services.\nThe nick must be registered. Opers oper up with /oper <nick> <oper password>\nfrom a matching host; the oper password is their own, not the NickServ one.\nYou can only give flags (and classes) you have.\nExample: /as oper ember add class globop host *@192.168.50.* password Hive-2026", asOper},
 		"CLASS": {"CLASS LIST | CLASS <name> ADD|SET|DEL ...", "oper classes",
 			"CLASS LIST\nCLASS <name> ADD FLAGS <letters>\nCLASS <name> SET FLAGS <letters>\nCLASS <name> SET TITLE <text>|OFF   WHOIS line, like: is a Network Administrator\nCLASS <name> SET VHOST <host>|OFF   shown host at /oper, like staff.example.org\nCLASS <name> SET SWHOIS <line> [| <line> ...]|OFF\nCLASS <name> DEL   a built-in class goes back to its defaults\nClasses are saved as [[operclass]] blocks in beeircd.conf.", asClass},
 		"HISTORY": {"HISTORY [count]", "the changes AdminServ made",
@@ -866,7 +866,24 @@ func asOper(s *Server, c *Client, args []string) {
 		}
 		what, rest := strings.ToUpper(argAt(args, 2)), args[min(3, len(args)):]
 		if len(rest) == 0 {
-			s.as(c, "Syntax: OPER <nick> SET CLASS|FLAGS|HOST|PASSWORD|TITLE|VHOST|SWHOIS <value>")
+			s.as(c, "Syntax: OPER <nick> SET CLASS|FLAGS|HOST|PASSWORD|CERT|TITLE|VHOST|SWHOIS <value>")
+			return
+		}
+		if what == "PASSWORD" && strings.EqualFold(rest[0], "OFF") {
+			// Only for an entry a certificate opens: then the certificate alone opers.
+			if len(cur.CertFPs) == 0 {
+				s.as(c, "Give %s a certificate first (/as oper %s set cert <fingerprint>); without one an oper needs a password.", a.Name, a.Name)
+				return
+			}
+			cur.PassHash = ""
+			if err := s.store.SaveOper(cur); err != nil {
+				s.dbErr(c, s.adminServ, err)
+				return
+			}
+			s.record(c, "oper", a.Name, "password", "no password")
+			s.audit(c, s.adminServ, "OPER %s SET PASSWORD OFF", a.Name)
+			s.svc.LogAdmin(c.uid, s.adminServ, "to remove the oper password of "+a.Name)
+			s.as(c, "%s now opers with their certificate alone.", a.Name)
 			return
 		}
 		if what == "PASSWORD" {
@@ -955,8 +972,23 @@ func asOper(s *Server, c *Client, args []string) {
 			if strings.EqualFold(cur.Title, "OFF") {
 				cur.Title = ""
 			}
+		case "CERT":
+			if strings.EqualFold(val, "OFF") {
+				if cur.PassHash == "" {
+					s.as(c, "%s has no oper password: set one first (/as oper %s set password <password>).", a.Name, a.Name)
+					return
+				}
+				cur.CertFPs = nil
+				break
+			}
+			fps, ok := certFPs(rest)
+			if !ok {
+				s.as(c, "A certificate fingerprint is its SHA-256 in hex (64 characters, colons are fine); up to 5. WHOIS shows it.")
+				return
+			}
+			cur.CertFPs = fps
 		default:
-			s.as(c, "Syntax: OPER <nick> SET CLASS|FLAGS|HOST|PASSWORD|TITLE|VHOST|SWHOIS <value>")
+			s.as(c, "Syntax: OPER <nick> SET CLASS|FLAGS|HOST|PASSWORD|CERT|TITLE|VHOST|SWHOIS <value>")
 			return
 		}
 		if err := s.store.SaveOper(cur); err != nil {

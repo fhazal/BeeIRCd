@@ -40,13 +40,14 @@ type operRecord struct {
 	Swhois   []string `json:"swhois,omitempty"`
 	Hosts    []string `json:"hosts,omitempty"`
 	Disabled string   `json:"disabled,omitempty"`
+	CertFPs  []string `json:"certfps,omitempty"`
 }
 
 func encodeOper(o *store.Oper) string {
 	if o == nil {
 		return ""
 	}
-	b, _ := json.Marshal(operRecord{o.Class, o.Flags, o.Title, o.Vhost, o.Swhois, o.Hosts, o.Disabled})
+	b, _ := json.Marshal(operRecord{o.Class, o.Flags, o.Title, o.Vhost, o.Swhois, o.Hosts, o.Disabled, o.CertFPs})
 	return string(b)
 }
 
@@ -429,7 +430,7 @@ func asUndo(s *Server, c *Client, args []string) {
 				return
 			}
 			o := &store.Oper{AccountID: a.ID, Account: a.Name, Class: r.Class, Flags: r.Flags, Title: r.Title, Vhost: r.Vhost,
-				Swhois: r.Swhois, Hosts: r.Hosts, Disabled: r.Disabled, AddedBy: c.user.Nick, AddedAt: time.Now()}
+				Swhois: r.Swhois, Hosts: r.Hosts, Disabled: r.Disabled, CertFPs: r.CertFPs, AddedBy: c.user.Nick, AddedAt: time.Now()}
 			if cur != nil {
 				o.PassHash, o.DisabledBy = cur.PassHash, cur.DisabledBy
 			}

@@ -174,7 +174,7 @@ func loadCache(db *sql.DB) (*cache, error) {
 			return nil
 		}},
 		{`SELECT o.account_id, a.name, o.flags, o.title, o.hosts, o.pass_hash, o.added_by, o.added_at,
-			o.class, o.vhost, o.swhois, o.disabled, o.disabled_by
+			o.class, o.vhost, o.swhois, o.disabled, o.disabled_by, o.certfps
 			FROM opers o JOIN accounts a ON a.id = o.account_id`, func(r *sql.Rows) error {
 			o, err := scanOper(r)
 			if err == nil {
@@ -290,6 +290,7 @@ func (c *cache) oper(id int64) *Oper {
 	cp := *o
 	cp.Account = c.accountName(id)
 	cp.Hosts = append([]string(nil), o.Hosts...)
+	cp.CertFPs = append([]string(nil), o.CertFPs...)
 	return &cp
 }
 

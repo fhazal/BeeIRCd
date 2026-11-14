@@ -186,3 +186,30 @@ func TestLeafOperLiveChanges(t *testing.T) {
 	hub.s.onLoop(func() { hub.s.operAnswer(kimUID, "DEOPER :forged") })
 	kim.quiet("forged")
 }
+
+// A certificate oper on a leaf: the leaf sends the user's fingerprint
+// with the /oper, and the services server checks it.
+func TestLeafOperByCertificate(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	reg := login(t, hub.s, "gardener")
+	reg.send("NS REGISTER " + pw)
+	reg.expect("is now registered to you.")
+	operEntryOn(t, hub, "gardener", "g", []string{"*@*"})
+	cert, fp := clientCert(t)
+	other, _ := clientCert(t)
+	hub.s.onLoop(func() {
+		a, _ := hub.s.store.AccountByNick("gardener")
+		o, _ := hub.s.store.OperByAccount(a.ID)
+		o.CertFPs, o.PassHash = []string{fp}, ""
+		hub.s.store.SaveOper(o)
+	})
+
+	w := certLogin(t, leaf.s, "wrongcert", &other)
+	hub.seen(t, "wrongcert")
+	w.send("OPER gardener x")
+	w.expect(" 491 wrongcert ")
+	c := certLogin(t, leaf.s, "gardenbot", &cert)
+	hub.seen(t, "gardenbot")
+	c.send("OPER gardener x")
+	c.expect(" 381 gardenbot :You are now an IRC operator")
+}

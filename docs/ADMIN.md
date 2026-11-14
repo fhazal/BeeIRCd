@@ -97,6 +97,11 @@ from IRC. Add others with AdminServ:
 - The nick must be registered with NickServ. Opers `/oper <nick> <oper
   password>` from a matching host; the oper password is their own, not the
   NickServ one.
+- Certificate opers (like UnrealIRCd's `certfp` blocks, handy for bots):
+  `/as oper guard set cert <fingerprint>` makes `/oper` need that TLS client
+  certificate (WHOIS shows its fingerprint). With `set password off` too,
+  the certificate alone opers and the password typed doesn't matter. Works
+  on a leaf as well.
 - Flags: `a` admin (AdminServ, REHASH, SA* commands), `b` bots (BotServ BOT
   ADD/CHANGE/DEL, SET PRIVATE, SET NOBOT), `c` links, `g` global, `h` hosts
   (CHGHOST and friends, HostServ), `k` kill, `s` services (OperServ).

@@ -4,7 +4,8 @@ package server
 // entries live with the accounts on the services server, so the leaf
 // asks it, over the TLS link, in BeeIRCd-only lines:
 //
-//	:<uid> BEEOPER <services sid> <name> :<password>
+//	:<uid> BEEOPER <services sid> <name> <certfp|*> :<password>
+//	    (older servers send no certfp; it is then taken as none)
 //	:<sid> BEEOPERR <uid> OK :<json: account class flags title vhost swhois>
 //	:<sid> BEEOPERR <uid> FAIL <numeric> :<text>
 //	:<sid> BEEOPERR <uid> UPDATE :<json>      (the entry or class changed)
@@ -73,7 +74,11 @@ func (s *Server) operRelayTo(c *Client, name, pw string) {
 		return
 	}
 	c.operRelay = &operRelay{via: r.via, name: name, at: time.Now()}
-	r.via.send(":" + c.uid + " BEEOPER " + r.sid + " " + name + " :" + pw)
+	fp := c.certfp
+	if fp == "" {
+		fp = "*"
+	}
+	r.via.send(":" + c.uid + " BEEOPER " + r.sid + " " + name + " " + fp + " :" + pw)
 }
 
 // remoteOper is BEEOPER on the services server (or on the way to it).
@@ -81,7 +86,11 @@ func (s *Server) remoteOper(l *linkConn, m irc.Message) {
 	if len(m.Params) < 3 || !l.peer.Bee {
 		return
 	}
-	target, name, pw := m.Params[0], m.Params[1], m.Params[2]
+	target, name, pw := m.Params[0], m.Params[1], m.Params[len(m.Params)-1]
+	certfp := ""
+	if len(m.Params) >= 4 && m.Params[2] != "*" {
+		certfp = strings.ToLower(m.Params[2])
+	}
 	_, svcSID, _ := s.cfg.ServicesServer()
 	if target != s.cfg.Server.SID && target != svcSID {
 		if r := s.links.servers[target]; r != nil && r.via != l && r.via != nil && r.via.peer.Bee {
@@ -110,12 +119,27 @@ func (s *Server) remoteOper(l *linkConn, m irc.Message) {
 			return
 		}
 	}
+	grant := func() {
+		v := s.viewOf(o)
+		s.operAnswer(uid, "OK :"+grantJSON(v, o.Account))
+		if s.links.remoteOpers == nil {
+			s.links.remoteOpers = map[string]remoteGrant{}
+		}
+		s.links.remoteOpers[uid] = remoteGrant{id: a.ID, class: v.class}
+		s.snotice("%s (%s@%s) is now an operator on %s as %s (entry checked here): %s", u.Nick, u.TrueIdent(), u.RealHost, u.Server, o.Account, v.flags)
+	}
 	switch {
 	case o == nil || !operHostOK(o, u):
 		fail(irc.ErrNoOperHost, "No oper entry for you from this host", "no matching oper entry")
 		return
 	case o.Disabled != "":
 		fail(irc.ErrNoOperHost, "Your oper entry is disabled: "+o.Disabled, "entry disabled")
+		return
+	case len(o.CertFPs) > 0 && !certMatches(o.CertFPs, certfp):
+		fail(irc.ErrNoOperHost, "No oper entry for you from this host", "TLS certificate doesn't match")
+		return
+	case len(o.CertFPs) > 0 && o.PassHash == "":
+		grant() // the certificate alone
 		return
 	case o.PassHash == "":
 		fail(irc.ErrNoOperHost, "No oper password is set for "+o.Account+" yet (/oper once on "+s.cfg.Server.Name+")", "no oper password yet")
@@ -136,13 +160,7 @@ func (s *Server) remoteOper(l *linkConn, m irc.Message) {
 		}
 		switch res {
 		case services.PwOK:
-			v := s.viewOf(o)
-			s.operAnswer(uid, "OK :"+grantJSON(v, o.Account))
-			if s.links.remoteOpers == nil {
-				s.links.remoteOpers = map[string]remoteGrant{}
-			}
-			s.links.remoteOpers[uid] = remoteGrant{id: a.ID, class: v.class}
-			s.snotice("%s (%s@%s) is now an operator on %s as %s (entry checked here): %s", u.Nick, u.TrueIdent(), u.RealHost, u.Server, o.Account, v.flags)
+			grant()
 		case services.PwLocked:
 			fail(irc.ErrPasswdMismatch, "Too many wrong passwords. Try again in "+services.RoundUp(s.lockedFor(operLockKey(a.ID), u.IP)), "locked out")
 		case services.PwBusy:

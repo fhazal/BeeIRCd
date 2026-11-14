@@ -111,3 +111,31 @@ func (s *Server) coversOper(c *Client, o *store.Oper) bool {
 	}
 	return true
 }
+
+// certMatches reports whether fp (the user's TLS client certificate
+// fingerprint) is one of fps.
+func certMatches(fps []string, fp string) bool {
+	if fp == "" {
+		return false
+	}
+	for _, f := range fps {
+		if strings.EqualFold(f, fp) {
+			return true
+		}
+	}
+	return false
+}
+
+// certFPs reads up to 5 SHA-256 fingerprints (hex, colons allowed) into
+// lower-case hex.
+func certFPs(words []string) ([]string, bool) {
+	var out []string
+	for _, w := range words {
+		fp := strings.ToLower(strings.ReplaceAll(w, ":", ""))
+		if len(fp) != 64 || strings.Trim(fp, "0123456789abcdef") != "" {
+			return nil, false
+		}
+		out = append(out, fp)
+	}
+	return out, len(out) > 0 && len(out) <= 5
+}

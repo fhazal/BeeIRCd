@@ -22,8 +22,12 @@ type Oper struct {
 	Swhois    []string
 	Hosts     []string
 	PassHash  string // the oper password (argon2id), "" = not set yet
-	AddedBy   string
-	AddedAt   time.Time
+	// CertFPs are TLS client certificate fingerprints (SHA-256, lower-case
+	// hex). With any set, /oper needs one of them; with no PassHash too,
+	// the certificate alone opers (UnrealIRCd's certfp oper blocks).
+	CertFPs []string
+	AddedBy string
+	AddedAt time.Time
 	// Disabled is why the entry may not /oper now ("" = it may); DisabledBy
 	// who did it.
 	Disabled   string
@@ -113,9 +117,12 @@ func scanOper(row interface{ Scan(...any) error }) (*Oper, error) {
 	var o Oper
 	var hosts string
 	var at int64
-	var swhois string
+	var swhois, certfps string
 	err := row.Scan(&o.AccountID, &o.Account, &o.Flags, &o.Title, &hosts, &o.PassHash, &o.AddedBy, &at,
-		&o.Class, &o.Vhost, &swhois, &o.Disabled, &o.DisabledBy)
+		&o.Class, &o.Vhost, &swhois, &o.Disabled, &o.DisabledBy, &certfps)
+	if certfps != "" {
+		o.CertFPs = strings.Fields(certfps)
+	}
 	if swhois != "" {
 		o.Swhois = strings.Split(swhois, "\n")
 	}
@@ -139,12 +146,13 @@ func (s *Store) SaveOper(o *Oper) error {
 	if s.c.accounts[o.AccountID] == nil {
 		return errors.New("no such account")
 	}
-	_, err := s.db.Exec(`INSERT INTO opers (account_id, flags, title, hosts, pass_hash, added_by, added_at, class, vhost, swhois, disabled, disabled_by)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	_, err := s.db.Exec(`INSERT INTO opers (account_id, flags, title, hosts, pass_hash, added_by, added_at, class, vhost, swhois, disabled, disabled_by, certfps)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(account_id) DO UPDATE SET flags = excluded.flags, title = excluded.title, hosts = excluded.hosts, pass_hash = excluded.pass_hash,
-		class = excluded.class, vhost = excluded.vhost, swhois = excluded.swhois, disabled = excluded.disabled, disabled_by = excluded.disabled_by`,
+		class = excluded.class, vhost = excluded.vhost, swhois = excluded.swhois, disabled = excluded.disabled, disabled_by = excluded.disabled_by,
+		certfps = excluded.certfps`,
 		o.AccountID, o.Flags, o.Title, strings.Join(o.Hosts, " "), o.PassHash, o.AddedBy, o.AddedAt.Unix(),
-		o.Class, o.Vhost, strings.Join(o.Swhois, "\n"), o.Disabled, o.DisabledBy)
+		o.Class, o.Vhost, strings.Join(o.Swhois, "\n"), o.Disabled, o.DisabledBy, strings.Join(o.CertFPs, " "))
 	if err != nil {
 		return err
 	}
@@ -158,6 +166,10 @@ func (s *Store) SaveOper(o *Oper) error {
 	cp.Swhois = append([]string(nil), o.Swhois...)
 	if len(cp.Swhois) == 0 {
 		cp.Swhois = nil
+	}
+	cp.CertFPs = strings.Fields(strings.Join(o.CertFPs, " "))
+	if len(cp.CertFPs) == 0 {
+		cp.CertFPs = nil
 	}
 	if have := s.c.opers[o.AccountID]; have != nil {
 		cp.AddedBy, cp.AddedAt = have.AddedBy, have.AddedAt
@@ -284,7 +296,7 @@ func (s *Store) DelSessionExcept(mask string) (bool, error) {
 
 // migrateOpers adds columns that older databases lack.
 func migrateOpers(db *sql.DB) error {
-	for _, col := range []string{"pass_hash", "class", "vhost", "swhois", "disabled", "disabled_by"} {
+	for _, col := range []string{"pass_hash", "class", "vhost", "swhois", "disabled", "disabled_by", "certfps"} {
 		var n int
 		if err := db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('opers') WHERE name = ?", col).Scan(&n); err != nil {
 			return err

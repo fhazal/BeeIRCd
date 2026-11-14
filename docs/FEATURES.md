@@ -94,6 +94,7 @@ Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few 
 | Feature | | Notes |
 | --- | --- | --- |
 | `/oper <nick> <password>` with a separate oper password per oper | ✅ | identifying to NickServ never opers you |
+| Oper by TLS client certificate, with or without a password | 🔜 | like UnrealIRCd's certfp oper blocks |
 | Oper flags `a b c g h k s` and oper classes | ✅ | built-in helper, globop, admin, netadmin; oper vhost and swhois |
 | `/KILL`, `/WALLOPS`, server notices | ✅ | |
 | One network ban list: AKILL / G-line, ZLINE, Q-line, R-line (realname), SHUN, ELINE exemptions, all with expiry | ✅ | matches the real host and IP, never the cloak |
