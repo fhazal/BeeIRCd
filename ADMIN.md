@@ -305,7 +305,13 @@ then open <http://127.0.0.1:8787>. `beeircd install` sets it up as the
   do), **Chat** (only with `chat_url`, below), **My nick** (NickServ SET
   KILL, HIDE, AUTOOP, PRIVATE and GREET as switches, run as the real SET
   with NickServ's own answer), **My channels** (where they are founder or
-  on the access list) and **Memos** (read, reply, delete and send: the
+  on the access list; each channel opens its own page: People now,
+  Access, AKICK, Settings with topic, switches, description and
+  successor, the channel's Memo box, and for the founder Hand over and
+  Drop, asked twice. Each tab shows only when their ChanServ level allows
+  it on IRC, and every change is the real ChanServ ACCESS, AKICK, SET,
+  TOPIC or DROP with ChanServ's own answer and log line; the panel never
+  uses oper rights there) and **Memos** (read, reply, delete and send: the
   real MemoServ SEND with its limits, ignores and send delay). Opers
   start on Overview and find the YOU pages at the top of the menu. Opers sign
   in with their oper password for the admin pages, or with their NickServ

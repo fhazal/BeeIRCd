@@ -85,6 +85,11 @@ const (
 	CmdMemoRead = "memo-read" // ID (memo) -> Done; marks it read
 	CmdMemoDel  = "memo-del"  // ID (memo) -> Done
 	CmdMemoSend = "memo-send" // Name (nick or #channel) + Value (text) -> Done (MemoServ's answer)
+
+	// Channel manager: one channel the person is on the access list of.
+	CmdMyChan   = "my-chan"   // Name -> Chan
+	CmdChanDo   = "chan-do"   // Name + Kind (ACCESS, AKICK, SET, TOPIC, DROP) + Value/Mask/Reason -> Done (ChanServ's answer)
+	CmdChanMemo = "chan-memo" // Name + ID + Value ("read" or "del") -> Done
 )
 
 // MaxRequest is the most bytes one request may be (the Hive Panel takes
@@ -155,6 +160,7 @@ type Response struct {
 	Chat     *ChatKey     `json:"chat,omitempty"`
 	Home     *MyHome      `json:"home,omitempty"`
 	Memos    *MyMemos     `json:"memos,omitempty"`
+	Chan     *MyChan      `json:"chan,omitempty"`
 	// Denied is set (with Error) when the oper may not do this: signed
 	// out, or missing a flag. The panel then signs them out or says so.
 	Denied string `json:"denied,omitempty"` // "signin" or "flag"
@@ -458,6 +464,62 @@ type MyMemo struct {
 type MyMemos struct {
 	Memos []MyMemo `json:"memos"`
 	Limit int      `json:"limit"`
+}
+
+// MyChan is one channel in the channel manager. Lists are only filled
+// when the person's level may see them (Can).
+type MyChan struct {
+	Name        string          `json:"name"`
+	Level       string          `json:"level"`
+	Founder     string          `json:"founder"`
+	Successor   string          `json:"successor,omitempty"`
+	Description string          `json:"description,omitempty"`
+	URL         string          `json:"url,omitempty"`
+	Registered  time.Time       `json:"registered"`
+	Topic       string          `json:"topic,omitempty"`
+	Users       int             `json:"users"`
+	Can         ChanCan         `json:"can"`
+	Toggles     map[string]bool `json:"toggles,omitempty"` // with Can.Set: SET option -> on
+	People      []ChanPerson    `json:"people"`
+	Access      []ChanAccess    `json:"access,omitempty"`
+	Akicks      []ChanAkick     `json:"akicks,omitempty"`
+	Memos       []MyMemo        `json:"memos,omitempty"`
+	MemoLimit   int             `json:"memoLimit,omitempty"`
+}
+
+// ChanCan is what the person's ChanServ level allows on the channel.
+type ChanCan struct {
+	AccessList   bool `json:"accessList,omitempty"`
+	AccessChange bool `json:"accessChange,omitempty"`
+	Akick        bool `json:"akick,omitempty"`
+	Set          bool `json:"set,omitempty"`
+	Topic        bool `json:"topic,omitempty"`
+	Memo         bool `json:"memo,omitempty"`
+	Founder      bool `json:"founder,omitempty"`
+}
+
+// ChanPerson is someone in the channel now.
+type ChanPerson struct {
+	Nick   string `json:"nick"`
+	Prefix string `json:"prefix,omitempty"`
+	Away   bool   `json:"away,omitempty"`
+}
+
+// ChanAccess is one access list entry.
+type ChanAccess struct {
+	Nick   string    `json:"nick"`
+	Level  string    `json:"level"`
+	By     string    `json:"by,omitempty"`
+	At     time.Time `json:"at"`
+	Online bool      `json:"online,omitempty"`
+}
+
+// ChanAkick is one AKICK entry.
+type ChanAkick struct {
+	Mask   string    `json:"mask"`
+	Reason string    `json:"reason,omitempty"`
+	By     string    `json:"by,omitempty"`
+	At     time.Time `json:"at"`
 }
 
 // Hello is what the sign-in page may know before anyone signs in.

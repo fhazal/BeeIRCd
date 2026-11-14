@@ -195,6 +195,9 @@ const (
 // logCmd posts Anope's command line: KIND: mask (account) used NAME [on
 // #chan] text, from sv.
 func (s *Services) logCmd(c *Client, sv *service, kind, channel, text string) {
+	if c != nil {
+		c.logged = true
+	}
 	if s.logChannel() == "" || c == nil || c.user == nil {
 		return
 	}

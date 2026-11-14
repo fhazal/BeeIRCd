@@ -142,6 +142,7 @@
     { id: 'mynick', label: 'My nick', icon: 'user', you: true, eyebrow: 'NickServ', make: myNickPage },
     { id: 'mychannels', label: 'My channels', icon: 'hash', you: true, eyebrow: 'ChanServ', make: myChannelsPage },
     { id: 'memos', label: 'Memos', icon: 'mail', you: true, eyebrow: 'MemoServ', make: memosPage },
+    { id: 'chan', label: 'Channel', icon: 'hash', you: true, nav: false, parent: 'mychannels', make: chanPage },
     { id: 'overview', label: 'Overview', icon: 'overview', make: overviewPage },
     { id: 'people', label: 'People', icon: 'people', eyebrow: 'Live list', make: peoplePage },
     { id: 'channels', label: 'Channels', icon: 'hash', eyebrow: 'Live list', make: channelsPage },
@@ -322,9 +323,10 @@
     if (!me.member) startLive(); // the live overview is for opers
   }
   function drawNav() {
-    const link = p => h('a', { href: '#/' + p.id, 'data-page': p.id, class: page && page.id === p.id ? 'on' : null,
-      'aria-current': page && page.id === p.id ? 'page' : null }, icon(p.icon), p.label);
-    const you = pages.filter(p => p.you && allowed(p)), server = pages.filter(p => !p.you && allowed(p));
+    const here = p => !!page && (page.id === p.id || page.parent === p.id);
+    const link = p => h('a', { href: '#/' + p.id, 'data-page': p.id, class: here(p) ? 'on' : null,
+      'aria-current': here(p) ? 'page' : null }, icon(p.icon), p.label);
+    const you = pages.filter(p => p.you && p.nav !== false && allowed(p)), server = pages.filter(p => !p.you && allowed(p));
     put(navEl, you.length ? h('div', { class: 'nlabel', text: 'You' }) : null, ...you.map(link),
       server.length ? h('div', { class: 'nlabel', text: 'Server' }) : null, ...server.map(link));
     drawCount();
@@ -338,6 +340,7 @@
     if (page && page.leave) page.leave();
     page = p.make();
     page.id = p.id;
+    page.parent = p.parent;
     put(mainEl, page.el);
     put(crumbEl, 'Hive Panel / ', h('b', { text: p.label }));
     document.title = p.label + ' · Hive Panel';
@@ -395,7 +398,7 @@
     if (!me || jumpEl) return;
     const back = document.activeElement;
     const items = [
-      ...pages.filter(allowed).map(p => ({ grp: 'Pages', label: p.label, icon: p.icon, run: () => { location.hash = '#/' + p.id; } })),
+      ...pages.filter(p => p.nav !== false && allowed(p)).map(p => ({ grp: 'Pages', label: p.label, icon: p.icon, run: () => { location.hash = '#/' + p.id; } })),
       has('a') ? { grp: 'Actions', label: 'Check the config', icon: 'check', run: () => quick('/api/check', checkLines, 'Check') } : null,
       has('a') ? { grp: 'Actions', label: 'Rehash', icon: 'refresh', run: () => quick('/api/rehash', rehashLines, 'Rehash') } : null,
       me.owner ? { grp: 'Actions', label: 'Back up now', icon: 'archive', run: () => quick('/api/backup', backupLines, 'Backup') } : null,
@@ -2137,12 +2140,13 @@
         m.needs.length ? h('section', { class: 'card hm-needs' }, hmHead('alert', 'Needs you'),
           m.needs.map(n => h('div', { class: 'row' },
             h('span', {}, h('span', {}, h('b', { text: n.text }), h('br'), h('span', { class: 'hint', text: n.hint }))),
-            n.page ? go(n.page, (pages.find(p => p.id === n.page) || {}).label || 'Open') : null))) : null);
+            n.page.startsWith('chan/') ? h('a', { class: 'btn', href: chanHref(n.page.slice(5)) }, 'Set successor', icon('arrow'))
+              : n.page ? go(n.page, (pages.find(p => p.id === n.page) || {}).label || 'Open') : null))) : null);
 
       put(right,
         h('section', { class: 'card' }, hmHead('hash', 'My channels now'),
           m.channels.length ? m.channels.map(c => h('div', { class: 'row' },
-            h('span', {}, h('b', { class: 'mono', text: c.name }), h('span', { class: 'role' + (c.founder ? ' on' : ''), text: c.level })),
+            h('span', {}, h('a', { class: 'mono cm-link', href: chanHref(c.name), text: c.name }), h('span', { class: 'role' + (c.founder ? ' on' : ''), text: c.level })),
             h('span', { class: 'end', text: [c.users + ' here', c.status ? 'you have ' + c.status : '', c.topicBy ? 'topic by ' + c.topicBy + ' ' + ago(c.topicAt) : ''].filter(Boolean).join(' · ') })))
             : h('p', { class: 'empty', text: 'No channels yet. Register one on IRC: /msg ChanServ REGISTER #channel' })),
         m.access.length ? h('section', { class: 'card' }, hmHead('list', 'Access lists', 'newest additions'),
@@ -2244,6 +2248,257 @@
   }
 
 
+  // ---------- Channel manager: one channel, by your ChanServ level ----------
+  // Every change is the real ChanServ command (ACCESS, AKICK, SET, TOPIC,
+  // DROP) with ChanServ's own answer. Tabs you can't use aren't shown; the
+  // server checks again on every click.
+  const chanHref = name => '#/chan/' + encodeURIComponent(name);
+  const LEVELS = ['VOP', 'HOP', 'AOP', 'SOP', 'QOP'];
+  const TOGGLES = [
+    ['KEEPTOPIC', 'Keep the topic', 'It comes back when the channel reopens.'],
+    ['TOPICLOCK', 'Lock the topic', 'Only those with the TOPIC privilege can change it.'],
+    ['SECUREOPS', 'Secure ops', 'Only people on the access list may hold @.'],
+    ['RESTRICTED', 'Members only', 'People not on the access list are kicked.'],
+    ['PEACE', 'Peace', 'Nobody can kick, ban or deop someone at their level or above.'],
+    ['PRIVATE', 'Private', 'Hidden from ChanServ LIST.'],
+    ['SIGNKICK', 'Signed kicks', 'ChanServ kicks say who asked for them.'],
+    ['PERSIST', 'Stay open', 'ChanServ keeps the channel open when everyone leaves.'],
+    ['KEEPMODES', 'Keep modes', 'The modes come back when the channel reopens.'],
+    ['SECURE', 'Secure', 'Access only for people who identified, not just recognised.'],
+  ];
+  const QUICK = ['KEEPTOPIC', 'TOPICLOCK', 'SECUREOPS', 'RESTRICTED'];
+  function chanPage() {
+    const name = decodeURIComponent((location.hash.match(/^#\/chan\/(.+)$/) || [])[1] || '');
+    let tab = 'access', d = null;
+    const title = h('h1', { text: name });
+    const chips = h('div', { class: 'hm-facts' });
+    const tabs = h('div', { class: 'cm-tabs', role: 'tablist' });
+    const body = h('div', { class: 'main-stack' }, h('p', { class: 'empty', text: 'Loading…' }));
+    const el = h('div', { class: 'main-stack' },
+      h('header', { class: 'head', 'data-deco': '1' }, h('div', { class: 'head-text' }, h('div', { class: 'eyebrow', text: 'ChanServ' }), title, chips),
+        me.chat ? h('div', { class: 'head-btns' }, h('a', { class: 'btn', href: '#/chat' }, icon('message'), 'Chat')) : null),
+      tabs, body);
+
+    // run sends one ChanServ change and reloads the page on success.
+    async function run(btn, kind, value, mask, reason) {
+      const go = async () => {
+        try {
+          const r = await api('POST', '/api/chan-do', { name: d.name, kind, value: value || '', mask: mask || '', reason: reason || '' });
+          toast([r.done.text]);
+          await load();
+          return true;
+        } catch (e) { toastErr(e.message); return false; }
+      };
+      return btn ? busy(btn, go) : go();
+    }
+    const ago2 = t => t && new Date(t).getFullYear() > 1971 ? ago(t) : '';
+
+    function peopleTab() {
+      return h('section', { class: 'card' }, hmHead('people', 'People here now', d.users + ' here'),
+        d.people.length ? h('div', { class: 'chips' }, d.people.map(p => h('span', { class: 'chip2' + (/^[~&@%]/.test(p.prefix) ? ' op' : p.prefix === '+' ? ' v' : ''), text: (p.prefix || '') + p.nick + (p.away ? ' (away)' : '') })))
+          : h('p', { class: 'empty', text: 'Nobody is in ' + d.name + ' right now.' }));
+    }
+
+    function levelPick(value, id) {
+      const sel = h('select', { class: 'in cm-lvl', id, 'aria-label': 'Level' }, LEVELS.map(l => h('option', { value: l, text: l })));
+      if (value && !LEVELS.includes(value)) sel.prepend(h('option', { value, text: value }));
+      sel.value = value || 'VOP';
+      return sel;
+    }
+
+    function accessTab() {
+      const can = d.can.accessChange;
+      const rows = (d.access || []).map(a => {
+        const lv = can ? levelPick(a.level) : h('span', { class: 'role', text: a.level });
+        if (can) lv.addEventListener('change', async () => { lv.disabled = true; if (!await run(null, 'ACCESS', 'ADD', a.nick, lv.value)) lv.value = a.level; lv.disabled = false; });
+        const del = can ? h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Remove ' + a.nick, title: 'Remove ' + a.nick }, icon('x')) : null;
+        if (del) del.addEventListener('click', () => run(del, 'ACCESS', 'DEL', a.nick));
+        return h('tr', {}, h('td', {}, h('b', { text: a.nick }), a.online ? h('span', { class: 'dot cm-on', title: 'online now' }) : null), h('td', {}, lv),
+          h('td', { class: 'mono', text: a.by || '' }), h('td', { class: 'mono', text: ago2(a.at) }), h('td', { class: 'cm-x' }, del));
+      });
+      const list = h('section', { class: 'card' }, hmHead('list', 'Access list', can ? 'who gets what · ChanServ ACCESS' : 'you can see it, not change it'),
+        rows.length ? h('div', { class: 'wrap' }, h('table', { class: 'cm-tbl' }, h('thead', {}, h('tr', {}, ['Nick', 'Level', 'Added by', 'When', ''].map(t => h('th', { text: t })))), h('tbody', {}, rows)))
+          : h('p', { class: 'empty', text: 'Nobody is on the list yet. Founders don\'t need to be.' }));
+      if (can) {
+        const nick = h('input', { class: 'in', type: 'text', maxlength: '40', autocomplete: 'off', spellcheck: 'false', placeholder: 'nick (must be registered)', 'aria-label': 'Nick to add' });
+        const lv = levelPick('VOP');
+        const add = h('button', { type: 'submit', class: 'btn main' }, icon('plus'), 'Add');
+        const f = h('form', { class: 'cm-add' }, nick, lv, add);
+        f.addEventListener('submit', async e => { e.preventDefault(); if (!nick.value.trim()) { nick.focus(); return; } if (await run(add, 'ACCESS', 'ADD', nick.value.trim(), lv.value)) nick.value = ''; });
+        list.append(f);
+      }
+      const side = [];
+      if (d.can.founder) side.push(successorCard());
+      if (d.can.set) side.push(togglesCard('Quick settings', QUICK, 'the rest on Settings'));
+      if (d.can.founder) side.push(dangerCard());
+      return side.length ? h('div', { class: 'band21' }, list, h('div', { class: 'hm-col' }, side)) : list;
+    }
+
+    function successorCard() {
+      const inp = h('input', { class: 'in', type: 'text', maxlength: '40', value: d.successor || '', autocomplete: 'off', spellcheck: 'false', placeholder: 'a registered nick', 'aria-label': 'Successor' });
+      const save = h('button', { type: 'submit', class: 'btn', text: 'Save' });
+      const f = h('form', { class: 'cm-add plain' }, inp, save);
+      f.addEventListener('submit', e => { e.preventDefault(); run(save, 'SET', 'SUCCESSOR', '', inp.value.trim() || 'OFF'); });
+      return h('section', { class: 'card' }, hmHead('user', 'Successor', d.successor ? '' : 'none yet'),
+        h('p', { class: 'note', text: 'Takes ' + d.name + ' over if your nick expires. Empty removes it.' }), f);
+    }
+
+    function togglesCard(titleText, names, end) {
+      return h('section', { class: 'card' }, hmHead('settings', titleText, end),
+        names.map(n => {
+          const t = TOGGLES.find(x => x[0] === n), id = 'cm-' + n;
+          const input = h('input', { type: 'checkbox', id });
+          input.checked = !!d.toggles[n];
+          input.addEventListener('change', async () => {
+            input.disabled = true;
+            if (!await run(null, 'SET', n, '', input.checked ? 'ON' : 'OFF')) input.checked = !input.checked;
+            input.disabled = false;
+          });
+          return h('div', { class: 'my-row' }, h('label', { class: 'ck', for: id }, input, t[1]), h('span', { class: 'hint', text: t[2] }));
+        }));
+    }
+
+    // dangerCard: hand over and drop, founder only, asked twice (the
+    // channel name typed again, like /cs drop #chan #chan).
+    function dangerCard() {
+      const ask = h('div', { class: 'confirm', hidden: true });
+      const hand = h('button', { type: 'button', class: 'btn', text: 'Hand over' });
+      const drop = h('button', { type: 'button', class: 'btn bad', text: 'Drop' });
+      hand.addEventListener('click', () => {
+        const who = h('input', { class: 'in', type: 'text', maxlength: '40', autocomplete: 'off', placeholder: 'the new founder\'s nick' });
+        const again = h('input', { class: 'in', type: 'text', maxlength: '64', autocomplete: 'off', placeholder: d.name });
+        const ok = h('button', { type: 'button', class: 'btn main', text: 'Give it away' });
+        const no = h('button', { type: 'button', class: 'btn ghost', text: 'Cancel' });
+        no.addEventListener('click', () => { ask.hidden = true; });
+        ok.addEventListener('click', () => {
+          if (again.value.trim().toLowerCase() !== d.name.toLowerCase()) { again.classList.add('wrong'); again.focus(); return; }
+          if (!who.value.trim()) { who.focus(); return; }
+          run(ok, 'SET', 'FOUNDER', '', who.value.trim()).then(done => { if (done) location.hash = '#/mychannels'; });
+        });
+        put(ask, h('label', { class: 'f' }, 'New founder', who), h('label', { class: 'f' }, 'Type ' + d.name + ' to confirm', again), ok, no);
+        ask.hidden = false; who.focus();
+      });
+      drop.addEventListener('click', () => {
+        const again = h('input', { class: 'in', type: 'text', maxlength: '64', autocomplete: 'off', placeholder: d.name });
+        const ok = h('button', { type: 'button', class: 'btn bad', text: 'Drop ' + d.name });
+        const no = h('button', { type: 'button', class: 'btn ghost', text: 'Cancel' });
+        no.addEventListener('click', () => { ask.hidden = true; });
+        ok.addEventListener('click', () => {
+          if (again.value.trim().toLowerCase() !== d.name.toLowerCase()) { again.classList.add('wrong'); again.focus(); return; }
+          busy(ok, async () => {
+            try {
+              toast([(await api('POST', '/api/chan-do', { name: d.name, kind: 'DROP', value: '', mask: again.value.trim(), reason: '' })).done.text]);
+              location.hash = '#/mychannels';
+            } catch (e) { toastErr(e.message); }
+          });
+        });
+        put(ask, h('label', { class: 'f' }, 'The access list, AKICKs and settings go. Type ' + d.name + ' to drop it', again), ok, no);
+        ask.hidden = false; again.focus();
+      });
+      return h('section', { class: 'card' }, hmHead('alert', 'Hand over or drop', 'founder only'),
+        h('div', { class: 'row' }, h('span', {}, 'Give ' + d.name + ' to someone else'), hand),
+        h('div', { class: 'row' }, h('span', {}, 'Drop the channel'), drop), ask);
+    }
+
+    function akickTab() {
+      const rows = (d.akicks || []).map(k => {
+        const del = h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Remove ' + k.mask, title: 'Remove' }, icon('x'));
+        del.addEventListener('click', () => run(del, 'AKICK', 'DEL', k.mask));
+        return h('tr', {}, h('td', { class: 'mono', text: k.mask }), h('td', { text: k.reason || '' }), h('td', { class: 'mono', text: k.by || '' }),
+          h('td', { class: 'mono', text: ago2(k.at) }), h('td', { class: 'cm-x' }, del));
+      });
+      const mask = h('input', { class: 'in', type: 'text', maxlength: '120', autocomplete: 'off', spellcheck: 'false', placeholder: 'nick or mask, like *!*@bad.example', 'aria-label': 'Nick or mask' });
+      const why = h('input', { class: 'in', type: 'text', maxlength: '200', autocomplete: 'off', placeholder: 'reason (shown in the kick)', 'aria-label': 'Reason' });
+      const add = h('button', { type: 'submit', class: 'btn main' }, icon('plus'), 'Add');
+      const f = h('form', { class: 'cm-add' }, mask, why, add);
+      f.addEventListener('submit', async e => { e.preventDefault(); if (!mask.value.trim()) { mask.focus(); return; } if (await run(add, 'AKICK', 'ADD', mask.value.trim(), why.value.trim())) { mask.value = ''; why.value = ''; } });
+      return h('section', { class: 'card' }, hmHead('bans', 'AKICK', 'kicked and banned when they join'),
+        rows.length ? h('div', { class: 'wrap' }, h('table', { class: 'cm-tbl' }, h('thead', {}, h('tr', {}, ['Mask', 'Reason', 'Added by', 'When', ''].map(t => h('th', { text: t })))), h('tbody', {}, rows)))
+          : h('p', { class: 'empty', text: 'The AKICK list is empty.' }), f);
+    }
+
+    function settingsTab() {
+      const cards = [];
+      if (d.can.topic) {
+        const t = h('input', { class: 'in', type: 'text', maxlength: '390', value: d.topic || '', autocomplete: 'off', 'aria-label': 'Topic' });
+        const save = h('button', { type: 'submit', class: 'btn', text: 'Set topic' });
+        const f = h('form', { class: 'cm-add plain' }, t, save);
+        f.addEventListener('submit', e => { e.preventDefault(); run(save, 'TOPIC', '', '', t.value.trim()); });
+        cards.push(h('section', { class: 'card' }, hmHead('message', 'Topic'), f));
+      }
+      if (d.can.set) {
+        const text = (label, opt, value, max) => {
+          const i = h('input', { class: 'in', type: 'text', maxlength: String(max), value: value || '', autocomplete: 'off', 'aria-label': label });
+          const save = h('button', { type: 'submit', class: 'btn', text: 'Save' });
+          const f = h('form', { class: 'cm-add plain' }, i, save);
+          f.addEventListener('submit', e => { e.preventDefault(); if (i.value.trim()) run(save, 'SET', opt, '', i.value.trim()); else i.focus(); });
+          return h('label', { class: 'f' }, label, f);
+        };
+        cards.push(h('section', { class: 'card' }, hmHead('hash', 'About the channel'),
+          text('Description', 'DESCRIPTION', d.description, 200), text('Web address', 'URL', d.url, 200)));
+        cards.push(togglesCard('Switches', TOGGLES.map(x => x[0])));
+      }
+      if (d.can.founder) cards.push(successorCard());
+      return h('div', { class: 'hm-cols' }, h('div', { class: 'hm-col' }, cards.filter((_, i) => i % 2 === 0)), h('div', { class: 'hm-col' }, cards.filter((_, i) => i % 2 === 1)));
+    }
+
+    function memoTab() {
+      const memos = (d.memos || []).slice().reverse();
+      const rows = memos.map(x => {
+        const bodyEl = h('div', { class: 'mm-body', hidden: true });
+        const dot = h('span', { class: 'dot ' + (x.read ? 'off' : 'warn') });
+        const btn = h('button', { type: 'button', class: 'mm-head', 'aria-expanded': 'false' },
+          dot, h('b', { text: x.from }), h('span', { class: 'tx', text: x.text }), h('span', { class: 'tm', text: when(x.sent) }));
+        const r = h('div', { class: 'mm-row' + (x.read ? ' read' : '') }, btn, bodyEl);
+        const del = h('button', { type: 'button', class: 'btn bad' }, icon('trash'), 'Delete');
+        del.addEventListener('click', () => busy(del, async () => {
+          try { await api('POST', '/api/chan-memo', { name: d.name, id: x.id, verb: 'del' }); toast(['Memo from ' + x.from + ' deleted.']); await load(); } catch (e) { toastErr(e.message); }
+        }));
+        put(bodyEl, h('p', { text: x.text }), h('div', { class: 'row-btns' }, del));
+        btn.addEventListener('click', async () => {
+          const open = bodyEl.hidden;
+          bodyEl.hidden = !open;
+          r.classList.toggle('open', open);
+          btn.setAttribute('aria-expanded', String(open));
+          if (!open || x.read) return;
+          try { await api('POST', '/api/chan-memo', { name: d.name, id: x.id, verb: 'read' }); x.read = true; r.classList.add('read'); dot.className = 'dot off'; } catch (e) { toastErr(e.message); }
+        });
+        return r;
+      });
+      return h('section', { class: 'card' }, hmHead('mail', 'Memo box', memos.length + ' of ' + d.memoLimit + ' kept'),
+        rows.length ? rows : h('p', { class: 'empty', text: 'No memos for ' + d.name + '. Anyone can leave one: /msg MemoServ SEND ' + d.name + ' and a message.' }));
+    }
+
+    function draw() {
+      const list = [['people', 'people', 'People now', d.people.length, true], ['access', 'list', 'Access', (d.access || []).length, d.can.accessList],
+        ['akick', 'bans', 'AKICK', (d.akicks || []).length, d.can.akick], ['settings', 'settings', 'Settings', null, d.can.set || d.can.topic || d.can.founder],
+        ['memo', 'mail', 'Memo box', (d.memos || []).length, d.can.memo]].filter(x => x[4]);
+      if (!list.some(x => x[0] === tab)) tab = list[0][0];
+      put(tabs, list.map(([id, ic, label, n]) => {
+        const b = h('button', { type: 'button', role: 'tab', class: 'cm-tab' + (id === tab ? ' on' : ''), 'aria-selected': String(id === tab) },
+          icon(ic), label, n != null ? h('span', { class: 'cm-n', text: n }) : null);
+        b.addEventListener('click', () => { tab = id; draw(); });
+        return b;
+      }));
+      const make = { people: peopleTab, access: accessTab, akick: akickTab, settings: settingsTab, memo: memoTab }[tab];
+      put(body, make());
+    }
+    async function load() {
+      try { d = (await api('GET', '/api/my-chan?name=' + encodeURIComponent(name))).chan; } catch (e) { put(body, h('p', { class: 'empty', text: e.message })); put(tabs); return; }
+      title.textContent = d.name;
+      put(crumbEl, 'Hive Panel / ', h('a', { href: '#/mychannels', text: 'My channels' }), ' / ', h('b', { text: d.name }));
+      document.title = d.name + ' · Hive Panel';
+      put(chips,
+        h('span', { class: 'role' + (d.can.founder ? ' on' : ''), text: d.level }),
+        h('span', { class: 'role', text: d.users + ' here' }),
+        h('span', { class: 'role', text: 'registered ' + day(d.registered) }),
+        d.topic ? h('span', { class: 'role cm-topic', text: 'topic: ' + d.topic }) : null);
+      draw();
+    }
+    load();
+    return { el };
+  }
+
   // ---------- My nick and My channels (members and opers) ----------
   // NickServ SET as switches: each change runs the real SET on the server
   // and shows NickServ's own answer.
@@ -2304,12 +2559,12 @@
     const list = h('div', {}, h('p', { class: 'empty', text: 'Loading…' }));
     const el = h('div', { class: 'main-stack' },
       h('header', { class: 'head' }, h('div', { class: 'head-text' }, h('h1', { text: 'My channels' }),
-        h('span', { class: 'sub', text: 'Where you are the founder or on the access list.' }))),
+        h('span', { class: 'sub', text: 'Where you are the founder or on the access list. Open one to run it.' }))),
       h('section', { class: 'card' }, h('h2', { text: 'Channels' }), list));
     api('GET', '/api/my-nick').then(d => {
       const chans = (d.myNick && d.myNick.channels) || [];
       put(list, chans.length ? chans.map(c => h('div', { class: 'row' },
-        h('span', {}, h('b', { class: 'mono', text: c.name }), h('span', { class: 'hint', text: '  ' + c.users + ' here' })),
+        h('span', {}, h('a', { class: 'mono cm-link', href: chanHref(c.name), text: c.name }), h('span', { class: 'hint', text: '  ' + c.users + ' here' })),
         h('span', { class: 'role' + (c.level === 'Founder' ? ' on' : ''), text: c.level })))
         : h('p', { class: 'empty', text: 'You aren\'t on the access list of any channel yet. Register one on IRC: /msg ChanServ REGISTER #channel' }));
     }).catch(e => put(list, h('p', { class: 'empty', text: e.message })));

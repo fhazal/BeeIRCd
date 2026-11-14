@@ -173,6 +173,7 @@ type Client struct {
 	cmdName      string       // the command as typed, for log lines (Anope's source.command)
 	vhostOn      bool         // a HostServ vhost is shown
 	reply        func(string) // set for the Hive Panel's stand-in client: answers go here, not by notice
+	logged       bool         // a command logged a change (the Hive Panel's stand-in reads it)
 }
 
 func (c *Client) isOper() bool    { return c.s.host.OperFlags(c.user.UID) != "" }

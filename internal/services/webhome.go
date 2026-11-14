@@ -222,7 +222,7 @@ func (s *Services) WebHome(id int64) (*Home, string) {
 		h.Channels = append(h.Channels, HomeChan{Name: reg.Name, Level: store.LevelName(lvl), Founder: founder})
 		if founder && reg.SuccessorID == 0 {
 			h.Needs = append(h.Needs, HomeNeed{Text: reg.Name + " has no successor",
-				Hint: "If your nick expires, nobody takes the channel over: /msg ChanServ SET " + reg.Name + " SUCCESSOR <nick>", Page: ""}) // no page sets it yet: the hint has the command
+				Hint: "If your nick expires, nobody takes the channel over: /msg ChanServ SET " + reg.Name + " SUCCESSOR <nick>", Page: "chan/" + reg.Name}) // the channel manager sets it
 		}
 	}
 	h.OnMyLists = len(people)

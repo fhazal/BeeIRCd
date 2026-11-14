@@ -46,6 +46,10 @@ func (f *fakeServer) ask(r control.Request, _ time.Duration) (*control.Response,
 			return &control.Response{Home: &control.MyHome{Name: "Bel", Unread: 1}}, nil
 		case control.CmdMyMemos:
 			return &control.Response{Memos: &control.MyMemos{Memos: []control.MyMemo{{ID: 4, From: "ayu", Text: "hi"}}, Limit: 20}}, nil
+		case control.CmdMyChan:
+			return &control.Response{Chan: &control.MyChan{Name: r.Name, Level: "Founder"}}, nil
+		case control.CmdChanDo, control.CmdChanMemo:
+			return &control.Response{Done: &control.Done{Text: fmt.Sprintf("%s %s %s %s %s %s %d", r.Cmd, r.Name, r.Kind, r.Value, r.Mask, r.Reason, r.ID)}}, nil
 		case control.CmdMemoRead, control.CmdMemoDel, control.CmdMemoSend:
 			return &control.Response{Done: &control.Done{Text: fmt.Sprintf("%s %d %s %s", r.Cmd, r.ID, r.Name, r.Value)}}, nil
 		}
@@ -640,5 +644,37 @@ func TestMemberHomeAndMemoRoutes(t *testing.T) {
 	// From another site: refused like every POST.
 	if w := rg.do("POST", "/api/memo-send", `{"to":"ayu","text":"x"}`, tok, map[string]string{"X-Hive": ""}); w.Code == 200 {
 		t.Errorf("memo-send without X-Hive: %d", w.Code)
+	}
+}
+
+func TestChannelManagerRoutes(t *testing.T) {
+	rg := newRig(t)
+	w := rg.do("POST", "/api/login", `{"nick":"Bel","password":"mpw"}`, "", nil)
+	var tok string
+	for _, c := range w.Result().Cookies() {
+		if c.Name == cookieName {
+			tok = c.Value
+		}
+	}
+	if w := rg.do("GET", "/api/my-chan?name=%23honey", "", tok, nil); w.Code != 200 || !strings.Contains(w.Body.String(), `"name":"#honey"`) {
+		t.Errorf("my-chan: %d %s", w.Code, w.Body)
+	}
+	if w := rg.do("GET", "/api/my-chan", "", tok, nil); w.Code != http.StatusBadRequest {
+		t.Errorf("my-chan without a name: %d", w.Code)
+	}
+	if w := rg.do("POST", "/api/chan-do", `{"name":"#honey","kind":"ACCESS","value":"ADD","mask":"ayu","reason":"AOP"}`, tok, nil); w.Code != 200 || !strings.Contains(w.Body.String(), "chan-do #honey ACCESS ADD ayu AOP") {
+		t.Errorf("chan-do: %d %s", w.Code, w.Body)
+	}
+	if w := rg.do("POST", "/api/chan-memo", `{"name":"#honey","id":3,"verb":"del"}`, tok, nil); w.Code != 200 || !strings.Contains(w.Body.String(), "chan-memo #honey  del   3") {
+		t.Errorf("chan-memo: %d %s", w.Code, w.Body)
+	}
+	for _, c := range []struct{ path, body string }{
+		{"/api/chan-do", `{"name":"#honey"}`},
+		{"/api/chan-memo", `{"name":"#honey","id":3,"verb":"wipe"}`},
+		{"/api/chan-memo", `{"name":"#honey","verb":"read"}`},
+	} {
+		if w := rg.do("POST", c.path, c.body, tok, nil); w.Code != http.StatusBadRequest {
+			t.Errorf("%s %s: %d", c.path, c.body, w.Code)
+		}
 	}
 }

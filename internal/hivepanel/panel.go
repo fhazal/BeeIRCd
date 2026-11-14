@@ -182,6 +182,9 @@ func New(o Options) *Panel {
 	m.HandleFunc("POST /api/memo-read", p.withOper(p.memoAct(control.CmdMemoRead)))
 	m.HandleFunc("POST /api/memo-del", p.withOper(p.memoAct(control.CmdMemoDel)))
 	m.HandleFunc("POST /api/memo-send", p.withOper(p.memoSend))
+	m.HandleFunc("GET /api/my-chan", p.withOper(p.myChan))
+	m.HandleFunc("POST /api/chan-do", p.withOper(p.chanDo))
+	m.HandleFunc("POST /api/chan-memo", p.withOper(p.chanMemo))
 	m.HandleFunc("GET /api/live", p.live)
 	p.mux = m
 	return p
@@ -432,6 +435,40 @@ func (p *Panel) memoAct(cmd string) func(http.ResponseWriter, *http.Request, ope
 		}
 		p.send(w, oc, control.Request{Cmd: cmd, ID: in.ID}, 10*time.Second)
 	}
+}
+
+// myChan is one channel of the channel manager (?name=#chan).
+func (p *Panel) myChan(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	name := r.URL.Query().Get("name")
+	if name == "" || len(name) > 64 {
+		writeErr(w, http.StatusBadRequest, "Bad request.")
+		return
+	}
+	p.send(w, oc, control.Request{Cmd: control.CmdMyChan, Name: name}, 10*time.Second)
+}
+
+// chanDo is one ChanServ change: Name (#chan), Kind (the command), Value,
+// Mask and Reason (its words; see control.CmdChanDo).
+func (p *Panel) chanDo(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	var in struct{ Name, Kind, Value, Mask, Reason string }
+	if json.NewDecoder(r.Body).Decode(&in) != nil || in.Name == "" || in.Kind == "" || len(in.Name)+len(in.Value)+len(in.Mask) > 300 || len(in.Reason) > 400 {
+		writeErr(w, http.StatusBadRequest, "Bad request.")
+		return
+	}
+	p.send(w, oc, control.Request{Cmd: control.CmdChanDo, Name: in.Name, Kind: in.Kind, Value: in.Value, Mask: in.Mask, Reason: in.Reason}, 10*time.Second)
+}
+
+// chanMemo reads or deletes a memo of a channel's box.
+func (p *Panel) chanMemo(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	var in struct {
+		Name, Verb string
+		ID         int64
+	}
+	if json.NewDecoder(r.Body).Decode(&in) != nil || in.Name == "" || in.ID <= 0 || (in.Verb != "read" && in.Verb != "del") {
+		writeErr(w, http.StatusBadRequest, "Bad request.")
+		return
+	}
+	p.send(w, oc, control.Request{Cmd: control.CmdChanMemo, Name: in.Name, ID: in.ID, Value: in.Verb}, 10*time.Second)
 }
 
 // memoSend is MemoServ SEND: To (a nick or #channel) and Text.
