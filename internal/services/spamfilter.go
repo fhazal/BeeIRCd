@@ -28,6 +28,7 @@ type spamState struct {
 	set    *spamfilter.Set
 	bad    map[int64]bool // rules our RE2 can't read (from other servers)
 	hits   map[int64]*SpamHits
+	recent []time.Time // catch times, oldest first (SpamCaught24h)
 	hook   func(f spamfilter.Filter, add bool)
 	loaded bool
 }
@@ -98,6 +99,10 @@ func (s *Services) SpamHit(id int64, now time.Time) {
 	}
 	h.Count++
 	h.Last = now
+	if len(s.spam.recent) >= spamRecentMax {
+		s.spam.recent = s.spam.recent[1:]
+	}
+	s.spam.recent = append(s.spam.recent, now)
 }
 
 // ErrSpamDuplicate: the same rule is there already.
@@ -327,3 +332,31 @@ func (s *Services) SpamExempt(u *state.User) bool { return s.exempt(u.TrueIdent(
 
 // SpamExemptMask is SpamExempt before the person is registered.
 func (s *Services) SpamExemptMask(ident, host, ip string) bool { return s.exempt(ident, host, ip) }
+
+// spamRecentMax caps the hit times kept for the 24-hour count.
+const spamRecentMax = 20000
+
+// SpamCaught24h is how many catches the last 24 hours had (since start).
+func (s *Services) SpamCaught24h(now time.Time) int {
+	cut := now.Add(-24 * time.Hour)
+	i := 0
+	for i < len(s.spam.recent) && s.spam.recent[i].Before(cut) {
+		i++
+	}
+	s.spam.recent = s.spam.recent[i:]
+	return len(s.spam.recent)
+}
+
+// CheckSpamFilter says what adding f would do, without adding it: a
+// problem (it can't be added), or the normal lines it would catch.
+func (s *Services) CheckSpamFilter(f spamfilter.Filter) (problem string, unsafe []string, lines int) {
+	t, err := spamfilter.NormTargets(f.Targets)
+	if err != nil {
+		return err.Error(), nil, 0
+	}
+	f.Targets = t
+	if err := spamfilter.Check(f); err != nil {
+		return err.Error(), nil, 0
+	}
+	return "", spamfilter.SafetyHits(f, 2), spamfilter.SafetyCount(f)
+}
