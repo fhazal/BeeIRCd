@@ -297,7 +297,7 @@ func (s *Server) Serve(ctx context.Context) error {
 			return nil
 		case f := <-s.events:
 			start := time.Now()
-			f()
+			s.runSafe(f)
 			s.svc.Flush()
 			s.loop.add(time.Since(start))
 			s.reap()
