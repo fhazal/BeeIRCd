@@ -661,14 +661,14 @@ a.btn{text-decoration:none}
 a.cm-link{color:var(--ink);font-weight:600;text-decoration:none;border-bottom:1px dotted var(--dim)}
 a.cm-link:hover{color:var(--honey-hi);border-bottom-color:var(--honey)}
 .crumb a{color:inherit;text-decoration:none}.crumb a:hover{color:var(--honey-hi)}
-.cm-tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);overflow-x:auto}
+.cm-tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);overflow-x:auto;overflow-y:hidden}
 .cm-tab{all:unset;cursor:pointer;display:inline-flex;gap:8px;align-items:center;padding:10px 14px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;font-size:14px}
 .cm-tab .ic{width:15px;height:15px}
 .cm-tab:hover{color:var(--ink)}
 .cm-tab:focus-visible{outline:2px solid var(--honey);outline-offset:-2px}
 .cm-tab.on{color:var(--honey);border-bottom-color:var(--honey)}
 .cm-n{font:11px var(--mono);color:var(--dim)}
-table.cm-tbl{min-width:520px}
+table.cm-tbl{min-width:420px}
 .cm-tbl td.mono{color:var(--muted);font-size:12px}
 .cm-x{width:44px;text-align:right}
 .dot.cm-on{margin-left:8px;vertical-align:middle}
