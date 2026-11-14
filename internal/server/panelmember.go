@@ -38,7 +38,7 @@ func (s *Server) panelMember(req control.Request) (po *control.PanelOper, deny *
 		signin.Error = a.Name + " is suspended."
 		return nil, signin, true
 	}
-	return &control.PanelOper{Account: a.Name, Member: true, Seal: memberSeal(a)}, nil, true
+	return &control.PanelOper{Account: a.Name, Member: true, Seal: memberSeal(a), Chat: s.cfg.Web.ChatURL}, nil, true
 }
 
 // memberLogin checks a NickServ password for the Hive Panel. It counts
@@ -53,7 +53,7 @@ func (s *Server) memberLogin(a *store.Account, nick, pw, ip string, done func(co
 		switch res {
 		case services.PwOK:
 			s.panelEvent(a.Name, ip, "signed in as a member")
-			done(control.Response{Oper: &control.PanelOper{Account: a.Name, Member: true, Seal: memberSeal(a)}})
+			done(control.Response{Oper: &control.PanelOper{Account: a.Name, Member: true, Seal: memberSeal(a), Chat: s.cfg.Web.ChatURL}})
 		case services.PwLocked:
 			done(control.Response{Error: "Too many wrong passwords for this nick. Try again in " + services.RoundUp(s.lockedFor(a.ID)) + ".", Denied: "signin"})
 		default:

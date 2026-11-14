@@ -137,6 +137,7 @@
   let live = null;        // EventSource
   let poll = 0, liveFails = 0;
   const pages = [
+    { id: 'chat', label: 'Chat', icon: 'message', you: true, chat: true, make: chatPage },
     { id: 'mynick', label: 'My nick', icon: 'user', you: true, eyebrow: 'NickServ', make: myNickPage },
     { id: 'mychannels', label: 'My channels', icon: 'hash', you: true, eyebrow: 'ChanServ', make: myChannelsPage },
     { id: 'overview', label: 'Overview', icon: 'overview', make: overviewPage },
@@ -150,7 +151,7 @@
   ];
   // A member (signed in with the NickServ password) sees only the YOU
   // pages; the server refuses the rest anyway.
-  const allowed = p => p.you || !!me && !me.member && (!p.need || has(p.need));
+  const allowed = p => (!p.chat || !!me && !!me.chat) && (p.you || !!me && !me.member && (!p.need || has(p.need)));
 
   // ---------- themes (kept in this browser only) ----------
   const THEMES = [['bee', 'Bee'], ['catppuccin-latte', 'Catppuccin Latte'], ['catppuccin-mocha', 'Catppuccin Mocha'], ['one-dark-pro', 'One Dark Pro'], ['dracula', 'Dracula']];
@@ -268,7 +269,7 @@
   }
 
   // ---------- shell ----------
-  let mainEl, navEl, crumbEl, pillEl, deco;
+  let mainEl, navEl, crumbEl, pillEl, deco, chatHost;
   async function signOut() {
     await api('POST', '/api/logout').catch(() => {});
     signedOut('');
@@ -297,7 +298,10 @@
     const topbar = h('header', { class: 'topbar' }, crumbEl,
       h('div', { class: 'tacts' }, jumpBtn, themeBtn, me.member ? null : pillEl, me.member ? null : refresh));
     mainEl = h('main', { class: 'content', id: 'main', tabindex: '-1' });
-    put(app, h('div', { class: 'hp' }, side, h('div', { class: 'mainwrap' }, topbar, mainEl)));
+    // The Chat tab's BeeRoom lives beside the pages and is only hidden, so
+    // it stays connected while you look at other pages.
+    chatHost = h('div', { class: 'chat-host', hidden: true });
+    put(app, h('div', { class: 'hp' }, side, h('div', { class: 'mainwrap' }, topbar, mainEl, chatHost)));
     if (deco) deco.disconnect();
     deco = new MutationObserver(() => decorate());
     deco.observe(mainEl, { childList: true, subtree: true });
@@ -314,7 +318,7 @@
   }
   function route() {
     if (!me) return;
-    const home = me.member ? 'mynick' : 'overview';
+    const home = !me.member ? 'overview' : me.chat ? 'chat' : 'mynick';
     const id = (location.hash.match(/^#\/([a-z]+)/) || [])[1] || home;
     let p = pages.find(x => x.id === id && allowed(x));
     if (!p) { p = pages.find(x => x.id === home); history.replaceState(null, '', '#/' + home); }
@@ -2034,6 +2038,31 @@
     return m ? Number(m[1]) * { '': 1, s: 1, m: 60, h: 3600, d: 86400, w: 604800 }[m[2].toLowerCase()] : -1;
   }
   function secs(d) { return d >= 86400 && d % 86400 === 0 ? d / 86400 + 'd' : d >= 3600 && d % 3600 === 0 ? d / 3600 + 'h' : d >= 60 && d % 60 === 0 ? d / 60 + 'm' : d + 's'; }
+  // ---------- Chat: BeeRoom, signed in as you ----------
+  // The panel asks the server for a one-time key (a minute, once) and opens
+  // BeeRoom with it as the SASL password; BeeRoom connects at once and
+  // drops the key from its address.
+  async function openChat() {
+    const retry = h('button', { type: 'button', class: 'btn', text: 'Try again' });
+    retry.addEventListener('click', openChat);
+    put(chatHost, h('p', { class: 'empty chat-wait', text: 'Signing you in to BeeRoom…' }));
+    try {
+      const d = (await api('POST', '/api/chat-key')).chat;
+      const user = d.account.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10) || 'beeroom';
+      const q = new URLSearchParams({ autoconnect: '1', nick: d.account, username: user, sasl: 'plain', saslAccount: d.account, saslPassword: d.key });
+      put(chatHost, h('iframe', { class: 'chat-frame', src: d.url.replace(/\/+$/, '') + '/?' + q.toString(), title: 'BeeRoom chat', referrerpolicy: 'no-referrer' }));
+    } catch (e) {
+      put(chatHost, h('div', { class: 'content' }, h('section', { class: 'card' }, h('h2', { text: 'Chat' }),
+        h('p', { class: 'note', text: e.message }), h('div', { class: 'row-btns' }, retry))));
+    }
+  }
+  function chatPage() {
+    mainEl.hidden = true;
+    chatHost.hidden = false;
+    if (!chatHost.firstChild) openChat();
+    return { el: h('div'), leave() { chatHost.hidden = true; mainEl.hidden = false; } };
+  }
+
   // ---------- My nick and My channels (members and opers) ----------
   // NickServ SET as switches: each change runs the real SET on the server
   // and shows NickServ's own answer.

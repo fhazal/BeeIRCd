@@ -78,7 +78,7 @@ func (s *Server) panelOper(account, ip string) (po *control.PanelOper, a *store.
 	if v.flags == "" {
 		return nil, a, o, "the oper entry has no flags"
 	}
-	return &control.PanelOper{Account: o.Account, Class: v.class, Flags: v.flags, Owner: s.isAdminAccount(a), Seal: passSeal(o.PassHash)}, a, o, ""
+	return &control.PanelOper{Account: o.Account, Class: v.class, Flags: v.flags, Owner: s.isAdminAccount(a), Seal: passSeal(o.PassHash), Chat: s.cfg.Web.ChatURL}, a, o, ""
 }
 
 // passSeal is a short fingerprint of an oper password hash (see
@@ -305,6 +305,8 @@ func (s *Server) panelControl(req control.Request, setDeadline func(time.Duratio
 		return run('m', func(po *control.PanelOper) { resp.Oper = po }), true
 	case control.CmdMyNick:
 		return run('m', func(po *control.PanelOper) { resp = *s.panelMyNick(po) }), true
+	case control.CmdChatKey:
+		return run('m', func(po *control.PanelOper) { resp = *s.panelChatKey(po) }), true
 	case control.CmdMySet:
 		return run('m', func(po *control.PanelOper) { resp = *s.panelMySet(po, req.IP, req.Name, req.Value) }), true
 	case control.CmdPanelLog:

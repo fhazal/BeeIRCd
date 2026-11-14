@@ -57,6 +57,7 @@ services:
       - beeroom-link:/link:ro
     environment:
       BEEROOM_CHANNELS: "#lobby"   # channels a guest joins
+      BEEROOM_PANEL: "http://127.0.0.1:8787"   # the Hive Panel's address: its Chat tab may show BeeRoom
     depends_on:
       - beeircd
     networks:

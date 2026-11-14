@@ -23,6 +23,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -56,12 +57,14 @@ type Options struct {
 	Ask          Asker
 	TrustedProxy []string
 	Idle         time.Duration // sign out after this long without a click
+	ChatURL      string        // BeeRoom ([web] chat_url): the only page the panel may frame
 	Now          func() time.Time
 }
 
 // Panel is the web handler.
 type Panel struct {
 	ask     Asker
+	csp     string // Content-Security-Policy, with BeeRoom as the one frame source
 	proxies map[string]bool
 	idle    time.Duration
 	now     func() time.Time
@@ -91,6 +94,10 @@ func New(o Options) *Panel {
 		sessions: map[string]*session{}, fails: map[string]*ipFails{}}
 	if p.now == nil {
 		p.now = time.Now
+	}
+	p.csp = "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+	if u, err := url.Parse(o.ChatURL); err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" {
+		p.csp += "; frame-src " + u.Scheme + "://" + u.Host
 	}
 	if p.idle <= 0 {
 		p.idle = 30 * time.Minute
@@ -169,6 +176,7 @@ func New(o Options) *Panel {
 	m.HandleFunc("POST /api/chan-unsuspend", p.withOper(p.chanAct(control.CmdChanUnsuspend)))
 	m.HandleFunc("GET /api/my-nick", p.withOper(p.simple(control.CmdMyNick)))
 	m.HandleFunc("POST /api/my-set", p.withOper(p.mySet))
+	m.HandleFunc("POST /api/chat-key", p.withOper(p.simple(control.CmdChatKey)))
 	m.HandleFunc("GET /api/live", p.live)
 	p.mux = m
 	return p
@@ -177,7 +185,7 @@ func New(o Options) *Panel {
 // ServeHTTP adds the safety headers and refuses requests from elsewhere.
 func (p *Panel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h := w.Header()
-	h.Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+	h.Set("Content-Security-Policy", p.csp)
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("X-Frame-Options", "DENY")
 	h.Set("Referrer-Policy", "no-referrer")

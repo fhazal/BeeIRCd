@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"time"
 )
 
@@ -22,6 +23,10 @@ type Web struct {
 	// NickServ password, to the member pages only (Chat, My nick, My
 	// channels). Off: only opers sign in, as before.
 	Members bool `toml:"members"`
+	// ChatURL is BeeRoom's address, like "https://chat.example.org": the
+	// Chat tab shows it, signed in as the person with a one-time key.
+	// Empty: no Chat tab.
+	ChatURL string `toml:"chat_url"`
 }
 
 // InContainer is set in the Docker image: the panel then listens inside
@@ -45,6 +50,12 @@ func (w *Web) check() error {
 	}
 	if ip := net.ParseIP(host); !InContainer && host != "localhost" && (ip == nil || !ip.IsLoopback()) {
 		return fmt.Errorf("[web] listen %q: the Hive Panel only answers on this machine (127.0.0.1 or ::1); reach it with an SSH tunnel or a reverse proxy", w.Listen)
+	}
+	if w.ChatURL != "" {
+		u, err := url.Parse(w.ChatURL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+			return fmt.Errorf("[web] chat_url %q: BeeRoom's address, like https://chat.example.org", w.ChatURL)
+		}
 	}
 	for _, p := range w.TrustedProxy {
 		if net.ParseIP(p) == nil {

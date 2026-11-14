@@ -38,6 +38,7 @@ func Run(ctx context.Context, cfgPath, listen, socket string, logf func(format s
 		Ask:          func(r control.Request, t time.Duration) (*control.Response, error) { return control.Ask(sock, r, t) },
 		TrustedProxy: cfg.Web.TrustedProxy,
 		Idle:         cfg.Web.SessionIdle.Duration,
+		ChatURL:      cfg.Web.ChatURL,
 	})
 	ln, err := net.Listen("tcp", cfg.Web.Listen)
 	if err != nil {

@@ -75,8 +75,9 @@ const (
 
 	// Members (Hive Chat h1): anyone signed in with a NickServ account,
 	// opers too. Their own account only.
-	CmdMyNick = "my-nick" // -> MyNick
-	CmdMySet  = "my-set"  // Name (NickServ SET option) + Value -> Done (NickServ's answer)
+	CmdMyNick  = "my-nick"  // -> MyNick
+	CmdMySet   = "my-set"   // Name (NickServ SET option) + Value -> Done (NickServ's answer)
+	CmdChatKey = "chat-key" // -> Chat (a one-time SASL key for BeeRoom, 60 s)
 )
 
 // MaxRequest is the most bytes one request may be (the Hive Panel takes
@@ -144,6 +145,7 @@ type Response struct {
 	Backups  *BackupList  `json:"backups,omitempty"`
 	MyNick   *MyNick      `json:"myNick,omitempty"`
 	Hello    *Hello       `json:"hello,omitempty"`
+	Chat     *ChatKey     `json:"chat,omitempty"`
 	// Denied is set (with Error) when the oper may not do this: signed
 	// out, or missing a flag. The panel then signs them out or says so.
 	Denied string `json:"denied,omitempty"` // "signin" or "flag"
@@ -158,6 +160,8 @@ type PanelOper struct {
 	// Member is a sign-in with the NickServ password: only the member
 	// pages (Chat, My nick, My channels), never the admin ones.
 	Member bool `json:"member,omitempty"`
+	// Chat is BeeRoom's address ([web] chat_url) when the Chat tab is on.
+	Chat string `json:"chat,omitempty"`
 	// Seal changes when the oper password does; the panel keeps it from
 	// sign-in and sends it back, so a new password ends old sessions. It
 	// stays between the panel and the server (never sent to browsers).
@@ -366,6 +370,14 @@ type ChannelInfo struct {
 // Done is what an action did, in words.
 type Done struct {
 	Text string `json:"text"`
+}
+
+// ChatKey signs the Chat tab's BeeRoom in: SASL PLAIN with Account and
+// Key, once, within a minute.
+type ChatKey struct {
+	URL     string `json:"url"`
+	Account string `json:"account"`
+	Key     string `json:"key"`
 }
 
 // Hello is what the sign-in page may know before anyone signs in.

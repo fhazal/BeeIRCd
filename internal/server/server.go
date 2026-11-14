@@ -85,6 +85,7 @@ type Server struct {
 	acme        acmeState                   // 7c Let's Encrypt renewal
 	upd         updState                    // 7e daily release check
 	quitReason  string                      // set by `beeircd update` before it restarts the server
+	chatKeys    map[string]chatKey          // one-time SASL keys for the Hive Panel's Chat tab (chatkey.go)
 	watchers    map[string]map[*Client]bool // MONITOR: folded nick -> clients watching it
 	loop        loopStats                   // how long each piece of loop work took
 	links       linkState                   // Stage 2 server links

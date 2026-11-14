@@ -89,6 +89,11 @@ func (s *Server) cmdAuthenticate(c *Client, m irc.Message) {
 		s.reply(c, irc.ErrSaslFail, "SASL authentication failed")
 		return
 	}
+	if s.useChatKey(a, pw, time.Now()) { // the Hive Panel's Chat tab
+		s.saslDone(c, a)
+		s.tryRegister(c)
+		return
+	}
 	c.saslBusy = true
 	s.checkSecret(c, a.ID, a.PassHash, pw, func(r services.PwResult) {
 		c.saslBusy = false
