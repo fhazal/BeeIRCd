@@ -183,3 +183,24 @@ func TestCheckCertForOtherName(t *testing.T) {
 		t.Errorf("check (%d):\n%s", code, out)
 	}
 }
+
+// Without systemd, the stopped screen must not tell people to run
+// `beeircd start`: that command only drives systemd.
+func TestStoppedScreenWithoutSystemd(t *testing.T) {
+	old := systemdHere
+	defer func() { systemdHere = old }()
+
+	systemdHere = func() bool { return false }
+	out := stoppedScreen(paint{}, nil)
+	if strings.Contains(out, "with:  beeircd start") || !strings.Contains(out, "rc-service beeircd start") {
+		t.Fatalf("no systemd: want the service-manager hint, got:\n%s", out)
+	}
+	if out := stoppedScreen(paint{}, os.ErrNotExist); strings.Contains(out, "and  beeircd start") || !strings.Contains(out, "rc-service") {
+		t.Fatalf("no systemd, bad config: still says beeircd start:\n%s", out)
+	}
+
+	systemdHere = func() bool { return true }
+	if out := stoppedScreen(paint{}, nil); !strings.Contains(out, "Start it with:  beeircd start") {
+		t.Fatalf("systemd: want beeircd start, got:\n%s", out)
+	}
+}

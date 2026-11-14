@@ -197,11 +197,15 @@ func stoppedScreen(p paint, cfgErr error) string {
 		}
 	}
 	b.WriteString("\n")
+	start := "beeircd start"
+	if !systemdHere() {
+		start = "your service manager (OpenRC: rc-service beeircd start)"
+	}
 	if cfgErr != nil {
 		b.WriteString("  " + p.bad("✗") + " " + cfgErr.Error() + "\n")
-		b.WriteString("  Fix beeircd.conf, then:  beeircd check  and  beeircd start\n")
+		b.WriteString("  Fix beeircd.conf, then:  beeircd check  and start it with " + start + "\n")
 	} else {
-		b.WriteString("  Start it with:  beeircd start\n")
+		b.WriteString("  Start it with:  " + start + "\n")
 	}
 	return b.String()
 }
@@ -451,6 +455,9 @@ func systemctl(args ...string) (string, error) {
 	out, err := exec.Command("systemctl", args...).CombinedOutput()
 	return strings.TrimSpace(string(out)), err
 }
+
+// systemdHere is haveSystemd, swapped out by tests.
+var systemdHere = haveSystemd
 
 func haveSystemd() bool {
 	_, err := exec.LookPath("systemctl")
