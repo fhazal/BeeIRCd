@@ -20,9 +20,34 @@ wait_for_config() {
 	fi
 }
 
+# share_beeroom: with BEEROOM_WEBIRC (BeeRoom's fixed address in
+# compose.yaml) the gateway is added to beeircd.conf once, and only its
+# password and the network name go to BeeRoom, in the beeroom-link volume.
+share_beeroom() {
+	[ -n "${BEEROOM_WEBIRC:-}" ] && [ -d /link ] || return 0
+	if [ -z "$(webirc_password)" ]; then
+		beeircd webirc add -q beeroom "$BEEROOM_WEBIRC" >/dev/null
+		echo "WEBIRC gateway beeroom added for $BEEROOM_WEBIRC (the BeeRoom container)"
+	fi
+	umask 022
+	webirc_password >/link/webirc.new && mv /link/webirc.new /link/webirc
+	awk '/^\[/ { s = ($0 == "[server]") } s && /^network *=/ { sub(/^network *= *"/, ""); sub(/".*$/, ""); print; exit }' "$conf" >/link/network.new
+	mv /link/network.new /link/network
+}
+
+# webirc_password prints the password of the [[webirc]] block named beeroom.
+webirc_password() {
+	awk '
+	/^\[/ { if (w && n == "beeroom") { print p; done = 1; exit } w = ($0 == "[[webirc]]"); n = ""; p = ""; next }
+	w && /^name *=/ { n = $0; sub(/^name *= *"/, "", n); sub(/".*$/, "", n) }
+	w && /^password *=/ { p = $0; sub(/^password *= *"/, "", p); sub(/".*$/, "", p) }
+	END { if (!done && w && n == "beeroom") print p }' "$conf"
+}
+
 case "$1" in
 run)
 	wait_for_config
+	share_beeroom
 	if [ "$(id -u)" = 0 ]; then
 		crond -b -l 8
 	fi

@@ -3,7 +3,9 @@
 #   docker compose run --rm beeircd install    # the nine questions
 #   docker compose up -d                       # start (and after every reboot)
 #
-# Hive Panel too (if you said yes to it):  docker compose --profile panel up -d
+# Hive Panel too (if you said yes to it):  add  --profile panel
+# BeeRoom web chat too:                    add  --profile chat
+#   for example  docker compose --profile panel --profile chat up -d
 # How it runs:       docker compose exec beeircd beeircd status
 # Update:            docker compose pull && docker compose up -d
 # Everything (config, accounts, channels, backups) is in the beeircd-data volume.
@@ -20,8 +22,12 @@ services:
     volumes:
       - beeircd-data:/data
       - beeircd-run:/run/beeircd
+      - beeroom-link:/link
     environment:
       TZ: UTC           # the daily backup runs at 04:00 in this time zone
+      BEEROOM_WEBIRC: 10.89.0.20   # BeeRoom's address below: its WEBIRC gateway
+    networks:
+      - bee
 
   beeircd-web:
     image: ghcr.io/fhazal/beeircd:1
@@ -36,7 +42,35 @@ services:
       - beeircd-run:/run/beeircd
     depends_on:
       - beeircd
+    networks:
+      - bee
+
+  beeroom:
+    image: ghcr.io/fhazal/beeroom:1
+    profiles: ["chat"]
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9000:9000"   # for the web server in front (see INSTALL.md "Docker")
+    volumes:
+      - beeroom-data:/data
+      - beeroom-link:/link:ro
+    environment:
+      BEEROOM_CHANNELS: "#lobby"   # channels a guest joins
+    depends_on:
+      - beeircd
+    networks:
+      bee:
+        ipv4_address: 10.89.0.20
+
+networks:
+  bee:
+    ipam:
+      config:
+        - subnet: 10.89.0.0/24   # change both 10.89.0 parts if this clashes with your network
 
 volumes:
   beeircd-data:
   beeircd-run:
+  beeroom-link:
+  beeroom-data:

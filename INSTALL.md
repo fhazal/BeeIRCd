@@ -232,7 +232,24 @@ docker compose up -d                       # start; it comes back after a reboot
 | Restart | `docker compose restart beeircd` |
 | Update | `docker compose pull && docker compose up -d` (your data stays) |
 | Hive Panel | say yes to it in the questions, then `docker compose --profile panel up -d`; it answers on `127.0.0.1:8787` of the Docker machine only, reach it with the SSH tunnel from [Hive Panel](ADMIN.md#hive-panel-web-admin) |
+| BeeRoom web chat | `docker compose --profile chat up -d`; it answers on `127.0.0.1:9000` for your web server in front (below) |
 
+- **BeeRoom** needs nothing else: on its first start BeeIRCd adds the web
+  chat's WEBIRC gateway for BeeRoom's fixed address in compose.yaml
+  (`10.89.0.20`) and hands BeeRoom only that password and the network
+  name. People's real IPs then reach BeeIRCd. Put a web server with HTTPS in
+  front, for example Caddy:
+
+  ```
+  chat.example.org {
+      reverse_proxy 127.0.0.1:9000
+  }
+  ```
+
+  nginx and Apache work the same way: pass `/` (with WebSockets) to
+  `http://127.0.0.1:9000/` and set `X-Forwarded-For`. If `10.89.0.0/24`
+  clashes with a network you already have, change it in both places in
+  compose.yaml.
 - **Data.** Config, accounts, channels, history and backups are all in
   `/data`, kept in the `beeircd-data` volume. To use a folder instead,
   change `beeircd-data:/data` to `./data:/data`; the container makes it
