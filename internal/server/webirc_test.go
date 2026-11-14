@@ -31,9 +31,14 @@ func viaGateway(t *testing.T, s *Server, nick, ip string) *tc {
 	t.Helper()
 	c := raw(t, s)
 	c.nick = nick
-	c.send("WEBIRC " + webircPW + " beeroom user.example.net " + ip + " :secure")
-	c.send("NICK " + nick)
-	c.send("USER " + strings.ToLower(nick) + " 0 * :" + nick)
+	// One write, as a gateway sends it: when the server refuses the person
+	// (limit, ban) it closes right after WEBIRC, and separate writes of
+	// NICK and USER could then hit a closed socket (seen once in 3 -race runs).
+	lines := "WEBIRC " + webircPW + " beeroom user.example.net " + ip + " :secure\r\n" +
+		"NICK " + nick + "\r\nUSER " + strings.ToLower(nick) + " 0 * :" + nick + "\r\n"
+	if _, err := c.conn.Write([]byte(lines)); err != nil {
+		t.Fatalf("%s: %v", nick, err)
+	}
 	return c
 }
 
