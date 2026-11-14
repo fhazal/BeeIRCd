@@ -139,7 +139,7 @@ func (s *Services) csChan(c *Client, name string, need int) (*store.Channel, int
 			s.cs(c, "Only the founder of %s can do that.", reg.Name)
 			return nil, 0, false
 		case lvl < need:
-			s.cs(c, "You need to be %s on %s for that.", needWords(need), reg.Name)
+			s.cs(c, "You need to be %s on %s for that.", s.needWords(need), reg.Name)
 			return nil, 0, false
 		}
 	}

@@ -112,7 +112,7 @@ func TestChanServQopHop(t *testing.T) {
 	mira.send("CS UP #bchat")
 	mira.expect(csSrc + "MODE #bchat +ao mira mira")
 	mira.send("CS OWNER #bchat")
-	mira.expect(csLine("mira", "You need to be level 9999 or higher on #bchat for that."))
+	mira.expect(csLine("mira", "You need to be QOP or higher on #bchat for that."))
 	ember.send("CS DEOWNER #bchat")
 	ember.expect(csSrc + "MODE #bchat -q ember")
 	ember.send("CS OWNER #bchat")

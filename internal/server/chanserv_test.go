@@ -425,3 +425,15 @@ func TestChanServOperDropAndFounder(t *testing.T) {
 	b.expect("Boss used ChanServ: DROP #bchat (founder ember)")
 	b.expect(csLine("Boss", "#bchat is no longer registered."))
 }
+
+// "You need to be ..." names a level people know, not Anope's 9999
+// (QA 1.0.0 round, bug 3).
+func TestChanServNeedWordsNamesTheLevel(t *testing.T) {
+	s := testServer(t, nil)
+	f := founded(t, s, "Fee")
+	v := registered(t, s, "Vee")
+	f.send("CS VOP #bchat ADD Vee")
+	f.expect("Vee added to the VOP list of #bchat.")
+	v.send("CS SET #bchat KEEPTOPIC OFF")
+	v.expect(csLine("Vee", "You need to be the founder on #bchat for that."))
+}

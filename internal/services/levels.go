@@ -143,16 +143,23 @@ func (s *Services) userHas(reg *store.Channel, u *state.User, name string) bool 
 	return s.levelHas(reg, s.userLevel(reg, u), name)
 }
 
-// needWords says who has a privilege, for "you need ..." replies.
-func needWords(need int) string {
-	name := store.LevelName(need)
-	switch {
-	case need == store.LevelFounder:
+// needWords says who has a privilege, for "you need ..." replies, in the
+// level names people know: a number between them (Anope's 9999) is the
+// lowest name that covers it, "the founder" when none does (QA 1.0.0).
+func (s *Services) needWords(need int) string {
+	if need == store.LevelFounder {
 		return "the founder"
-	case name == strconv.Itoa(need):
-		return "level " + name + " or higher"
 	}
-	return name + " or higher"
+	names := []int{store.LevelUOP, store.LevelVOP, store.LevelAOP, store.LevelSOP}
+	if s.cfg.FullPrefixes() {
+		names = []int{store.LevelUOP, store.LevelVOP, store.LevelHOP, store.LevelAOP, store.LevelSOP, store.LevelQOP}
+	}
+	for _, l := range names {
+		if l >= need {
+			return store.LevelName(l) + " or higher"
+		}
+	}
+	return "the founder"
 }
 
 // csPriv loads a registered channel for a command that needs privilege
@@ -175,7 +182,7 @@ func (s *Services) csPriv(c *Client, chanName, priv string) (*store.Channel, int
 		case need == store.LevelFounder:
 			s.cs(c, "Only the founder of %s can do that.", reg.Name)
 		default:
-			s.cs(c, "You need to be %s on %s for that.", needWords(need), reg.Name)
+			s.cs(c, "You need to be %s on %s for that.", s.needWords(need), reg.Name)
 		}
 		return nil, 0, false
 	}

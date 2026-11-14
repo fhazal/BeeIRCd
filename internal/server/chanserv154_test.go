@@ -208,7 +208,7 @@ func TestModeLockSetClear(t *testing.T) {
 	x.expect("+o ember")
 
 	ember.send("CS MODE #bchat LOCK ADD +m")
-	ember.expect(csLine("ember", "You need to be level 9999 or higher on #bchat for that."))
+	ember.expect(csLine("ember", "You need to be the founder on #bchat for that."))
 	bee.send("CS MODE #bchat LOCK ADD +ms")
 	bee.expect(csLine("Bee", "The mode lock of #bchat is now +mnst."))
 	x.expect(csSrc + "MODE #bchat +ms")
@@ -378,7 +378,7 @@ func TestChanServSetOptions(t *testing.T) {
 	bee.send("CS SET NOEXPIRE #bchat ON")
 	bee.expect(csLine("Bee", "SET NOEXPIRE is for IRC operators with flag s."))
 	ember.send("CS SET KEEPTOPIC #bchat OFF") // SET is QOP and up by default
-	ember.expect(csLine("ember", "You need to be level 9999 or higher on #bchat for that."))
+	ember.expect(csLine("ember", "You need to be the founder on #bchat for that."))
 	bee.send("CS SET BOGUS #bchat ON")
 	bee.expect(csLine("Bee", "Unknown option BOGUS. See /cs help set"))
 	bee.send("CS INFO #bchat")
@@ -550,7 +550,7 @@ func TestChanServLog(t *testing.T) {
 	bee.send("CS LOG #bchat KICK NOTICE %") // no halfops on an @+ server
 	bee.expect(csLine("Bee", "The status is one prefix this server uses, like @ (not for MEMO)."))
 	ember.send("CS LOG #bchat KICK NOTICE")
-	ember.expect(csLine("ember", "You need to be level 9999 or higher on #bchat for that."))
+	ember.expect(csLine("ember", "You need to be the founder on #bchat for that."))
 }
 
 func TestChanServSuspend(t *testing.T) {

@@ -97,7 +97,7 @@ func (s *Services) msBox(c *Client, args []string) (*memoBox, []string, bool) {
 		return nil, nil, false
 	}
 	if !s.levelHas(reg, s.accountLevel(reg, c.accountID), "MEMO") {
-		s.ms(c, "You need the MEMO privilege on %s for its memo box (%s there).", reg.Name, needWords(s.privLevel(reg, "MEMO")))
+		s.ms(c, "You need the MEMO privilege on %s for its memo box (%s there).", reg.Name, s.needWords(s.privLevel(reg, "MEMO")))
 		return nil, nil, false
 	}
 	return &memoBox{acct: a, reg: reg, memos: s.store.ChanMemos(reg)}, args[1:], true
