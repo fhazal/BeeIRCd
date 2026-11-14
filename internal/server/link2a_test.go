@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"log"
+	"math/rand/v2"
 	"net"
 	"path/filepath"
 	"strconv"
@@ -57,15 +58,35 @@ func linkLeakCheck(t *testing.T) {
 	})
 }
 
+// freePort is a port nobody listens on, from 20000-31999: below the
+// ephemeral range (Linux 32768+, Windows 49152+), so the many outgoing test
+// connections can't take it between here and the server's own listen (the
+// CI flake "bind: address already in use"). No port is handed out twice.
 func freePort(t *testing.T) int {
 	t.Helper()
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
+	freePortMu.Lock()
+	defer freePortMu.Unlock()
+	for range 2000 {
+		port := 20000 + rand.IntN(12000)
+		if freePortUsed[port] {
+			continue
+		}
+		l, err := net.Listen("tcp", ":"+strconv.Itoa(port)) // all addresses, as the link port listens
+		if err != nil {
+			continue
+		}
+		l.Close()
+		freePortUsed[port] = true
+		return port
 	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port
+	t.Fatal("no free port in 20000-31999")
+	return 0
 }
+
+var (
+	freePortMu   sync.Mutex
+	freePortUsed = map[int]bool{}
+)
 
 // newLinkNode makes the node's link certificate up front, so other nodes
 // can pin its fingerprint before it starts.
