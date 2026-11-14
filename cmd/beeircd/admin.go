@@ -413,6 +413,14 @@ func offlineBackup(cfg *config.Config, dst string, now time.Time) (*control.Back
 	if err != nil {
 		return nil, err
 	}
+	// Run as root, the folder and file must stay the server's, or its own
+	// daily backup can't write there any more.
+	if owner, err := os.Stat(filepath.Dir(cfg.Services.Database)); err == nil {
+		if dated {
+			copyOwner(owner, cfg.Backup.Dir)
+		}
+		copyOwner(owner, dst)
+	}
 	if dated {
 		control.Prune(cfg.Backup.Dir, cfg.Backup.Keep)
 	}

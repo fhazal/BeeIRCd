@@ -228,6 +228,15 @@ func (s *Server) tryRegister(c *Client) {
 			return
 		}
 	}
+	if c.sessionLate {
+		// Over its IP's limit at connect; now the hostname is known.
+		c.sessionLate = false
+		if n, max := s.sessions(c.ip), s.svc.SessionLimitFor(c.ip, c.host); n > max {
+			s.snotice("Too many connections from %s (%d, the limit is %d)", c.ip, n, max)
+			s.quit(c, fmt.Sprintf("Too many connections from your IP (the limit is %d)", max))
+			return
+		}
+	}
 	now := time.Now()
 	u := &state.User{
 		UID:      c.uid,

@@ -63,6 +63,7 @@ type Client struct {
 	operVia     *linkConn         // opered by the services server behind this link (its changes apply)
 	saslAccount *store.Account    // SASL done before registration finished
 	certfp      string            // SHA-256 of the TLS client certificate, "" = none
+	sessionLate bool              // over its IP's session limit at connect: check again with the hostname
 	monitor     map[string]string // MONITOR list: folded nick -> nick as given
 	silence     []string          // SILENCE masks (nick!ident@host)
 	knocks      []time.Time       // recent KNOCKs, for the knock flood limit
@@ -124,9 +125,13 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 		return
 	}
 	if n, max := s.sessions(ip), s.svc.SessionLimit(ip); n > max && !s.webircGateway(ip) {
-		s.snotice("Too many connections from %s (%d, the limit is %d)", ip, n, max)
-		s.quit(c, fmt.Sprintf("Too many connections from your IP (the limit is %d)", max))
-		return
+		if s.cfg.ResolveHosts() && s.svc.HostExcepts() {
+			c.sessionLate = true // an exception on its hostname may still let it in
+		} else {
+			s.snotice("Too many connections from %s (%d, the limit is %d)", ip, n, max)
+			s.quit(c, fmt.Sprintf("Too many connections from your IP (the limit is %d)", max))
+			return
+		}
 	}
 	s.dnsblStart(c)
 	if c.closed {

@@ -528,7 +528,8 @@ unrealircd.conf; see [link] below for services and SASL there.
   3 still logging in per IP, 500 logging in in total. An IP refused 3 times in
   10 minutes gets a 10-minute ZLINE. LAN IPs and OperServ exceptions skip it.
 - `session_limit` (3) caps connections per IP; OperServ `EXCEPTION` raises it
-  for one IP.
+  for an IP, a CIDR range or a host name (`*.example.org`, checked once the
+  hostname is known). A limit of 0 means no limit, as in Anope.
 - `[[dnsbl]]` lists check new connections against DNS blocklists.
 - `[[webirc]]` gateways are trusted to tell the real IP; list only your own
   gateway's IPs. A plain gateway password in a file others can read is warned

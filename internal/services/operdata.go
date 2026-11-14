@@ -1,6 +1,8 @@
 package services
 
 import (
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/fhazal/beeircd/internal/irc"
@@ -53,15 +55,64 @@ func (s *Services) reloadOperData() {
 	}
 }
 
+// Unlimited is the session limit of an exception with limit 0 (as in
+// Anope: zero means no limit).
+const Unlimited = 1 << 30
+
 // sessionLimit is how many connections ip may have.
 func (s *Services) sessionLimit(ip string) int {
 	now := time.Now()
 	for _, e := range s.sessionExcepts {
 		if (e.Expires.IsZero() || now.Before(e.Expires)) && irc.MatchHost(e.Mask, ip) {
+			if e.Max == 0 {
+				return Unlimited
+			}
 			return e.Max
 		}
 	}
 	return s.cfg.Limits.SessionLimit
+}
+
+// SessionLimitFor is SessionLimit for someone whose hostname is known:
+// exceptions on host names (*.example.org) count too.
+func (s *Services) SessionLimitFor(ip, host string) int {
+	now := time.Now()
+	for _, e := range s.sessionExcepts {
+		if !(e.Expires.IsZero() || now.Before(e.Expires)) {
+			continue
+		}
+		if irc.MatchHost(e.Mask, ip) || (host != "" && hostMask(e.Mask) && irc.MatchHost(e.Mask, host)) {
+			if e.Max == 0 {
+				return Unlimited
+			}
+			return e.Max
+		}
+	}
+	return s.cfg.Limits.SessionLimit
+}
+
+// HostExcepts reports whether any session exception is on a host name,
+// so a connection over its IP's limit waits for its hostname first.
+func (s *Services) HostExcepts() bool {
+	for _, e := range s.sessionExcepts {
+		if hostMask(e.Mask) {
+			return true
+		}
+	}
+	return false
+}
+
+// hostMask: a mask on host names, not on IPs or CIDR ranges.
+func hostMask(m string) bool {
+	return !strings.Contains(m, ":") && strings.Trim(m, "0123456789.*?/") != ""
+}
+
+// limitText shows an exception's limit: a number, or "unlimited" for 0.
+func limitText(n int) string {
+	if n == 0 {
+		return "unlimited"
+	}
+	return strconv.Itoa(n)
 }
 
 // expireBans drops network bans, forbids and session exceptions that ran

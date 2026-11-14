@@ -52,7 +52,7 @@ func operServCommands() map[string]svcCmd {
 		"SESSION": {"SESSION [LIST <threshold> | VIEW <ip>]", "connections per IP",
 			"SESSION                 the limit and the busiest IPs\nSESSION LIST <n>        every IP with at least n connections\nSESSION VIEW <ip>       how many connections an IP has, and its limit\nChange the limit: /as set session-limit <n>. Exceptions: /os exception", osSession},
 		"EXCEPTION": {"EXCEPTION ADD|DEL|LIST|VIEW ...", "IPs allowed more connections",
-			"EXCEPTION ADD [+expiry] <ip-mask> <limit> [reason]   the mask may be CIDR\nEXCEPTION DEL {<ip-mask> | <num> | <list>}\nEXCEPTION LIST [<ip-mask> | <list>]\nEXCEPTION VIEW [<ip-mask> | <list>]   with who set it and when\nEXCEPTION BAN ADD|DEL|LIST|VIEW|CLEAR ...   ELINEs: user@host masks no AKILL,\n    ZLINE, SNLINE or SHUN applies to (and no DNSBL). /ELINE does the same.\nExample: /os exception add 192.168.50.0/24 20 home network", osException},
+			"EXCEPTION ADD [+expiry] <ip-mask> <limit> [reason]   CIDR or a host name like\n    *.example.org; limit 0 = unlimited\nEXCEPTION DEL {<ip-mask> | <num> | <list>}\nEXCEPTION LIST [<ip-mask> | <list>]\nEXCEPTION VIEW [<ip-mask> | <list>]   with who set it and when\nEXCEPTION BAN ADD|DEL|LIST|VIEW|CLEAR ...   ELINEs: user@host masks no AKILL,\n    ZLINE, SNLINE or SHUN applies to (and no DNSBL). /ELINE does the same.\nExample: /os exception add 192.168.50.0/24 20 home network", osException},
 		"LOGONNEWS": {"LOGONNEWS ADD|DEL|LIST ...", "lines shown after the MOTD",
 			"LOGONNEWS ADD <text>\nLOGONNEWS DEL {<num> | ALL}\nLOGONNEWS LIST\nEveryone sees the newest 3 when they connect, from Global.", osNews},
 		"OPERNEWS": {"OPERNEWS ADD|DEL|LIST ...", "lines shown to opers when they oper up",
@@ -612,7 +612,7 @@ func osException(s *Services, c *Client, args []string) {
 		}
 		mask := strings.ToLower(argAt(rest, 0))
 		n, err := strconv.Atoi(argAt(rest, 1))
-		if mask == "" || err != nil || n < 1 || n > 10000 || strings.ContainsAny(mask, "@! ") || strings.Contains(mask, "/") && !irc.IsCIDR(mask) {
+		if mask == "" || err != nil || n < 0 || n > 10000 || strings.ContainsAny(mask, "@! ") || strings.Contains(mask, "/") && !irc.IsCIDR(mask) {
 			s.os(c, "Syntax: EXCEPTION ADD [+expiry] <ip-mask> <limit> [reason], like 192.168.50.* 20")
 			return
 		}
@@ -627,7 +627,11 @@ func osException(s *Services, c *Client, args []string) {
 		s.reloadOperData()
 		s.audit(c, s.operServ, "EXCEPTION ADD %s %d", mask, n)
 		s.osLog(c, "to set the session limit for %s to %d", mask, n)
-		s.os(c, "%s may now have %d connections.", mask, n)
+		if n == 0 {
+			s.os(c, "%s may now have any number of connections.", mask)
+		} else {
+			s.os(c, "%s may now have %d connections.", mask, n)
+		}
 	case "DEL":
 		arg := strings.ToLower(argAt(args, 1))
 		if arg == "" {
@@ -676,9 +680,9 @@ func osException(s *Services, c *Client, args []string) {
 		for _, i := range show {
 			e := list[i]
 			if sub == "VIEW" {
-				s.os(c, "  %-3d %-20s %-4d set by %s, %s · %s", i+1, e.Mask, e.Max, e.SetBy, showTime(e.SetAt), e.Reason)
+				s.os(c, "  %-3d %-20s %-4s set by %s, %s · %s", i+1, e.Mask, limitText(e.Max), e.SetBy, showTime(e.SetAt), e.Reason)
 			} else {
-				s.os(c, "  %-3d %-20s %-4d by %s · %s", i+1, e.Mask, e.Max, e.SetBy, e.Reason)
+				s.os(c, "  %-3d %-20s %-4s by %s · %s", i+1, e.Mask, limitText(e.Max), e.SetBy, e.Reason)
 			}
 		}
 		s.os(c, "%s.", plural(len(show), "exception"))
