@@ -1252,7 +1252,7 @@
         if (s.update) {
           updateRow.hidden = false;
           put(updateRow, h('div', { class: 'act-text' }, h('b', { text: 'Update' }),
-            h('span', { class: 'lbl', text: s.update.version + ' is out. Run beeircd update on the server.' })));
+            h('span', { class: 'lbl', text: s.update.version + ' is out. Run ' + (s.update.how || 'beeircd update') + ' on the server.' })));
         } else updateRow.hidden = true;
       },
     };

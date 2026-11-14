@@ -198,7 +198,10 @@ func stoppedScreen(p paint, cfgErr error) string {
 	}
 	b.WriteString("\n")
 	start := "beeircd start"
-	if !systemdHere() {
+	switch {
+	case inContainer:
+		start = "docker compose up -d"
+	case !systemdHere():
 		start = "your service manager (OpenRC: rc-service beeircd start)"
 	}
 	if cfgErr != nil {
@@ -470,6 +473,10 @@ func cmdService(verb string, args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	c := &checker{w: stdout, p: colourFor(stdout)}
+	if inContainer {
+		c.bad("in Docker, use: docker compose " + verb + " beeircd")
+		return 1
+	}
 	if !haveSystemd() {
 		c.bad("systemd isn't on this machine: run `beeircd run -config " + path + "` under your own service manager")
 		return 1

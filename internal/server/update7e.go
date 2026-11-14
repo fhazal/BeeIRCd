@@ -67,12 +67,16 @@ func (s *Server) updateResult(m *release.Manifest, err error) {
 		s.upd.latest = nil
 		return
 	}
-	s.upd.latest = &control.UpdateInfo{Version: m.Version, Date: m.Date}
+	s.upd.latest = &control.UpdateInfo{Version: m.Version, Date: m.Date, How: UpdateCommand}
 	if s.upd.noticed != m.Version {
 		s.upd.noticed = m.Version
-		s.snotice("BeeIRCd %s is out (you run %s): beeircd update installs it", m.Version, version.Version)
+		s.snotice("BeeIRCd %s is out (you run %s): %s installs it", m.Version, version.Version, UpdateCommand)
 	}
 }
+
+// UpdateCommand is how this machine installs a new version: `beeircd
+// update`, or a new image in Docker (set by main).
+var UpdateCommand = "beeircd update"
 
 // startUpdateCheck starts the daily check unless [update] check = false.
 func (s *Server) startUpdateCheck() {

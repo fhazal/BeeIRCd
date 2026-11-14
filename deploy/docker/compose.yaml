@@ -1,0 +1,42 @@
+# BeeIRCd with Docker Compose. Save this file in an empty folder, then:
+#
+#   docker compose run --rm beeircd install    # the nine questions
+#   docker compose up -d                       # start (and after every reboot)
+#
+# Hive Panel too (if you said yes to it):  docker compose --profile panel up -d
+# How it runs:       docker compose exec beeircd beeircd status
+# Update:            docker compose pull && docker compose up -d
+# Everything (config, accounts, channels, backups) is in the beeircd-data volume.
+services:
+  beeircd:
+    image: ghcr.io/fhazal/beeircd:1
+    init: true
+    restart: unless-stopped
+    ports:
+      - "6667:6667"     # plain; remove if you answered "6697" only
+      - "6697:6697"     # TLS
+      # - "7000:7000"   # link port: a hub (or a leaf its hub connects to)
+      # - "80:80"       # Let's Encrypt asks through port 80
+    volumes:
+      - beeircd-data:/data
+      - beeircd-run:/run/beeircd
+    environment:
+      TZ: UTC           # the daily backup runs at 04:00 in this time zone
+
+  beeircd-web:
+    image: ghcr.io/fhazal/beeircd:1
+    profiles: ["panel"]
+    init: true
+    restart: unless-stopped
+    command: web
+    ports:
+      - "127.0.0.1:8787:8787"   # this machine only: reach it with an SSH tunnel
+    volumes:
+      - beeircd-data:/data
+      - beeircd-run:/run/beeircd
+    depends_on:
+      - beeircd
+
+volumes:
+  beeircd-data:
+  beeircd-run:

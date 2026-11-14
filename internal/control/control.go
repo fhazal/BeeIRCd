@@ -556,4 +556,5 @@ func Ask(socket string, req Request, timeout time.Duration) (*Response, error) {
 type UpdateInfo struct {
 	Version string `json:"version"`
 	Date    string `json:"date"`
+	How     string `json:"how"` // the command that installs it
 }

@@ -23,6 +23,17 @@ const (
 	instUser    = "beeircd"
 )
 
+// instPaths are the files the installer writes: on the machine itself, or
+// all in the /data volume of the Docker image.
+type instPaths struct {
+	etc, conf, motd, tls, data, socket string
+}
+
+var (
+	hostPaths      = instPaths{instEtc, instConf, instMOTD, instTLS, instData, instSocket}
+	containerPaths = instPaths{"/data", "/data/beeircd.conf", "/data/motd.txt", "/data/tls", "/data", "/run/beeircd/beeircd.sock"}
+)
+
 // tomlString quotes s as a TOML basic string.
 func tomlString(s string) string {
 	r := strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`, "\t", `\t`)
@@ -171,10 +182,15 @@ keep = 7
 {{- if .Web}}
 
 [web]
+{{- if .Container}}
+# The Hive Panel (compose service beeircd-web). Inside its container it
+# listens on all addresses; compose.yaml publishes it on 127.0.0.1 only.
+{{- else}}
 # The Hive Panel (service beeircd-web). It answers only on this machine:
+{{- end}}
 # from your computer, ssh -N -L 8787:127.0.0.1:8787 you@this-server, then
 # open http://127.0.0.1:8787. Opers sign in with their oper password.
-listen = "127.0.0.1:8787"
+listen = {{q .WebListen}}
 {{- end}}
 `))
 

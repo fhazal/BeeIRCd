@@ -57,6 +57,11 @@ func cmdUpdate(args []string, stdout, stderr io.Writer) int {
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
+	if inContainer && !*check {
+		// The image is the program: a new one comes from Docker.
+		fmt.Fprintln(stdout, "  In Docker, update by pulling the new image (your /data stays):\n    "+dockerUpdate)
+		return 1
+	}
 	u, err := newUpdater(*path, stdout)
 	if err != nil {
 		u.c.bad(err.Error())

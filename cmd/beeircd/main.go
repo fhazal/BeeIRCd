@@ -23,7 +23,23 @@ import (
 	"github.com/fhazal/beeircd/internal/version"
 )
 
-const defaultConfig = "/etc/beeircd/beeircd.conf"
+// defaultConfig is where every command looks without -config:
+// /etc/beeircd/beeircd.conf, or /data/beeircd.conf in the Docker image.
+var defaultConfig = configPath(inContainer)
+
+// inContainer is true in the BeeIRCd Docker image (BEEIRCD_CONTAINER=1):
+// everything lives in /data, Docker is the service manager.
+var inContainer = os.Getenv("BEEIRCD_CONTAINER") == "1"
+
+// dockerUpdate is how the Docker image gets a new version.
+const dockerUpdate = "docker compose pull && docker compose up -d"
+
+func configPath(container bool) string {
+	if container {
+		return containerPaths.conf
+	}
+	return instConf
+}
 
 const usage = `Usage: beeircd <command>
 
@@ -53,6 +69,10 @@ const usage = `Usage: beeircd <command>
 `
 
 func main() {
+	if inContainer {
+		server.UpdateCommand = dockerUpdate
+		config.InContainer = true
+	}
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 

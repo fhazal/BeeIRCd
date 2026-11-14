@@ -1,0 +1,5 @@
+# The image needs only the release programs and deploy/docker.
+*
+!dist/beeircd-linux-amd64
+!dist/beeircd-linux-arm64
+!deploy/docker/

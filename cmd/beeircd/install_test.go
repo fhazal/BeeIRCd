@@ -272,3 +272,56 @@ func TestInstallHivePanel(t *testing.T) {
 		}
 	}
 }
+
+// In the Docker image the installer writes only /data: no user, program
+// copy, systemd unit or firewall rule, and the Hive Panel listens inside
+// its container (compose publishes it on 127.0.0.1).
+func TestInstallContainer(t *testing.T) {
+	var ran []string
+	in, out := testInstaller(t, "irc.example.org\nExampleNet\nBee\npassword1\npassword1\n\n6697\n2\n\n1\ny\ny\n", &ran)
+	in.container = true
+	config.InContainer = true
+	defer func() { config.InContainer = false }()
+	if err := in.preflight(); err != nil {
+		t.Fatalf("preflight: %v", err)
+	}
+	p, err := in.ask()
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if err := in.apply(p); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if code := in.finish(p); code != 0 {
+		t.Fatalf("finish %d\n%s", code, out)
+	}
+	if len(ran) != 0 {
+		t.Errorf("ran commands in a container: %q", ran)
+	}
+	cfg, err := config.Load(in.path("/data/beeircd.conf"))
+	if err != nil {
+		t.Fatalf("config: %v", err)
+	}
+	raw, _ := os.ReadFile(in.path("/data/beeircd.conf"))
+	for _, want := range []string{`database = "/data/services.db"`, `dir = "/data/backups"`, `socket = "/run/beeircd/beeircd.sock"`, `cert = "/data/tls/cert.pem"`, `file = "/data/motd.txt"`} {
+		if !strings.Contains(string(raw), want) {
+			t.Errorf("config lacks %s:\n%s", want, raw)
+		}
+	}
+	if cfg.Web.Listen != ":8787" {
+		t.Errorf("web listen %q", cfg.Web.Listen)
+	}
+	for _, f := range []string{instConf, instBin, instUnit} {
+		if _, err := os.Stat(in.path(f)); err == nil {
+			t.Errorf("%s written in a container", f)
+		}
+	}
+	for _, want := range []string{"everything in /data", "docker compose --profile panel up -d", "/msg NickServ REGISTER"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
+	}
+	if err := in.preflight(); err == nil || !strings.Contains(err.Error(), "already set up") {
+		t.Errorf("second install: %v", err)
+	}
+}

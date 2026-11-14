@@ -54,6 +54,7 @@ type installer struct {
 	now        time.Time
 	uid, gid   int // the beeircd user, -1 until made
 	portFree   func(port int) bool
+	container  bool // the Docker image: files in /data, no user, service or firewall
 }
 
 // plan is everything the questions decide; the templates read it.
@@ -72,6 +73,8 @@ type plan struct {
 	AdminHosts                                      []string
 	HistorySecret, Socket, BackupDir, TimeZone      string
 	Web                                             bool // the Hive Panel (beeircd-web service)
+	WebListen                                       string
+	Container                                       bool
 }
 
 func cmdInstall(args []string, stdout, stderr io.Writer) int {
@@ -103,7 +106,7 @@ func realInstaller(stdout io.Writer) *installer {
 	tty := term.IsTerminal(int(os.Stdin.Fd()))
 	in := &installer{
 		in: bufio.NewReader(os.Stdin), out: stdout, c: &checker{w: stdout, p: colourFor(stdout)},
-		tty: tty, env: os.Getenv, exe: exe, now: time.Now(), uid: -1, gid: -1,
+		tty: tty, env: os.Getenv, exe: exe, now: time.Now(), uid: -1, gid: -1, container: inContainer,
 		run: func(name string, args ...string) (string, error) {
 			out, err := exec.Command(name, args...).CombinedOutput()
 			return strings.TrimSpace(string(out)), err
@@ -130,6 +133,14 @@ func realInstaller(stdout io.Writer) *installer {
 
 func (in *installer) path(p string) string { return filepath.Join(in.root, p) }
 
+// paths are the files this install writes.
+func (in *installer) paths() instPaths {
+	if in.container {
+		return containerPaths
+	}
+	return hostPaths
+}
+
 func (in *installer) line() (string, error) {
 	s, err := in.in.ReadString('\n')
 	if err != nil && s == "" {
@@ -140,6 +151,12 @@ func (in *installer) line() (string, error) {
 
 // preflight refuses machines the installer can't handle.
 func (in *installer) preflight() error {
+	if in.container {
+		if _, err := os.Stat(in.path(containerPaths.conf)); err == nil {
+			return errors.New("BeeIRCd is already set up here (" + containerPaths.conf + "). Start it with: docker compose up -d")
+		}
+		return nil
+	}
 	switch {
 	case runtime.GOOS != "linux":
 		return errors.New("beeircd install is for Linux; elsewhere run `beeircd run -config <file>` under your own service manager")
@@ -229,15 +246,20 @@ func (in *installer) yesNo(q string, def bool) (bool, error) {
 // ask runs the eight questions and the summary; nothing is written yet.
 func (in *installer) ask() (*plan, error) {
 	fmt.Fprintf(in.out, "\n  %s setup\n  Answer each question. Enter keeps the [default]. Ctrl+C stops without changes.\n\n", version.String())
-	if osn := in.osName(); !supportedOS[osn] {
+	if osn := in.osName(); !in.container && !supportedOS[osn] {
 		fmt.Fprintln(in.out, "  "+in.c.p.warn("! "+or(osn, "this system")+" isn't one the installer is tested on (Debian 12/13, Ubuntu 22.04/24.04)."))
 		if ok, err := in.yesNo("Continue anyway?", false); err != nil || !ok {
 			return nil, errStopped
 		}
 	}
-	p := &plan{Date: in.now.Format("2 Jan 2006"), Prefixes: "@+", MOTDFile: instMOTD,
-		Database: path.Join(instData, "services.db"), Socket: instSocket,
-		BackupDir: path.Join(instData, "backups"), TimeZone: in.timeZone()}
+	ps := in.paths()
+	p := &plan{Date: in.now.Format("2 Jan 2006"), Prefixes: "@+", MOTDFile: ps.motd,
+		Database: path.Join(ps.data, "services.db"), Socket: ps.socket,
+		BackupDir: path.Join(ps.data, "backups"), TimeZone: in.timeZone(),
+		WebListen: "127.0.0.1:8787", Container: in.container}
+	if in.container {
+		p.WebListen = ":8787" // compose publishes it on 127.0.0.1 only
+	}
 	var err error
 	host, _ := os.Hostname()
 	if !config.ValidServerName(host) || !strings.Contains(host, ".") {
@@ -355,7 +377,11 @@ func (in *installer) ask() (*plan, error) {
 			return nil, err
 		}
 	}
-	web, err := in.yesNo("Set up the Hive Panel too (the web admin, reached through an SSH tunnel)?", false)
+	webQ := "Set up the Hive Panel too (the web admin, reached through an SSH tunnel)?"
+	if in.container {
+		webQ = "Set up the Hive Panel too (the web admin, compose service beeircd-web)?"
+	}
+	web, err := in.yesNo(webQ, false)
 	if err != nil {
 		return nil, err
 	}
@@ -497,7 +523,7 @@ func (in *installer) askCert(p *plan) error {
 		if err != nil {
 			return err
 		}
-		p.CertFile, p.KeyFile = path.Join(instTLS, "cert.pem"), path.Join(instTLS, "key.pem")
+		p.CertFile, p.KeyFile = path.Join(in.paths().tls, "cert.pem"), path.Join(in.paths().tls, "key.pem")
 		switch choice {
 		case "1":
 			p.Cert = "acme"
@@ -542,7 +568,7 @@ func (in *installer) askCert(p *plan) error {
 			fmt.Fprintln(in.out, "        "+in.c.p.warn("! that certificate is for "+strings.Join(leaf.DNSNames, ", ")+", not "+p.Name))
 		}
 		p.OwnCert, p.OwnKey = cert, key
-		if dir := path.Dir(cert); strings.HasPrefix(dir, "/etc/letsencrypt/live/") && path.Dir(key) == dir {
+		if dir := path.Dir(cert); !in.container && strings.HasPrefix(dir, "/etc/letsencrypt/live/") && path.Dir(key) == dir {
 			p.LELive = dir // copied for the beeircd user, renewals through a hook
 		} else {
 			p.CertFile, p.KeyFile = cert, key
@@ -578,13 +604,29 @@ func (in *installer) summary(p *plan) {
 	fmt.Fprintf(w, "  %-11s %s\n", "Certificate", cert)
 	fmt.Fprintf(w, "  %-11s daily 04:00 %s, 7 kept\n", "Backup", p.TimeZone)
 	if p.Web {
-		fmt.Fprintf(w, "  %-11s on 127.0.0.1:8787 (service beeircd-web), opers sign in with their oper password\n", "Hive Panel")
+		svc := "service"
+		if in.container {
+			svc = "compose service"
+		}
+		fmt.Fprintf(w, "  %-11s on 127.0.0.1:8787 (%s beeircd-web), opers sign in with their oper password\n", "Hive Panel", svc)
+	}
+	if in.container {
+		fmt.Fprintf(w, "  %-11s everything in /data (the beeircd-data volume in compose.yaml)   logs: docker compose logs beeircd\n\n", "Files")
+		return
 	}
 	fmt.Fprintf(w, "  %-11s /opt/beeircd   config /etc/beeircd   data /var/lib/beeircd   logs journalctl -u beeircd\n\n", "Files")
 }
 
 // apply writes everything. Each step prints a ✓ line.
 func (in *installer) apply(p *plan) error {
+	if in.container {
+		// The image has the program and the beeircd user, and this runs
+		// as that user; Docker starts, restarts and opens the ports.
+		if err := in.writeConfig(p); err != nil {
+			return err
+		}
+		return in.certFiles(p)
+	}
 	if err := in.makeUser(); err != nil {
 		return err
 	}
@@ -692,7 +734,8 @@ func render(t *template.Template, data any) ([]byte, error) {
 }
 
 func (in *installer) writeConfig(p *plan) error {
-	for _, d := range []string{instEtc, instTLS, instData} {
+	ps := in.paths()
+	for _, d := range []string{ps.etc, ps.tls, ps.data} {
 		if err := in.mkdir(d, 0o750, true); err != nil {
 			return err
 		}
@@ -701,27 +744,31 @@ func (in *installer) writeConfig(p *plan) error {
 	if err != nil {
 		return err
 	}
-	if err := in.write(instConf, conf, 0o640, true); err != nil {
+	if err := in.write(ps.conf, conf, 0o640, true); err != nil {
 		return err
 	}
 	motd, err := render(template.Must(template.New("motd").Parse(motdText)), p)
 	if err != nil {
 		return err
 	}
-	if err := in.write(instMOTD, motd, 0o640, true); err != nil {
+	if err := in.write(ps.motd, motd, 0o640, true); err != nil {
 		return err
 	}
 	// The file must read back cleanly; anything else is a bug here.
-	if _, err := config.Load(in.path(instConf)); err != nil {
+	if _, err := config.Load(in.path(ps.conf)); err != nil {
 		return fmt.Errorf("the written config doesn't load (please report this): %w", err)
 	}
-	in.c.ok("program in /opt/beeircd, config written to " + instConf)
+	if in.container {
+		in.c.ok("config written to " + ps.conf)
+	} else {
+		in.c.ok("program in /opt/beeircd, config written to " + ps.conf)
+	}
 	if p.Role == "standalone" {
 		return nil
 	}
 	// The link certificate is made now, so its fingerprint can be shown
 	// at the end and pasted on the other server before the first start.
-	cert, key := in.path(path.Join(instData, "link-cert.pem")), in.path(path.Join(instData, "link-key.pem"))
+	cert, key := in.path(path.Join(ps.data, "link-cert.pem")), in.path(path.Join(ps.data, "link-key.pem"))
 	if _, p.LinkFP, err = link.LoadOrCreate(cert, key, p.Name); err != nil {
 		return err
 	}
@@ -759,7 +806,7 @@ func (in *installer) certFiles(p *plan) error {
 		}
 		in.c.ok("certificate copied from " + p.LELive + "; certbot renewals are copied by " + instLEHook)
 	default:
-		if in.root == "" {
+		if in.root == "" && !in.container {
 			if out, err := in.run("runuser", "-u", instUser, "--", "test", "-r", p.KeyFile); err != nil {
 				return fmt.Errorf("the beeircd user can't read %s (%s): make it readable for group beeircd, or copy the files to %s", p.KeyFile, or(out, err.Error()), instTLS)
 			}
@@ -867,6 +914,18 @@ func (in *installer) firewall(p *plan) {
 // finish offers to start the server and shows where to connect.
 func (in *installer) finish(p *plan) int {
 	in.linkSteps(p)
+	if in.container {
+		start := "docker compose up -d"
+		if p.Web {
+			start = "docker compose --profile panel up -d"
+		}
+		fmt.Fprintf(in.out, "\n  Start it with:  %s\n  Then connect to %s port %d (TLS).\n%s  docker compose exec beeircd beeircd status  shows how it runs.\n", start, p.Name, p.TLSPort, firstSteps(p.Admin))
+		if p.Web {
+			fmt.Fprint(in.out, webSteps(p.Name))
+		}
+		fmt.Fprintln(in.out)
+		return 0
+	}
 	start, err := in.yesNo("\n  Start BeeIRCd now?", true)
 	if err != nil || !start {
 		fmt.Fprintf(in.out, "\n  Start it later with:  beeircd start\n%s%s\n", firstSteps(p.Admin), beeroomHint)
@@ -903,10 +962,10 @@ func (in *installer) linkSteps(p *plan) {
 	fmt.Fprint(in.out, "\n  Linking (beeircd link-info shows this again)")
 	fmt.Fprint(in.out, linkInfoText(p.Name, p.SID, p.Role, p.LinkPort, p.LinkFP, servers))
 	if p.UplinkName != "" && p.UplinkFP == "" {
-		fmt.Fprintf(in.out, "  The [[link.server]] block for %s is in %s, commented out:\n  add the hub's fingerprint, remove the # signs, then beeircd rehash.\n", p.UplinkName, instConf)
+		fmt.Fprintf(in.out, "  The [[link.server]] block for %s is in %s, commented out:\n  add the hub's fingerprint, remove the # signs, then beeircd rehash.\n", p.UplinkName, in.paths().conf)
 	}
 	if p.CloakLater {
-		fmt.Fprintf(in.out, "  %s\n", in.c.p.warn("! Copy [cloak] secret from the hub's beeircd.conf into "+instConf+" and restart, or people's cloaks differ per server."))
+		fmt.Fprintf(in.out, "  %s\n", in.c.p.warn("! Copy [cloak] secret from the hub's beeircd.conf into "+in.paths().conf+" and restart, or people's cloaks differ per server."))
 	}
 }
 
@@ -955,6 +1014,12 @@ func (in *installer) waitACME() {
 }
 
 func (in *installer) timeZone() string {
+	if in.container {
+		if tz := in.env("TZ"); tz != "" {
+			return tz + " (TZ in compose.yaml)"
+		}
+		return "UTC (set TZ in compose.yaml)"
+	}
 	if b, err := os.ReadFile(in.path("/etc/timezone")); err == nil && strings.TrimSpace(string(b)) != "" {
 		return strings.TrimSpace(string(b))
 	}

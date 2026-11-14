@@ -20,6 +20,10 @@ type Web struct {
 	SessionIdle Duration `toml:"session_idle"`
 }
 
+// InContainer is set in the Docker image: the panel then listens inside
+// its own container, and compose.yaml publishes it on 127.0.0.1 only.
+var InContainer bool
+
 // DefaultWebListen is where the panel answers when [web] listen is empty.
 const DefaultWebListen = "127.0.0.1:8787"
 
@@ -35,7 +39,7 @@ func (w *Web) check() error {
 	if err != nil {
 		return fmt.Errorf("[web] listen %q: %v", w.Listen, err)
 	}
-	if ip := net.ParseIP(host); host != "localhost" && (ip == nil || !ip.IsLoopback()) {
+	if ip := net.ParseIP(host); !InContainer && host != "localhost" && (ip == nil || !ip.IsLoopback()) {
 		return fmt.Errorf("[web] listen %q: the Hive Panel only answers on this machine (127.0.0.1 or ::1); reach it with an SSH tunnel or a reverse proxy", w.Listen)
 	}
 	for _, p := range w.TrustedProxy {

@@ -10,7 +10,7 @@ behind a proxy or tunnel. Day-to-day running is in [ADMIN.md](ADMIN.md).
 
 - Linux with systemd: **Debian 12 or 13, Ubuntu 22.04 or 24.04** are tested.
   Others with systemd usually work too. No systemd (Alpine, Devuan, Void, a
-  container)? See [Without systemd](#without-systemd).
+  container)? See [Without systemd](#without-systemd), or use [Docker](#docker).
 - amd64 or arm64.
 - Root (`sudo`).
 - A small VPS is enough: 1 CPU and 512 MB hold about 5,000 people.
@@ -210,6 +210,42 @@ database and history file, and says if a restart would be safe. More in
 sudo beeircd uninstall          # removes the program and the service, keeps config and data
 sudo beeircd uninstall --purge  # also deletes /etc/beeircd, /var/lib/beeircd (backups too) and the beeircd user
 ```
+
+## Docker
+
+The BeeIRCd image runs on any machine with Docker: a NAS (Synology,
+Unraid, TrueNAS), any Linux, or Windows and Mac with Docker Desktop. The
+image is small (about 37 MB) and runs the server as an unprivileged user.
+
+Save [compose.yaml](deploy/docker/compose.yaml) in an empty folder, then:
+
+```sh
+docker compose run --rm beeircd install    # the same nine questions
+docker compose up -d                       # start; it comes back after a reboot
+```
+
+| What | How |
+| --- | --- |
+| How it runs | `docker compose exec beeircd beeircd status` |
+| Admin commands | `docker compose exec beeircd beeircd <command>` (`check`, `backup`, `rehash`, `link-info`, `webirc`) |
+| Logs | `docker compose logs beeircd` |
+| Restart | `docker compose restart beeircd` |
+| Update | `docker compose pull && docker compose up -d` (your data stays) |
+| Hive Panel | say yes to it in the questions, then `docker compose --profile panel up -d`; it answers on `127.0.0.1:8787` of the Docker machine only, reach it with the SSH tunnel from [Hive Panel](ADMIN.md#hive-panel-web-admin) |
+
+- **Data.** Config, accounts, channels, history and backups are all in
+  `/data`, kept in the `beeircd-data` volume. To use a folder instead,
+  change `beeircd-data:/data` to `./data:/data`; the container makes it
+  belong to its user by itself.
+- **Backups** run daily at 04:00 in the `TZ` time zone set in compose.yaml
+  (UTC by default), newest 7 kept.
+- **Ports.** compose.yaml publishes 6667 and 6697. Uncomment `7000` for a
+  hub and `80` for Let's Encrypt. Open the same ports in your firewall.
+- **Real IPs.** On Linux, people's own IPs reach BeeIRCd, so bans and limits
+  work per person. Docker Desktop on Windows and Mac can show everyone with
+  one address: fine for trying BeeIRCd, but run a public network on Linux.
+- `beeircd update`, `start`, `stop` and `restart` don't apply in Docker; each
+  says which `docker compose` command to use instead.
 
 ## Without systemd
 
