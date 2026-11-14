@@ -34,7 +34,7 @@ func TestPanelMembersOffByDefault(t *testing.T) {
 	s, _, _ := fileServer(t, "")
 	registered(t, s, "ember")
 	r := panelAsk(t, s, control.Request{Cmd: control.CmdPanelLogin, Nick: "ember", Password: pw, IP: "127.0.0.1"})
-	if r.Oper != nil || r.Error != "Wrong nick or password." {
+	if r.Oper != nil || r.Error != memberOffMsg {
 		t.Fatalf("NickServ password with members off: %+v", r)
 	}
 	if h := panelAsk(t, s, control.Request{Cmd: control.CmdPanelHello}); h.Hello == nil || h.Hello.Members {
@@ -236,5 +236,30 @@ func TestPanelMembersSwitch(t *testing.T) {
 	}
 	if r := panelAsk(t, s, as(m, control.CmdMyNick)); r.Denied != "signin" {
 		t.Errorf("member session after the switch went off: %+v", r)
+	}
+}
+
+// With Members off, a right NickServ password is not a wrong password: it
+// says sign-in is off and uses up no lock (QA 1.0.0 round, bug 2).
+func TestPanelMembersOffRightPasswordNotCounted(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	e := registered(t, s, "ember")
+	b.send("AS OPER ember ADD CLASS globop HOST *@127.0.0.0/8 PASSWORD " + emberPW)
+	b.expect("ember is an oper now")
+	for i := 0; i < 7; i++ {
+		r := panelAsk(t, s, control.Request{Cmd: control.CmdPanelLogin, Nick: "ember", Password: pw, IP: "127.0.0.1"})
+		if r.Oper != nil || !strings.HasPrefix(r.Error, "Member sign-in is off on this server.") {
+			t.Fatalf("try %d: %+v", i, r)
+		}
+	}
+	e.send("OPER ember " + emberPW)
+	e.expect(" 381 ember ")
+	if r := panelAsk(t, s, control.Request{Cmd: control.CmdPanelLogin, Nick: "ember", Password: "not-it", IP: "127.0.0.1"}); r.Error != "Wrong nick or password." {
+		t.Errorf("wrong password: %+v", r)
+	}
+	registered(t, s, "plain")
+	if r := panelAsk(t, s, control.Request{Cmd: control.CmdPanelLogin, Nick: "plain", Password: pw, IP: "127.0.0.1"}); !strings.HasPrefix(r.Error, "Member sign-in is off") {
+		t.Errorf("member, members off: %+v", r)
 	}
 }

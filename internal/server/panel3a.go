@@ -108,7 +108,9 @@ func (s *Server) panelLogin(req control.Request, done func(control.Response)) {
 		return
 	}
 	po, a, o, problem := s.panelOper(nick, ip)
-	members := s.cfg.Web.Members && a != nil
+	// A registered nick always gets its NickServ password checked: with
+	// Members off a right one is told so (memberLogin), not counted wrong.
+	members := a != nil
 	if po == nil && members {
 		s.memberLogin(a, nick, pw, ip, done)
 		return
@@ -153,7 +155,7 @@ func (s *Server) panelLogin(req control.Request, done func(control.Response)) {
 		default:
 			if members { // maybe their NickServ password: the member pages
 				s.memberLogin(a, nick, pw, ip, func(r control.Response) {
-					if r.Oper != nil { // not a wrong oper password after all
+					if r.Oper != nil || r.Error == memberOffMsg { // the right NickServ password: not a wrong oper password
 						s.svc.ForgiveWrong(key, ip)
 					}
 					done(r)

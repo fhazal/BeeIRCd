@@ -42,23 +42,36 @@ func (s *Server) panelMember(req control.Request) (po *control.PanelOper, deny *
 	return &control.PanelOper{Account: a.Name, Member: true, Seal: memberSeal(a), Chat: s.cfg.Web.ChatURL}, nil, true
 }
 
+// memberOffMsg answers a right NickServ password while Members is off.
+const memberOffMsg = "Member sign-in is off on this server. Opers: sign in with your oper password."
+
 // memberLogin checks a NickServ password for the Hive Panel. It counts
 // wrong tries on the same lock as IDENTIFY on IRC.
 func (s *Server) memberLogin(a *store.Account, nick, pw, ip string, done func(control.Response)) {
 	wrong := control.Response{Error: "Wrong nick or password.", Denied: "signin"}
-	if a.Suspended(time.Now()) {
+	if s.cfg.Web.Members && a.Suspended(time.Now()) { // with Members off nothing is told without the password
 		done(control.Response{Error: a.Name + " is suspended.", Denied: "signin"})
 		return
 	}
 	s.svc.CheckSecret(new(bool), func() bool { return false }, a.ID, ip, a.PassHash, pw, func(res services.PwResult) {
 		switch res {
 		case services.PwOK:
+			if !s.cfg.Web.Members {
+				s.panelEvent(a.Name, ip, "could not sign in as a member: member sign-in is off")
+				done(control.Response{Error: memberOffMsg, Denied: "signin"})
+				return
+			}
 			s.panelEvent(a.Name, ip, "signed in as a member")
 			done(control.Response{Oper: &control.PanelOper{Account: a.Name, Member: true, Seal: memberSeal(a), Chat: s.cfg.Web.ChatURL}})
 		case services.PwLocked:
 			done(control.Response{Error: "Too many wrong passwords for this nick. Try again in " + services.RoundUp(s.lockedFor(a.ID, ip)) + ".", Denied: "signin"})
 		default:
-			s.panelEvent(nick, ip, "could not sign in as a member: wrong password")
+			if !s.cfg.Web.Members { // as before Members: a wrong panel password, told to opers
+				s.panelEvent(nick, ip, "could not sign in: wrong password")
+				s.snotice("Hive Panel: wrong password for %s from %s", nick, ip)
+			} else {
+				s.panelEvent(nick, ip, "could not sign in as a member: wrong password")
+			}
 			done(wrong)
 		}
 	})
