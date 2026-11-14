@@ -315,7 +315,7 @@ func TestUpdateRestartsHivePanel(t *testing.T) {
 
 	// A failed update goes back to the old program; the panel never left it.
 	fs = &fakeSystem{running: "1.0.0", comesUp: false, panel: true}
-	u, out = testUpdater(t, "1.0.0", srv.URL, fs, "y\n")
+	u, _ = testUpdater(t, "1.0.0", srv.URL, fs, "y\n")
 	u.update(false, false, false)
 	if restarts(fs) != 0 {
 		t.Errorf("failed update restarted the panel: %v", fs.calls)
