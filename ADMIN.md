@@ -299,9 +299,15 @@ then open <http://127.0.0.1:8787>. `beeircd install` sets it up as the
   after 12 hours in any case.
 - **Members** (`[web] members = true`, off by default): everyone with a
   registered nick may sign in with their NickServ password and gets only
-  **My nick** (NickServ SET KILL, HIDE, AUTOOP, PRIVATE and GREET as
-  switches, run as the real SET with NickServ's own answer) and **My
-  channels** (where they are founder or on the access list). Opers sign
+  the YOU pages: **Home** (their start page: new memos, their channels
+  right now, the newest access list and AKICK additions they may see on
+  IRC, where they are connected, and "Needs you" when something is to
+  do), **Chat** (only with `chat_url`, below), **My nick** (NickServ SET
+  KILL, HIDE, AUTOOP, PRIVATE and GREET as switches, run as the real SET
+  with NickServ's own answer), **My channels** (where they are founder or
+  on the access list) and **Memos** (read, reply, delete and send: the
+  real MemoServ SEND with its limits, ignores and send delay). Opers
+  start on Overview and find the YOU pages at the top of the menu. Opers sign
   in with their oper password for the admin pages, or with their NickServ
   password for the member pages only. Wrong NickServ passwords count on
   the same lock as IDENTIFY on IRC. A new NickServ password, a
@@ -635,14 +641,15 @@ that class.
 
 ### [web]
 
-The Hive Panel (`beeircd web`, the `beeircd-web` service). The server reads only `members`.
+The Hive Panel (`beeircd web`, the `beeircd-web` service). The server reads only `members` and `chat_url`.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `listen` | `127.0.0.1:8787` | Where the panel answers; a loopback address only |
 | `trusted_proxy` | none | Reverse proxies (IP addresses) whose forwarded address and https the panel believes |
 | `session_idle` | `30m` | Signed out after this long without a click (1m to 24h) |
-| `members` | `false` | Registered nicks may sign in with their NickServ password, to My nick and My channels only |
+| `members` | `false` | Registered nicks may sign in with their NickServ password, to the YOU pages only (Home, Chat, My nick, My channels, Memos) |
+| `chat_url` | none | BeeRoom's address, like `https://chat.example.org`: the Chat tab shows it, signed in as the person with a key that works once, for one minute. BeeRoom's `frameAncestors` (or `BEEROOM_PANEL` in Docker) must list the panel's address |
 
 The panel's fonts (Inter, Space Grotesk, JetBrains Mono) are bundled
 under the SIL Open Font License; the licences are in
