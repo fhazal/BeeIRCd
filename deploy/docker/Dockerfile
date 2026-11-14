@@ -2,7 +2,7 @@
 # time zones, cron for the daily backup). Built by the release from the
 # signed release programs:
 #   docker buildx build --platform linux/amd64,linux/arm64 -f deploy/docker/Dockerfile .
-# Everything that changes lives in the /data volume. INSTALL.md "Docker".
+# Everything that changes lives in the /data volume. docs/INSTALL.md "Docker".
 FROM alpine:3.22
 
 ARG TARGETARCH

@@ -51,7 +51,7 @@ services:
     init: true
     restart: unless-stopped
     ports:
-      - "127.0.0.1:9000:9000"   # for the web server in front (see INSTALL.md "Docker")
+      - "127.0.0.1:9000:9000"   # for the web server in front (see docs/INSTALL.md "Docker")
     volumes:
       - beeroom-data:/data
       - beeroom-link:/link:ro

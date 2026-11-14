@@ -140,8 +140,8 @@ socket = {{q .Socket}}
 [link]
 # This server's place in a network: "standalone", "hub" (other servers link
 # to it) or "leaf" (it links to a hub). The link port is TLS only.
-# ` + "`beeircd link-info`" + ` prints what the other server needs; ADMIN.md
-# "Linking servers" has the whole walk-through.
+# ` + "`beeircd link-info`" + ` prints what the other server needs; "Linking servers" in
+# https://github.com/fhazal/BeeIRCd/blob/main/docs/ADMIN.md has the whole walk-through.
 role = {{q .Role}}
 {{- if .LinkPort}}
 port = {{.LinkPort}}

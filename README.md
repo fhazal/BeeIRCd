@@ -13,14 +13,14 @@ Classic IRC feel · services in the box · IRCv3 · light on a 1-CPU VPS
 [![CI](https://github.com/fhazal/BeeIRCd/actions/workflows/ci.yml/badge.svg)](https://github.com/fhazal/BeeIRCd/actions/workflows/ci.yml)
 ![Go 1.27](https://img.shields.io/badge/Go-1.27-00add8?logo=go&logoColor=white)
 [![Licence: AGPL-3.0-or-later](https://img.shields.io/badge/licence-AGPL--3.0--or--later-f5b301)](LICENSE)
-![Status: pre-release](https://img.shields.io/badge/status-pre--release-8b5cf6)
+[![Release](https://img.shields.io/github/v/release/fhazal/BeeIRCd?color=f5b301)](https://github.com/fhazal/BeeIRCd/releases/latest)
 
 [![Website](https://img.shields.io/badge/Website-beeircd.org-f5b301?style=for-the-badge)](https://beeircd.org)
 
 </div>
 
 > [!NOTE]
-> BeeIRCd is a free, open-source IRC server by **BajuBesi Labs**, written from scratch in Go. It is in **release candidates for 1.0**: the server, server linking and the Hive Panel web admin ship together, and they run on our test network now. Follow the progress below.
+> BeeIRCd is a free, open-source IRC server by **BajuBesi Labs**, written from scratch in Go. **1.0 is out**: the server with its services, server linking, the Hive Panel web admin and BeeRoom web chat.
 
 ---
 
@@ -98,19 +98,14 @@ Running an IRC network usually means two programs that have to be wired together
 </td></tr>
 </table>
 
-The full list, with what is planned and what is only an idea, is in [FEATURES.md](FEATURES.md).
+The full list, with what is planned and what is only an idea, is in [docs/FEATURES.md](docs/FEATURES.md).
 
 ## 🗺️ Roadmap
 
-| Stage | What | Status |
+| Version | What | Status |
 | --- | --- | --- |
-| 1 | One server with all services working | ✅ Done |
-| 1.5 | Anope-style services, HostServ, BotServ, oper classes, channel and user modes | ✅ Done |
-| 7 | Installer, `beeircd` command, systemd, Let's Encrypt, REHASH, signed updates | ✅ Done |
-| 2 | Linking: BeeIRCd to BeeIRCd and to UnrealIRCd 6 | ✅ Done |
-| 3 | **Hive Panel**: web admin | ✅ Done |
-| 4 | **BeeRoom**: web chat for your users, and member pages in the Hive Panel | ✅ Done |
-| **1.0** | **Stages 1 to 4 released together** | 🚧 Final testing |
+| 1.0 | Server and services, linking (BeeIRCd and UnrealIRCd 6), Hive Panel, BeeRoom web chat | ✅ Released |
+| 1.1 | Spam filter, a calmer "What happened" page in the Hive Panel | 🚧 In progress |
 
 ## 📦 Installing
 
@@ -118,8 +113,8 @@ The full list, with what is planned and what is only an idea, is in [FEATURES.md
 curl -fsSL https://beeircd.org/install.sh | sudo sh
 ```
 
-Nine questions, then it runs. [INSTALL.md](INSTALL.md) has the details
-(firewall, certificates, proxies); [ADMIN.md](ADMIN.md) covers running it
+Nine questions, then it runs. [docs/INSTALL.md](docs/INSTALL.md) has the details
+(firewall, certificates, proxies); [docs/ADMIN.md](docs/ADMIN.md) covers running it
 (`beeircd status`, AdminServ, the Hive Panel, linking servers, backups,
 updates, every setting).
 
@@ -138,13 +133,12 @@ Checks (gofmt, `go vet`, [staticcheck](https://staticcheck.dev) and every test):
 scripts/check.sh
 ```
 
-How BeeIRCd is tested, and how to run irctest yourself: [TESTING.md](TESTING.md).
-
 ## 📂 Layout
 
 | Folder | What lives there |
 | --- | --- |
 | `cmd/beeircd` | the `beeircd` program and its commands |
+| `docs/` | installing, running and the feature list |
 | `internal/` | the server, services and storage, one package each |
 | `tools/` | live checks, load generator, irctest controller |
 | `scripts/` | developer scripts |

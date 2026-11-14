@@ -164,7 +164,7 @@ func (in *installer) preflight() error {
 		return errors.New("run the installer as root (sudo beeircd install)")
 	}
 	if _, err := os.Stat("/run/systemd/system"); err != nil {
-		return errors.New("this machine doesn't run systemd; install by hand: see INSTALL.md \"Without systemd\"")
+		return errors.New("this machine doesn't run systemd; install by hand: see \"Without systemd\" in https://github.com/fhazal/BeeIRCd/blob/main/docs/INSTALL.md")
 	}
 	if _, err := os.Stat(instConf); err == nil {
 		return errors.New("BeeIRCd is already installed (" + instConf + "). Use `beeircd update`, or `beeircd uninstall` first")

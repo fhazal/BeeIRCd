@@ -1,0 +1,135 @@
+# BeeIRCd features
+
+✅ = in BeeIRCd today · 🔜 = next release · 📋 = planned
+
+How to set each one up is in [ADMIN.md](ADMIN.md); installing is in [INSTALL.md](INSTALL.md).
+
+## Core server
+
+| Feature | | Notes |
+| --- | --- | --- |
+| Registration, PING, QUIT, NICK, USER, PASS | ✅ | PASS is ignored (no server password) |
+| JOIN, PART, KICK, INVITE, TOPIC, NAMES, LIST | ✅ | KICK takes `#a,#b nick1,nick2` pairs (RFC 2812) |
+| PRIVMSG, NOTICE, TAGMSG, STATUSMSG (`@#`, `+#`) | ✅ | |
+| WHO, WHOIS, WHOWAS, ISON, USERHOST, AWAY | ✅ | `WHO exactnick` shows +i users; `WHO *` also lists the services |
+| MOTD, LUSERS, VERSION, TIME, INFO, HELP, HELPOP | ✅ | HELP covers every command and the channel modes |
+| Input limits | ✅ | lines over 510 bytes or tags over 4096 bytes get 417 and are dropped, not cut |
+| User modes `i w o s r x` | ✅ | |
+| User modes `B d D R T p Z H W q z` | ✅ | UnrealIRCd letters and rules: bot, deaf, private-message filters, hidden channels, hidden oper, WHOIS notice, unkickable, TLS |
+| Channel modes `o v b e I k l i m n p s t R M r` | ✅ | |
+| Channel modes `c S C T N K V Q z Z D P O` | ✅ | UnrealIRCd letters and rules |
+| Flood guard `+f [10j#R10,40m#M10]:15` and `+F` profiles | ✅ | UnrealIRCd syntax; a server-wide default profile |
+| `+L` link channel, `+E` repeat, `+B` caps, `+J` rejoin delay | ✅ | |
+| Channel history `+H lines:time`, playback on join, CHATHISTORY | ✅ | kept encrypted on disk (AES-256-GCM), so a restart keeps it |
+| KNOCK, SILENCE, SETNAME, CHGNAME | ✅ | |
+| SETHOST, SETIDENT, CHGHOST, CHGIDENT | ✅ | opers with flag h |
+| SAJOIN, SAPART, SANICK, SAMODE, SATOPIC | ✅ | opers with flag a |
+| Prefixes `@+` (default) or `~&@%+` | ✅ | `[server] prefixes` |
+| TLS 1.2+, self-signed or your own certificate | ✅ | a changed certificate is picked up without a restart |
+| Let's Encrypt built in | ✅ | HTTP-01, port 80 open only while asking, renewed by itself, loaded live |
+| Host cloaking (HMAC) | ✅ | UnrealIRCd- and InspIRCd-compatible methods for mixed networks |
+| Flood control, connect throttle, limits per IP | ✅ | opers are never slowed down |
+| PROXY protocol v1 and v2 | ✅ | only from the proxies you list |
+| DNS blocklists (DroneBL, EFnetRBL, any list) | ✅ | reject, Z-line, AKILL or SHUN; IPv4 and IPv6 |
+| REHASH (`/rehash`, `beeircd rehash`, SIGHUP) | ✅ | applies what is safe live and lists what needs a restart |
+| WebSocket | 📋 | |
+| `~f:#chan` forward extban, `+G` censor | 📋 | |
+| Module system | 📋 | |
+
+## Server linking
+
+| Feature | | Notes |
+| --- | --- | --- |
+| Hub and leaf over TLS on a separate link port | ✅ | locked by certificate fingerprint (like UnrealIRCd's `spkifp`); a password is optional |
+| Links to BeeIRCd and to UnrealIRCd 6 | ✅ | UnrealIRCd 6 server protocol |
+| One network: users, channels, modes, topics, bans, services and oper entries shared | ✅ | nick collisions and channel timestamps handled like UnrealIRCd |
+| Services on their own server, SASL relayed over links | ✅ | to BeeIRCd services or to Anope |
+| Network bans (AKILL, ZLINE, SHUN, ELINE, Q-lines) shared live | ✅ | K-lines stay on one server |
+| `/MAP`, `/LINKS`, `/CONNECT`, `/SQUIT`, remote `/STATS`, `/MOTD`, `/VERSION`, `/ADMIN`, `/TIME`, `WHOIS nick nick` | ✅ | |
+| OperServ JUPE, NOOP, DEFCON, SERVER | ✅ | |
+| IRCv3 netsplit and netjoin batches, optional hidden splits | ✅ | |
+| `beeircd link-info` prints what the other server needs | ✅ | the installer can set up a leaf for you |
+| Checks on every line a linked server sends | ✅ | a broken or hostile leaf can't speak for users or services |
+| Anope as the services server | 📋 | today: one BeeIRCd runs services for the network |
+
+## IRCv3
+
+| Spec | |
+| --- | --- |
+| CAP 302, cap-notify | ✅ |
+| message-tags, message-ids, server-time | ✅ |
+| sasl (PLAIN, EXTERNAL) | ✅ |
+| account-notify, account-tag, extended-join, away-notify | ✅ |
+| batch, labeled-response, echo-message | ✅ |
+| chghost, invite-notify, multi-prefix, userhost-in-names, setname | ✅ |
+| client tags (typing, reply, react, channel-context) relayed | ✅ |
+| MONITOR | ✅ |
+| account-extban | ✅ |
+| STS (only with a real CA certificate) | ✅ |
+| WebIRC (`[[webirc]]` gateways) | ✅ |
+| draft/chathistory | ✅ |
+| standard-replies, extended-monitor, WHOX, bot mode, UTF8ONLY, no-implicit-names | 📋 |
+| SASL SCRAM, draft/account-registration, draft/multiline, draft/read-marker, draft/message-redaction | 📋 |
+| STARTTLS | not supported (deprecated) |
+
+## Services
+
+Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few ConferenceRoom extras on top. HELP uses Anope's layout and hides commands you can't use.
+
+| Service | |
+| --- | --- |
+| **NickServ**: REGISTER, IDENTIFY, SASL, RECOVER, GROUP, UNGROUP, ALIST, GLIST, INFO, DROP, LIST, ACCESS + SECURE, STATUS, CERT (identify by TLS certificate), AJOIN, SUSPEND, GETEMAIL, RESETPASS, BUDDY list, and the SET / SASET options | ✅ |
+| **ChanServ**: access levels and LEVELS (Anope's privileges and defaults), xOP lists, AKICK, MODE LOCK, TOPIC, ENTRYMSG, ENFORCE, LOG, SUSPEND, op tools (OWNER, PROTECT, HALFOP, UP, DOWN, KICK, BAN, UNBAN, INVITE, GETKEY), SEEN, and the SET options incl. OVERFLOW | ✅ |
+| **MemoServ**: memos to nicks and to channels, number lists, IGNORE, CANCEL, CHECK, INFO, SENDALL, STAFF, notify by notice or mail | ✅ |
+| **HostServ**: ON, OFF, GROUP, REQUEST; opers SET, SETALL, DEL, DELALL, LIST, WAITING, ACTIVATE, REJECT | ✅ |
+| **BotServ**: channel bots, ASSIGN, SAY, ACT, GREET, 10 kickers, BADWORDS, fantasy commands (`!op`, `!kick` ...) | ✅ |
+| **OperServ**: STATS, GLOBAL, AKILL, ZLINE, SNLINE, SHUN, SQLINE, EXCEPTION, KILL, MODE, KICK, FORBID, SESSION, NEWS, IGNORE, USERLIST, CHANLIST, SEEN, CHANKILL, SVSNICK, SVSJOIN, SVSPART | ✅ |
+| **AdminServ**: server settings, MOTD, ports, opers and classes from IRC, with HISTORY, DIFF and UNDO | ✅ |
+| Mail (SMTP with STARTTLS, or a sendmail program) with Anope's templates | ✅ |
+| Services log channel, lines exactly as Anope writes them | ✅ |
+| ChanServ FLAGS and CLONE, HelpServ | 📋 |
+
+## Opers and bans
+
+| Feature | | Notes |
+| --- | --- | --- |
+| `/oper <nick> <password>` with a separate oper password per oper | ✅ | identifying to NickServ never opers you |
+| Oper flags `a b c g h k s` and oper classes | ✅ | built-in helper, globop, admin, netadmin; oper vhost and swhois |
+| `/KILL`, `/WALLOPS`, server notices | ✅ | |
+| One network ban list: AKILL / G-line, ZLINE, Q-line, R-line (realname), SHUN, ELINE exemptions, all with expiry | ✅ | matches the real host and IP, never the cloak |
+| Channel extbans `~a ~r ~m ~t`, timed bans | ✅ | |
+| Channel mode `+O` (opers only) | ✅ | |
+| Spam filter (`/SPAMFILTER`, `STATS F`, UnrealIRCd syntax) | 🔜 | shared with BeeIRCd and UnrealIRCd links; page in the Hive Panel |
+
+## Running it
+
+| Feature | | Notes |
+| --- | --- | --- |
+| One-command install (`beeircd install`) | ✅ | Debian 12/13, Ubuntu 22.04/24.04; hardened systemd service, daily backups, firewall opened when active |
+| `beeircd status`, `check`, `backup`, `rehash`, `start`, `stop`, `restart` | ✅ | over a local socket, no network port |
+| Signed updates (`beeircd update`) | ✅ | checks the signature, backs up, rolls back by itself if the new version doesn't start; `--rollback` goes back |
+| Docker image (amd64, arm64) | ✅ | `ghcr.io/fhazal/beeircd` |
+| `beeircd uninstall` | ✅ | keeps your data unless `--purge` |
+
+## Hive Panel (web admin)
+
+| Feature | | Notes |
+| --- | --- | --- |
+| Built in (`beeircd web`), answers only on this machine | ✅ | reach it over an SSH tunnel or an HTTPS proxy; strict CSP, no outside requests |
+| Opers sign in with their oper nick and password | ✅ | every request is checked by the server against the oper's flags |
+| Overview: network status, Spotlight, server details, health, What happened | ✅ | blocks can be shown, hidden and arranged |
+| People, Channels, Bans, Opers, Services, Settings, Backups | ✅ | changes go through AdminServ and can be undone |
+| Linked servers with a network map | ✅ | places from each server's time zone or set in `beeircd.conf`; nothing looked up online |
+| Themes: Bee, Catppuccin Latte and Mocha, One Dark Pro, Dracula | ✅ | |
+| Jump to (Ctrl K / ⌘K) | ✅ | |
+| Members: registered nicks sign in to their own pages (Home, Chat, My nick, My channels, Memos) | ✅ | off unless you turn it on; needs HTTPS from outside |
+| Redesigned "What happened" page (grouped by day, repeats folded) | 🔜 | |
+
+## BeeRoom (web chat)
+
+| Feature | | Notes |
+| --- | --- | --- |
+| Web chat built on [The Lounge](https://github.com/thelounge/thelounge) (MIT), Bee and Catppuccin Mocha themes | ✅ | [fhazal/BeeRoom](https://github.com/fhazal/BeeRoom) |
+| Each person's real IP reaches BeeIRCd over WEBIRC | ✅ | `beeircd webirc add` |
+| Signed installer (`beeroom.sh`) for Apache, nginx, Caddy or none; Docker image | ✅ | |
+| Inside the Hive Panel's Chat tab, signed in as the member | ✅ | |

@@ -1333,7 +1333,7 @@
     const membersCard = h('section', { class: 'card', hidden: true }, h('h2', { text: 'Members' }),
       h('div', { class: 'my-row' }, h('label', { class: 'ck', for: 'set-members' }, membersBox, 'Let members sign in'),
         h('span', { class: 'hint', text: 'Anyone with a registered nick signs in with their NickServ password and sees only their own pages: Home, Chat, My nick, My channels and Memos. The server checks every request.' })),
-      h('p', { class: 'note', text: 'To let them in from outside, put the panel behind HTTPS on your web server and list it in [web] trusted_proxy (ADMIN.md, "Let members reach the Hive Panel").' }));
+      h('p', { class: 'note', text: 'To let them in from outside, put the panel behind HTTPS on your web server and list it in [web] trusted_proxy (docs/ADMIN.md, "Let members reach the Hive Panel").' }));
 
     const el = h('div', { class: 'main-stack' },
       h('header', { class: 'head' }, h('div', { class: 'head-text' }, h('h1', { text: 'Settings' }),
