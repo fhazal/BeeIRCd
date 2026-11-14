@@ -71,20 +71,6 @@
     if (d.toDateString() === y.toDateString()) return 'yesterday ' + hm;
     return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' ' + hm;
   }
-  // What happened rows: ok (signed in), bad (refused), ch (a change).
-  const evKind = w => /^could not/.test(w) ? 'bad' : /^signed in/.test(w) ? 'ok' : 'ch';
-  function evIcon(w, k) {
-    if (k !== 'ch') return k === 'ok' ? 'check' : /wrong password/.test(w) ? 'lock' : 'x';
-    for (const [re, ic] of [[/check/, 'pulse'], [/backup/, 'archive'], [/^banned|ban/, 'bans'], [/oper entry/, 'opers'], [/link|connected|disconnected|split/, 'servers'],
-      [/notice/, 'send'], [/topic/, 'message'], [/map/, 'map'], [/rehash/, 'refresh'], [/suspend/, 'lock']]) if (re.test(w)) return ic;
-    return 'settings';
-  }
-  // evHex: the icon inside a flat-topped, round-cornered hexagon.
-  function evHex(name) {
-    const s = svgEl('svg', { class: 'ev-hex', viewBox: '0 0 30 26', 'aria-hidden': 'true' });
-    s.append(svgEl('path', { d: 'M8.5 2.5h13l6 10.5-6 10.5h-13l-6-10.5z' }));
-    return h('span', { class: 'ev-ic' }, s, icon(name));
-  }
   const ms = v => (v < 1 ? 'under 1 ms' : Math.round(v) + ' ms');
   // day: '13 Nov', with the year when it isn't this year ('13 Nov 2036')
   const day = t => { const d = new Date(t); return d.toLocaleDateString('en-GB', d.getFullYear() === new Date().getFullYear() ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' }); };
@@ -844,34 +830,9 @@
           events(lst, before) {
             if (!lst.length) { put(list, h('p', { class: 'empty', text: 'Nothing yet. Sign-ins and changes made here show up in this list.' })); return; }
             const seen = new Set((before || []).map(e => e.at + e.who + e.what));
-            // Fold the same event from the same person and address in the
-            // same minute into one row with ×n; group the rows by day.
-            const rows = [];
-            for (const e of lst) {
-              const last = rows[rows.length - 1], d = new Date(e.at);
-              const minute = d.toDateString() + pad(d.getHours()) + pad(d.getMinutes());
-              if (last && last.minute === minute && last.e.who === e.who && last.e.what === e.what && last.e.ip === e.ip) { last.n++; continue; }
-              if (rows.length === 10) break;
-              rows.push({ e, n: 1, minute, fresh: before && !seen.has(e.at + e.who + e.what) });
-            }
-            const now = new Date(), yest = new Date(now); yest.setDate(now.getDate() - 1);
-            const dayName = d => d.toDateString() === now.toDateString() ? 'Today'
-              : (d.toDateString() === yest.toDateString() ? 'Yesterday · ' : '') + day(d);
-            const counts = { ok: 0, bad: 0, ch: 0 };
-            const out = [];
-            let lastDay = '';
-            for (const r of rows) {
-              const d = new Date(r.e.at), dn = dayName(d), k = evKind(r.e.what);
-              counts[k] += r.n;
-              if (dn !== lastDay) { out.push(h('div', { class: 'ev-day', text: dn })); lastDay = dn; }
-              out.push(h('div', { class: 'ev ' + k + (r.fresh ? ' new' : '') },
-                evHex(evIcon(r.e.what, k)),
-                h('span', { class: 'w' }, h('b', { text: r.e.who }), ' ' + r.e.what, r.n > 1 ? h('span', { class: 'ev-n', text: '×' + r.n }) : null),
-                h('span', { class: 't' }, pad(d.getHours()) + ':' + pad(d.getMinutes()), r.e.ip ? h('span', { class: 'ip', text: r.e.ip }) : null)));
-            }
-            const sum = [['ok', 'sign-in'], ['bad', 'refused'], ['ch', 'change']].filter(([k]) => counts[k])
-              .map(([k, w]) => h('span', { class: 'ev-sum ' + k }, counts[k] + ' ' + (k === 'bad' || counts[k] === 1 ? w : w + 's')));
-            put(list, ...out, h('div', { class: 'ev-foot' }, h('span', { class: 'ev-sums' }, sum), h('span', { text: 'newest ' + rows.reduce((a, r) => a + r.n, 0) + ' of ' + lst.length })));
+            put(list, ...lst.slice(0, 10).map(e => h('div', { class: 'ev' + (before && !seen.has(e.at + e.who + e.what) ? ' new' : '') },
+              h('span', { class: 't', text: when(e.at) }),
+              h('span', {}, h('b', { text: e.who }), ' ' + e.what, e.ip ? h('span', { class: 'ip', text: ' · ' + e.ip }) : null))));
           } };
       },
       actions() {
