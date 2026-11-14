@@ -124,7 +124,7 @@ Last updated: 14 Nov 2026 (1.0 release candidates: server, linking and Hive Pane
 | Network ban engine: AKILL/G-line (user@host, CIDR), ZLINE (IP/CIDR, before DNS), SQLINE/Q-line (nicks), SNLINE/R-line (realname glob or regex), SHUN, ELINE exemptions, all with expiry | Implemented | 1.5.5a; one list behind OperServ and /GLINE /ZLINE /QLINE /RLINE /SHUN /ELINE; matches real host and IP, never the cloak |
 | Channel extbans ~a ~r ~m (~q) ~t, timed bans, CS BAN +expiry, AKICK extbans | Implemented | 1.5.5a |
 | K-line (this server only) | Implemented (Stage 2e) | /KLINE /UNKLINE, STATS k |
-| Content filter (spamfilter) | Planned | |
+| Content filter (spamfilter) | Implemented (after 1.0, branch next) | /SPAMFILTER + STATS F (UnrealIRCd syntax), Hive Panel page, safety net, TKL F on BeeIRCd + UnrealIRCd links |
 
 ## Hive Panel (web admin)
 
