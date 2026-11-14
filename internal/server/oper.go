@@ -297,6 +297,16 @@ func (s *Server) firstOperPassword(c *Client, a *store.Account, o *store.Oper, p
 		s.notice(c, "*** An admin sets it: /as oper "+o.Account+" set password <password>")
 		return
 	}
+	// Without admin_hosts anyone could register the admin's nick first and
+	// set the password (QA 14 Nov 2026): then it must be in the config.
+	if len(s.cfg.Services.AdminHosts) == 0 {
+		s.reply(c, irc.ErrNoOperHost, "No oper password is set for "+o.Account+" yet")
+		s.notice(c, "*** Put the admin's oper password in beeircd.conf: [services] admin_password from `beeircd mkpasswd`, then rehash. "+
+			"(With admin_hosts set, a first /oper from those hosts may set it instead.)")
+		u := c.user
+		s.snotice("Failed /oper as %s from %s (%s@%s): admin_password is empty and admin_hosts is not set", o.Account, u.Nick, u.TrueIdent(), u.RealHost)
+		return
+	}
 	if s.accountID(c) != a.ID {
 		s.reply(c, irc.ErrNoOperHost, "No oper password is set for "+o.Account+" yet")
 		s.notice(c, "*** Identify to "+a.Name+" first; your first /oper then sets the admin oper password.")

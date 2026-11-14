@@ -53,6 +53,7 @@ session_limit = 100
 [services]
 database = "services.db"
 admin = "Boss"
+admin_hosts = ["*@127.0.0.1"]
 reg_delay = "0s"
 force_email = false
 memo_send_delay = "0s"
@@ -246,7 +247,7 @@ func TestOperEntries(t *testing.T) {
 
 	b.send("AS OPER LIST")
 	b.expect(asLine("Boss", "  Nick    Class       Flags   Online  Password  Hosts"))
-	b.expect(asLine("Boss", "  Boss    netadmin    abcghks  yes     yes       any (server admin from beeircd.conf)"))
+	b.expect(asLine("Boss", "  Boss    netadmin    abcghks  yes     yes       *@127.0.0.1 (server admin from beeircd.conf)"))
 	b.expect(asLine("Boss", "  ember   -           gk      yes     yes       *@127.0.0.1"))
 	b.expect(asLine("Boss", "2 opers."))
 

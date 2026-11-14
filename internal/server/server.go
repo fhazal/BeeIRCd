@@ -191,6 +191,9 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	svc.SyncLogChannel("")
 	if cfg.Services.Admin != "" && len(cfg.Services.AdminHosts) == 0 {
 		logger.Printf("warning: [services] admin_hosts is empty, so the admin %s may /oper from any host (with the oper password)", cfg.Services.Admin)
+		if cfg.Services.AdminPassword == "" {
+			logger.Printf("warning: [services] admin_password is empty too: %s can't /oper until it is set (beeircd mkpasswd, then rehash)", cfg.Services.Admin)
+		}
 	}
 	svc.Flush()
 	var tlsConf *tls.Config
