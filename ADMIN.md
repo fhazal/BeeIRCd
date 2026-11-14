@@ -471,7 +471,7 @@ difference is a warning to opers, not a refusal.
 | `server_name`, `server_sid` | `services.<domain>`, our SID with `9` first | The pseudo-server the bots sit on when this server links (`irc.example.net` gives `services.example.net`; SID `0BE` gives `9BE`). UnrealIRCd servers U-line this name. Not used when standalone (restart) |
 | `database` | `/var/lib/beeircd/services.db` | Accounts, nicks, channels, memos, bans (restart). With services off it still keeps the network bans that arrive over links |
 | `admin` | – | The admin's account: every oper flag, can't be changed from IRC |
-| `admin_password` | – | argon2id hash from `beeircd mkpasswd`. Empty: the admin sets it with the first `/oper` while identified |
+| `admin_password` | – | argon2id hash from `beeircd mkpasswd` (the installer sets it). Empty: the admin's first `/oper`, identified to the admin account, sets it, but only when `admin_hosts` is set and they come from one of those hosts; without `admin_hosts` the admin can't /oper until it is in the file |
 | `admin_hosts` | anywhere | `user@host` masks or CIDRs the admin may /oper from |
 | `admin_vhost` | – | Host the admin shows once opered |
 | `log_channel` | – | Services log every command and oper event here, like `#services` |
