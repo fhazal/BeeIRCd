@@ -3,6 +3,7 @@ package server
 import (
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/fhazal/beeircd/internal/control"
 	"github.com/fhazal/beeircd/internal/services"
@@ -34,7 +35,7 @@ func (s *Server) panelMember(req control.Request) (po *control.PanelOper, deny *
 	case !s.cfg.Web.Members:
 		signin.Error = "Member sign-in is off on this server."
 		return nil, signin, true
-	case a.SuspendedBy != "":
+	case a.Suspended(time.Now()):
 		signin.Error = a.Name + " is suspended."
 		return nil, signin, true
 	}
@@ -45,7 +46,7 @@ func (s *Server) panelMember(req control.Request) (po *control.PanelOper, deny *
 // wrong tries on the same lock as IDENTIFY on IRC.
 func (s *Server) memberLogin(a *store.Account, nick, pw, ip string, done func(control.Response)) {
 	wrong := control.Response{Error: "Wrong nick or password.", Denied: "signin"}
-	if a.SuspendedBy != "" {
+	if a.Suspended(time.Now()) {
 		done(control.Response{Error: a.Name + " is suspended.", Denied: "signin"})
 		return
 	}

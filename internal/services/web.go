@@ -2,6 +2,7 @@ package services
 
 import (
 	"strings"
+	"time"
 
 	"github.com/fhazal/beeircd/internal/state"
 )
@@ -29,7 +30,7 @@ func (s *Services) WebSet(id int64, ip, option string, args []string) (bool, []s
 	if a == nil {
 		return false, []string{"Your account no longer exists."}
 	}
-	if a.SuspendedBy != "" {
+	if a.Suspended(time.Now()) {
 		return false, []string{a.Name + " is suspended."}
 	}
 	var out []string

@@ -33,7 +33,7 @@ func (s *Services) webAccount(id int64) (*store.Account, string) {
 	if a == nil {
 		return nil, "Your account no longer exists."
 	}
-	if a.SuspendedBy != "" {
+	if a.Suspended(time.Now()) {
 		return nil, a.Name + " is suspended."
 	}
 	return a, ""

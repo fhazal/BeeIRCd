@@ -185,6 +185,34 @@ func TestPanelMemberSignInDoesNotLockOper(t *testing.T) {
 	}
 }
 
+// A suspension that ran out lets the member in at once, as on IRC, before
+// the hourly sweep clears it (release test 14 Nov 2026).
+func TestPanelMemberSuspensionRanOut(t *testing.T) {
+	s, _, _ := fileServer(t, membersOn)
+	registered(t, s, "ember")
+	setSuspend := func(until time.Time) {
+		s.onLoop(func() {
+			a, _ := s.store.AccountByNick("ember")
+			a.SuspendedBy, a.SuspendReason, a.SuspendedAt, a.SuspendUntil = "Boss", "test", time.Now().Add(-2*time.Hour), until
+			if err := s.store.SaveAccount(a); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	setSuspend(time.Now().Add(time.Hour))
+	if r := panelAsk(t, s, control.Request{Cmd: control.CmdPanelLogin, Nick: "ember", Password: pw, IP: "127.0.0.1"}); r.Oper != nil {
+		t.Fatalf("suspended member signed in: %+v", r)
+	}
+	setSuspend(time.Now().Add(-time.Minute))
+	m := memberSession(t, s, "ember", pw)
+	if my := panelAsk(t, s, as(m, control.CmdMyNick)); my.MyNick == nil {
+		t.Errorf("my-nick after the suspension ran out: %+v", my)
+	}
+	if r := panelAsk(t, s, as(m, control.CmdMyHome)); r.Home == nil {
+		t.Errorf("home after the suspension ran out: %+v", r)
+	}
+}
+
 // The Settings page's Members switch: on and off at once, saved to the file.
 func TestPanelMembersSwitch(t *testing.T) {
 	s, path, _ := fileServer(t, "")
