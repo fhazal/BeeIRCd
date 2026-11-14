@@ -9,7 +9,8 @@ behind a proxy or tunnel. Day-to-day running is in [ADMIN.md](ADMIN.md).
 ## What you need
 
 - Linux with systemd: **Debian 12 or 13, Ubuntu 22.04 or 24.04** are tested.
-  Others with systemd usually work too.
+  Others with systemd usually work too. No systemd (Alpine, Devuan, Void, a
+  container)? See [Without systemd](#without-systemd).
 - amd64 or arm64.
 - Root (`sudo`).
 - A small VPS is enough: 1 CPU and 512 MB hold about 5,000 people.
@@ -210,33 +211,170 @@ sudo beeircd uninstall          # removes the program and the service, keeps con
 sudo beeircd uninstall --purge  # also deletes /etc/beeircd, /var/lib/beeircd (backups too) and the beeircd user
 ```
 
-## Installing by hand
+## Without systemd
 
-Without the installer (another init system, a container):
+The guided installer needs systemd. On Alpine (OpenRC), Devuan, Void, in a
+container or anywhere else, set BeeIRCd up by hand: about five minutes. The
+steps use the same folders as the installer, so `beeircd status`, `check`,
+`backup`, `rehash`, `webirc` and `link-info` work exactly as described in
+[ADMIN.md](ADMIN.md). Only `beeircd start`, `stop` and `restart` are
+systemd's: use your own service manager for those.
+
+Run these as root.
+
+**1. The program, a user and two folders.**
 
 ```sh
-beeircd run -config /path/to/beeircd.conf
+arch=amd64    # or arm64
+mkdir -p /opt/beeircd
+wget -O /opt/beeircd/beeircd https://github.com/fhazal/BeeIRCd/releases/latest/download/beeircd-linux-$arch
+chmod 755 /opt/beeircd/beeircd
+ln -sf /opt/beeircd/beeircd /usr/local/bin/beeircd
+
+# Alpine:
+addgroup -S beeircd
+adduser -S -D -H -h /var/lib/beeircd -s /sbin/nologin -G beeircd beeircd
+# Devuan, Void and most others:
+#   useradd --system --user-group --no-create-home --home-dir /var/lib/beeircd --shell /usr/sbin/nologin beeircd
+
+mkdir -p /etc/beeircd/tls /var/lib/beeircd/backups
+chown -R beeircd:beeircd /etc/beeircd /var/lib/beeircd
+chmod 750 /etc/beeircd /var/lib/beeircd
 ```
 
-Relative paths in the config are read from the config file's folder. The
-smallest working config:
+**2. The config.** Make your oper password's hash first (it asks for the
+password; at least 8 characters):
+
+```sh
+beeircd mkpasswd
+```
+
+Then write `/etc/beeircd/beeircd.conf`. Change the names, paste the hash, and
+put two different long random strings in the two `secret` lines
+(`head -c 24 /dev/urandom | base64` makes one):
 
 ```toml
 [server]
-name = "irc.example.org"
+name = "irc.example.org"     # the DNS name people connect to
 network = "ExampleNet"
-sid = "0EX"
+sid = "0EX"                  # a digit and two letters or digits, unique on your network
 
 [[listen]]
 address = ":6667"
 
+[[listen]]
+address = ":6697"
+tls = true
+
+[tls]
+cert = "/etc/beeircd/tls/cert.pem"
+key = "/etc/beeircd/tls/key.pem"
+self_signed = true           # made at the first start; see Certificates for Let's Encrypt
+
 [cloak]
-secret = "at least 16 random characters"
+secret = "a long random string"
 
 [services]
-database = "services.db"
+database = "/var/lib/beeircd/services.db"
 admin = "YourNick"
+admin_password = "the hash from beeircd mkpasswd"
+admin_hosts = ["203.0.113.5"]   # where you may /oper from (user@host masks or IPs); [] = anywhere
+
+[history]
+default = "50:1d"
+secret = "another long random string"
+
+[control]
+socket = "/run/beeircd/beeircd.sock"
+
+[backup]
+dir = "/var/lib/beeircd/backups"
+keep = 7
 ```
 
-`beeircd check -config ...` reads it and says what's wrong, in words. Every
-setting is in [ADMIN.md](ADMIN.md#beeircdconf).
+```sh
+chown beeircd:beeircd /etc/beeircd/beeircd.conf
+chmod 640 /etc/beeircd/beeircd.conf
+beeircd check
+```
+
+`check` reads the config and says what's wrong, in words. Every setting is
+in [ADMIN.md](ADMIN.md#beeircdconf).
+
+**3. The service.** On OpenRC (Alpine, Gentoo, Devuan with OpenRC), save this
+as `/etc/init.d/beeircd`:
+
+```sh
+#!/sbin/openrc-run
+name="BeeIRCd"
+description="BeeIRCd IRC server"
+command="/opt/beeircd/beeircd"
+command_args="run -config /etc/beeircd/beeircd.conf"
+command_user="beeircd:beeircd"
+supervisor="supervise-daemon"
+respawn_delay=5
+output_log="/var/log/beeircd.log"
+error_log="/var/log/beeircd.log"
+extra_started_commands="reload"
+
+depend() {
+	need net
+	after firewall
+}
+
+start_pre() {
+	checkpath -d -m 0750 -o beeircd:beeircd /run/beeircd
+	checkpath -f -m 0640 -o beeircd:beeircd /var/log/beeircd.log
+}
+
+start_post() {
+	# wait until it answers, like `beeircd start` does under systemd
+	for i in $(seq 1 40); do
+		$command status -config /etc/beeircd/beeircd.conf >/dev/null 2>&1 && return 0
+		sleep 0.5
+	done
+	ewarn "BeeIRCd didn't answer within 20 seconds; see /var/log/beeircd.log"
+}
+
+reload() {
+	ebegin "Reloading $name"
+	supervise-daemon "$RC_SVCNAME" --signal HUP
+	eend $?
+}
+```
+
+```sh
+chmod 755 /etc/init.d/beeircd
+rc-update add beeircd default
+rc-service beeircd start
+beeircd status
+```
+
+`rc-service beeircd reload` reads the config again, like `beeircd rehash`.
+The log is `/var/log/beeircd.log`. Another service manager (runit, s6, a
+container): run the same command line as the `beeircd` user, after making
+`/run/beeircd` owned by it:
+
+```sh
+/opt/beeircd/beeircd run -config /etc/beeircd/beeircd.conf
+```
+
+**4. The daily backup.** Add this line to the `beeircd` user's crontab
+(`crontab -u beeircd -e`):
+
+```
+0 4 * * * /opt/beeircd/beeircd backup -config /etc/beeircd/beeircd.conf
+```
+
+Alpine runs cron through `crond`: `rc-update add crond default` and
+`rc-service crond start` if it isn't on yet.
+
+**Ports under 1024.** The `beeircd` user can't open them. Let's Encrypt needs
+port 80 only for a few seconds per certificate: forward it to a high port
+and set `acme_http` (see [Behind a proxy or a tunnel](#behind-a-proxy-or-a-tunnel)).
+
+**Uninstall.** Stop and remove the service (`rc-service beeircd stop`,
+`rc-update del beeircd`, delete `/etc/init.d/beeircd`), then delete
+`/opt/beeircd`, `/usr/local/bin/beeircd` and, to drop all data too,
+`/etc/beeircd`, `/var/lib/beeircd` and the `beeircd` user.
+
