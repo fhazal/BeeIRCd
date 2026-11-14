@@ -174,11 +174,14 @@ func (s *Server) runCommand(c *Client, m irc.Message) {
 		s.reply(c, irc.ErrNotRegistered, "You have not registered")
 	case len(m.Params) < cmd.min:
 		s.reply(c, irc.ErrNeedMoreParams, m.Command, "Not enough parameters")
-	case c.registered && !shunAllowed[m.Command] && s.svc.Shunned(c.user):
+	case c.registered && !shunAllowed[m.Command] && (c.tempShun || s.svc.Shunned(c.user)):
 		// Shunned: dropped without a word (UnrealIRCd).
 	default:
-		if c.registered && m.Command == "PART" && len(m.Params) > 1 && s.svc.Shunned(c.user) {
+		if c.registered && m.Command == "PART" && len(m.Params) > 1 && (c.tempShun || s.svc.Shunned(c.user)) {
 			m.Params = m.Params[:1] // no part message either
+		}
+		if c.registered && !s.spamCheck(c, &m) {
+			return
 		}
 		cmd.run(s, c, m)
 	}

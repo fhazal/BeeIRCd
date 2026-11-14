@@ -154,6 +154,9 @@ func (s *Server) cmdNick(c *Client, m irc.Message) {
 			}
 		}
 	}
+	if !s.spamUser(c, nick) {
+		return
+	}
 	if err := s.emit(&state.NickChange{UID: u.UID, Nick: nick, TS: time.Now().Unix()}); err != nil {
 		s.reply(c, irc.ErrNicknameInUse, nick, "Nickname is already in use")
 		return
@@ -262,6 +265,9 @@ func (s *Server) tryRegister(c *Client) {
 		s.reply(c, irc.ErrYoureBannedCreep, "You are banned from this network: "+k.Reason)
 		s.snotice("%s %s stopped %s (%s@%s)", strings.ToUpper(k.Kind), k.Mask, c.nick, c.ident, c.host)
 		s.quit(c, "Banned: "+k.Reason)
+		return
+	}
+	if !s.spamUser(c, c.nick) {
 		return
 	}
 	if err := s.emit(&state.UserAdd{User: u}); err != nil {

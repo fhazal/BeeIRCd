@@ -62,6 +62,8 @@ type Config struct {
 	Update   Update   `toml:"update"`
 	Web      Web      `toml:"web"`
 	Map      MapConf  `toml:"map"`
+	// SpamFilter is [spamfilter] (spamfilter.go).
+	SpamFilter SpamFilter `toml:"spamfilter"`
 	// OperClasses are the [[operclass]] blocks (see Classes).
 	OperClasses []OperClass `toml:"operclass"`
 
@@ -586,6 +588,9 @@ func (c *Config) Check() error {
 	}
 	if p := c.Services.AdminPassword; p != "" && !strings.HasPrefix(p, "$argon2id$") {
 		return fmt.Errorf("[services] admin_password must be a hash from `beeircd mkpasswd`, not the password itself")
+	}
+	if err := c.checkSpamFilter(); err != nil {
+		return err
 	}
 	if err := c.checkWebIRC(); err != nil {
 		return err

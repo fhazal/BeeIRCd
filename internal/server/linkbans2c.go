@@ -88,6 +88,7 @@ func (s *Server) banBurst(l *linkConn) []string {
 		out = append(out, cd.Encode(s.banItem(b, true))...)
 	}
 	out = append(out, s.qlineBurst(l)...)
+	out = append(out, s.spamBurst(l)...)
 	return out
 }
 

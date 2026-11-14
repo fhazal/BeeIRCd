@@ -82,6 +82,8 @@ func (c *unrealCodec) Encode(item any) []string {
 		return []string{":" + it.Source + " " + it.Code + " " + strings.Join(ps, " ")}
 	case *Ban:
 		return []string{c.encodeBan(it)}
+	case *SpamFilter:
+		return []string{c.encodeSpam(it)}
 	}
 	return nil
 }
@@ -327,6 +329,9 @@ func (c *unrealCodec) decodeMode(src, channel, modes string, args []string) *Mod
 func (c *unrealCodec) decodeBan(src string, p []string) any {
 	if len(p) < 2 || len(p[1]) != 1 || (p[0] != "+" && p[0] != "-") {
 		return nil // (an empty type crashed here before 2g's fuzzing)
+	}
+	if p[1] == "F" {
+		return decodeSpam(src, p)
 	}
 	b := &Ban{Source: src, Add: p[0] == "+", Type: p[1][0]}
 	switch {
