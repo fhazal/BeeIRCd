@@ -108,6 +108,9 @@ func TestChanServJoinsAndIdentify(t *testing.T) {
 
 	// Identifying while already inside gives the modes too.
 	ember.send("QUIT")
+	if l := x.expect(" QUIT "); !strings.HasPrefix(l, ":ember!") { // nick is free again before it's reused
+		t.Fatalf("want ember's QUIT, got %q", l)
+	}
 	late := login(t, s, "ember")
 	late.send("JOIN #bchat")
 	late.expect(" 366 ember #bchat ")
