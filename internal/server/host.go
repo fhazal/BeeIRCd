@@ -202,7 +202,7 @@ func (s *Server) toAlias(c *Client, alias string, m irc.Message) {
 var aliasBots = map[string]string{"ns": "NickServ", "cs": "ChanServ", "ms": "MemoServ", "os": "OperServ", "hs": "HostServ", "as": "AdminServ"}
 
 // lockedFor and friends keep the oper password code short.
-func (s *Server) lockedFor(key int64) time.Duration { return s.svc.LockedFor(key) }
+func (s *Server) lockedFor(key int64, src string) time.Duration { return s.svc.LockedFor(key, src) }
 
 func (h host) ResetPeak() { h.s.maxLocal = h.s.localUsers() }
 

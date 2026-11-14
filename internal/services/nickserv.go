@@ -549,7 +549,7 @@ func (s *Services) setOption(c *Client, a *store.Account, cmd, opt string, args 
 				return
 			}
 			if cmd == "SASET" {
-				delete(s.lockouts, id) // a forgotten password: let them in again
+				s.clearLockouts(id) // a forgotten password: let them in again
 				s.audit(c, s.nickServ, "SASET PASSWORD %s", name)
 			}
 			s.ns(c, "%s password is changed.", whose)
@@ -1117,7 +1117,7 @@ func (s *Services) dropAccount(a *store.Account, founderWhy, by string) error {
 	if err != nil {
 		return err
 	}
-	delete(s.lockouts, id)
+	s.clearLockouts(id)
 	s.applyFounderChanges(changes, founderWhy)
 	s.log.Printf("dropped account %s (%s)", name, by)
 	for _, other := range s.clients {

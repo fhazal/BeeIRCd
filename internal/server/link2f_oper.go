@@ -130,7 +130,7 @@ func (s *Server) remoteOper(l *linkConn, m irc.Message) {
 		s.links.operBusy[uid] = busy
 	}
 	gone := func() bool { return s.net.UserByUID(uid) == nil }
-	s.svc.CheckSecret(busy, gone, operLockKey(a.ID), o.PassHash, pw, func(res services.PwResult) {
+	s.svc.CheckSecret(busy, gone, operLockKey(a.ID), u.IP, o.PassHash, pw, func(res services.PwResult) {
 		if !*busy {
 			delete(s.links.operBusy, uid)
 		}
@@ -144,7 +144,7 @@ func (s *Server) remoteOper(l *linkConn, m irc.Message) {
 			s.links.remoteOpers[uid] = remoteGrant{id: a.ID, class: v.class}
 			s.snotice("%s (%s@%s) is now an operator on %s as %s (entry checked here): %s", u.Nick, u.TrueIdent(), u.RealHost, u.Server, o.Account, v.flags)
 		case services.PwLocked:
-			fail(irc.ErrPasswdMismatch, "Too many wrong passwords. Try again in "+services.RoundUp(s.lockedFor(operLockKey(a.ID))), "locked out")
+			fail(irc.ErrPasswdMismatch, "Too many wrong passwords. Try again in "+services.RoundUp(s.lockedFor(operLockKey(a.ID), u.IP)), "locked out")
 		case services.PwBusy:
 			s.operAnswer(uid, "FAIL NOTICE :Still checking your last password. Try again in a moment.")
 		default:

@@ -125,12 +125,12 @@ type Services struct {
 	kickRuns   map[string]*kickRun // by folded channel
 	amsg       map[string]*amsgLast
 	kickPurged time.Time
-	bsAmsgOn   bool               // a watched channel has the AMSG kicker on
-	fantasyBot *service           // while a fantasy command runs: answers for ChanServ
-	clients    map[string]*Client // by UID: every person on the network
-	lockouts   map[int64]*lockout // wrong passwords per account
-	hashSem    chan struct{}      // limits password hashing running at once
-	pending    []state.Event      // events not handled yet (see Event)
+	bsAmsgOn   bool                 // a watched channel has the AMSG kicker on
+	fantasyBot *service             // while a fantasy command runs: answers for ChanServ
+	clients    map[string]*Client   // by UID: every person on the network
+	lockouts   map[lockKey]*lockout // wrong passwords per account and source IP
+	hashSem    chan struct{}        // limits password hashing running at once
+	pending    []state.Event        // events not handled yet (see Event)
 	handling   bool
 
 	// Oper data, kept in memory.
@@ -187,7 +187,7 @@ func New(host Host, cfg *config.Config, logger *log.Logger, net *state.Network, 
 		store:    st,
 		services: make(map[string]*service),
 		clients:  make(map[string]*Client),
-		lockouts: make(map[int64]*lockout),
+		lockouts: make(map[lockKey]*lockout),
 		resets:   make(map[int64]resetInfo),
 		hashSem:  make(chan struct{}, 2),
 

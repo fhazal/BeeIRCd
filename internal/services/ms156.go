@@ -251,7 +251,7 @@ func nsConfirm(s *Services, c *Client, args []string) {
 		s.ns(c, "Invalid passcode.")
 	default:
 		delete(s.resets, a.ID)
-		delete(s.lockouts, a.ID)
+		s.clearLockouts(a.ID)
 		s.nsLogCmd(c, "to confirm RESETPASS and forcefully identify as %s", args[0])
 		s.login(c, a)
 		s.ns(c, "You are now identified for your nick. Change your password now.")

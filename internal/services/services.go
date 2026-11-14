@@ -234,6 +234,14 @@ const (
 	pwBusy   = PwBusy
 )
 
+// lockKey is one account (or oper entry) tried from one source IP. Wrong
+// passwords lock that pair only: a stranger who guesses wrong locks
+// themselves out, never the real owner (QA 14 Nov 2026).
+type lockKey struct {
+	id  int64
+	src string
+}
+
 type lockout struct {
 	fails int
 	until time.Time
@@ -242,11 +250,22 @@ type lockout struct {
 const (
 	maxWrongPasswords = 5
 	lockoutFor        = 10 * time.Minute
+	maxLockouts       = 20000 // counters kept at once; old ones go first
 )
 
-// lockedFor reports how long the account is still locked.
-func (s *Services) lockedFor(id int64) time.Duration {
-	if l := s.lockouts[id]; l != nil && time.Now().Before(l.until) {
+// pruneLockouts drops counters that lock nothing now.
+func (s *Services) pruneLockouts() {
+	now := time.Now()
+	for k, l := range s.lockouts {
+		if !now.Before(l.until) {
+			delete(s.lockouts, k)
+		}
+	}
+}
+
+// lockedFor reports how long the account is still locked for src.
+func (s *Services) lockedFor(id int64, src string) time.Duration {
+	if l := s.lockouts[lockKey{id, src}]; l != nil && time.Now().Before(l.until) {
 		return time.Until(l.until)
 	}
 	return 0
@@ -259,15 +278,34 @@ func (s *Services) checkPassword(c *Client, a *store.Account, pw string, result 
 
 // checkSecret checks pw against hash off the loop for c.
 func (s *Services) checkSecret(c *Client, key int64, hash, pw string, result func(pwResult)) {
-	s.CheckSecret(&c.pwBusy, func() bool { return c.closed }, key, hash, pw, result)
+	s.CheckSecret(&c.pwBusy, func() bool { return c.closed }, key, c.src(), hash, pw, result)
+}
+
+// src is where c's password tries come from, for the wrong-password lock.
+func (c *Client) src() string {
+	if c.ip == "" && c.user != nil {
+		return c.user.IP
+	}
+	return c.ip
+}
+
+// clearLockouts lifts every lock on id (a new password, a reset).
+func (s *Services) clearLockouts(id int64) {
+	for k := range s.lockouts {
+		if k.id == id {
+			delete(s.lockouts, k)
+		}
+	}
 }
 
 // CheckSecret checks pw against hash off the loop and calls result on the
 // loop, unless gone() says the asker left meanwhile. busy is the asker's
 // one-check-at-a-time flag. Wrong tries count against key (an account ID,
-// or a negative ID for oper passwords); 5 wrong ones lock it for 10 minutes.
-func (s *Services) CheckSecret(busy *bool, gone func() bool, key int64, hash, pw string, result func(PwResult)) {
-	if s.lockedFor(key) > 0 {
+// or a negative ID for oper passwords) from src (the asker's IP); 5 wrong
+// ones lock that key for that src for 10 minutes. Others, the owner too,
+// are not locked by them.
+func (s *Services) CheckSecret(busy *bool, gone func() bool, key int64, src, hash, pw string, result func(PwResult)) {
+	if s.lockedFor(key, src) > 0 {
 		result(pwLocked)
 		return
 	}
@@ -276,7 +314,7 @@ func (s *Services) CheckSecret(busy *bool, gone func() bool, key int64, hash, pw
 		return
 	}
 	*busy = true
-	id := key
+	id := lockKey{key, src}
 	go func() {
 		s.hashSem <- struct{}{}
 		ok := passwd.Check(pw, hash)
@@ -294,6 +332,9 @@ func (s *Services) CheckSecret(busy *bool, gone func() bool, key int64, hash, pw
 			}
 			l := s.lockouts[id]
 			if l == nil {
+				if len(s.lockouts) >= maxLockouts {
+					s.pruneLockouts()
+				}
 				l = &lockout{}
 				s.lockouts[id] = l
 			}
@@ -363,7 +404,7 @@ func (s *Services) pwProblem(c *Client, a *store.Account, r pwResult) {
 	case pwWrong:
 		s.ns(c, "Wrong password for %s.", a.Name)
 	case pwLocked:
-		s.ns(c, "Too many wrong passwords for %s. Try again in %s.", a.Name, roundUp(s.lockedFor(a.ID)))
+		s.ns(c, "Too many wrong passwords for %s. Try again in %s.", a.Name, roundUp(s.lockedFor(a.ID, c.src())))
 	case pwBusy:
 		s.ns(c, "Still checking your last password. Try again in a moment.")
 	}
