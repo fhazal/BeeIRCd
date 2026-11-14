@@ -118,6 +118,21 @@ func (s *Services) LoginsFull(id int64) bool {
 // LockedFor reports how long key (see CheckSecret) is still locked.
 func (s *Services) LockedFor(key int64, src string) time.Duration { return s.lockedFor(key, src) }
 
+// ForgiveWrong takes back the wrong try just counted for key from src: it
+// turned out to be the right password for something else (the Hive Panel
+// tries the oper password, then the NickServ one). A lock that try set is
+// lifted again.
+func (s *Services) ForgiveWrong(key int64, src string) {
+	l := s.lockouts[lockKey{key, src}]
+	switch {
+	case l == nil:
+	case l.fails > 0:
+		l.fails--
+	case time.Now().Before(l.until):
+		l.until, l.fails = time.Time{}, maxWrongPasswords-1
+	}
+}
+
 // RoundUp says a lockout time in whole minutes.
 func RoundUp(d time.Duration) string { return roundUp(d) }
 

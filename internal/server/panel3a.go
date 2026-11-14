@@ -145,10 +145,19 @@ func (s *Server) panelLogin(req control.Request, done func(control.Response)) {
 			s.snotice("Hive Panel: %s signed in from %s: %s", po.Account, ip, po.Flags)
 			done(control.Response{Oper: po})
 		case services.PwLocked:
+			if members { // the NickServ password has its own lock
+				s.memberLogin(a, nick, pw, ip, done)
+				return
+			}
 			done(control.Response{Error: "Too many wrong passwords for this oper. Try again in " + services.RoundUp(s.lockedFor(key, ip)) + ".", Denied: "signin"})
 		default:
 			if members { // maybe their NickServ password: the member pages
-				s.memberLogin(a, nick, pw, ip, done)
+				s.memberLogin(a, nick, pw, ip, func(r control.Response) {
+					if r.Oper != nil { // not a wrong oper password after all
+						s.svc.ForgiveWrong(key, ip)
+					}
+					done(r)
+				})
 				return
 			}
 			s.panelEvent(nick, ip, "could not sign in: wrong password")

@@ -164,6 +164,27 @@ func TestPanelOperOrMember(t *testing.T) {
 	}
 }
 
+// An oper who signs in with their NickServ password (the member pages) is
+// not trying a wrong oper password: doing it again and again must never
+// lock their /oper (release test 14 Nov 2026).
+func TestPanelMemberSignInDoesNotLockOper(t *testing.T) {
+	s, _, _ := fileServer(t, membersOn)
+	b := boss(t, s)
+	e := registered(t, s, "ember")
+	b.send("AS OPER ember ADD CLASS globop HOST *@127.0.0.0/8 PASSWORD " + emberPW)
+	b.expect("ember is an oper now")
+
+	for i := 0; i < 7; i++ {
+		memberSession(t, s, "ember", pw)
+	}
+	e.send("OPER ember " + emberPW)
+	e.expect(" 381 ember ")
+	r := panelAsk(t, s, control.Request{Cmd: control.CmdPanelLogin, Nick: "ember", Password: emberPW, IP: "127.0.0.1"})
+	if r.Oper == nil || r.Oper.Member {
+		t.Fatalf("oper password after member sign-ins: %+v", r)
+	}
+}
+
 // The Settings page's Members switch: on and off at once, saved to the file.
 func TestPanelMembersSwitch(t *testing.T) {
 	s, path, _ := fileServer(t, "")
