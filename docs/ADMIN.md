@@ -244,6 +244,16 @@ differently:
 - Anope's service bots (NickServ, ChanServ, ...) are not imported: BeeIRCd
   has its own.
 
+Coming from UnrealIRCd too? `-unreal-opers /path/to/unrealircd.conf` also
+brings its `oper { }` blocks over, after the accounts: argon2id password
+hashes as they are (so opers keep their passwords; a plain-text password is
+hashed), `certfp` masks as certificate opers, host masks, vhost and swhois
+lines. Unreal's own operclasses map to BeeIRCd's (netadmin, admin,
+services-admin, globop; locop becomes helper); an operclass of your own
+becomes flags from its permissions (kill and server-ban: `k`, chghost: `h`,
+...). Each oper's name must be a registered nick, since oper entries belong
+to accounts here; the report names any that isn't.
+
 `-yes` skips the question (for scripts).
 
 ## Updates

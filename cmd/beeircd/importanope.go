@@ -38,6 +38,7 @@ func importAnope(args []string, stdout, stderr io.Writer, r importRun) int {
 	yes := fs.Bool("yes", false, "don't ask before importing (for scripts)")
 	replace := fs.Bool("replace", false, "names that BeeIRCd has already: take Anope's instead")
 	dry := fs.Bool("dry-run", false, "only show what would come in")
+	unrealOpers := fs.String("unreal-opers", "", "also bring the oper blocks of this unrealircd.conf over (after the accounts)")
 	// Flags may come before or after the file name.
 	var files []string
 	for {
@@ -96,7 +97,7 @@ func importAnope(args []string, stdout, stderr io.Writer, r importRun) int {
 
 	// The report comes from a real import into a copy, so it is exactly
 	// what the import will do.
-	rep, err := importInto(db, objs, anopedb.Options{Replace: *replace}, true)
+	rep, err := importInto(db, objs, anopedb.Options{Replace: *replace}, *unrealOpers, true)
 	if err != nil {
 		c.bad("reading: " + err.Error())
 		return 1
@@ -139,7 +140,7 @@ func importAnope(args []string, stdout, stderr io.Writer, r importRun) int {
 		}
 		undo = "cp " + before + " " + db
 	}
-	if _, err := importInto(db, objs, anopedb.Options{Replace: *replace}, false); err != nil {
+	if _, err := importInto(db, objs, anopedb.Options{Replace: *replace}, *unrealOpers, false); err != nil {
 		c.bad("import: " + err.Error())
 		fmt.Fprintf(stdout, "  Put it back:  %s\n", undo)
 		return 1
@@ -151,7 +152,7 @@ func importAnope(args []string, stdout, stderr io.Writer, r importRun) int {
 }
 
 // importInto imports into db, or into a throwaway copy of it (trial).
-func importInto(db string, objs []anopedb.Object, opt anopedb.Options, trial bool) (*anopedb.Report, error) {
+func importInto(db string, objs []anopedb.Object, opt anopedb.Options, unrealConf string, trial bool) (*anopedb.Report, error) {
 	target := db
 	if trial {
 		dir, err := os.MkdirTemp("", "beeircd-import-")
@@ -183,6 +184,13 @@ func importInto(db string, objs []anopedb.Object, opt anopedb.Options, trial boo
 		return nil, err
 	}
 	rep, err := anopedb.Import(st, objs, opt)
+	if err == nil && unrealConf != "" {
+		var f *os.File
+		if f, err = os.Open(unrealConf); err == nil {
+			err = anopedb.ImportUnrealOpers(st, []io.Reader{f}, opt, rep)
+			f.Close()
+		}
+	}
 	if cerr := st.Close(); err == nil {
 		err = cerr
 	}
