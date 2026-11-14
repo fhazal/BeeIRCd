@@ -1,0 +1,66 @@
+# Builds the BeeIRCd Docker image for amd64 and arm64 from main, tests it
+# on both (arm64 emulated: setup, start, status, IRC), and only then pushes
+# ghcr.io/fhazal/beeircd:edge. Release tags (built from the signed release
+# programs) come later with 1.1; see INSTALL.md "Docker".
+name: docker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "cmd/**"
+      - "internal/**"
+      - "deploy/docker/**"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/docker.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: build linux amd64 + arm64
+        run: |
+          mkdir -p dist
+          for arch in amd64 arm64; do
+            CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath \
+              -ldflags "-s -w -X github.com/fhazal/beeircd/internal/version.Version=1.1.0-dev -X github.com/fhazal/beeircd/internal/version.Commit=${GITHUB_SHA::7}" \
+              -o dist/beeircd-linux-$arch ./cmd/beeircd
+          done
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: build and test each platform
+        run: |
+          for arch in amd64 arm64; do
+            docker buildx build --platform linux/$arch -f deploy/docker/Dockerfile --load -t beeircd-smoke:$arch .
+            bash deploy/docker/smoke.sh beeircd-smoke:$arch linux/$arch
+          done
+          docker image ls beeircd-smoke
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: push ghcr.io/fhazal/beeircd:edge
+        run: |
+          docker buildx build --platform linux/amd64,linux/arm64 -f deploy/docker/Dockerfile --push \
+            --label org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY} \
+            --label org.opencontainers.image.description="BeeIRCd IRC server with services and the Hive Panel" \
+            --label org.opencontainers.image.licenses=AGPL-3.0-or-later \
+            -t ghcr.io/fhazal/beeircd:edge -t ghcr.io/fhazal/beeircd:sha-${GITHUB_SHA::7} .
