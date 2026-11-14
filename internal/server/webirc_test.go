@@ -8,6 +8,7 @@ import (
 
 	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/passwd"
+	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
 )
 
@@ -43,7 +44,7 @@ func TestWebircRealIPAndHost(t *testing.T) {
 	w.send("WHOIS Web")
 	w.expect(" 311 Web Web ~web user.example.net * :Web")
 	w.expect(" 320 Web Web :is connecting through WEBIRC gateway beeroom")
-	if u := s.net.UserByNick("Web"); u == nil || u.IP != "203.0.113.7" || u.RealHost != "user.example.net" {
+	if u := gwUser(s, "Web"); u == nil || u.IP != "203.0.113.7" || u.RealHost != "user.example.net" {
 		t.Fatalf("user = %+v", u)
 	}
 	// Someone else (no flag h) doesn't see the gateway line.
@@ -88,7 +89,7 @@ func TestWebircAfterRegistrationIgnored(t *testing.T) {
 	c.send("WEBIRC " + webircPW + " beeroom h.example.net 203.0.113.7")
 	c.send("PING :still")
 	c.expect("PONG irc.test.local :still")
-	if u := s.net.UserByNick("Early"); u.IP != "127.0.0.1" {
+	if u := gwUser(s, "Early"); u.IP != "127.0.0.1" {
 		t.Fatalf("IP changed after registration: %s", u.IP)
 	}
 }
@@ -102,7 +103,7 @@ func TestWebircSecondWebircIgnored(t *testing.T) {
 	c.send("NICK Twice")
 	c.send("USER twice 0 * :Twice")
 	c.expect(" 001 Twice ")
-	if u := s.net.UserByNick("Twice"); u.IP != "203.0.113.7" {
+	if u := gwUser(s, "Twice"); u.IP != "203.0.113.7" {
 		t.Fatalf("second WEBIRC won: %s", u.IP)
 	}
 }
@@ -164,7 +165,7 @@ func TestWebircStaleLookupDropped(t *testing.T) {
 func TestWebircSecureFlag(t *testing.T) {
 	s := testServer(t, webircGW())
 	viaGateway(t, s, "Safe", "203.0.113.7").expect(" 001 Safe ")
-	if u := s.net.UserByNick("Safe"); !u.TLS {
+	if u := gwUser(s, "Safe"); !u.TLS {
 		t.Fatal("secure over loopback should count as TLS")
 	}
 	c := raw(t, s)
@@ -173,7 +174,20 @@ func TestWebircSecureFlag(t *testing.T) {
 	c.send("NICK Plain")
 	c.send("USER plain 0 * :Plain")
 	c.expect(" 001 Plain ")
-	if u := s.net.UserByNick("Plain"); u.TLS {
+	if u := gwUser(s, "Plain"); u.TLS {
 		t.Fatal("no secure flag: not TLS")
 	}
+}
+
+// gwUser copies nick's user on the server loop, so the test never reads
+// the network while the server changes it (race detector).
+func gwUser(s *Server, nick string) *state.User {
+	var u *state.User
+	s.onLoop(func() {
+		if p := s.net.UserByNick(nick); p != nil {
+			c := *p
+			u = &c
+		}
+	})
+	return u
 }
