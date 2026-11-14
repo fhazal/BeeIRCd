@@ -471,6 +471,14 @@ func csLevels(s *Services, c *Client, args []string) {
 		if !ok {
 			return
 		}
+		if argAt(args, 2) == "" {
+			if sub == "SET" {
+				s.cs(c, "Syntax: LEVELS %s SET <privilege> {<0-%d> | FOUNDER}", reg.Name, store.LevelMax)
+			} else {
+				s.cs(c, "Syntax: LEVELS %s DISABLE <privilege>", reg.Name)
+			}
+			return
+		}
 		p, found := findPrivilege(argAt(args, 2))
 		if !found {
 			s.cs(c, "%s isn't a privilege. See /cs levels %s list.", argAt(args, 2), reg.Name)
