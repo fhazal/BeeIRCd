@@ -27,6 +27,7 @@ type fakeSystem struct {
 	running    string // version answering on the socket ("" = stopped)
 	comesUp    bool   // whether a new version answers after a restart
 	checkFails bool
+	panel      bool // the Hive Panel service (beeircd-web) is running
 	quit       string
 	calls      []string
 }
@@ -90,6 +91,14 @@ func testUpdater(t *testing.T, current, url string, fs *fakeSystem, answers stri
 				return "  ✓ config reads cleanly\n  ✗ [limits] flood_rate \"fast\" is not a number", errors.New("exit 1")
 			}
 			return "  ✓ safe to restart", nil
+		case name == "systemctl" && len(args) == 2 && args[1] == "beeircd-web.service":
+			if args[0] == "is-active" && !fs.panel {
+				return "inactive", errors.New("exit 3")
+			}
+			if args[0] == "is-active" {
+				return "active", nil
+			}
+			return "", nil
 		case name == "systemctl":
 			if v := progVersion(exe); fs.comesUp || v == current {
 				fs.running = v
@@ -272,5 +281,49 @@ func TestUpgradeConfigCopiesUnchanged(t *testing.T) {
 	b, _ := os.ReadFile(outFile)
 	if !bytes.Equal(a, b) {
 		t.Error("config changed with no migrations")
+	}
+}
+
+// The Hive Panel (beeircd-web) runs the same program file: an update or a
+// rollback restarts it too, or it keeps running the old version (found on
+// the test pair at 1.0.0). A machine without the panel gets no restart.
+func TestUpdateRestartsHivePanel(t *testing.T) {
+	key := signingKey(t)
+	srv := releaseServer(t, "1.0.1", key)
+	restarts := func(fs *fakeSystem) int {
+		n := 0
+		for _, c := range fs.calls {
+			if c == "systemctl restart beeircd-web.service" {
+				n++
+			}
+		}
+		return n
+	}
+
+	fs := &fakeSystem{running: "1.0.0", comesUp: true, panel: true}
+	u, out := testUpdater(t, "1.0.0", srv.URL, fs, "y\n")
+	if code := u.update(false, false, false); code != 0 {
+		t.Fatalf("exit %d\n%s", code, out)
+	}
+	if restarts(fs) != 1 || !strings.Contains(out.String(), "Hive Panel restarted on 1.0.1") {
+		t.Errorf("update: panel restarts %d, calls %v\n%s", restarts(fs), fs.calls, out)
+	}
+	u.current, u.in = "1.0.1", bufio.NewReader(strings.NewReader("y\n"))
+	if code := u.rollback(false); code != 0 || restarts(fs) != 2 {
+		t.Errorf("rollback exit %d, panel restarts %d\n%s", code, restarts(fs), out)
+	}
+
+	// A failed update goes back to the old program; the panel never left it.
+	fs = &fakeSystem{running: "1.0.0", comesUp: false, panel: true}
+	u, out = testUpdater(t, "1.0.0", srv.URL, fs, "y\n")
+	u.update(false, false, false)
+	if restarts(fs) != 0 {
+		t.Errorf("failed update restarted the panel: %v", fs.calls)
+	}
+
+	fs = &fakeSystem{running: "1.0.0", comesUp: true}
+	u, out = testUpdater(t, "1.0.0", srv.URL, fs, "y\n")
+	if code := u.update(false, false, false); code != 0 || restarts(fs) != 0 || strings.Contains(out.String(), "Hive Panel") {
+		t.Errorf("no panel: exit %d, restarts %d\n%s", code, restarts(fs), out)
 	}
 }

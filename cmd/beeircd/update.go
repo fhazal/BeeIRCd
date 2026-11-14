@@ -281,6 +281,7 @@ func (u *updater) install(ctx context.Context, base string, m *release.Manifest,
 	if _, err := u.run("systemctl", "restart", serviceName); err == nil && u.waitFor(m.Version) {
 		os.Remove(prevOld)
 		u.c.ok(fmt.Sprintf("restarted · %s answering after %s", m.Version, secs(time.Since(started))))
+		u.restartPanel(m.Version)
 		fmt.Fprintf(u.out, "\n  BeeIRCd %s is running.   Go back with:  beeircd update --rollback\n\n", m.Version)
 		return 0
 	}
@@ -387,7 +388,22 @@ func (u *updater) rollback(yes bool) int {
 		return 1
 	}
 	u.c.ok(fmt.Sprintf("program swapped back · %s answering after %s", oldVer, secs(time.Since(started))))
+	u.restartPanel(oldVer)
 	return 0
+}
+
+// restartPanel restarts the Hive Panel service when it runs: it is the same
+// program file, so without this it keeps serving the version it started with.
+func (u *updater) restartPanel(version string) {
+	const svc = "beeircd-web.service"
+	if out, _ := u.run("systemctl", "is-active", svc); strings.TrimSpace(out) != "active" {
+		return
+	}
+	if out, err := u.run("systemctl", "restart", svc); err != nil {
+		u.c.warn("the Hive Panel didn't restart (" + or(out, err.Error()) + "): run  systemctl restart beeircd-web")
+		return
+	}
+	u.c.ok("Hive Panel restarted on " + version)
 }
 
 func (u *updater) yesNo(q string, def bool) (bool, error) {
