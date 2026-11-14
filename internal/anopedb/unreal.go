@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/passwd"
 	"github.com/fhazal/beeircd/internal/store"
@@ -318,7 +319,18 @@ func ImportUnrealOpers(st *store.Store, confs []io.Reader, opt Options, r *Repor
 			r.Changed = append(r.Changed, fmt.Sprintf("oper %s: operclass %q unknown, given class globop", name, cls))
 		}
 		o.Vhost = valueOf(e.kid("vhost"))
+		title := ""
+		for _, b := range config.BuiltinClasses {
+			if b.Name == o.Class {
+				title = b.Title
+			}
+		}
 		for _, s := range e.all("swhois") {
+			// UnrealIRCd networks often repeat the oper's rank as a swhois
+			// line; BeeIRCd already shows it (313), so it would show twice.
+			if title != "" && strings.EqualFold(strings.TrimSpace(s.Value), title) {
+				continue
+			}
 			if s.Value != "" && len(o.Swhois) < 5 {
 				o.Swhois = append(o.Swhois, irc.Truncate(s.Value, 100))
 			}

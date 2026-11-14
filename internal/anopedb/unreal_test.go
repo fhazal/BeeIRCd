@@ -60,7 +60,7 @@ oper Ghost { mask *@*; password "` + hash + `"; operclass netadmin; };
 		}
 		return o.Class, o.Flags, o.Hosts, o.CertFPs, o.Swhois, o.Vhost, o.PassHash
 	}
-	if cls, _, hosts, _, sw, vh, pass := get("Belon"); cls != "netadmin" || hosts[0] != "*@*" || len(sw) != 2 || vh != "netadmin.example.org" || !passwd.Check("oper-secret-1", pass) {
+	if cls, _, hosts, _, sw, vh, pass := get("Belon"); cls != "netadmin" || hosts[0] != "*@*" || len(sw) != 1 || sw[0] != "looks very helpful" || vh != "netadmin.example.org" || !passwd.Check("oper-secret-1", pass) {
 		t.Errorf("Belon: %s %v %v %s", cls, hosts, sw, vh)
 	}
 	if cls, _, hosts, _, _, _, _ := get("Psycho"); cls != "globop" || len(hosts) != 2 || hosts[1] != "*@198.51.100.7" {
