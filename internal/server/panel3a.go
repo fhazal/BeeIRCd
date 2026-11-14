@@ -309,6 +309,12 @@ func (s *Server) panelControl(req control.Request, setDeadline func(time.Duratio
 		return run('m', func(po *control.PanelOper) { resp = *s.panelChatKey(po) }), true
 	case control.CmdMySet:
 		return run('m', func(po *control.PanelOper) { resp = *s.panelMySet(po, req.IP, req.Name, req.Value) }), true
+	case control.CmdMyHome:
+		return run('m', func(po *control.PanelOper) { resp = *s.panelHome(po) }), true
+	case control.CmdMyMemos:
+		return run('m', func(po *control.PanelOper) { resp = *s.panelMemos(po) }), true
+	case control.CmdMemoRead, control.CmdMemoDel, control.CmdMemoSend:
+		return run('m', func(po *control.PanelOper) { resp = *s.panelMemoAct(po, req.Cmd, req.IP, req.ID, req.Name, req.Value) }), true
 	case control.CmdPanelLog:
 		return run(0, func(po *control.PanelOper) {
 			evs, err := s.panelEvents(po)

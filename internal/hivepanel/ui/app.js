@@ -137,9 +137,11 @@
   let live = null;        // EventSource
   let poll = 0, liveFails = 0;
   const pages = [
+    { id: 'home', label: 'Home', icon: 'home', you: true, make: homePage },
     { id: 'chat', label: 'Chat', icon: 'message', you: true, chat: true, make: chatPage },
     { id: 'mynick', label: 'My nick', icon: 'user', you: true, eyebrow: 'NickServ', make: myNickPage },
     { id: 'mychannels', label: 'My channels', icon: 'hash', you: true, eyebrow: 'ChanServ', make: myChannelsPage },
+    { id: 'memos', label: 'Memos', icon: 'mail', you: true, eyebrow: 'MemoServ', make: memosPage },
     { id: 'overview', label: 'Overview', icon: 'overview', make: overviewPage },
     { id: 'people', label: 'People', icon: 'people', eyebrow: 'Live list', make: peoplePage },
     { id: 'channels', label: 'Channels', icon: 'hash', eyebrow: 'Live list', make: channelsPage },
@@ -307,6 +309,16 @@
     deco.observe(mainEl, { childList: true, subtree: true });
     drawNav();
     route();
+    // the unread count on Memos, wherever you start
+    const memoCheck = () => bg(() => api('GET', '/api/my-memos')).then(d => {
+      const n = d.memos.memos.filter(x => !x.read).length;
+      if (n > unreadMemos && page && page.newMemos) page.newMemos();
+      unreadMemos = n;
+      drawCount();
+    }).catch(() => {});
+    memoCheck();
+    clearInterval(memoTimer);
+    memoTimer = setInterval(() => { if (me) memoCheck(); else clearInterval(memoTimer); }, 60000);
     if (!me.member) startLive(); // the live overview is for opers
   }
   function drawNav() {
@@ -315,10 +327,11 @@
     const you = pages.filter(p => p.you && allowed(p)), server = pages.filter(p => !p.you && allowed(p));
     put(navEl, you.length ? h('div', { class: 'nlabel', text: 'You' }) : null, ...you.map(link),
       server.length ? h('div', { class: 'nlabel', text: 'Server' }) : null, ...server.map(link));
+    drawCount();
   }
   function route() {
     if (!me) return;
-    const home = !me.member ? 'overview' : me.chat ? 'chat' : 'mynick';
+    const home = me.member ? 'home' : 'overview'; // members start on Home, opers on the network Overview
     const id = (location.hash.match(/^#\/([a-z]+)/) || [])[1] || home;
     let p = pages.find(x => x.id === id && allowed(x));
     if (!p) { p = pages.find(x => x.id === home); history.replaceState(null, '', '#/' + home); }
@@ -2062,6 +2075,174 @@
     if (!chatHost.firstChild) openChat();
     return { el: h('div'), leave() { chatHost.hidden = true; mainEl.hidden = false; } };
   }
+
+  // ---------- Home and Memos (members and opers, their own account) ----------
+  // Home sums up and links; every detail stays on its own page.
+  const hmHead = (ic, title, end) => h('h2', { class: 'hm-h' }, h('span', { class: 'sico' }, icon(ic)), title, end ? h('span', { class: 'hm-end', text: end }) : null);
+  const ago = t => {
+    const s = (Date.now() - new Date(t).getTime()) / 1000;
+    return s < 60 ? 'just now' : s < 3600 ? since(t) + ' ago' : s < 86400 ? Math.floor(s / 3600) + ' h ago' : Math.floor(s / 86400) + ' d ago';
+  };
+  const NO_MEMOS = nick => 'No memos. Others leave you one with /msg MemoServ SEND ' + nick + ' and a message.';
+
+  // The Memos menu item shows how many are unread.
+  let unreadMemos = 0, memoTimer = 0;
+  function drawCount() {
+    const a = navEl && navEl.querySelector('a[data-page="memos"]');
+    if (!a) return;
+    let b = a.querySelector('.ncount');
+    if (!unreadMemos) { if (b) b.remove(); return; }
+    if (!b) { b = h('span', { class: 'ncount' }); a.append(b); }
+    b.textContent = unreadMemos;
+  }
+
+  function homePage() {
+    const title = h('h1', { text: me.account });
+    const facts = h('div', { class: 'hm-facts' });
+    const tiles = h('div', { class: 'tiles4' });
+    const left = h('div', { class: 'hm-col' }, h('p', { class: 'empty', text: 'Loading…' }));
+    const right = h('div', { class: 'hm-col' });
+    const net = h('div', { class: 'hm-net' });
+    const el = h('div', { class: 'main-stack' },
+      h('header', { class: 'head', 'data-deco': '1' }, h('div', { class: 'head-text' }, h('div', { class: 'eyebrow', text: 'Welcome back' }), title, facts)),
+      tiles, h('div', { class: 'hm-cols' }, left, right), net);
+    const tile = (href, ic, label, n, foot, fresh) => h('a', { href, class: 'card tight' + (fresh ? ' hm-new' : ''), 'data-deco': '1' },
+      h('div', { class: 'slab' }, h('span', { text: label }), h('span', { class: 'sico' }, icon(ic))),
+      h('span', { class: 'num', text: fmt(n) }), h('span', { class: 'foot-n', text: foot }));
+    const go = (pg, label) => h('a', { class: 'btn', href: '#/' + pg }, label, icon('arrow'));
+    api('GET', '/api/my-home').then(d => {
+      const m = d.home;
+      title.textContent = m.name;
+      const online = m.conns.length;
+      put(facts,
+        h('span', { class: 'role' + (online ? ' ok' : ''), text: online ? 'online · ' + plural(online, 'connection', 'connections') : 'not on IRC now' }),
+        m.vhost ? h('span', { class: 'role', text: 'vhost ' + m.vhost }) : null,
+        h('span', { class: 'role', text: 'registered ' + day(m.registered) }),
+        m.nicks.length > 1 ? h('span', { class: 'role', text: 'nicks: ' + m.nicks.join(', ') }) : null);
+      const founded = m.channels.filter(c => c.founder).length;
+      put(tiles,
+        tile('#/memos', 'mail', 'New memos', m.unread, m.kept + ' of ' + m.memoLimit + ' kept', m.unread > 0),
+        tile('#/mychannels', 'hash', 'My channels', m.channels.length, founded ? 'founder of ' + founded : 'on access lists'),
+        tile('#/mychannels', 'list', 'On my lists', m.onMyLists, founded ? 'people in channels you founded' : 'you founded none yet'),
+        tile(me.chat ? '#/chat' : '#/home', 'monitor', 'Connected', online, online ? (m.conns.some(c => c.web) ? 'web chat and IRC' : 'IRC') : 'nowhere right now'));
+      unreadMemos = m.unread;
+      drawCount();
+
+      const memoRows = m.memos.length ? m.memos.map(x => h('div', { class: 'hm-memo' + (x.read ? ' read' : '') },
+        h('span', { class: 'dot ' + (x.read ? 'off' : 'warn') }), h('b', { text: x.from }), h('span', { class: 'tx', text: x.text }), h('span', { class: 'tm', text: when(x.sent) })))
+        : [h('p', { class: 'empty', text: NO_MEMOS(m.name) })];
+      put(left,
+        h('section', { class: 'card' }, hmHead('mail', 'Memos', 'newest first'), memoRows,
+          h('div', { class: 'hm-foot' }, go('memos', 'Open memos'))),
+        m.needs.length ? h('section', { class: 'card hm-needs' }, hmHead('alert', 'Needs you'),
+          m.needs.map(n => h('div', { class: 'row' },
+            h('span', {}, h('span', {}, h('b', { text: n.text }), h('br'), h('span', { class: 'hint', text: n.hint }))),
+            n.page ? go(n.page, (pages.find(p => p.id === n.page) || {}).label || 'Open') : null))) : null);
+
+      put(right,
+        h('section', { class: 'card' }, hmHead('hash', 'My channels now'),
+          m.channels.length ? m.channels.map(c => h('div', { class: 'row' },
+            h('span', {}, h('b', { class: 'mono', text: c.name }), h('span', { class: 'role' + (c.founder ? ' on' : ''), text: c.level })),
+            h('span', { class: 'end', text: [c.users + ' here', c.status ? 'you have ' + c.status : '', c.topicBy ? 'topic by ' + c.topicBy + ' ' + ago(c.topicAt) : ''].filter(Boolean).join(' · ') })))
+            : h('p', { class: 'empty', text: 'No channels yet. Register one on IRC: /msg ChanServ REGISTER #channel' })),
+        m.access.length ? h('section', { class: 'card' }, hmHead('list', 'Access lists', 'newest additions'),
+          m.access.map(a => h('div', { class: 'row' },
+            h('span', {}, h('span', {}, a.level === 'AKICK'
+              ? [h('b', { class: 'mono', text: a.who }), ' on AKICK in ' + a.channel]
+              : [h('b', { text: a.who === m.name ? 'You' : a.who }), (a.who === m.name ? ' were' : '') + ' added as ', h('b', { text: a.level }), ' in ' + a.channel],
+            a.by ? ' by ' + (a.by === m.name ? 'you' : a.by) : '')),
+            h('span', { class: 'end mono', text: a.at ? ago(a.at) : '' })))) : null,
+        h('section', { class: 'card' }, hmHead('monitor', 'Where you are connected'),
+          online ? m.conns.map(c => h('div', { class: 'row' },
+            h('span', {}, icon(c.web ? 'globe' : 'terminal'), h('span', {}, h('b', { text: c.nick }), h('br'),
+              h('span', { class: 'hint', text: (c.web ? 'web chat' : 'IRC client') + ' · since ' + when(c.since) + (c.away ? ' · away' : '') })))))
+            : h('p', { class: 'empty', text: 'You are not on IRC right now.' })));
+      put(net, h('span', { text: 'NETWORK' }), h('span', {}, h('b', { text: fmt(m.users) }), ' online'),
+        h('span', {}, h('b', { text: fmt(m.chanCount) }), m.chanCount === 1 ? ' channel' : ' channels'), h('span', {}, h('b', { text: fmt(m.servers) }), m.servers === 1 ? ' server' : ' servers'));
+    }).catch(e => put(left, h('p', { class: 'empty', text: e.message })));
+    return { el };
+  }
+
+  function memosPage() {
+    const list = h('div', {}, h('p', { class: 'empty', text: 'Loading…' }));
+    const count = h('span', { class: 'hm-end' });
+    const to = h('input', { class: 'in', id: 'mm-to', type: 'text', maxlength: '64', autocomplete: 'off', spellcheck: 'false', placeholder: 'nick or #channel' });
+    const text = h('textarea', { class: 'in', id: 'mm-text', maxlength: '300', placeholder: 'Your message' });
+    const left = h('span', { class: 'hint', text: 'Up to 300 characters.' });
+    text.addEventListener('input', () => { left.textContent = (300 - text.value.length) + ' characters left'; });
+    const send = h('button', { type: 'submit', class: 'btn main' }, icon('send'), 'Send');
+    const form = h('form', { class: 'mm-form' },
+      h('label', { class: 'f', for: 'mm-to' }, 'To', to),
+      h('label', { class: 'f', for: 'mm-text' }, 'Message', text), left,
+      h('div', { class: 'row-btns' }, send));
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      if (!to.value.trim() || !text.value.trim()) { toastErr('Give a nick (or #channel) and a message.'); return; }
+      busy(send, async () => {
+        try {
+          const d = await api('POST', '/api/memo-send', { to: to.value.trim(), text: text.value.trim() });
+          toast([d.done.text]);
+          text.value = '';
+          left.textContent = 'Up to 300 characters.';
+        } catch (err) { toastErr(err.message); }
+      });
+    });
+    const el = h('div', { class: 'main-stack' },
+      h('header', { class: 'head' }, h('div', { class: 'head-text' }, h('h1', { text: 'Memos' }),
+        h('span', { class: 'sub', text: 'Your MemoServ box: the same memos as /msg MemoServ LIST on IRC.' }))),
+      h('div', { class: 'band21' },
+        h('section', { class: 'card' }, h('h2', { class: 'hm-h' }, h('span', { class: 'sico' }, icon('mail')), 'Inbox', count), list),
+        h('section', { class: 'card' }, hmHead('send', 'Send a memo'), form)));
+    let kept = 0, limit = 0;
+    const drawHead = () => { count.textContent = (unreadMemos ? unreadMemos + ' new · ' : '') + kept + ' of ' + limit + ' kept'; drawCount(); };
+    async function load() {
+      let d;
+      try { d = (await api('GET', '/api/my-memos')).memos; } catch (e) { put(list, h('p', { class: 'empty', text: e.message })); return; }
+      const memos = d.memos.slice().reverse(); // newest first
+      kept = memos.length;
+      limit = d.limit;
+      unreadMemos = memos.filter(x => !x.read).length;
+      drawHead();
+      put(list, memos.length ? memos.map(row) : h('p', { class: 'empty', text: NO_MEMOS(me.account) }));
+    }
+    function row(x) {
+      const body = h('div', { class: 'mm-body', hidden: true });
+      const dot = h('span', { class: 'dot ' + (x.read ? 'off' : 'warn') });
+      const btn = h('button', { type: 'button', class: 'mm-head', 'aria-expanded': 'false' },
+        dot, h('b', { text: x.from }), h('span', { class: 'tx', text: x.text }), h('span', { class: 'tm', text: when(x.sent) }));
+      const r = h('div', { class: 'mm-row' + (x.read ? ' read' : '') }, btn, body);
+      const del = h('button', { type: 'button', class: 'btn bad' }, icon('trash'), 'Delete');
+      del.addEventListener('click', () => busy(del, async () => {
+        try {
+          await api('POST', '/api/memo-del', { id: x.id });
+          toast(['Memo from ' + x.from + ' deleted.']);
+          load();
+        } catch (e) { toastErr(e.message); }
+      }));
+      const reply = h('button', { type: 'button', class: 'btn' }, icon('send'), 'Reply');
+      reply.addEventListener('click', () => { to.value = x.from; text.focus(); });
+      put(body, h('p', { text: x.text }), h('div', { class: 'row-btns' }, reply, del));
+      btn.addEventListener('click', async () => {
+        const open = body.hidden;
+        body.hidden = !open;
+        r.classList.toggle('open', open);
+        btn.setAttribute('aria-expanded', String(open));
+        if (!open || x.read) return;
+        try {
+          await api('POST', '/api/memo-read', { id: x.id });
+          x.read = true;
+          r.classList.add('read');
+          dot.className = 'dot off';
+          unreadMemos = Math.max(0, unreadMemos - 1);
+          drawHead();
+        } catch (e) { toastErr(e.message); }
+      });
+      return r;
+    }
+    load();
+    return { el, newMemos: load };
+  }
+
 
   // ---------- My nick and My channels (members and opers) ----------
   // NickServ SET as switches: each change runs the real SET on the server

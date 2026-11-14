@@ -177,6 +177,11 @@ func New(o Options) *Panel {
 	m.HandleFunc("GET /api/my-nick", p.withOper(p.simple(control.CmdMyNick)))
 	m.HandleFunc("POST /api/my-set", p.withOper(p.mySet))
 	m.HandleFunc("POST /api/chat-key", p.withOper(p.simple(control.CmdChatKey)))
+	m.HandleFunc("GET /api/my-home", p.withOper(p.simple(control.CmdMyHome)))
+	m.HandleFunc("GET /api/my-memos", p.withOper(p.simple(control.CmdMyMemos)))
+	m.HandleFunc("POST /api/memo-read", p.withOper(p.memoAct(control.CmdMemoRead)))
+	m.HandleFunc("POST /api/memo-del", p.withOper(p.memoAct(control.CmdMemoDel)))
+	m.HandleFunc("POST /api/memo-send", p.withOper(p.memoSend))
 	m.HandleFunc("GET /api/live", p.live)
 	p.mux = m
 	return p
@@ -415,6 +420,28 @@ func (p *Panel) mySet(w http.ResponseWriter, r *http.Request, oc operCtx) {
 		return
 	}
 	p.send(w, oc, control.Request{Cmd: control.CmdMySet, Name: in.Name, Value: in.Value}, 10*time.Second)
+}
+
+// memoAct reads or deletes one of the signed-in person's own memos.
+func (p *Panel) memoAct(cmd string) func(http.ResponseWriter, *http.Request, operCtx) {
+	return func(w http.ResponseWriter, r *http.Request, oc operCtx) {
+		var in struct{ ID int64 }
+		if json.NewDecoder(r.Body).Decode(&in) != nil || in.ID <= 0 {
+			writeErr(w, http.StatusBadRequest, "Bad request.")
+			return
+		}
+		p.send(w, oc, control.Request{Cmd: cmd, ID: in.ID}, 10*time.Second)
+	}
+}
+
+// memoSend is MemoServ SEND: To (a nick or #channel) and Text.
+func (p *Panel) memoSend(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	var in struct{ To, Text string }
+	if json.NewDecoder(r.Body).Decode(&in) != nil || in.To == "" || in.Text == "" || len(in.To) > 64 || len(in.Text) > 1000 {
+		writeErr(w, http.StatusBadRequest, "Bad request.")
+		return
+	}
+	p.send(w, oc, control.Request{Cmd: control.CmdMemoSend, Name: in.To, Value: in.Text}, 10*time.Second)
 }
 
 func (p *Panel) undo(w http.ResponseWriter, r *http.Request, oc operCtx) {

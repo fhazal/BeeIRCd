@@ -151,8 +151,9 @@ type Services struct {
 	seenGone  []string
 	seenSaved time.Time
 
-	mailer Mailer              // how mail goes out (tests replace it)
-	resets map[int64]resetInfo // NickServ RESETPASS codes by account
+	mailer      Mailer              // how mail goes out (tests replace it)
+	resets      map[int64]resetInfo // NickServ RESETPASS codes by account
+	webMemoSent map[int64]time.Time // Hive Panel memo SEND per account (senddelay), webhome.go
 }
 
 // Client is services' record of one person on the network.

@@ -78,6 +78,13 @@ const (
 	CmdMyNick  = "my-nick"  // -> MyNick
 	CmdMySet   = "my-set"   // Name (NickServ SET option) + Value -> Done (NickServ's answer)
 	CmdChatKey = "chat-key" // -> Chat (a one-time SASL key for BeeRoom, 60 s)
+
+	// Member Home and Memos (members and opers, their own account only).
+	CmdMyHome   = "my-home"   // -> Home
+	CmdMyMemos  = "my-memos"  // -> Memos
+	CmdMemoRead = "memo-read" // ID (memo) -> Done; marks it read
+	CmdMemoDel  = "memo-del"  // ID (memo) -> Done
+	CmdMemoSend = "memo-send" // Name (nick or #channel) + Value (text) -> Done (MemoServ's answer)
 )
 
 // MaxRequest is the most bytes one request may be (the Hive Panel takes
@@ -146,6 +153,8 @@ type Response struct {
 	MyNick   *MyNick      `json:"myNick,omitempty"`
 	Hello    *Hello       `json:"hello,omitempty"`
 	Chat     *ChatKey     `json:"chat,omitempty"`
+	Home     *MyHome      `json:"home,omitempty"`
+	Memos    *MyMemos     `json:"memos,omitempty"`
 	// Denied is set (with Error) when the oper may not do this: signed
 	// out, or missing a flag. The panel then signs them out or says so.
 	Denied string `json:"denied,omitempty"` // "signin" or "flag"
@@ -378,6 +387,77 @@ type ChatKey struct {
 	URL     string `json:"url"`
 	Account string `json:"account"`
 	Key     string `json:"key"`
+}
+
+// MyHome is Member Home: the signed-in account at a glance. Every part is
+// about that account only; detail lives on its own page.
+type MyHome struct {
+	Name       string        `json:"name"`
+	VHost      string        `json:"vhost,omitempty"`
+	Registered time.Time     `json:"registered"`
+	Nicks      []string      `json:"nicks"`
+	Unread     int           `json:"unread"`
+	Kept       int           `json:"kept"`
+	MemoLimit  int           `json:"memoLimit"`
+	Memos      []MyMemo      `json:"memos"` // the newest few, newest first
+	Channels   []HomeChannel `json:"channels"`
+	OnMyLists  int           `json:"onMyLists"` // people on the lists of channels they founded
+	Access     []HomeAccess  `json:"access"`    // newest additions they may see
+	Conns      []MyConn      `json:"conns"`
+	Needs      []HomeNeed    `json:"needs"`
+	Users      int           `json:"users"` // the network, as LUSERS says
+	ChanCount  int           `json:"chanCount"`
+	Servers    int           `json:"servers"`
+}
+
+// HomeChannel is one of the member's channels as it is right now.
+type HomeChannel struct {
+	Name    string    `json:"name"`
+	Level   string    `json:"level"`
+	Founder bool      `json:"founder,omitempty"`
+	Users   int       `json:"users"`
+	Status  string    `json:"status,omitempty"` // "@", "+" ... one of their connections holds there
+	TopicBy string    `json:"topicBy,omitempty"`
+	TopicAt time.Time `json:"topicAt,omitempty"`
+}
+
+// HomeAccess is one access list or AKICK entry: who was added, by whom.
+type HomeAccess struct {
+	Channel string    `json:"channel"`
+	Who     string    `json:"who"`
+	Level   string    `json:"level"`
+	By      string    `json:"by"`
+	At      time.Time `json:"at"`
+}
+
+// MyConn is one connection identified to the account.
+type MyConn struct {
+	Nick  string    `json:"nick"`
+	Since time.Time `json:"since"`
+	Away  bool      `json:"away,omitempty"`
+	Web   bool      `json:"web,omitempty"` // came through a web chat (WEBIRC)
+}
+
+// HomeNeed is one thing on "Needs you"; Page is where to fix it.
+type HomeNeed struct {
+	Text string `json:"text"`
+	Hint string `json:"hint"`
+	Page string `json:"page"`
+}
+
+// MyMemo is one memo in the member's own box.
+type MyMemo struct {
+	ID   int64     `json:"id"`
+	From string    `json:"from"`
+	Sent time.Time `json:"sent"`
+	Text string    `json:"text"`
+	Read bool      `json:"read,omitempty"`
+}
+
+// MyMemos is the Memos page: the whole box, oldest first like /ms list.
+type MyMemos struct {
+	Memos []MyMemo `json:"memos"`
+	Limit int      `json:"limit"`
 }
 
 // Hello is what the sign-in page may know before anyone signs in.

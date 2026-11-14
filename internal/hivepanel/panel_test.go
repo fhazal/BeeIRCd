@@ -41,6 +41,14 @@ func (f *fakeServer) ask(r control.Request, _ time.Duration) (*control.Response,
 		if r.Cmd == control.CmdMyNick || r.Cmd == control.CmdPanelWho {
 			return &control.Response{MyNick: &control.MyNick{Name: "Bel"}, Oper: &control.PanelOper{Account: "Bel", Member: true, Seal: "m1"}}, nil
 		}
+		switch r.Cmd {
+		case control.CmdMyHome:
+			return &control.Response{Home: &control.MyHome{Name: "Bel", Unread: 1}}, nil
+		case control.CmdMyMemos:
+			return &control.Response{Memos: &control.MyMemos{Memos: []control.MyMemo{{ID: 4, From: "ayu", Text: "hi"}}, Limit: 20}}, nil
+		case control.CmdMemoRead, control.CmdMemoDel, control.CmdMemoSend:
+			return &control.Response{Done: &control.Done{Text: fmt.Sprintf("%s %d %s %s", r.Cmd, r.ID, r.Name, r.Value)}}, nil
+		}
 		return &control.Response{Error: "Only opers can do that.", Denied: "flag"}, nil
 	}
 	if r.Cmd == control.CmdPanelLogin {
@@ -589,5 +597,48 @@ func TestMemberSession(t *testing.T) {
 	}
 	if w := rg.do("GET", "/api/status", "", tok, nil); w.Code != http.StatusForbidden {
 		t.Errorf("status for a member: %d %s", w.Code, w.Body)
+	}
+}
+
+func TestMemberHomeAndMemoRoutes(t *testing.T) {
+	rg := newRig(t)
+	w := rg.do("POST", "/api/login", `{"nick":"Bel","password":"mpw"}`, "", nil)
+	var tok string
+	for _, c := range w.Result().Cookies() {
+		if c.Name == cookieName {
+			tok = c.Value
+		}
+	}
+	for path, want := range map[string]string{"/api/my-home": `"unread":1`, "/api/my-memos": `"from":"ayu"`} {
+		if w := rg.do("GET", path, "", tok, nil); w.Code != 200 || !strings.Contains(w.Body.String(), want) {
+			t.Errorf("%s: %d %s", path, w.Code, w.Body)
+		}
+	}
+	for _, c := range []struct{ path, body, want string }{
+		{"/api/memo-read", `{"id":4}`, "memo-read 4"},
+		{"/api/memo-del", `{"id":4}`, "memo-del 4"},
+		{"/api/memo-send", `{"to":"ayu","text":"see you at 9"}`, "memo-send 0 ayu see you at 9"},
+	} {
+		if w := rg.do("POST", c.path, c.body, tok, nil); w.Code != 200 || !strings.Contains(w.Body.String(), c.want) {
+			t.Errorf("%s: %d %s", c.path, w.Code, w.Body)
+		}
+	}
+	for _, c := range []struct{ path, body string }{
+		{"/api/memo-read", `{"id":0}`},
+		{"/api/memo-del", `{}`},
+		{"/api/memo-send", `{"to":"ayu"}`},
+		{"/api/memo-send", `{"to":"ayu","text":"` + strings.Repeat("x", 1001) + `"}`},
+	} {
+		if w := rg.do("POST", c.path, c.body, tok, nil); w.Code != http.StatusBadRequest {
+			t.Errorf("%s %s: %d", c.path, c.body[:min(len(c.body), 30)], w.Code)
+		}
+	}
+	// Not signed in: nothing.
+	if w := rg.do("GET", "/api/my-memos", "", "", nil); w.Code == 200 {
+		t.Errorf("my-memos without a session: %d", w.Code)
+	}
+	// From another site: refused like every POST.
+	if w := rg.do("POST", "/api/memo-send", `{"to":"ayu","text":"x"}`, tok, map[string]string{"X-Hive": ""}); w.Code == 200 {
+		t.Errorf("memo-send without X-Hive: %d", w.Code)
 	}
 }
