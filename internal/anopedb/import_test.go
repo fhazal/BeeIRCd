@@ -212,6 +212,22 @@ func TestImportSample(t *testing.T) {
 	}
 }
 
+// Importing the same file again adds nothing twice.
+func TestImportTwice(t *testing.T) {
+	st := newStore(t)
+	for i := 0; i < 2; i++ {
+		if _, err := Import(st, sample(t), Options{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n, _ := st.AllNews(); len(n) != 2 {
+		t.Errorf("news after two imports: %+v", n)
+	}
+	if ex, _ := st.SessionExcepts(); len(ex) != 2 {
+		t.Errorf("session exceptions after two imports: %+v", ex)
+	}
+}
+
 // A nick BeeIRCd already has keeps BeeIRCd's account, unless Replace.
 func TestImportClash(t *testing.T) {
 	st := newStore(t)

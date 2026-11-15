@@ -840,12 +840,26 @@ func (im *importer) exceptions(_ []Object, by map[string][]Object) error {
 var newsKinds = map[int64]string{0: store.NewsLogon, 1: store.NewsRandom, 2: store.NewsOper}
 
 func (im *importer) news(_ []Object, by map[string][]Object) error {
+	// A second import of the same file must not show every item twice.
+	have, err := im.st.AllNews()
+	if err != nil {
+		return err
+	}
+	seen := map[string]bool{}
+	for _, n := range have {
+		seen[n.Kind+"\x00"+n.Text] = true
+	}
 	for _, o := range by["NewsItem"] {
 		kind := newsKinds[o.Int("type")]
 		if kind == "" {
 			im.skip("news %q (type %d)", o.Get("text"), o.Int("type"))
 			continue
 		}
+		key := kind + "\x00" + o.Get("text")
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
 		if err := im.st.AddNews(kind, o.Get("text"), o.Get("who"), orNow(o.Time("time"))); err != nil {
 			return err
 		}
