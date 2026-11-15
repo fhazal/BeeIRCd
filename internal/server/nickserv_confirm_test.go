@@ -4,6 +4,8 @@ import (
 	"regexp"
 	"testing"
 	"time"
+
+	"github.com/fhazal/beeircd/internal/config"
 )
 
 // registration = "mail": REGISTER mails a passcode, the account can't
@@ -11,7 +13,7 @@ import (
 // LIST UNCONFIRMED finds it.
 func TestRegistrationMail(t *testing.T) {
 	s, _, _ := fileServerWith(t, mailConf, func(s *Server) {
-		s.cfg.Mail.Delay.Duration = time.Second
+		s.cfg.Mail.Delay = &config.Duration{Duration: time.Second}
 	})
 	got := fakeMail(s)
 	b := boss(t, s)
@@ -81,7 +83,7 @@ func TestRegistrationMail(t *testing.T) {
 // go after unconfirmed_expire.
 func TestRegistrationAdmin(t *testing.T) {
 	s, _, _ := fileServerWith(t, "", func(s *Server) {
-		s.cfg.Services.UnconfirmedExpire.Duration = time.Hour
+		s.cfg.Services.UnconfirmedExpire = &config.Duration{Duration: time.Hour}
 	})
 	b := boss(t, s)
 	s.onLoop(func() { s.cfg.Services.Registration = "admin" })

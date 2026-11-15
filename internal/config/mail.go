@@ -21,8 +21,8 @@ type Mail struct {
 	// sendmailpath, "/usr/sbin/sendmail -t").
 	SendmailPath string `toml:"sendmail_path"`
 	// Delay is how long someone waits between two mails (Anope's delay,
-	// 5m).
-	Delay Duration `toml:"delay"`
+	// 5m; 0s none). See DelayOr.
+	Delay *Duration `toml:"delay"`
 	// DontQuoteAddresses writes To: name <address> without quotes.
 	DontQuoteAddresses bool `toml:"dont_quote_addresses"`
 
@@ -37,6 +37,14 @@ type Mail struct {
 	MemoMessage         string `toml:"memo_message"`
 }
 
+// DelayOr is delay with its default (5 minutes); 0 means no wait.
+func (m Mail) DelayOr() time.Duration {
+	if m.Delay == nil {
+		return 5 * time.Minute
+	}
+	return m.Delay.Duration
+}
+
 // On reports whether services can send mail.
 func (m Mail) On() bool { return m.UseMail && m.SendFrom != "" }
 
@@ -44,7 +52,6 @@ func (m *Mail) setDefaults() {
 	if m.SendmailPath == "" {
 		m.SendmailPath = "/usr/sbin/sendmail -t"
 	}
-	setDur(&m.Delay, 5*time.Minute)
 	if m.ResetSubject == "" {
 		m.ResetSubject = "Reset password request for %n"
 	}

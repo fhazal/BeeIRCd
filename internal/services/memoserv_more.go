@@ -68,8 +68,8 @@ func (s *Services) mailTo(c *Client, sv *service, a *store.Account, subject, bod
 		case !m.On():
 			s.svcReply(c, sv, "Services have been configured to not send mail.")
 			return false
-		case now.Sub(c.lastMail) < m.Delay.Duration:
-			s.svcReply(c, sv, fmt.Sprintf("Please wait %d seconds and retry.", int(math.Ceil((m.Delay.Duration-now.Sub(c.lastMail)).Seconds()))))
+		case now.Sub(c.lastMail) < m.DelayOr():
+			s.svcReply(c, sv, fmt.Sprintf("Please wait %d seconds and retry.", int(math.Ceil((m.DelayOr()-now.Sub(c.lastMail)).Seconds()))))
 			return false
 		case a.Email == "":
 			s.svcReply(c, sv, fmt.Sprintf("E-mail for %s is invalid.", a.Name))

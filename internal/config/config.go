@@ -376,7 +376,6 @@ func (c *Config) SetDefaults() {
 		sv.Database = "/var/lib/beeircd/services.db"
 	}
 	setDur(&sv.NickExpire, 90*24*time.Hour)
-	setDur(&sv.UnconfirmedExpire, 24*time.Hour)
 	setDur(&sv.IdentifyWithin, 60*time.Second)
 	setDur(&sv.KillQuick, 20*time.Second)
 	setDur(&sv.BanExpiry, 30*24*time.Hour)
@@ -483,8 +482,18 @@ type Services struct {
 	// CONFIRM) or "admin" (an oper confirms each new account).
 	Registration string `toml:"registration"`
 	// UnconfirmedExpire drops accounts not confirmed this long after
-	// REGISTER (unconfirmedexpire, 1 day).
-	UnconfirmedExpire Duration `toml:"unconfirmed_expire"`
+	// REGISTER (unconfirmedexpire, 1 day; 0s never). See
+	// UnconfirmedExpireOr.
+	UnconfirmedExpire *Duration `toml:"unconfirmed_expire"`
+}
+
+// UnconfirmedExpireOr is unconfirmed_expire with its default (1 day); 0
+// means never.
+func (s Services) UnconfirmedExpireOr() time.Duration {
+	if s.UnconfirmedExpire == nil {
+		return 24 * time.Hour
+	}
+	return s.UnconfirmedExpire.Duration
 }
 
 // RegistrationMode is registration with its default, "none".

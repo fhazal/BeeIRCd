@@ -123,3 +123,21 @@ func TestACMEConfig(t *testing.T) {
 		}
 	}
 }
+
+// An explicit 0s is kept ("never" / "no wait"); left out, the default.
+func TestZeroDurationsKept(t *testing.T) {
+	c, err := Load(write(t, good+"\n[services]\nunconfirmed_expire = \"0s\"\n\n[mail]\ndelay = \"0s\"\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Services.UnconfirmedExpireOr() != 0 || c.Mail.DelayOr() != 0 {
+		t.Errorf("0s became %v / %v", c.Services.UnconfirmedExpireOr(), c.Mail.DelayOr())
+	}
+	c, err = Load(write(t, good))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Services.UnconfirmedExpireOr() != 24*time.Hour || c.Mail.DelayOr() != 5*time.Minute {
+		t.Errorf("defaults %v / %v", c.Services.UnconfirmedExpireOr(), c.Mail.DelayOr())
+	}
+}

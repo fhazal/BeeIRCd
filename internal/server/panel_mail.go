@@ -40,7 +40,7 @@ func (s *Server) panelMail() *control.Mail {
 	out := &control.Mail{
 		Provider: mail.ProviderOf(m), From: m.SendFrom, Name: m.FromName, Server: m.SMTPServer, User: m.SMTPUser,
 		HasPassword: m.SMTPPassword != "", Registration: s.cfg.Services.RegistrationMode(),
-		Expire: config.FormatDuration(s.cfg.Services.UnconfirmedExpire.Duration),
+		Expire: config.FormatDuration(s.cfg.Services.UnconfirmedExpireOr()),
 	}
 	if m.UseMail && s.mailOK.key == mailKey(m) {
 		out.Tested = s.mailOK.at.Unix()

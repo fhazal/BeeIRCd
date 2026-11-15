@@ -235,7 +235,7 @@ func settings() []setting {
 				return ""
 			}},
 		{name: "unconfirmed-expire", table: "services", key: "unconfirmed_expire", help: "accounts not confirmed are dropped after", kind: 'd', lo: 3600, hi: 30 * day,
-			get: dur(func(c *config.Config) time.Duration { return c.Services.UnconfirmedExpire.Duration }), apply: servicesApply},
+			get: dur(func(c *config.Config) time.Duration { return c.Services.UnconfirmedExpireOr() }), apply: servicesApply},
 		{name: "flood-profile", table: "channels", key: "flood_profile", help: "+F profile for channels without their own (off for none)", kind: 't', hi: 20,
 			get: func(c *config.Config) string { return c.Channels.FloodProfile }, apply: func(d, s *config.Config) { d.Channels = s.Channels },
 			check: func(v string) string {

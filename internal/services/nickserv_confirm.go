@@ -36,7 +36,9 @@ func (s *Services) afterRegister(c *Client, a *store.Account) {
 		if s.sendRegMail(c, a) {
 			s.ns(c, "A passcode has been sent to %s, please type /msg NickServ CONFIRM <passcode> to confirm your email address.", a.Email)
 		}
-		s.ns(c, "If you do not confirm your email address within %s your account will expire.", anopeDuration(s.cfg.Services.UnconfirmedExpire.Duration))
+		if d := s.cfg.Services.UnconfirmedExpireOr(); d > 0 {
+			s.ns(c, "If you do not confirm your email address within %s your account will expire.", anopeDuration(d))
+		}
 	case "admin":
 		a.Unconfirmed = true
 		if err := s.store.SaveAccount(a); err != nil {
@@ -149,7 +151,7 @@ func nsResend(s *Services, c *Client, args []string) {
 // expireUnconfirmed drops accounts not confirmed within unconfirmed_expire
 // of registering, except those in use right now.
 func (s *Services) expireUnconfirmed(now time.Time) {
-	d := s.cfg.Services.UnconfirmedExpire.Duration
+	d := s.cfg.Services.UnconfirmedExpireOr()
 	if d <= 0 {
 		return
 	}

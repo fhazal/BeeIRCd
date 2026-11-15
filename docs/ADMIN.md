@@ -849,7 +849,7 @@ Off by default. Easiest set up with the Mail card in the Hive Panel
 | `smtp_server` | – | `"smtp.example.org:587"` (STARTTLS when offered), or port 465 (TLS from the start); empty: sendmail. The Hive Panel's Mail card fills it in for Gmail, Outlook and Zoho |
 | `smtp_user`, `smtp_password` | – | |
 | `sendmail_path` | `"/usr/sbin/sendmail -t"` | |
-| `delay` | `5m` | Wait between two mails per person |
+| `delay` | `5m` | Wait between two mails per person (`0s` none) |
 | `dont_quote_addresses` | `false` | |
 | `reset_subject`, `reset_message`, `registration_subject`, `registration_message`, `memo_subject`, `memo_message` | Anope's texts | `%n` nick, `%N` network, `%c` code, `%s` sender, `%d` memo number, `%t` memo text |
 
