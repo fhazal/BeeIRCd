@@ -75,6 +75,8 @@ type Server struct {
 	// marks are the read markers of accounts (draft/read-marker).
 	marks map[markKey]time.Time
 	ml    *mlOut // the multiline message being delivered
+	// recent are the last minutes' messages, for REDACT.
+	recent recentMsgs
 	// 7a connect throttle and unregistered caps; throttleSkip says which
 	// IPs skip them (LAN), replaceable in tests.
 	throttle     connThrottle

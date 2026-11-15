@@ -690,6 +690,7 @@ func (s *Server) remoteMessage(l *linkConn, raw irc.Message, m *link.Message) {
 		}
 		if status == "" && m.Verb != "TAGMSG" {
 			s.recordHistory(ch, o)
+			s.noteMsg(msgid, from, ch.Name)
 		}
 		if status == "" && m.Verb == "PRIVMSG" && from != nil {
 			s.noteTalk(ch, from.UID)                // Hive Panel Spotlight
@@ -716,6 +717,9 @@ func (s *Server) remoteMessage(l *linkConn, raw irc.Message, m *link.Message) {
 			s.svc.Message(from.UID, t, m.Text)
 		}
 		return
+	}
+	if m.Verb != "TAGMSG" {
+		s.noteMsg(msgid, from, t.Nick)
 	}
 	s.deliverTo(t, build(t.Nick))
 }

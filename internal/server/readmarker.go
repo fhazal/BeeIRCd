@@ -162,6 +162,8 @@ func (s *Server) remoteBee(l *linkConn, it *link.Bee) {
 		if s.setMark(it.Args[0], it.Args[1], at.UTC().Truncate(time.Millisecond)) {
 			s.linkMark(l, it.Args[0], it.Args[1], at)
 		}
+	case "REDACT":
+		s.remoteRedact(l, it)
 	default:
 		for _, o := range s.upLinks(l) { // a newer server's; pass it on
 			for _, line := range o.codecOf().Encode(it) {

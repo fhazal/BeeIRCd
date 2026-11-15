@@ -60,6 +60,7 @@ func init() {
 		"MARKREAD":     {0, false, (*Server).cmdMarkread},
 		"ISUPPORT":     {0, true, (*Server).cmdISupport},
 		"BATCH":        {1, false, (*Server).cmdBatch},
+		"REDACT":       {0, false, (*Server).cmdRedact},
 		"AUTHENTICATE": {1, true, (*Server).cmdAuthenticate},
 		"NS":           {1, false, (*Server).cmdNS},
 		"NICKSERV":     {1, false, (*Server).cmdNS},

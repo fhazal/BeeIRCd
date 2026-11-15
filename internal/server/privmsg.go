@@ -106,6 +106,9 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 				s.deliverTo(mem.User, o)
 			}
 			s.mlRouteChannel(u.UID, ch, status, verb, text, tags, o.msgid)
+			if !tagOnly {
+				s.noteMsg(o.msgid, u, ch.Name)
+			}
 			if c.caps["echo-message"] {
 				c.deliver(o)
 			}
@@ -130,6 +133,9 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 			continue
 		}
 		o := build(t.Nick)
+		if !tagOnly {
+			s.noteMsg(o.msgid, u, t.Nick)
+		}
 		if c.caps["echo-message"] {
 			c.deliver(o)
 		}

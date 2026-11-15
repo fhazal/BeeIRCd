@@ -93,6 +93,37 @@ func (s *Store) Add(channel string, limit Limit, line Line) {
 	s.enforceCap()
 }
 
+// Find returns the line of channel with msgid.
+func (s *Store) Find(channel, msgid string) (Line, bool) {
+	if l := s.logs[s.fold(channel)]; l != nil {
+		for i := range l.lines {
+			if l.lines[i].MsgID == msgid {
+				return l.lines[i], true
+			}
+		}
+	}
+	return Line{}, false
+}
+
+// Remove takes the line with msgid out of channel's history (a redacted
+// message); false when it isn't there.
+func (s *Store) Remove(channel, msgid string) bool {
+	l := s.logs[s.fold(channel)]
+	if l == nil {
+		return false
+	}
+	for i := range l.lines {
+		if l.lines[i].MsgID == msgid {
+			sz := l.lines[i].size()
+			l.lines = append(l.lines[:i:i], l.lines[i+1:]...)
+			l.bytes -= sz
+			s.bytes -= sz
+			return true
+		}
+	}
+	return false
+}
+
 // SetLimit changes a channel's limit (a new +H) and cuts what's over it.
 func (s *Store) SetLimit(channel string, limit Limit) {
 	if l := s.logs[s.fold(channel)]; l != nil {
