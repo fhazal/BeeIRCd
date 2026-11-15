@@ -473,16 +473,18 @@ func (s *Services) login(c *Client, a *store.Account) {
 		s.logout(c, false)
 	}
 	now := time.Now()
+	// 900 (and 903) first, then the ACCOUNT line the user's own
+	// account-notify gets: clients wait for 900 as the answer.
+	s.reply(c, irc.RplLoggedIn, u.Prefix(), a.Name, "You are now logged in as "+a.Name)
+	if c.saslLogin {
+		s.reply(c, irc.RplSaslSuccess, "SASL authentication successful")
+	}
 	s.emit(&state.Login{UID: u.UID, Account: a.Name})
 	c.accountID = a.ID
 	c.enforceAt = time.Time{}
 	a.LastSeen, a.LastHost = now, u.TrueIdent()+"@"+u.RealHost
 	if err := s.store.SaveAccount(a); err != nil {
 		s.log.Printf("services database: %v", err)
-	}
-	s.reply(c, irc.RplLoggedIn, u.Prefix(), a.Name, "You are now logged in as "+a.Name)
-	if c.saslLogin {
-		s.reply(c, irc.RplSaslSuccess, "SASL authentication successful")
 	}
 	s.setRegistered(c, true)
 	s.csOnIdentify(c)

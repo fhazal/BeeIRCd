@@ -136,6 +136,26 @@ func TestSASLAfterRegistrationOrder(t *testing.T) { // A10
 	c.expect("MODE Bee2 +r")
 }
 
+// With account-notify the user's own ACCOUNT line comes after 900 and
+// 903: clients take the next line as the answer to AUTHENTICATE.
+func TestSASLAfterRegistrationAccountNotify(t *testing.T) {
+	s := testServer(t, nil)
+	old := registered(t, s, "Bee")
+	old.send("QUIT")
+	old.expect("ERROR :Closing Link")
+	c := capLogin(t, s, "Bee2", "sasl", "account-notify")
+	c.send("AUTHENTICATE PLAIN")
+	c.expect("AUTHENTICATE +")
+	c.send("AUTHENTICATE " + base64.StdEncoding.EncodeToString([]byte("Bee\x00Bee\x00"+pw)))
+	if l := c.next(); !strings.Contains(l, " 900 Bee2 ") {
+		t.Fatalf("first answer %q, want 900", l)
+	}
+	if l := c.next(); !strings.Contains(l, " 903 Bee2 ") {
+		t.Fatalf("after 900 came %q, want 903", l)
+	}
+	c.expect("ACCOUNT Bee")
+}
+
 func TestWhowasCount(t *testing.T) { // A11
 	s := testServer(t, nil)
 	a := login(t, s, "nick1")
