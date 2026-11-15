@@ -262,3 +262,26 @@ func TestSACommands(t *testing.T) {
 	b.send("SANICK NickServ x")
 	b.expectNumeric("481", ":Cannot use this command on a network service")
 }
+
+// +h (helper): opers set it on themselves; HelpServ sends them questions.
+func TestHelperMode(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	e := login(t, s, "ember")
+	e.send("MODE ember +h")
+	e.sync()
+	e.quiet("MODE ember +h")
+	b.send("MODE Boss +h")
+	b.expect("MODE Boss +h")
+	e.send("WHOIS Boss")
+	e.expectNumeric("310", "Boss", ":is available for help")
+	e.send("HE how do i get a vhost")
+	b.expect("ember (~ember@")
+	e.expect("(1 online)")
+	e.send("HELPSERV chmodes")
+	e.expect("Channel modes")
+	b.send("MODE Boss -o")
+	if l := b.expect("MODE Boss -"); !strings.Contains(l, "h") {
+		t.Errorf("-o kept +h: %s", l)
+	}
+}

@@ -112,6 +112,7 @@ const (
 	RplSileList          = "271"
 	RplEndOfSileList     = "272"
 	RplWhoisBot          = "335"
+	RplWhoisHelpOp       = "310" // UnrealIRCd's "is available for help"
 	ErrCannotKnock       = "480"
 	ErrSileListFull      = "511"
 	ErrCantSendToUser    = "531"

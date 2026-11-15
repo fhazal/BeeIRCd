@@ -170,6 +170,14 @@ func (s *Server) cmdOS(c *Client, m irc.Message) { s.toAlias(c, "os", m) }
 func (s *Server) cmdAS(c *Client, m irc.Message) { s.toAlias(c, "as", m) }
 func (s *Server) cmdHS(c *Client, m irc.Message) { s.toAlias(c, "hs", m) }
 func (s *Server) cmdBS(c *Client, m irc.Message) { s.toAlias(c, "bs", m) }
+func (s *Server) cmdHE(c *Client, m irc.Message) { s.toAlias(c, "he", m) }
+
+// isServiceUID reports whether uid is a service bot (ours or a linked
+// services server's).
+func (s *Server) isServiceUID(uid string) bool {
+	u := s.net.UserByUID(uid)
+	return u != nil && u.Service
+}
 
 func (h host) DefaultHost(uid string) string {
 	u := h.s.net.UserByUID(uid)
@@ -199,7 +207,7 @@ func (s *Server) toAlias(c *Client, alias string, m irc.Message) {
 }
 
 // aliasBots are the bots behind /ns, /cs ...
-var aliasBots = map[string]string{"ns": "NickServ", "cs": "ChanServ", "ms": "MemoServ", "os": "OperServ", "hs": "HostServ", "bs": "BotServ", "as": "AdminServ"}
+var aliasBots = map[string]string{"ns": "NickServ", "cs": "ChanServ", "ms": "MemoServ", "os": "OperServ", "hs": "HostServ", "bs": "BotServ", "he": "HelpServ", "as": "AdminServ"}
 
 // lockedFor and friends keep the oper password code short.
 func (s *Server) lockedFor(key int64, src string) time.Duration { return s.svc.LockedFor(key, src) }

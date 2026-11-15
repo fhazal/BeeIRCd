@@ -36,7 +36,7 @@ func (c *unrealCodec) Encode(item any) []string {
 	case *Mode:
 		return c.encodeMode(it)
 	case *UMode:
-		m := strings.ReplaceAll(it.Modes, "s", "") // snomasks need a parameter there
+		m := c.ourModes(strings.ReplaceAll(it.Modes, "s", "")) // snomasks need a parameter there
 		if strings.Trim(m, "+-") == "" {
 			return nil
 		}

@@ -289,7 +289,7 @@ func (s *Services) LogDNSBL(mask, ip, list string) {
 
 // BotNicks lists the service bots in the order people know them.
 func (s *Services) BotNicks() []string {
-	order := []string{"NickServ", "ChanServ", "MemoServ", "OperServ", "HostServ", "AdminServ"}
+	order := []string{"NickServ", "ChanServ", "MemoServ", "OperServ", "HostServ", "HelpServ", "AdminServ"}
 	var out []string
 	seen := map[string]bool{}
 	for _, n := range order {

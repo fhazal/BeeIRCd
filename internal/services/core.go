@@ -119,6 +119,8 @@ type Services struct {
 	global   *service
 	hostServ *service
 	botServ  *service
+	helpServ *service
+	help     helpState          // HelpServ (helpserv.go)
 	bots     map[int64]*service // BotServ bots made with BOT ADD, by store ID
 	// BotServ kickers (botserv_kick.go)
 	bsWatch     map[string]bool     // folded channels with a bot and a kicker on
@@ -175,6 +177,7 @@ type Client struct {
 	lastMemoSend time.Time    // MemoServ SEND (senddelay)
 	cmdName      string       // the command as typed, for log lines (Anope's source.command)
 	vhostOn      bool         // a HostServ vhost is shown
+	helpOn       bool         // had user mode +h at the last mode change (HelpServ)
 	reply        func(string) // set for the Hive Panel's stand-in client: answers go here, not by notice
 	logged       bool         // a command logged a change (the Hive Panel's stand-in reads it)
 }
@@ -267,6 +270,12 @@ func (s *Services) handle(ev state.Event) {
 	case *state.UserMode:
 		if c := s.clients[e.UID]; c != nil && !c.closed {
 			s.saveModes(c)
+			if on := c.user.HasMode('h'); on != c.helpOn {
+				c.helpOn = on
+				if on {
+					s.helpOnDuty(c)
+				}
+			}
 		}
 	case *state.UserQuit:
 		if c := s.clients[e.UID]; c != nil {
@@ -274,6 +283,7 @@ func (s *Services) handle(ev state.Event) {
 			s.saveQuit(c, e.Reason)
 			delete(s.clients, e.UID)
 			s.buddyOffline(c.accountID)
+			s.helpGone(e.UID)
 		}
 	case *state.NickChange:
 		s.logNick(e)

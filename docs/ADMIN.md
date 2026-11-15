@@ -131,6 +131,47 @@ commands (`!mute nick` sets a quiet ban, `~m:`, without a kick; `!mute
 +30m nick` lifts itself). ChanServ's modes and kicks in that channel then
 come from the bot. `/bs help` lists everything.
 
+## Help desk (HelpServ)
+
+HelpServ answers on its own first, then hands questions to people:
+
+```
+/msg HelpServ chmodes                 the channel modes (same as /helpop chmodes)
+/msg HelpServ register                your own answer if you wrote one, else NickServ REGISTER help
+/msg HelpServ nickserv identify       any service's help page
+/msg HelpServ how do I get a vhost?   a question in words: it goes to the helpers
+```
+
+Helpers are people with user mode `+h`. They get a notice for every
+question, take one, message the person themselves and close it:
+
+```
+HelpServ: #3 Bee (bee@cloak) asks: how do I get a vhost?  (/msg HelpServ take 3)
+/msg HelpServ list            the open questions
+/msg HelpServ take 3          Bee is told you are helping
+/msg HelpServ close 3 done    Bee sees the note
+```
+
+Who is a helper:
+
+- Opers: `/mode yournick +h` to go on duty, `-h` to go off. WHOIS shows
+  "is available for help".
+- People who aren't opers: `/msg HelpServ helper add <nick>` (oper flag
+  `s`). They get `+h` when they identify and can switch it off and on.
+
+Your own answers come before the built-in help. Each `topic add` adds a
+line (up to 10):
+
+```
+/msg HelpServ topic add rules No spam, be nice.
+/msg HelpServ topic add rules English or Malay in #lobby.
+/msg HelpServ topic list
+/msg HelpServ topic del rules
+```
+
+A question waits up to an hour and goes when the person who asked quits;
+one open question per person. `/he` is short for `/msg HelpServ`.
+
 ## Spam filter
 
 Rules that catch spam as it is sent, like UnrealIRCd's spamfilter. Opers

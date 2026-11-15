@@ -175,7 +175,7 @@ func Open(path string) (*Store, error) {
 		}
 		return fail(err)
 	}
-	if _, err := db.Exec(schema + channelSchema + operSchema + chanExtraSchema + netbanSchema + nsMoreSchema + msMoreSchema + hostServSchema + historySchema + panelSchema + botServSchema + botKickSchema + spamfilterSchema); err != nil {
+	if _, err := db.Exec(schema + channelSchema + operSchema + chanExtraSchema + netbanSchema + nsMoreSchema + msMoreSchema + hostServSchema + historySchema + panelSchema + botServSchema + botKickSchema + spamfilterSchema + helpServSchema); err != nil {
 		return fail(err)
 	}
 	if err := migrateLevels(db); err != nil {

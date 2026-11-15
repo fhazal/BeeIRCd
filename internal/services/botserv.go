@@ -35,6 +35,7 @@ const botMinUsers = 1
 var serviceBotIDs = map[string]int64{
 	"NickServ": -1, "ChanServ": -2, "MemoServ": -3, "OperServ": -4,
 	"HostServ": -5, "Global": -6, "BotServ": -7, "AdminServ": -8,
+	"HelpServ": -9,
 }
 
 // botServ strings, as Anope's language.h has them.

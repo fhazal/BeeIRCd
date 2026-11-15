@@ -39,6 +39,9 @@ type service struct {
 
 	silent bool  // a BotServ bot: says nothing back to private messages
 	botID  int64 // its BotServ store ID (0 for the service bots)
+	// fallback gets a line that is no command (or one c may not use):
+	// HelpServ answers it as a question.
+	fallback func(c *Client, text string)
 }
 
 // command finds a command by name or hidden alias.
@@ -52,7 +55,7 @@ func (sv *service) command(name string) (svcCmd, bool) {
 }
 
 // reservedNicks can't be used by people even before their service exists.
-var reservedNicks = []string{"NickServ", "ChanServ", "MemoServ", "OperServ", "HostServ", "AdminServ", "Global", "BotServ"}
+var reservedNicks = []string{"NickServ", "ChanServ", "MemoServ", "OperServ", "HostServ", "AdminServ", "Global", "BotServ", "HelpServ"}
 
 func isReserved(nick string) bool {
 	for _, r := range reservedNicks {
@@ -96,7 +99,10 @@ func (s *Services) startServices() {
 	s.hostServ = s.addService("HostServ", "hs", "vHost Service", "HostServ gives nicks a vHost, a host shown instead of yours. Commands:", hostServCommands())
 	s.global = s.addService("Global", "", "Network Announcements", "Global sends network notices. It takes no commands.", map[string]svcCmd{})
 	s.botServ = s.addService("BotServ", "bs", "Bot Service", "BotServ puts a bot in your channel that sits there with op status. Commands:", botServCommands())
+	s.helpServ = s.addService("HelpServ", "he", "Help Service", helpServIntro, helpServCommands())
+	s.helpServ.fallback = s.helpAnswer
 	s.helpSetup()
+	s.helpLoad()
 }
 
 func (s *Services) addService(nick, alias, realname, intro string, cmds map[string]svcCmd, order ...string) *service {
@@ -170,6 +176,18 @@ func (s *Services) toService(c *Client, sv *service, text string) {
 		return
 	case s.defconOperOnly(c, sv):
 		return
+	}
+	if sv.fallback != nil {
+		if _, ok := sv.command(name); name != "HELP" && (!ok || !s.canUse(c, sv, name)) {
+			sv.fallback(c, strings.Join(fields, " "))
+			return
+		}
+		if name == "HELP" && len(args) > 0 {
+			if _, ok := sv.command(args[0]); !ok || !s.canUse(c, sv, strings.ToUpper(args[0])) {
+				sv.fallback(c, strings.Join(args, " "))
+				return
+			}
+		}
 	}
 	if name == "HELP" {
 		s.serviceHelp(c, sv, args)
@@ -463,6 +481,7 @@ func (s *Services) login(c *Client, a *store.Account) {
 	s.afterLogin(c, a)
 	s.buddyOnline(c, a)
 	s.hsLogin(c)
+	s.helpModeOn(c)
 }
 
 // logout ends c's identification.
@@ -476,6 +495,7 @@ func (s *Services) logout(c *Client, tell bool) {
 	id := c.accountID
 	c.accountID = 0
 	defer s.buddyOffline(id)
+	s.helpModeOff(c, id)
 	if tell {
 		s.reply(c, irc.RplLoggedOut, u.Prefix(), "You are now logged out")
 	}

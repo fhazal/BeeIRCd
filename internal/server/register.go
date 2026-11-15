@@ -346,7 +346,7 @@ func (s *Server) setHost(c *Client, host string) {
 	s.reply(c, irc.RplHostHidden, host, "is now your displayed host")
 }
 
-const userModes = "BDHRTWZdiopqrswxz"
+const userModes = "BDHRTWZdhiopqrswxz"
 
 // operOnlyModes go when someone stops being an oper.
 const operOnlyModes = "HWq"

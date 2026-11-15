@@ -134,22 +134,32 @@ var helpTopics = map[string][]string{
 // 704 first line, 705 the rest, 706 the end, 524 for an unknown topic.
 func (s *Server) cmdHelp(c *Client, m irc.Message) {
 	subject := strings.ToUpper(strings.TrimPrefix(m.Param(0), "/"))
-	var lines []string
 	if subject == "" {
 		subject = "*"
-		lines = helpIndex()
-	} else if lines = helpTopics[subject]; lines == nil {
+	}
+	lines := s.helpLines(subject)
+	if lines == nil {
 		s.reply(c, irc.ErrHelpNotFound, subject, "No help available on this topic")
 		return
-	}
-	if subject == "CHMODES" && !s.cfg.FullPrefixes() {
-		lines = shortPrefixHelp(lines)
 	}
 	s.reply(c, irc.RplHelpStart, subject, lines[0])
 	for _, l := range lines[1:] {
 		s.reply(c, irc.RplHelpTxt, subject, l)
 	}
 	s.reply(c, irc.RplEndOfHelp, subject, "End of /HELP")
+}
+
+// helpLines is the HELP text of a topic ("*" the index), nil when there
+// is none. HelpServ answers from it too.
+func (s *Server) helpLines(subject string) []string {
+	if subject == "*" {
+		return helpIndex()
+	}
+	lines := helpTopics[subject]
+	if subject == "CHMODES" && lines != nil && !s.cfg.FullPrefixes() {
+		lines = shortPrefixHelp(lines)
+	}
+	return lines
 }
 
 // umodesHelp is HELP UMODES.
@@ -165,6 +175,8 @@ var umodesHelp = []string{
 	"Opers:",
 	" H hide that I'm an oper                  W see who WHOISes me",
 	" q can't be kicked (flag a)               s server notices",
+	"Opers and HelpServ helpers:",
+	" h available for help: HelpServ sends you people's questions",
 	"Set by the server:",
 	" o oper    r identified    z connected with TLS",
 }
@@ -186,7 +198,8 @@ func helpIndex() []string {
 	}
 	return append(lines,
 		"Other topics: CHMODES (channel modes), UMODES (user modes).",
-		"Services: /ns help, /cs help, /ms help, /hs help, /bs help, /os help, /as help")
+		"Services: /ns help, /cs help, /ms help, /hs help, /bs help, /os help, /as help",
+		"Ask a person: /msg HelpServ <your question>")
 }
 
 // shortPrefixHelp drops owner/admin/halfop from the CHMODES status lines

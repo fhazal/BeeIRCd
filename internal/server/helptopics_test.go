@@ -12,7 +12,7 @@ import (
 func TestEveryCommandHasHelpTopic(t *testing.T) {
 	skip := map[string]bool{"HELP": true, "HELPOP": true, "WEBIRC": true}
 	for _, sv := range []string{"NICKSERV", "NS", "CHANSERV", "CS", "MEMOSERV", "MS", "OPERSERV", "OS",
-		"HOSTSERV", "HS", "BOTSERV", "BS", "ADMINSERV", "AS"} {
+		"HOSTSERV", "HS", "BOTSERV", "BS", "ADMINSERV", "AS", "HELPSERV", "HE"} {
 		skip[sv] = true
 	}
 	var missing []string

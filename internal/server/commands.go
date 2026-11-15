@@ -72,6 +72,8 @@ func init() {
 		"BS":           {1, false, (*Server).cmdBS},
 		"BOTSERV":      {1, false, (*Server).cmdBS},
 		"ADMINSERV":    {1, false, (*Server).cmdAS},
+		"HE":           {1, false, (*Server).cmdHE},
+		"HELPSERV":     {1, false, (*Server).cmdHE},
 		"OPER":         {2, false, (*Server).cmdOper},
 		"KILL":         {1, false, (*Server).cmdKill},
 		"HELPOP":       {0, false, (*Server).cmdHelp},

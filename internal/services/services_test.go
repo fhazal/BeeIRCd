@@ -21,6 +21,7 @@ type fakeHost struct {
 	svc     *Services
 	notices []string // "to: text"
 	posts   chan func()
+	opers   map[string]string // UID -> oper flags
 }
 
 func (h *fakeHost) Emit(ev state.Event) error {
@@ -44,7 +45,7 @@ func (h *fakeHost) Disconnect(uid, reason string) {
 	h.Emit(&state.UserQuit{UID: uid, Reason: reason})
 }
 func (h *fakeHost) Kill(uid, by, reason string)          { h.Disconnect(uid, "Killed") }
-func (h *fakeHost) OperFlags(uid string) string          { return "" }
+func (h *fakeHost) OperFlags(uid string) string          { return h.opers[uid] }
 func (h *fakeHost) AccountGone(id int64)                 {}
 func (h *fakeHost) IsAdminAccount(a *store.Account) bool { return false }
 func (h *fakeHost) CheckModeParam(channel string, m byte, arg string) (string, string) {
@@ -59,7 +60,24 @@ func (h *fakeHost) Stats() HostStats                                    { return
 func (h *fakeHost) ResetPeak()                                          {}
 func (h *fakeHost) ForceJoin(uid, channel string)                       {}
 func (h *fakeHost) JoinBlocked(uid, channel, key string) (string, bool) { return "", false }
-func (h *fakeHost) SetUserModes(uid, src, modes string) bool            { return false }
+
+// SetUserModes applies a plain "+h" or "-h" style change.
+func (h *fakeHost) SetUserModes(uid, src, modes string) bool {
+	add := true
+	var ch []state.ModeChange
+	for i := 0; i < len(modes); i++ {
+		switch modes[i] {
+		case '+':
+			add = true
+		case '-':
+			add = false
+		default:
+			ch = append(ch, state.ModeChange{Add: add, Mode: modes[i]})
+		}
+	}
+	h.Emit(&state.UserMode{Source: src, UID: uid, Changes: ch})
+	return true
+}
 
 // waitFor runs posted work (finished password checks) until a notice to
 // nick contains want.

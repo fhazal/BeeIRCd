@@ -207,6 +207,9 @@ func (s *Server) whoisOne(c *Client, u *state.User, reply func(code string, p ..
 	case tc == nil && u.Modes['o'] && (!u.HasMode('H') || c.isOper()):
 		reply(irc.RplWhoisOperator, u.Nick, whoisOperText(""))
 	}
+	if u.HasMode('h') && !u.Service {
+		reply(irc.RplWhoisHelpOp, u.Nick, "is available for help")
+	}
 	if u.Account != "" {
 		reply(irc.RplWhoisAccount, u.Nick, u.Account, "is logged in as")
 	}

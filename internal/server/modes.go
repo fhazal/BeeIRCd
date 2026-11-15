@@ -100,6 +100,9 @@ func (s *Server) setUserModes(c *Client, srcUID, modeStr string) bool {
 					}
 				}
 				deopered = true
+				if cur['h'] && !s.svc.IsHelper(u.Account) {
+					flip('h', false) // an oper's +h goes with oper, a listed helper's stays
+				}
 			}
 		case 'B', 'd', 'D', 'R', 'T', 'p', 'Z':
 			if cur[mc] != add {
@@ -114,6 +117,12 @@ func (s *Server) setUserModes(c *Client, srcUID, modeStr string) bool {
 			// Unkickable: opers with flag a only (UnrealIRCd self:unkickablemode).
 			if cur[mc] != add && (!add || c.can('a') && !deopered) {
 				flip(mc, add)
+			}
+		case 'h':
+			// Helper (HelpServ): opers, people on HelpServ's helper list,
+			// or services setting it.
+			if cur['h'] != add && (!add || c.isOper() && !deopered || s.svc.IsHelper(u.Account) || s.isServiceUID(srcUID)) {
+				flip('h', add)
 			}
 		case 'z':
 			// Set by the server for TLS connections; nobody changes it.

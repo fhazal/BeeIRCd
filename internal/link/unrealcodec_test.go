@@ -134,3 +134,13 @@ func TestUnrealCodecRecorded(t *testing.T) {
 		t.Errorf("topic %+v", tp)
 	}
 }
+
+// +h (HelpServ helper) is ours: real UnrealIRCd doesn't get it.
+func TestUnrealHelperModeOnlyToBee(t *testing.T) {
+	for _, bee := range []bool{false, true} {
+		c := &unrealCodec{bee: bee}
+		if got := c.ourModes("ioh"); (got == "ioh") != bee {
+			t.Errorf("bee %v: modes %q", bee, got)
+		}
+	}
+}

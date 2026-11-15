@@ -97,12 +97,21 @@ func sendUserModes(m string) string {
 	return "+" + strings.ReplaceAll(m, "s", "")
 }
 
+// ourModes leaves out the user modes only BeeIRCd has (+h helper) when
+// the other side is UnrealIRCd.
+func (c *unrealCodec) ourModes(m string) string {
+	if c.bee {
+		return m
+	}
+	return strings.ReplaceAll(m, "h", "")
+}
+
 func (c *unrealCodec) User(u User, sid string) []string {
 	account := u.Account
 	if account == "" {
 		account = "0"
 	}
-	modes := u.Modes
+	modes := c.ourModes(u.Modes)
 	if u.Host != u.RealHost && !strings.Contains(modes, "x") {
 		modes += "x" // the host others see is a cloak or vhost
 	}

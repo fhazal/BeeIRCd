@@ -189,6 +189,7 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	svc.OnSpamChange(s.linkSpamChanged)
 	svc.OnOperData(func() { s.syncQlines(); s.syncExcepts() })
 	s.sinks = append(s.sinks, svc.Event)
+	svc.OnServerHelp(s.helpLines)
 	svc.Start()
 	s.adminServ = svc.AddBot("AdminServ", "as", "Admin Services",
 		"AdminServ changes the server while it runs; changes are saved to beeircd.conf. Commands:", 'a', s.adminServCommands())
