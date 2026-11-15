@@ -38,7 +38,7 @@ oper Belon {
 	vhost netadmin.example.org;
 	snomask bBcCdfkqsSoO;
 };
-oper Psycho { class opers; mask { *@203.0.113.*; *@198.51.100.7; }; password "` + hash + `"; operclass globop; };
+oper Psycho { class opers; mask { *@203.0.113.*; *@198.51.100.7; }; password "` + hash + `"; operclass globop; swhois "IRC Operator"; };
 oper Claude {
 	class opers;
 	mask { certfp "AA:BB:` + strings.Repeat("cc", 30) + `"; };
@@ -63,8 +63,9 @@ oper Ghost { mask *@*; password "` + hash + `"; operclass netadmin; };
 	if cls, _, hosts, _, sw, vh, pass := get("Belon"); cls != "netadmin" || hosts[0] != "*@*" || len(sw) != 1 || sw[0] != "looks very helpful" || vh != "netadmin.example.org" || !passwd.Check("oper-secret-1", pass) {
 		t.Errorf("Belon: %s %v %v %s", cls, hosts, sw, vh)
 	}
-	if cls, _, hosts, _, _, _, _ := get("Psycho"); cls != "globop" || len(hosts) != 2 || hosts[1] != "*@198.51.100.7" {
-		t.Errorf("Psycho: %s %v", cls, hosts)
+	// a swhois with the rank but without "is a"/"is an" is the same line
+	if cls, _, hosts, _, sw, _, _ := get("Psycho"); cls != "globop" || len(hosts) != 2 || hosts[1] != "*@198.51.100.7" || len(sw) != 0 {
+		t.Errorf("Psycho: %s %v swhois %v", cls, hosts, sw)
 	}
 	if cls, _, _, fps, _, _, pass := get("Claude"); cls != "admin" || len(fps) != 1 || fps[0] != "aabb"+strings.Repeat("cc", 30) || pass != "" {
 		t.Errorf("Claude: %s %v %q", cls, fps, pass)

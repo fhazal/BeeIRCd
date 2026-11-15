@@ -328,7 +328,7 @@ func ImportUnrealOpers(st *store.Store, confs []io.Reader, opt Options, r *Repor
 		for _, s := range e.all("swhois") {
 			// UnrealIRCd networks often repeat the oper's rank as a swhois
 			// line; BeeIRCd already shows it (313), so it would show twice.
-			if title != "" && strings.EqualFold(strings.TrimSpace(s.Value), title) {
+			if title != "" && sameRank(s.Value, title) {
 				continue
 			}
 			if s.Value != "" && len(o.Swhois) < 5 {
@@ -361,4 +361,20 @@ func describeOperRights(o *store.Oper) string {
 		return "class " + o.Class
 	}
 	return "flags " + o.Flags
+}
+
+// sameRank says whether a swhois line only repeats a class title, with or
+// without its "is a"/"is an": "Network Administrator" and "is a Network
+// Administrator" both match "is a Network Administrator".
+func sameRank(swhois, title string) bool {
+	bare := func(s string) string {
+		s = strings.ToLower(strings.Join(strings.Fields(s), " "))
+		for _, p := range []string{"is an ", "is a "} {
+			if strings.HasPrefix(s, p) {
+				return s[len(p):]
+			}
+		}
+		return s
+	}
+	return bare(swhois) == bare(title)
 }

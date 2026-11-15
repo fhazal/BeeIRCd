@@ -52,7 +52,7 @@ func importAnope(args []string, stdout, stderr io.Writer, r importRun) int {
 		args = fs.Args()[1:]
 	}
 	if len(files) != 1 {
-		fmt.Fprintln(stderr, "Usage: beeircd import-anope [-dry-run] [-yes] [-replace] <anope.db>")
+		fmt.Fprintln(stderr, "Usage: beeircd import-anope [-dry-run] [-yes] [-replace] [-unreal-opers unrealircd.conf] [-config file] <anope.db>")
 		return 2
 	}
 	p := colourFor(stdout)
