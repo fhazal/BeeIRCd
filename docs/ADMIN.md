@@ -125,8 +125,9 @@ then channel founders can put it in their channel:
 The bot sits in the channel with op, can talk for it (`/bs say`), greets
 people (NickServ `SET GREET`), kicks for bad words, caps or floods (`/bs
 kick`, `/bs badwords`) and takes `!op`, `!kick` and the other fantasy
-commands. ChanServ's modes and kicks in that channel then come from the
-bot. `/bs help` lists everything.
+commands (`!mute nick` sets a quiet ban, `~m:`, without a kick; `!mute
++30m nick` lifts itself). ChanServ's modes and kicks in that channel then
+come from the bot. `/bs help` lists everything.
 
 ## Spam filter
 

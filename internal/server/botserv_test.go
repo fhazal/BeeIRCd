@@ -330,6 +330,25 @@ func TestBotServFantasy(t *testing.T) {
 	ann.send("JOIN #hive")
 	ann.expect(" 366 Ann #hive ")
 
+	// !mute: a quiet ban, Ann stays but can't talk; with +time it lifts.
+	// (Voice talks past bans, and Ann's level 3 gives voice on join.)
+	bee.send("PRIVMSG #hive :!devoice Ann")
+	ann.expect(":Bzz!bot@bot.host MODE #hive -v Ann")
+	bee.send("PRIVMSG #hive :!mute Ann")
+	ann.expect(":Bzz!bot@bot.host MODE #hive +b ~m:")
+	ann.send("PRIVMSG #hive :can I talk")
+	ann.expect(" 404 Ann #hive ")
+	bee.send("PRIVMSG #hive :!unban Ann")
+	ann.expect(":Bzz!bot@bot.host MODE #hive -b ~m:")
+	bee.send("PRIVMSG #hive :!mute +10m Ann")
+	ann.expect(":Bzz!bot@bot.host MODE #hive +b ~t:10:~m:")
+	bee.send("CS BAN #hive Ann") // plain BAN still kicks
+	ann.expect(" KICK #hive Ann :")
+	bee.send("CS UNBAN #hive Ann")
+	bee.expect(" -b ")
+	ann.send("JOIN #hive")
+	ann.expect(" 366 Ann #hive ")
+
 	// SET FANTASY OFF: plain text again.
 	bee.send("BS SET #hive FANTASY OFF")
 	bee.expect("Fantasy mode is now off on channel #hive.")

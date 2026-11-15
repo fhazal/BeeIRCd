@@ -121,17 +121,18 @@ type Services struct {
 	botServ  *service
 	bots     map[int64]*service // BotServ bots made with BOT ADD, by store ID
 	// BotServ kickers (botserv_kick.go)
-	bsWatch    map[string]bool     // folded channels with a bot and a kicker on
-	kickRuns   map[string]*kickRun // by folded channel
-	amsg       map[string]*amsgLast
-	kickPurged time.Time
-	bsAmsgOn   bool                 // a watched channel has the AMSG kicker on
-	fantasyBot *service             // while a fantasy command runs: answers for ChanServ
-	clients    map[string]*Client   // by UID: every person on the network
-	lockouts   map[lockKey]*lockout // wrong passwords per account and source IP
-	hashSem    chan struct{}        // limits password hashing running at once
-	pending    []state.Event        // events not handled yet (see Event)
-	handling   bool
+	bsWatch     map[string]bool     // folded channels with a bot and a kicker on
+	kickRuns    map[string]*kickRun // by folded channel
+	amsg        map[string]*amsgLast
+	kickPurged  time.Time
+	bsAmsgOn    bool                 // a watched channel has the AMSG kicker on
+	fantasyBot  *service             // while a fantasy command runs: answers for ChanServ
+	fantasyMute bool                 // while !mute runs: BAN sets a quiet ban
+	clients     map[string]*Client   // by UID: every person on the network
+	lockouts    map[lockKey]*lockout // wrong passwords per account and source IP
+	hashSem     chan struct{}        // limits password hashing running at once
+	pending     []state.Event        // events not handled yet (see Event)
+	handling    bool
 
 	// Oper data, kept in memory.
 	netbans        []store.NetBan

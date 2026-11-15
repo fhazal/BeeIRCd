@@ -813,8 +813,18 @@ func csBan(s *Services, c *Client, args []string) {
 		}
 		mask = banMask(reg, t)
 	}
+	mute := s.fantasyMute // !mute: a quiet ban, nobody kicked (Anope's MUTE fantasy block)
+	if mute && !strings.HasPrefix(mask, "~m:") {
+		mask = "~m:" + mask
+	}
 	if minutes > 0 {
 		mask = "~t:" + strconv.Itoa(minutes) + ":" + mask
+	}
+	if mute {
+		s.csUsed(c, reg)
+		s.csLog(c, reg.Name, false, "to mute %s", mask)
+		s.csMode(live, []modeChange{{true, 'b', mask}})
+		return
 	}
 	reason := "Banned by " + c.user.Nick
 	if len(args) > 2 {

@@ -20,8 +20,7 @@ type fantasyCmd struct {
 	prepend bool
 }
 
-// fantasyCmds are Anope's default fantasy blocks (MUTE left out: it needs
-// a quiet mode setting on BAN).
+// fantasyCmds are Anope's default fantasy blocks.
 var fantasyCmds = map[string]fantasyCmd{
 	"ACCESS": {"ACCESS", true}, "AKICK": {"AKICK", true}, "AOP": {"AOP", true},
 	"BAN": {"BAN", true}, "CLONE": {"CLONE", true}, "DEHALFOP": {"DEHALFOP", true},
@@ -31,7 +30,7 @@ var fantasyCmds = map[string]fantasyCmd{
 	"HOP": {"HOP", true}, "INFO": {"INFO", false}, "INVITE": {"INVITE", true},
 	"K": {"KICK", true}, "KB": {"BAN", true}, "KICK": {"KICK", true},
 	"LEVELS": {"LEVELS", true}, "LIST": {"LIST", false}, "LOG": {"LOG", true},
-	"MODE": {"MODE", true}, "OP": {"OP", true}, "OWNER": {"OWNER", true},
+	"MODE": {"MODE", true}, "MUTE": {"BAN", true}, "OP": {"OP", true}, "OWNER": {"OWNER", true},
 	"PROTECT": {"PROTECT", true}, "QOP": {"QOP", true}, "SEEN": {"SEEN", false},
 	"SOP": {"SOP", true}, "STATUS": {"STATUS", true}, "SUSPEND": {"SUSPEND", true},
 	"SYNC": {"SYNC", true}, "TOPIC": {"TOPIC", true}, "UNBAN": {"UNBAN", true},
@@ -82,8 +81,8 @@ func (s *Services) bsFantasy(c *Client, ch *state.Channel, reg *store.Channel, b
 	if !s.userHas(reg, c.user, "FANTASIA") && !bsAdmin(c) {
 		return
 	}
-	s.fantasyBot = bot
-	defer func() { s.fantasyBot = nil }()
+	s.fantasyBot, s.fantasyMute = bot, name == "MUTE" // BAN as a quiet ban (~m:), nobody kicked
+	defer func() { s.fantasyBot, s.fantasyMute = nil, false }()
 	if name == "HELP" {
 		s.fantasyHelp(c)
 		return

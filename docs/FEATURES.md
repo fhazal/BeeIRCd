@@ -86,7 +86,7 @@ Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few 
 | **ChanServ**: access levels and LEVELS (Anope's privileges and defaults), FLAGS (privilege letters as in Anope; ACCESS_LIST has its own letter l), xOP lists, AKICK, MODE LOCK, TOPIC, ENTRYMSG, ENFORCE, LOG, SUSPEND, CLONE, op tools (OWNER, PROTECT, HALFOP, UP, DOWN, KICK, BAN, UNBAN, INVITE, GETKEY), SEEN, and the SET options incl. OVERFLOW | ✅ |
 | **MemoServ**: memos to nicks and to channels, number lists, IGNORE, CANCEL, CHECK, RSEND (read receipts), INFO, SENDALL, STAFF, notify by notice or mail | ✅ |
 | **HostServ**: ON, OFF, GROUP, REQUEST; opers SET, SETALL, DEL, DELALL, LIST, WAITING, ACTIVATE, REJECT | ✅ |
-| **BotServ**: channel bots, ASSIGN, SAY, ACT, GREET, 10 kickers, BADWORDS, fantasy commands (`!op`, `!kick` ...) | ✅ |
+| **BotServ**: channel bots, ASSIGN, SAY, ACT, GREET, 10 kickers, BADWORDS, fantasy commands (`!op`, `!kick`, `!mute` ...) | ✅ |
 | **OperServ**: STATS, GLOBAL, AKILL, ZLINE, SNLINE, SHUN, SQLINE, EXCEPTION, KILL, MODE, KICK, FORBID, SESSION, NEWS, IGNORE, USERLIST, CHANLIST, SEEN, CHANKILL, SVSNICK, SVSJOIN, SVSPART | ✅ |
 | **AdminServ**: server settings, MOTD, ports, opers and classes from IRC, with HISTORY, DIFF and UNDO | ✅ |
 | Mail (SMTP with STARTTLS, or a sendmail program) with Anope's templates | ✅ |
