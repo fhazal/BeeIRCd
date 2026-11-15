@@ -20,6 +20,8 @@ func memoServCommands() map[string]svcCmd {
 	return map[string]svcCmd{
 		"SEND": {"SEND {<nick> | #chan} <text>", "leave a memo for someone (or a channel)",
 			"Stores a message for a registered nick. They get it at once when online,\nor the next time they identify. A memo to a registered channel goes into its\nmemo box, which those with the MEMO privilege read (SOP by default).\nExample: /ms send nova Meeting about the new leaf, Friday 21:00 in #ops", msSend},
+		"RSEND": {"RSEND <nick> <text>", "send a memo with a read receipt",
+			"Like SEND, but when they first read it you get a memo from MemoServ saying so.\nFor nicks only, not channel memo boxes.\nExample: /ms rsend nova The new leaf is up, can you check it?", msRSend},
 		"LIST": {"LIST [#chan] [<list> | NEW]", "your memos (or a channel's)",
 			"Lists your memos: number, sender, date and whether you read it.\nLIST NEW shows only unread ones; LIST 2-5 only those. LIST #chan shows the\nchannel's memo box (MEMO privilege).", msList},
 		"READ": {"READ [#chan] {<num> | <list> | LAST | NEW | ALL}", "read memos",
@@ -103,11 +105,41 @@ func (s *Services) msBox(c *Client, args []string) (*memoBox, []string, bool) {
 	return &memoBox{acct: a, reg: reg, memos: s.store.ChanMemos(reg)}, args[1:], true
 }
 
-func (s *Services) boxMarkRead(b *memoBox, id int64) error {
+func (s *Services) boxMarkRead(b *memoBox, m store.Memo) error {
 	if b.reg != nil {
-		return s.store.MarkChanMemoRead(id)
+		return s.store.MarkChanMemoRead(m.ID)
 	}
-	return s.store.MarkRead(id)
+	if err := s.store.MarkRead(m.ID); err != nil {
+		return err
+	}
+	s.memoReceipt(b.acct, m)
+	return nil
+}
+
+// memoReceipt tells the sender of an RSEND memo that owner read it, with a
+// memo from MemoServ (Anope's auto-memo), unless their box is full.
+func (s *Services) memoReceipt(owner *store.Account, m store.Memo) {
+	if !m.Receipt || m.Read {
+		return
+	}
+	from, err := s.store.AccountByNick(m.From)
+	if err != nil || from == nil {
+		return
+	}
+	box, err := s.store.Memos(from)
+	if err != nil || len(box) >= from.MemoLimit {
+		return
+	}
+	text := fmt.Sprintf("[auto-memo] The memo you sent to %s on %s has been read.", owner.Name, showTime(m.Sent))
+	if err := s.store.AddMemo(from, "MemoServ", text, time.Now()); err != nil {
+		s.log.Printf("services database: %v", err)
+		return
+	}
+	if from.MemoNotify {
+		for _, oc := range s.onlineClients(from.ID) {
+			s.ms(oc, "You have a new memo from MemoServ. Read it: /ms read %d", len(box)+1)
+		}
+	}
 }
 
 func (s *Services) boxDelete(b *memoBox, id int64) error {
@@ -117,7 +149,13 @@ func (s *Services) boxDelete(b *memoBox, id int64) error {
 	return s.store.DeleteMemo(id)
 }
 
-func msSend(s *Services, c *Client, args []string) {
+func msSend(s *Services, c *Client, args []string)  { s.memoSend(c, args, false) }
+func msRSend(s *Services, c *Client, args []string) { s.memoSend(c, args, true) }
+
+// memoSend is SEND, and RSEND when receipt is set: then the sender gets a
+// memo back when it is first read.
+func (s *Services) memoSend(c *Client, args []string, receipt bool) {
+	cmd := map[bool]string{false: "SEND", true: "RSEND"}[receipt]
 	if !c.isOper() && s.defconBlocks(c, s.memoServ, 3) {
 		return
 	}
@@ -126,12 +164,16 @@ func msSend(s *Services, c *Client, args []string) {
 		return
 	}
 	if len(args) < 2 {
-		s.ms(c, "Syntax: SEND {<nick> | #chan} <text>")
+		s.ms(c, "Syntax: %s", map[bool]string{false: "SEND {<nick> | #chan} <text>", true: "RSEND <nick> <text>"}[receipt])
+		return
+	}
+	if receipt && irc.IsChannel(args[0]) {
+		s.ms(c, "RSEND is for nicks; a channel's memo box has no single reader. Use SEND.")
 		return
 	}
 	target, text := args[0], strings.Join(args[1:], " ")
 	if d := s.cfg.Services.MemoSendDelayOr(); d > 0 && !c.isOper() && time.Since(c.lastMemoSend) < d {
-		s.ms(c, "Please wait %d seconds before using the SEND command again.", int(d.Seconds()))
+		s.ms(c, "Please wait %d seconds before using the %s command again.", int(d.Seconds()), cmd)
 		return
 	}
 	c.lastMemoSend = time.Now()
@@ -171,7 +213,7 @@ func msSend(s *Services, c *Client, args []string) {
 	}
 	online := s.onlineClients(to.ID)
 	if !ignored {
-		if err := s.store.AddMemo(to, from.Name, text, time.Now()); err != nil {
+		if err := s.store.AddMemoReceipt(to, from.Name, text, time.Now(), receipt); err != nil {
 			s.dbErr(c, s.memoServ, err)
 			return
 		}
@@ -187,6 +229,9 @@ func msSend(s *Services, c *Client, args []string) {
 		s.ms(c, "Memo sent to %s. They're online, so they were told right away.", to.Name)
 	} else {
 		s.ms(c, "Memo sent to %s. They'll see it the next time they identify.", to.Name)
+	}
+	if receipt {
+		s.ms(c, "You'll get a memo from MemoServ when %s reads it.", to.Name)
 	}
 	s.msLog(c, "", "to send a memo to %s", args[0])
 }
@@ -406,7 +451,7 @@ func msRead(s *Services, c *Client, args []string) {
 		s.ms(c, "Memo %d%s from %s · %s", i+1, where, m.From, showTime(m.Sent))
 		s.ms(c, "  %s", m.Text)
 		if !m.Read {
-			if err := s.boxMarkRead(b, m.ID); err != nil {
+			if err := s.boxMarkRead(b, m); err != nil {
 				s.dbErr(c, s.memoServ, err)
 				return
 			}

@@ -71,6 +71,9 @@ type Memo struct {
 	Sent time.Time
 	Text string
 	Read bool
+	// Receipt: sent with RSEND, so the sender gets a memo back when it is
+	// first read.
+	Receipt bool
 }
 
 // Store is the open database and its in-memory copy.
@@ -462,10 +465,16 @@ func (s *Store) Expired(before time.Time) ([]*Account, error) {
 
 // AddMemo stores a memo for a.
 func (s *Store) AddMemo(a *Account, from, text string, now time.Time) error {
+	return s.AddMemoReceipt(a, from, text, now, false)
+}
+
+// AddMemoReceipt stores a memo for a; with receipt the sender is told
+// when it is first read (MemoServ RSEND).
+func (s *Store) AddMemoReceipt(a *Account, from, text string, now time.Time, receipt bool) error {
 	if s.c.accounts[a.ID] == nil {
 		return nil
 	}
-	res, err := s.db.Exec("INSERT INTO memos (account_id, sender, sent, body) VALUES (?, ?, ?, ?)", a.ID, from, now.Unix(), text)
+	res, err := s.db.Exec("INSERT INTO memos (account_id, sender, sent, body, receipt) VALUES (?, ?, ?, ?, ?)", a.ID, from, now.Unix(), text, receipt)
 	if err != nil {
 		return err
 	}
@@ -473,7 +482,7 @@ func (s *Store) AddMemo(a *Account, from, text string, now time.Time) error {
 	if err != nil {
 		return err
 	}
-	s.c.memos[a.ID] = append(s.c.memos[a.ID], Memo{ID: id, From: from, Sent: sec(now), Text: text})
+	s.c.memos[a.ID] = append(s.c.memos[a.ID], Memo{ID: id, From: from, Sent: sec(now), Text: text, Receipt: receipt})
 	s.c.memoOwner[id] = a.ID
 	return nil
 }
@@ -583,6 +592,7 @@ func migrateAccounts(db *sql.DB) error {
 		{"accounts", "secure", "INTEGER NOT NULL DEFAULT 1"},
 		{"channels", "cs_secure", "INTEGER NOT NULL DEFAULT 1"},
 		{"chan_access", "note", "TEXT NOT NULL DEFAULT ''"},
+		{"memos", "receipt", "INTEGER NOT NULL DEFAULT 0"},
 	} {
 		var n int
 		if err := db.QueryRow("SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?", col.table, col.name).Scan(&n); err != nil {

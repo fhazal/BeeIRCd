@@ -219,3 +219,28 @@ func TestBuddy(t *testing.T) {
 	bee.send("NS BUDDY DEL kes")
 	bee.expect(nsLine("Bee", "kes isn't on your buddy list."))
 }
+
+func TestMemoServRSend(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	bee := registered(t, s, "Bee")
+	kes := registered(t, s, "kes")
+	kes.send("MS RSEND #x hi")
+	kes.expect(msLine("kes", "RSEND is for nicks; a channel's memo box has no single reader. Use SEND."))
+	kes.send("MS RSEND Bee please read this")
+	kes.expect("Memo sent to Bee")
+	kes.expect(msLine("kes", "You'll get a memo from MemoServ when Bee reads it."))
+	bee.send("MS READ 1")
+	bee.expect("  please read this")
+	kes.expect(msLine("kes", "You have a new memo from MemoServ. Read it: /ms read 1"))
+	kes.send("MS READ 1")
+	kes.expect("[auto-memo] The memo you sent to Bee on ")
+	// Reading it again sends no second receipt; a plain SEND none at all.
+	bee.send("MS READ 1")
+	bee.expect("  please read this")
+	kes.quiet("new memo from MemoServ")
+	kes.send("MS SEND Bee plain")
+	kes.expect("Memo sent to Bee")
+	bee.send("MS READ 2")
+	bee.expect("  plain")
+	kes.quiet("new memo from MemoServ")
+}

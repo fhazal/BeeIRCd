@@ -84,6 +84,7 @@ func (s *Services) WebMemoRead(id, memoID int64) string {
 			s.log.Printf("services database: %v", err)
 			return "Something went wrong on the server."
 		}
+		s.memoReceipt(a, m)
 	}
 	return ""
 }

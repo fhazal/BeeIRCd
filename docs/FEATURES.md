@@ -83,7 +83,7 @@ Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few 
 | --- | --- |
 | **NickServ**: REGISTER, IDENTIFY, SASL, RECOVER, GROUP, UNGROUP, ALIST, GLIST, INFO, DROP, LIST, ACCESS + SECURE, STATUS, CERT (identify by TLS certificate), AJOIN, SUSPEND, GETEMAIL, RESETPASS, BUDDY list, and the SET / SASET options | ✅ |
 | **ChanServ**: access levels and LEVELS (Anope's privileges and defaults), xOP lists, AKICK, MODE LOCK, TOPIC, ENTRYMSG, ENFORCE, LOG, SUSPEND, CLONE, op tools (OWNER, PROTECT, HALFOP, UP, DOWN, KICK, BAN, UNBAN, INVITE, GETKEY), SEEN, and the SET options incl. OVERFLOW | ✅ |
-| **MemoServ**: memos to nicks and to channels, number lists, IGNORE, CANCEL, CHECK, INFO, SENDALL, STAFF, notify by notice or mail | ✅ |
+| **MemoServ**: memos to nicks and to channels, number lists, IGNORE, CANCEL, CHECK, RSEND (read receipts), INFO, SENDALL, STAFF, notify by notice or mail | ✅ |
 | **HostServ**: ON, OFF, GROUP, REQUEST; opers SET, SETALL, DEL, DELALL, LIST, WAITING, ACTIVATE, REJECT | ✅ |
 | **BotServ**: channel bots, ASSIGN, SAY, ACT, GREET, 10 kickers, BADWORDS, fantasy commands (`!op`, `!kick` ...) | ✅ |
 | **OperServ**: STATS, GLOBAL, AKILL, ZLINE, SNLINE, SHUN, SQLINE, EXCEPTION, KILL, MODE, KICK, FORBID, SESSION, NEWS, IGNORE, USERLIST, CHANLIST, SEEN, CHANKILL, SVSNICK, SVSJOIN, SVSPART | ✅ |

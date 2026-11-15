@@ -124,10 +124,10 @@ func loadCache(db *sql.DB) (*cache, error) {
 			c.access[id] = append(c.access[id], m)
 			return nil
 		}},
-		{`SELECT id, account_id, sender, sent, body, seen FROM memos ORDER BY id`, func(r *sql.Rows) error {
+		{`SELECT id, account_id, sender, sent, body, seen, receipt FROM memos ORDER BY id`, func(r *sql.Rows) error {
 			var m Memo
 			var id, sent int64
-			if err := r.Scan(&m.ID, &id, &m.From, &sent, &m.Text, &m.Read); err != nil {
+			if err := r.Scan(&m.ID, &id, &m.From, &sent, &m.Text, &m.Read, &m.Receipt); err != nil {
 				return err
 			}
 			m.Sent = time.Unix(sent, 0)
