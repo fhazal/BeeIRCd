@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/fhazal/beeircd/internal/irc"
+	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
 )
 
@@ -51,6 +52,10 @@ type helpQuestion struct {
 
 func helpServCommands() map[string]svcCmd {
 	return map[string]svcCmd{
+		"ON": {"ON", "go on duty (helpers)",
+			"Sets user mode +h: HelpServ sends you the questions people\nask. For opers and people on the helper list, on any server.", heOn},
+		"OFF": {"OFF", "go off duty (helpers)",
+			"Clears user mode +h: no more questions until ON.", heOff},
 		"CANCEL": {"CANCEL", "takes your question back",
 			"Takes back the question you asked, if no helper closed it yet.", heCancel},
 		"LIST": {"LIST", "the open questions (helpers)",
@@ -62,7 +67,7 @@ func helpServCommands() map[string]svcCmd {
 		"TOPIC": {"TOPIC ADD <name> <text> | DEL <name> | LIST", "your own answers (flag s)",
 			"Your own answers, asked before the built-in help.\nTOPIC ADD <name> <text>   adds a line to topic name (a new\n                          topic if there is none); up to 10 lines\nTOPIC DEL <name>          removes the topic\nTOPIC LIST                the topics\nPeople ask with /msg HelpServ <name>. Opers with flag s.", heTopic},
 		"HELPER": {"HELPER ADD <nick> | DEL <nick> | LIST", "who gets user mode +h (flag s)",
-			"The helper list: registered nicks that get user mode +h\n(helper) when they identify, without being opers. Helpers\nsee the questions people ask and can switch +h off and on\nwith /mode <nick> -h. Opers set +h on themselves.\nOpers with flag s.", heHelper},
+			"The helper list: registered nicks that get user mode +h\n(helper) when they identify, without being opers. Helpers\nsee the questions people ask and switch +h off and on\nwith /msg HelpServ off and on. Opers may too, or /mode <nick> +h.\nOpers with flag s.", heHelper},
 	}
 }
 
@@ -98,7 +103,7 @@ func (s *Services) helpLoad() {
 		s.help.helpers[h.AccountID] = true
 	}
 	s.helpServ.groups = []helpGroup{
-		{"For helpers", []string{"LIST", "TAKE", "CLOSE"}},
+		{"For helpers", []string{"ON", "OFF", "LIST", "TAKE", "CLOSE"}},
 		{"Commands for IRC operators", []string{"TOPIC", "HELPER"}},
 	}
 	s.helpServ.cmdNeed = map[string]byte{"TOPIC": 's', "HELPER": 's'}
@@ -576,7 +581,7 @@ func heHelper(s *Services, c *Client, args []string) {
 		s.logCmd(c, s.helpServ, "ADMIN", "", "to remove "+a.Name+" from the helper list")
 		for _, o := range s.clients {
 			if o.accountID == a.ID && !o.closed && o.user.HasMode('h') && !o.isOper() {
-				s.host.SetUserModes(o.user.UID, s.helpServ.user.UID, "-h")
+				s.helpSetMode(o, false)
 			}
 		}
 	default:
@@ -589,13 +594,51 @@ func (s *Services) helpModeOn(c *Client) {
 	if c.user.HasMode('h') || !s.help.helpers[c.accountID] {
 		return
 	}
-	s.host.SetUserModes(c.user.UID, s.helpServ.user.UID, "+h")
-	s.he(c, "You are a helper: user mode +h shows you the questions people ask HelpServ. /mode %s -h switches it off.", c.user.Nick)
+	s.helpSetMode(c, true)
+	s.he(c, "You are a helper: user mode +h shows you the questions people ask HelpServ. /msg HelpServ off switches it off, /msg HelpServ on back on.")
+}
+
+// helpSetMode sets or clears +h as HelpServ, for people on any server.
+func (s *Services) helpSetMode(c *Client, on bool) {
+	if c.user.HasMode('h') == on {
+		return
+	}
+	s.emit(&state.UserMode{Source: s.helpServ.user.UID, UID: c.user.UID, Changes: umodes(on, "h")})
+}
+
+// mayHelp reports whether c may have +h: an oper or a listed helper.
+func (s *Services) mayHelp(c *Client) bool {
+	return c.isOper() || c.accountID != 0 && s.help.helpers[c.accountID]
+}
+
+func heOn(s *Services, c *Client, _ []string) {
+	switch {
+	case c.user.HasMode('h'):
+		s.he(c, "You are on duty already (user mode +h).")
+	case !s.mayHelp(c):
+		s.helpAnswer(c, c.cmdName)
+	default:
+		s.helpSetMode(c, true)
+		s.he(c, "You are on duty: HelpServ sends you people's questions. /msg HelpServ off when you go.")
+	}
+}
+
+func heOff(s *Services, c *Client, _ []string) {
+	if !c.user.HasMode('h') {
+		if s.mayHelp(c) {
+			s.he(c, "You are off duty already.")
+		} else {
+			s.helpAnswer(c, c.cmdName)
+		}
+		return
+	}
+	s.helpSetMode(c, false)
+	s.he(c, "You are off duty. /msg HelpServ on when you are back.")
 }
 
 // helpModeOff takes +h from someone who logged out and isn't an oper.
 func (s *Services) helpModeOff(c *Client, id int64) {
 	if c.user.HasMode('h') && s.help.helpers[id] && !c.isOper() {
-		s.host.SetUserModes(c.user.UID, s.helpServ.user.UID, "-h")
+		s.helpSetMode(c, false)
 	}
 }

@@ -157,7 +157,8 @@ Who is a helper:
 - Opers: `/mode yournick +h` to go on duty, `-h` to go off. WHOIS shows
   "is available for help".
 - People who aren't opers: `/msg HelpServ helper add <nick>` (oper flag
-  `s`). They get `+h` when they identify and can switch it off and on.
+  `s`). They get `+h` when they identify, on any server of the network,
+  and switch it with `/msg HelpServ off` and `/msg HelpServ on`.
 
 Your own answers come before the built-in help. Each `topic add` adds a
 line (up to 10):

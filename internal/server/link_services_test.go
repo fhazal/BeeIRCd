@@ -234,3 +234,33 @@ func TestLinkBotServLeafText(t *testing.T) {
 	lea.send("PRIVMSG #hive :!topic leaf topic")
 	own.expect("TOPIC #hive :leaf topic")
 }
+
+// A listed helper on a leaf gets +h from the hub's HelpServ, and can go
+// off and on duty with HelpServ OFF / ON.
+func TestLinkHelperOnLeaf(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	b := login(t, hub.s, "boss")
+	b.send("NS REGISTER " + pw)
+	b.expect("is now registered to you.")
+	operEntryOn(t, hub, "boss", "s", []string{"*@*"})
+	b.send("OPER boss " + operPW)
+	b.expect(" 381 ")
+
+	dan := login(t, leaf.s, "dan")
+	dan.send("NS REGISTER " + pw)
+	dan.expect("is now registered to you.")
+	hub.seen(t, "dan")
+	waitLink(t, "dan's account on the hub", func() bool { u := hub.user("dan"); return u != nil && u.Account == "dan" })
+	b.send("HE HELPER ADD dan")
+	b.expect("dan is a helper now")
+	dan.expect("MODE dan +h")
+	dan.expect("You are a helper")
+	dan.send("WHOIS dan")
+	dan.expectNumeric("310", "dan")
+	dan.send("HE OFF")
+	dan.expect("MODE dan -h")
+	dan.send("HE ON")
+	dan.expect("MODE dan +h")
+	dan.expect("You are on duty")
+	waitLink(t, "hub sees +h", func() bool { u := hub.user("dan"); return u != nil && u.Modes['h'] })
+}
