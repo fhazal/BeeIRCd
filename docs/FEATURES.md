@@ -71,7 +71,8 @@ How to set each one up is in [ADMIN.md](ADMIN.md); installing is in [INSTALL.md]
 | STS (only with a real CA certificate) | ✅ |
 | WebIRC (`[[webirc]]` gateways) | ✅ |
 | draft/chathistory | ✅ |
-| standard-replies (all commands), UTF8ONLY | 📋 |
+| UTF8ONLY (`[limits] utf8_only`, off by default) | ✅ |
+| standard-replies (all commands) | 📋 |
 | SASL SCRAM, draft/account-registration, draft/multiline, draft/read-marker, draft/message-redaction | 📋 |
 | STARTTLS | not supported (deprecated) |
 

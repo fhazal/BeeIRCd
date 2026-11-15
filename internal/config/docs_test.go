@@ -46,7 +46,7 @@ func TestEverySettingIsDocumented(t *testing.T) {
 func docSettings(md string) map[string]map[string]bool {
 	out := map[string]map[string]bool{}
 	head := regexp.MustCompile("^### `?\\[\\[?([a-z_.]+)\\]\\]?`?\\s*$")
-	key := regexp.MustCompile("`([a-z_]+)`")
+	key := regexp.MustCompile("`([a-z0-9_]+)`")
 	in, sec := false, ""
 	for _, l := range strings.Split(strings.ReplaceAll(md, "\r\n", "\n"), "\n") {
 		switch {

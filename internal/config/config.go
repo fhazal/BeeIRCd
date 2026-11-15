@@ -246,6 +246,10 @@ type Limits struct {
 	ConnectRate          string `toml:"connect_rate"`
 	MaxUnregistered      int    `toml:"max_unregistered"`
 	MaxUnregisteredPerIP int    `toml:"max_unregistered_per_ip"`
+	// UTF8Only refuses commands whose text isn't UTF-8 and says UTF8ONLY
+	// to clients (IRCv3). Off by default: old clients sending Latin-1
+	// keep working.
+	UTF8Only bool `toml:"utf8_only"`
 }
 
 // ConnectLimit reads connect_rate: n connections per period; ok false

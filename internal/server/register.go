@@ -407,7 +407,7 @@ func (s *Server) channelModesWithParam() string {
 
 func (s *Server) isupport() []string {
 	l := s.cfg.Limits
-	return []string{
+	out := []string{
 		"ACCOUNTEXTBAN=a",
 		"AWAYLEN=" + strconv.Itoa(l.AwayLen),
 		"BOT=B",
@@ -437,6 +437,10 @@ func (s *Server) isupport() []string {
 		"USERLEN=10",
 		"WHOX",
 	}
+	if l.UTF8Only {
+		out = append(out, "UTF8ONLY")
+	}
+	return out
 }
 
 func (s *Server) sendISupport(c *Client) {

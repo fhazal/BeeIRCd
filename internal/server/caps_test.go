@@ -285,3 +285,19 @@ func TestExtendedMonitor(t *testing.T) {
 	c.expect(":ember!~ember@127.0.0.1 AWAY")
 	c.quiet(":ember!~ember@127.0.0.1 AWAY")
 }
+
+func TestUTF8Only(t *testing.T) {
+	off := testServer(t, nil)
+	a, b := login(t, off, "Bee"), login(t, off, "ember")
+	a.send("PRIVMSG ember :caf\xe9")
+	b.expect("PRIVMSG ember :caf\xe9") // off by default: passed on as it is
+	on := testServer(t, func(c *config.Config) { c.Limits.UTF8Only = true })
+	x, y := login(t, on, "Bee"), login(t, on, "ember")
+	x.send("VERSION")
+	x.expect(" UTF8ONLY ")
+	x.send("PRIVMSG ember :caf\xe9")
+	x.expect(":irc.test.local FAIL PRIVMSG INVALID_UTF8 :Message rejected, your IRC software MUST use UTF-8 encoding on this network")
+	y.quiet("caf")
+	x.send("PRIVMSG ember :café")
+	y.expect("PRIVMSG ember :café")
+}

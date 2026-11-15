@@ -2,6 +2,7 @@ package server
 
 import (
 	"time"
+	"unicode/utf8"
 
 	"github.com/fhazal/beeircd/internal/irc"
 )
@@ -180,9 +181,23 @@ func (s *Server) runCommand(c *Client, m irc.Message) {
 		if c.registered && m.Command == "PART" && len(m.Params) > 1 && (c.tempShun || s.svc.Shunned(c.user)) {
 			m.Params = m.Params[:1] // no part message either
 		}
+		if s.cfg.Limits.UTF8Only && !utf8Params(m) {
+			c.send(irc.Message{Source: s.cfg.Server.Name, Command: "FAIL", Params: []string{m.Command, "INVALID_UTF8", "Message rejected, your IRC software MUST use UTF-8 encoding on this network"}, Trailing: true}.String())
+			return
+		}
 		if c.registered && !s.spamCheck(c, &m) {
 			return
 		}
 		cmd.run(s, c, m)
 	}
+}
+
+// utf8Params reports whether every parameter of m is UTF-8.
+func utf8Params(m irc.Message) bool {
+	for _, p := range m.Params {
+		if !utf8.ValidString(p) {
+			return false
+		}
+	}
+	return true
 }

@@ -666,6 +666,7 @@ difference is a warning to opers, not a refusal.
 | `ping_interval`, `ping_timeout` | `90s` | |
 | `register_timeout` | `60s` | Time to finish logging in |
 | `sendq` | `1048576` | Bytes queued to one client before it is dropped |
+| `utf8_only` | `false` | Refuse text that isn't UTF-8 (`FAIL ... INVALID_UTF8`) and tell clients `UTF8ONLY`. Leave off if people use old clients that send Latin-1 |
 
 ### [channels]
 
