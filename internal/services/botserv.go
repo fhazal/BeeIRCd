@@ -188,7 +188,7 @@ func (s *Services) botJoin(reg *store.Channel, sv *service) {
 	if sv == nil || ch != nil && ch.Member(sv.user) != nil {
 		return
 	}
-	if s.emit(&state.Join{UID: sv.user.UID, Channel: reg.Name, TS: time.Now().Unix()}) != nil {
+	if s.emit(&state.Join{UID: sv.user.UID, Channel: reg.Name, TS: regTS(reg)}) != nil {
 		return
 	}
 	if ch = s.net.Channel(reg.Name); ch != nil {

@@ -293,6 +293,10 @@ func (s *Services) handle(ev state.Event) {
 			s.csModesChanged(ch)
 		}
 		s.logModes(e)
+	case *state.ChannelTS:
+		if ch := s.net.Channel(e.Channel); ch != nil {
+			s.csLostTS(ch)
+		}
 	case *state.Topic:
 		if ch := s.net.Channel(e.Channel); ch != nil && e.Source != s.chanServ.user.UID {
 			s.csTopicChanged(ch)
