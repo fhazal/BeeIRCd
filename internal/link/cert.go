@@ -16,6 +16,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -77,6 +78,21 @@ func FileFingerprint(certFile string) (string, error) {
 		return "", err
 	}
 	return Fingerprint(c), nil
+}
+
+// FileCertHash is the hex SHA-256 of the certificate in certFile: what
+// InspIRCd's <link fingerprint> wants.
+func FileCertHash(certFile string) (string, error) {
+	b, err := os.ReadFile(certFile)
+	if err != nil {
+		return "", err
+	}
+	blk, _ := pem.Decode(b)
+	if blk == nil {
+		return "", fmt.Errorf("%s: no PEM certificate", certFile)
+	}
+	sum := sha256.Sum256(blk.Bytes)
+	return hex.EncodeToString(sum[:]), nil
 }
 
 func create(certFile, keyFile, name string) error {

@@ -534,7 +534,8 @@ Linking a server already installed as standalone: set `[link] role`,
 restart once (the link certificate is made then), and follow steps 3–4
 with `beeircd link-info` on each side. For an UnrealIRCd 6 server on
 the other end, `link-info` also prints the `link { }` block for
-unrealircd.conf; see [link] below for services and SASL there.
+unrealircd.conf, and for InspIRCd 4 the `<link>` block for
+inspircd.conf; see [link] below for services and SASL there.
 
 ## Security notes
 
@@ -866,7 +867,8 @@ lon = 8.68
 Server linking (part of 1.0; walk-through in [Linking servers](#linking-servers)).
 Linked servers share users, channels, every change, network bans and one
 set of services. BeeIRCd speaks the UnrealIRCd 6 server protocol, so it
-links with BeeIRCd and UnrealIRCd 6.
+links with BeeIRCd and UnrealIRCd 6, and translates to and from InspIRCd
+4's (protocol 1206) for InspIRCd links.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
@@ -888,6 +890,7 @@ Each server we link with gets a `[[link.server]]` block. These apply on
 | `host`, `port` | –, `7000` | Where to connect; no host = it connects to us |
 | `autoconnect` | `false` | Keep connecting while the link is down (10 s after a lost link, then 30 s doubling to 5 min) |
 | `sendq_mb` | `20` | How much may wait for the link before it is dropped |
+| `protocol` | `"unrealircd"` | What the other server speaks: `"unrealircd"` (BeeIRCd and UnrealIRCd 6) or `"inspircd"` (InspIRCd 4). Only needed when we connect to it; an InspIRCd connecting to us is recognised by its first line. `"inspircd"` makes `password` required, as InspIRCd's `<link>` needs one |
 
 **Services on a linked network.** One server runs services (the hub,
 usually); every other BeeIRCd has `[services] enabled = false`. On the
@@ -910,6 +913,48 @@ and U-line the services server and name it, or SASL stays off there:
 
 A BeeIRCd with services off can also link to an UnrealIRCd network that
 runs Anope: logins (SASL) go to Anope.
+
+**Linking an InspIRCd 4 server.** InspIRCd 4 (protocol 1206, tested
+with 4.12) links over TLS with a password on both sides and pinned
+certificates. On the InspIRCd side load `ssl_openssl`, `spanningtree`,
+`services`, `cap` and `sasl`, give links an `<sslprofile>` and a TLS
+`<bind type="servers">`, and add the blocks `beeircd link-info` prints:
+
+    <link name="bee.example.net" ipaddr="bee.example.net" port="7000"
+          allowmask="*" sslprofile="Servers"
+          sendpass="PASSWORD" recvpass="PASSWORD"
+          fingerprint="hex SHA-256 of our certificate">
+    <uline server="bee.example.net" silent="yes">
+    <uline server="services.example.net" silent="yes">
+    <sasl target="services.example.net">
+
+InspIRCd's `fingerprint` is the hex SHA-256 of the whole certificate
+(`link-info` prints ours). Ours is of its public key, base64; for the
+InspIRCd certificate:
+
+    openssl x509 -in cert.pem -pubkey -noout | openssl pkey -pubin -outform der \
+      | openssl dgst -sha256 -binary | base64
+
+Then our block, `beeircd rehash`, and `/CONNECT` from either side:
+
+    [[link.server]]
+    name = "insp.example.net"
+    host = "insp.example.net"
+    port = 7005
+    protocol = "inspircd"
+    password = "PASSWORD"
+    fingerprint = "base64 from the command above"
+    autoconnect = true
+
+Everything shared on a BeeIRCd link works: users, channels, modes,
+bans, topics, away, nick changes and collisions, kills, services
+(NickServ, ChanServ, SASL from InspIRCd users), network bans (G, Z, Q,
+E-lines, shuns) and CHGHOST/CHGIDENT/CHGNAME. Modes are matched by name,
+so letters may differ; a mode one side doesn't have is not sent (BeeIRCd
+`+f`, `+F`, `+E`, `+B`, `+V`, `+Z`; owner and admin ranks reach InspIRCd
+as op when it has no `customprefix` ranks for them). Load `banexception`
+and `inviteexception` there for `+e` and `+I`. Remote `/STATS`, `/MOTD`
+and AdminServ `SERVER` don't reach an InspIRCd server.
 
 **Oper tools for links.** OperServ `STATS UPLINK` (each link, its lag
 and software), `JUPE <server> [reason]` / `JUPE LIST` / `JUPE DEL`

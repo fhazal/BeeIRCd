@@ -41,7 +41,7 @@ How to set each one up is in [ADMIN.md](ADMIN.md); installing is in [INSTALL.md]
 | Feature | | Notes |
 | --- | --- | --- |
 | Hub and leaf over TLS on a separate link port | ✅ | locked by certificate fingerprint (like UnrealIRCd's `spkifp`); a password is optional |
-| Links to BeeIRCd and to UnrealIRCd 6 | ✅ | UnrealIRCd 6 server protocol |
+| Links to BeeIRCd, UnrealIRCd 6 and InspIRCd 4 | ✅ | UnrealIRCd 6 server protocol; InspIRCd 4 (protocol 1206) translated, modes matched by name |
 | One network: users, channels, modes, topics, bans, services and oper entries shared | ✅ | nick collisions and channel timestamps handled like UnrealIRCd |
 | Services on their own server, SASL relayed over links | ✅ | to BeeIRCd services or to Anope |
 | Network bans (AKILL, ZLINE, SHUN, ELINE, Q-lines) shared live | ✅ | K-lines stay on one server |

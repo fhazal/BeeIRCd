@@ -3,6 +3,7 @@ package link
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -25,6 +26,9 @@ func TestLinkCert(t *testing.T) {
 	}
 	if fp3, err := FileFingerprint(cf); err != nil || fp3 != fp {
 		t.Fatalf("FileFingerprint %q %v", fp3, err)
+	}
+	if h, err := FileCertHash(cf); err != nil || len(h) != 64 || h != strings.ToLower(h) {
+		t.Fatalf("FileCertHash %q %v", h, err)
 	}
 	os.Remove(kf) // one file missing: refuse, never make a new identity silently
 	if _, _, err := LoadOrCreate(cf, kf, "hub.bee.net"); err == nil {

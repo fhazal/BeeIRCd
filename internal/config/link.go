@@ -54,7 +54,15 @@ type LinkServer struct {
 	Autoconnect bool `toml:"autoconnect"`
 	// SendQMB is how much may wait for this link before it is dropped.
 	SendQMB int `toml:"sendq_mb"`
+	// Protocol is what the other server speaks when we connect to it:
+	// "unrealircd" (BeeIRCd and UnrealIRCd 6, the default) or "inspircd"
+	// (InspIRCd 4). Incoming links are recognised by their first line;
+	// "inspircd" also makes the password required, as InspIRCd needs one.
+	Protocol string `toml:"protocol"`
 }
+
+// Insp reports whether the block is for an InspIRCd 4 server.
+func (s LinkServer) Insp() bool { return strings.EqualFold(s.Protocol, "inspircd") }
 
 // LinkRoles are the roles a server may have.
 var LinkRoles = []string{"standalone", "hub", "leaf"}
@@ -191,6 +199,10 @@ func (s LinkServer) check(self string) error {
 		return fmt.Errorf("host must be a hostname or IP")
 	case s.SendQMB < 1 || s.SendQMB > 1024:
 		return fmt.Errorf("sendq_mb must be 1-1024")
+	case s.Protocol != "" && !strings.EqualFold(s.Protocol, "unrealircd") && !s.Insp():
+		return fmt.Errorf("protocol must be \"unrealircd\" or \"inspircd\"")
+	case s.Insp() && s.Password == "":
+		return fmt.Errorf("an InspIRCd link needs a password (its <link> block wants sendpass and recvpass)")
 	}
 	if !ValidFingerprint(s.Fingerprint) {
 		return fmt.Errorf("fingerprint must be the base64 SHA-256 of its public key (beeircd link-info or ./unrealircd spkifp)")

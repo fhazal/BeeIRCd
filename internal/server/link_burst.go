@@ -304,6 +304,13 @@ func (s *Server) collide(l *linkConn, ex *state.User, in *link.User, inServer st
 		if !exWins {
 			s.renameToUID(ex)
 		}
+		if t, ok := l.codecOf().(interface{ TellsRenames() bool }); ok && t.TellsRenames() && !inWins {
+			// InspIRCd decides by its own rule; tell it that its user
+			// lost here (its SAVE), so both sides agree on the nick.
+			for _, line := range l.codecOf().Encode(&link.ForceNick{Source: s.cfg.Server.SID, UID: in.UID, Nick: in.UID, TS: in.NickTS}) {
+				l.send(line)
+			}
+		}
 		return inWins, true
 	}
 	comment := fmt.Sprintf("Nick collision: %s <- %s", exServer, inServer)

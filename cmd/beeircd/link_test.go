@@ -41,3 +41,22 @@ func TestLinkFileWarnings(t *testing.T) {
 		t.Errorf("hashed WEBIRC password: %v", w)
 	}
 }
+
+func TestInspInfoText(t *testing.T) {
+	text := inspInfoText("hub.beenet.org", 7000, "1e18ab", "services.beenet.org")
+	for _, want := range []string{
+		`<link name="hub.beenet.org" ipaddr="hub.beenet.org" port="7000"`,
+		`fingerprint="1e18ab">`,
+		`<uline server="hub.beenet.org" silent="yes">`,
+		`<uline server="services.beenet.org" silent="yes">`,
+		`<sasl target="services.beenet.org">`,
+		`protocol = "inspircd"`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("missing %q in %s", want, text)
+		}
+	}
+	if strings.Contains(inspInfoText("leaf.beenet.org", 7000, "ab", ""), "<sasl") {
+		t.Error("sasl block without services here")
+	}
+}

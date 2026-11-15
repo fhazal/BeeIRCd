@@ -29,7 +29,7 @@ Classic IRC feel · services in the box · IRCv3 · light on a 1-CPU VPS
 Running an IRC network usually means two programs that have to be wired together: a server (UnrealIRCd, InspIRCd) and a services package (Anope, Atheme). BeeIRCd is both. Start it once, and NickServ, ChanServ and friends are already there, sharing one database and one config.
 
 - 🧩 **All in one**: server and services in a single binary, no separate services package to link and babysit.
-- 🔗 **Linking**: grow one server into a network. Links are TLS with pinned keys, no passwords, to other BeeIRCd servers or to UnrealIRCd 6.
+- 🔗 **Linking**: grow one server into a network. Links are TLS with pinned keys, no passwords, to other BeeIRCd servers, UnrealIRCd 6 or InspIRCd 4.
 - 🍯 **Hive Panel**: a web admin built in (`beeircd web`). Opers sign in with their oper account and see only what their flags allow.
 - 🛡️ **Services you already know**: commands, syntax and replies follow **Anope 2.0** (the stable line), so admins and users feel at home.
 - 👑 **AdminServ**: run the server from IRC itself, ConferenceRoom style: settings, MOTD, ports, opers and classes, with history and undo.
@@ -67,7 +67,7 @@ Running an IRC network usually means two programs that have to be wired together
 
 **🔗 Linking**
 - Hub and leaf, TLS on its own port, locked by fingerprint
-- BeeIRCd to BeeIRCd, and UnrealIRCd 6 with services and SASL
+- BeeIRCd to BeeIRCd, UnrealIRCd 6 and InspIRCd 4, with services and SASL
 - One network: users, channels, bans, services and oper entries shared
 - `/MAP`, `beeircd link-info`, links shown in `beeircd status`
 

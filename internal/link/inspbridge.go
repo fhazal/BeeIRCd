@@ -1,0 +1,1365 @@
+package link
+
+import (
+	"fmt"
+	"sort"
+	"strconv"
+	"strings"
+
+	"github.com/fhazal/beeircd/internal/irc"
+)
+
+// inspBridge turns the UnrealIRCd dialect the server speaks into InspIRCd
+// 4's protocol (1206) and back, so every part of the server that knows
+// links works with InspIRCd unchanged. It keeps what InspIRCd lines need
+// and ours don't carry: channel timestamps, nicks, which servers are
+// behind the link, and the other side's mode letters (InspIRCd says in
+// CAPAB which letter each mode has; we map by the mode's name).
+//
+// InspIRCd source used: src/modules/m_spanningtree (uid.cpp, fjoin.cpp,
+// fmode.cpp, ftopic.cpp, metadata.cpp, addline.cpp, save.cpp, num.cpp,
+// ijoin.cpp, netburst.cpp), m_sasl.cpp, m_services.cpp; Anope's
+// modules/protocol/inspircd.cpp for what services send.
+type inspBridge struct {
+	me   Local
+	peer Peer
+
+	ours   modeTable // our channel modes, by letter
+	theirs modeTable // theirs, from CAPAB CHANMODES
+	ourU   modeTable
+	theirU modeTable
+
+	started bool
+	synced  bool // their burst is over
+	// saslAgent is the server on our side that said it takes SASL.
+	saslAgent string
+	chanTS    map[string]int64  // folded channel name -> TS
+	nicks     map[string]string // UID -> nick
+	nickTS    map[string]int64  // UID -> nick TS
+	behind    map[string]bool   // SIDs on their side of the link
+	names     map[string]string // SID -> server name (both sides)
+	pending   *inspUID          // a UID held back for its account METADATA
+}
+
+// inspUID is a user from their burst, kept until its METADATA lines
+// (account) have come.
+type inspUID struct {
+	src string
+	p   []string
+	acc string
+}
+
+// Mode kinds, as InspIRCd's CAPAB CHANMODES names them.
+const (
+	kindFlag   = 'F' // simple
+	kindList   = 'L' // list
+	kindParam  = 'P' // param: an argument both ways
+	kindSet    = 'S' // param-set: an argument when set
+	kindRank   = 'R' // prefix
+	kindIgnore = 0
+)
+
+// modeTable is one side's modes: letter -> name and kind, and for ranks
+// the prefix character.
+type modeTable struct {
+	name   map[byte]string
+	letter map[string]byte
+	kind   map[byte]byte
+	prefix map[byte]byte // rank letter -> prefix character
+}
+
+func newModeTable() modeTable {
+	return modeTable{name: map[byte]string{}, letter: map[string]byte{}, kind: map[byte]byte{}, prefix: map[byte]byte{}}
+}
+
+func (t modeTable) add(l byte, name string, kind byte) {
+	t.name[l], t.letter[name], t.kind[l] = name, l, kind
+}
+
+// rankByPrefix finds the rank letter with prefix character p.
+func (t modeTable) rankByPrefix(p byte) byte {
+	for l, c := range t.prefix {
+		if c == p {
+			return l
+		}
+	}
+	return 0
+}
+
+// Our mode letters and the names InspIRCd 4's modules give the same
+// modes. Ours with no InspIRCd twin (or a different value format: f F E B
+// V Z, user q z) stay on our side.
+var (
+	inspChanNames = map[byte]string{
+		'b': "ban", 'e': "banexception", 'I': "invex", 'k': "key", 'l': "limit",
+		'L': "redirect", 'J': "kicknorejoin", 'H': "history",
+		'i': "inviteonly", 'm': "moderated", 'n': "noextmsg", 't': "topiclock",
+		'p': "private", 's': "secret", 'R': "reginvite", 'M': "regmoderated",
+		'c': "blockcolor", 'S': "stripcolor", 'C': "noctcp", 'T': "nonotice",
+		'N': "nonick", 'K': "noknock", 'Q': "nokick", 'z': "sslonly",
+		'D': "delayjoin", 'G': "censor", 'O': "operonly", 'P': "permanent",
+		'r': "c_registered",
+	}
+	inspUserNames = map[byte]string{
+		'i': "invisible", 'o': "oper", 'w': "wallops", 's': "snomask", 'x': "cloak",
+		'r': "u_registered", 'B': "bot", 'd': "deaf", 'D': "privdeaf", 'R': "regdeaf",
+		'T': "u_noctcp", 'H': "hideoper", 'W': "showwhois", 'Z': "sslqueryonly",
+		'p': "hidechans",
+	}
+	// inspRankNames are the usual names; ranks map by prefix character.
+	inspRankNames = map[byte]string{'q': "founder", 'a': "admin", 'o': "op", 'h': "halfop", 'v': "voice"}
+)
+
+// ourModes builds our table from the ISUPPORT-style groups and PREFIX.
+func ourModes(chanModes, prefix string) modeTable {
+	t := newModeTable()
+	groups := strings.Split(chanModes, ",")
+	kinds := []byte{kindList, kindParam, kindSet, kindFlag}
+	for i, g := range groups {
+		if i >= len(kinds) {
+			break
+		}
+		for j := 0; j < len(g); j++ {
+			if n := inspChanNames[g[j]]; n != "" {
+				t.add(g[j], n, kinds[i])
+			} else {
+				t.kind[g[j]] = kinds[i] // known, so arguments parse
+			}
+		}
+	}
+	letters, chars := prefixLetters(prefix), prefixChars(prefix)
+	for i := 0; i < len(letters) && i < len(chars); i++ {
+		t.add(letters[i], inspRankNames[letters[i]], kindRank)
+		t.prefix[letters[i]] = chars[i]
+	}
+	return t
+}
+
+// ourUserModes: every letter of ours that InspIRCd has too. Only s
+// (snomask) takes an argument, and only when set.
+func ourUserModes(letters string) modeTable {
+	t := newModeTable()
+	for i := 0; i < len(letters); i++ {
+		l := letters[i]
+		k := byte(kindFlag)
+		if l == 's' {
+			k = kindSet
+		}
+		if n := inspUserNames[l]; n != "" {
+			t.add(l, n, k)
+		} else {
+			t.kind[l] = k
+		}
+	}
+	return t
+}
+
+// parseInspModes reads CAPAB CHANMODES / USERMODES:
+// "list:ban=b param-set:limit=l prefix:30000:op=@o simple:noextmsg=n".
+func parseInspModes(list string) modeTable {
+	t := newModeTable()
+	for _, tok := range strings.Fields(list) {
+		spec, value, ok := strings.Cut(tok, "=")
+		if !ok || value == "" {
+			continue
+		}
+		parts := strings.Split(spec, ":")
+		kind, name := parts[0], parts[len(parts)-1]
+		l := value[len(value)-1]
+		switch kind {
+		case "simple":
+			t.add(l, name, kindFlag)
+		case "list":
+			t.add(l, name, kindList)
+		case "param":
+			t.add(l, name, kindParam)
+		case "param-set":
+			t.add(l, name, kindSet)
+		case "prefix":
+			t.add(l, name, kindRank)
+			if len(value) > 1 {
+				t.prefix[l] = value[0]
+			}
+		}
+	}
+	return t
+}
+
+// inspDefaultChanModes is what InspIRCd 4 has without extra modules, for
+// a server that sends no CAPAB CHANMODES.
+const inspDefaultChanModes = "list:ban=b param:key=k param-set:limit=l prefix:30000:op=@o prefix:10000:voice=+v " +
+	"simple:inviteonly=i simple:moderated=m simple:noextmsg=n simple:private=p simple:secret=s simple:topiclock=t"
+
+const inspDefaultUserModes = "simple:invisible=i simple:oper=o param-set:snomask=s simple:wallops=w"
+
+func newInspBridge(me Local, peer Peer, chanModes, userModes string) *inspBridge {
+	if chanModes == "" {
+		chanModes = inspDefaultChanModes
+	}
+	if userModes == "" {
+		userModes = inspDefaultUserModes
+	}
+	b := &inspBridge{
+		me: me, peer: peer,
+		ours: ourModes(me.ChanModes, me.Prefix), theirs: parseInspModes(chanModes),
+		ourU: ourUserModes(me.UserModes), theirU: parseInspModes(userModes),
+		chanTS: map[string]int64{}, nicks: map[string]string{}, nickTS: map[string]int64{},
+		behind: map[string]bool{peer.SID: true}, names: map[string]string{peer.SID: peer.Name, me.SID: me.Name},
+	}
+	return b
+}
+
+func (b *inspBridge) fold(ch string) string { return irc.Fold(ch) }
+
+// line builds a wire line; text marks the last parameter as free text.
+func line(tags map[string]string, src, cmd string, text bool, params ...string) string {
+	return irc.Message{Tags: tags, Source: src, Command: cmd, Params: params, Trailing: text}.String()
+}
+
+func (b *inspBridge) now() int64 { return b.me.Now() }
+
+// sourceSID is the server a source is on: a SID, or a UID's first three.
+func sourceSID(src string) string {
+	if len(src) >= 3 {
+		return src[:3]
+	}
+	return src
+}
+
+// ---- our lines out ----
+
+func (b *inspBridge) Out(raw string) []string {
+	m, err := irc.Parse(raw)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	if !b.started {
+		b.started = true
+		ver := "BeeIRCd-" + b.me.Version
+		out = append(out,
+			line(nil, b.me.SID, "BURST", false, strconv.FormatInt(b.now(), 10)),
+			line(nil, b.me.SID, "SINFO", true, "rawversion", ver),
+			line(nil, b.me.SID, "SINFO", true, "rawbranch", ver),
+			line(nil, b.me.SID, "SINFO", true, "customversion", b.me.Network))
+	}
+	return sound(append(out, b.out(m)...))
+}
+
+// badSource are bytes no source may hold.
+const badSource = "\r\n\x00 "
+
+// sound keeps the lines that stay one valid line once framed: a broken
+// line in (from a bad peer, or fuzzing) is dropped, not passed on.
+func sound(lines []string) []string {
+	out := lines[:0]
+	for _, l := range lines {
+		if m, err := irc.Parse(irc.CleanFraming(l)); err == nil && m.Command != "" && !strings.ContainsAny(m.Source, badSource) {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+func (b *inspBridge) out(m irc.Message) []string {
+	p := m.Params
+	arg := func(i int) string {
+		if i < len(p) {
+			return p[i]
+		}
+		return ""
+	}
+	last := func() string {
+		if len(p) == 0 {
+			return ""
+		}
+		return p[len(p)-1]
+	}
+	src := m.Source
+	if src == "" {
+		src = b.me.SID
+	}
+	switch m.Command {
+	case "SID": // :up SID name hops sid :desc
+		if len(p) < 4 {
+			return nil
+		}
+		b.names[p[2]] = p[0]
+		return []string{line(nil, src, "SERVER", true, p[0], p[2], last())}
+	case "EOS":
+		return []string{line(nil, src, "ENDBURST", false)}
+	case "NETINFO", "PROTOCTL", "PASS", "BEESESS", "BEEOPER", "BEEOPERR", "BEEADMIN", "BEEPLACE",
+		"SVSNOOP", "WHOIS", "MOTD", "VERSION", "ADMIN", "TIME", "STATS", "BATCH", "SMOD", "SINFO", "SWHOIS":
+		return nil
+	case "UID":
+		return b.outUID(src, p)
+	case "AWAY":
+		if last() == "" {
+			return []string{line(nil, src, "AWAY", false)}
+		}
+		return []string{line(nil, src, "AWAY", true, strconv.FormatInt(b.now(), 10), last())}
+	case "SJOIN":
+		return b.outSJoin(src, p)
+	case "MODE", "SVSMODE", "SVS2MODE":
+		if len(p) < 2 {
+			return nil
+		}
+		if irc.IsChannel(p[0]) {
+			return b.outChanMode(src, p[0], p[1], p[2:])
+		}
+		return b.outUserMode(src, p[0], p[1])
+	case "UMODE2":
+		if len(p) < 1 {
+			return nil
+		}
+		return b.outUserMode(src, src, p[0])
+	case "NICK": // :uid NICK new ts
+		if len(p) < 1 {
+			return nil
+		}
+		b.nicks[src] = p[0]
+		ts := b.validTS(arg(1))
+		b.nickTS[src], _ = strconv.ParseInt(ts, 10, 64)
+		return []string{line(nil, src, "NICK", false, p[0], ts)}
+	case "QUIT":
+		delete(b.nicks, src)
+		delete(b.nickTS, src)
+		return []string{line(nil, src, "QUIT", true, last())}
+	case "KILL":
+		if len(p) < 1 {
+			return nil
+		}
+		b.gone(p[0])
+		return []string{line(nil, src, "KILL", true, p[0], last())}
+	case "SVSKILL": // InspIRCd has no SVSKILL: a KILL from services
+		if len(p) < 1 {
+			return nil
+		}
+		b.gone(p[0])
+		return []string{line(nil, src, "KILL", true, p[0], last())}
+	case "PART", "KICK", "PRIVMSG", "NOTICE", "TAGMSG", "SVSJOIN", "SVSPART", "ERROR", "SQUIT":
+		if m.Command == "SQUIT" && len(p) > 0 {
+			delete(b.behind, b.sidOf(p[0]))
+		}
+		m.Source = src
+		return []string{m.String()}
+	case "INVITE": // :src INVITE uid #chan 0
+		if len(p) < 2 {
+			return nil
+		}
+		ts, ok := b.chanTS[b.fold(p[1])]
+		if !ok {
+			return nil
+		}
+		return []string{line(nil, src, "INVITE", false, p[0], p[1], strconv.FormatInt(ts, 10))}
+	case "TOPIC": // :src TOPIC #chan setter ts :text
+		if len(p) < 4 {
+			return nil
+		}
+		cts, ok := b.chanTS[b.fold(p[0])]
+		if !ok {
+			return nil
+		}
+		return []string{line(nil, src, "FTOPIC", true, p[0], strconv.FormatInt(cts, 10), p[2], p[1], last())}
+	case "SVSNICK": // :src SVSNICK uid new ts
+		if len(p) < 2 {
+			return nil
+		}
+		if p[0] == p[1] {
+			// A collision loser renamed to its UID: InspIRCd's SAVE,
+			// with the nick time it has for the user.
+			ts, ok := b.nickTS[p[0]]
+			if !ok {
+				ts, _ = strconv.ParseInt(arg(2), 10, 64)
+			}
+			return []string{line(nil, b.me.SID, "SAVE", false, p[0], strconv.FormatInt(ts, 10))}
+		}
+		ts := arg(2)
+		if ts == "" {
+			ts = strconv.FormatInt(b.now(), 10)
+		}
+		return []string{line(nil, src, "SVSNICK", false, p[0], p[1], ts)}
+	case "SVSLOGIN": // :src SVSLOGIN server uid account
+		if len(p) < 3 {
+			return nil
+		}
+		acc := p[2]
+		if acc == "0" || acc == "*" {
+			acc = ""
+		}
+		return []string{line(nil, src, "METADATA", true, p[1], "accountname", acc)}
+	case "SETHOST", "CHGHOST":
+		return b.outChange(src, m.Command, p, "FHOST", "CHGHOST")
+	case "SETIDENT", "CHGIDENT":
+		return b.outChange(src, m.Command, p, "FIDENT", "CHGIDENT")
+	case "SETNAME", "CHGNAME":
+		return b.outChange(src, m.Command, p, "FNAME", "CHGNAME")
+	case "TKL":
+		return b.outTKL(src, p)
+	case "PING":
+		return []string{line(nil, b.me.SID, "PING", false, b.peer.SID)}
+	case "PONG": // :us PONG ourname :theirsid
+		return []string{line(nil, b.me.SID, "PONG", false, last())}
+	case "MD": // :sid MD client <name|uid> key [:value]
+		if len(p) >= 4 && p[0] == "client" && p[2] == "saslmechlist" {
+			b.saslAgent = sourceSID(src)
+			return []string{line(nil, src, "METADATA", true, "*", "saslmechlist", last())}
+		}
+		return nil
+	case "SASL": // :src SASL target uid mode data...
+		return b.outSASL(src, p)
+	}
+	if len(m.Command) == 3 && m.Command[0] >= '0' && m.Command[0] <= '9' && len(p) > 0 {
+		// :src 401 uid params -> NUM src uid 401 params
+		ps := append([]string{sourceSID(src), p[0], m.Command}, p[1:]...)
+		return []string{line(nil, sourceSID(src), "NUM", true, ps...)}
+	}
+	return nil
+}
+
+// validTS is a timestamp InspIRCd takes: it refuses 0 (our services bots
+// have nick time 0), so those get our start time.
+func (b *inspBridge) validTS(ts string) string {
+	if t, err := strconv.ParseInt(ts, 10, 64); err == nil && t > 0 {
+		return ts
+	}
+	if b.me.Booted > 0 {
+		return strconv.FormatInt(b.me.Booted, 10)
+	}
+	return strconv.FormatInt(b.now(), 10)
+}
+
+// gone forgets a user that left.
+func (b *inspBridge) gone(uid string) {
+	delete(b.nicks, uid)
+	delete(b.nickTS, uid)
+}
+
+// sidOf is a server's SID by name or SID.
+func (b *inspBridge) sidOf(x string) string {
+	for sid, n := range b.names {
+		if strings.EqualFold(n, x) || sid == x {
+			return sid
+		}
+	}
+	return x
+}
+
+// outUID: nick hops ts ident realhost uid account umodes vhost cloak ip :real
+// -> UID uid ts nick realhost dhost ident ident ip signon +modes :real
+func (b *inspBridge) outUID(src string, p []string) []string {
+	if len(p) < 12 {
+		return nil
+	}
+	nick, ts, ident, realhost, uid, account, modes, vhost, cloak := p[0], b.validTS(p[2]), p[3], p[4], p[5], p[6], strings.TrimPrefix(p[7], "+"), p[8], p[9]
+	dhost := realhost
+	if strings.IndexByte(modes, 'x') >= 0 {
+		switch {
+		case vhost != "*" && vhost != "":
+			dhost = vhost
+		case cloak != "*" && cloak != "":
+			dhost = cloak
+		}
+	}
+	ip := decodeIP(p[10])
+	if ip == "" {
+		ip = "0.0.0.0"
+	}
+	b.nicks[uid] = nick
+	b.nickTS[uid], _ = strconv.ParseInt(ts, 10, 64)
+	oper := strings.IndexByte(modes, 'o') >= 0
+	var um []byte
+	for i := 0; i < len(modes); i++ {
+		if modes[i] == 'o' || modes[i] == 's' {
+			continue // OPERTYPE makes the oper; snomasks need an argument
+		}
+		if l, ok := b.theirUser(modes[i]); ok {
+			um = append(um, l)
+		}
+	}
+	out := []string{line(nil, sourceSID(uid), "UID", true, uid, ts, nick, realhost, dhost, ident, ident, ip, ts, "+"+string(um), p[11])}
+	if account != "0" && account != "*" && account != "" {
+		out = append(out, line(nil, sourceSID(uid), "METADATA", true, uid, "accountname", account))
+	}
+	if oper {
+		out = append(out, line(nil, uid, "OPERTYPE", true, "IRC_Operator"))
+	}
+	return out
+}
+
+// theirUser is their letter for our user mode letter l.
+func (b *inspBridge) theirUser(l byte) (byte, bool) {
+	n := b.ourU.name[l]
+	if n == "" {
+		return 0, false
+	}
+	t, ok := b.theirU.letter[n]
+	return t, ok
+}
+
+// theirChan is their letter for our channel mode l (ranks by prefix
+// character, a missing rank falls back to the next one down that they
+// have: owner and admin become op).
+func (b *inspBridge) theirChan(l byte) (byte, bool) {
+	if b.ours.kind[l] == kindRank {
+		chain := map[byte]string{'q': "~&@", 'a': "&@", 'o': "@", 'h': "%", 'v': "+"}[l]
+		if chain == "" {
+			chain = string(b.ours.prefix[l])
+		}
+		for i := 0; i < len(chain); i++ {
+			if t := b.theirs.rankByPrefix(chain[i]); t != 0 {
+				return t, true
+			}
+		}
+		return 0, false
+	}
+	n := b.ours.name[l]
+	if n == "" {
+		return 0, false
+	}
+	t, ok := b.theirs.letter[n]
+	return t, ok
+}
+
+// ourChan is our letter for their channel mode l.
+func (b *inspBridge) ourChan(l byte) (byte, bool) {
+	if b.theirs.kind[l] == kindRank {
+		r := b.ours.rankByPrefix(b.theirs.prefix[l])
+		return r, r != 0
+	}
+	n := b.theirs.name[l]
+	if n == "" {
+		return 0, false
+	}
+	o, ok := b.ours.letter[n]
+	return o, ok
+}
+
+func (b *inspBridge) ourUser(l byte) (byte, bool) {
+	n := b.theirU.name[l]
+	if n == "" {
+		return 0, false
+	}
+	o, ok := b.ourU.letter[n]
+	return o, ok
+}
+
+// takesArg says whether a mode of kind k takes an argument going on/off.
+func takesArg(k byte, add bool) bool {
+	return k == kindList || k == kindParam || k == kindRank || (k == kindSet && add)
+}
+
+// modeChange is one parsed mode letter.
+type modeChange struct {
+	add bool
+	l   byte
+	arg string
+}
+
+// parseModes reads "+nt-k key" with a table; letters it doesn't know are
+// kept without an argument (and dropped by the mapping).
+func parseModes(t modeTable, modes string, args []string) []modeChange {
+	var out []modeChange
+	add := true
+	for i := 0; i < len(modes); i++ {
+		switch modes[i] {
+		case '+':
+			add = true
+			continue
+		case '-':
+			add = false
+			continue
+		}
+		c := modeChange{add: add, l: modes[i]}
+		if takesArg(t.kind[c.l], add) {
+			if len(args) == 0 {
+				continue
+			}
+			c.arg, args = args[0], args[1:]
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+// writeModes is "+nt-k" and its arguments.
+func writeModes(cs []modeChange) (string, []string) {
+	var b strings.Builder
+	var args []string
+	sign := byte(0)
+	for _, c := range cs {
+		s := byte('-')
+		if c.add {
+			s = '+'
+		}
+		if s != sign {
+			b.WriteByte(s)
+			sign = s
+		}
+		b.WriteByte(c.l)
+		if c.arg != "" {
+			args = append(args, c.arg)
+		}
+	}
+	return b.String(), args
+}
+
+func (b *inspBridge) outChanMode(src, ch, modes string, args []string) []string {
+	ts, ok := b.chanTS[b.fold(ch)]
+	if !ok {
+		return nil
+	}
+	var cs []modeChange
+	for _, c := range parseModes(b.ours, modes, args) {
+		if t, ok := b.theirChan(c.l); ok {
+			c.l = t
+			cs = append(cs, c)
+		}
+	}
+	if len(cs) == 0 {
+		return nil
+	}
+	var out []string
+	for i := 0; i < len(cs); i += modesPerLine {
+		ms, as := writeModes(cs[i:min(i+modesPerLine, len(cs))])
+		out = append(out, line(nil, src, "FMODE", false, append([]string{ch, strconv.FormatInt(ts, 10), ms}, as...)...))
+	}
+	return out
+}
+
+func (b *inspBridge) outUserMode(src, uid, modes string) []string {
+	var cs []modeChange
+	var out []string
+	for _, c := range parseModes(b.ourU, modes, nil) {
+		if c.l == 's' {
+			continue
+		}
+		if c.l == 'o' && c.add {
+			out = append(out, line(nil, uid, "OPERTYPE", true, "IRC_Operator"))
+			continue
+		}
+		if t, ok := b.theirUser(c.l); ok {
+			c.l = t
+			cs = append(cs, c)
+		}
+	}
+	if len(cs) > 0 {
+		ms, _ := writeModes(cs)
+		out = append([]string{line(nil, src, "MODE", false, uid, ms)}, out...)
+	}
+	return out
+}
+
+// outSJoin: SJOIN ts #chan [+modes args] :items -> FJOIN (members and
+// modes) and LMODE (bans, exceptions, invite exceptions).
+func (b *inspBridge) outSJoin(src string, p []string) []string {
+	if len(p) < 3 {
+		return nil
+	}
+	ts, err := strconv.ParseInt(p[0], 10, 64)
+	if err != nil {
+		return nil
+	}
+	ch := p[1]
+	b.chanTS[b.fold(ch)] = ts
+	tss := p[0]
+	var modes []modeChange
+	if rest := p[2 : len(p)-1]; len(rest) > 0 && strings.HasPrefix(rest[0], "+") {
+		for _, c := range parseModes(b.ours, rest[0], rest[1:]) {
+			if t, ok := b.theirChan(c.l); ok && b.ours.kind[c.l] != kindRank && b.ours.kind[c.l] != kindList {
+				c.l = t
+				modes = append(modes, c)
+			}
+		}
+	}
+	var members []string
+	lists := map[byte][]string{}
+	for _, it := range strings.Fields(p[len(p)-1]) {
+		setAt, setBy := "0", src
+		if strings.HasPrefix(it, "<") {
+			end := strings.IndexByte(it, '>')
+			if end < 0 {
+				continue
+			}
+			at, by, _ := strings.Cut(it[1:end], ",")
+			setAt, setBy, it = at, by, it[end+1:]
+		}
+		if it == "" {
+			continue
+		}
+		if l := listFromSJoin(it[0]); l != 0 {
+			if t, ok := b.theirChan(l); ok {
+				lists[t] = append(lists[t], it[1:], setBy, setAt)
+			}
+			continue
+		}
+		var ranks []byte
+		for len(it) > 0 {
+			r := rankFromSJoin(it[0])
+			if r == 0 {
+				break
+			}
+			if t, ok := b.theirChan(r); ok && strings.IndexByte(string(ranks), t) < 0 {
+				ranks = append(ranks, t)
+			}
+			it = it[1:]
+		}
+		if it != "" {
+			members = append(members, string(ranks)+","+it)
+		}
+	}
+	var out []string
+	if len(members) > 0 || len(modes) > 0 || len(lists) == 0 {
+		ms, as := writeModes(modes)
+		if ms == "" {
+			ms = "+"
+		}
+		ps := append([]string{ch, tss, ms}, as...)
+		ps = append(ps, strings.Join(members, " "))
+		out = append(out, line(nil, sourceSID(src), "FJOIN", true, ps...))
+	}
+	keys := make([]byte, 0, len(lists))
+	for k := range lists {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	for _, k := range keys {
+		items := lists[k]
+		for i := 0; i < len(items); i += 3 * 10 {
+			part := items[i:min(i+30, len(items))]
+			out = append(out, line(nil, sourceSID(src), "LMODE", false, append([]string{ch, tss, string(k)}, part...)...))
+		}
+	}
+	return out
+}
+
+// outChange: our own users' host/ident/name changes go as FHOST/FIDENT/
+// FNAME from the user; someone else's (services, an oper) as ENCAP to
+// the user's server.
+func (b *inspBridge) outChange(src, cmd string, p []string, self, other string) []string {
+	var uid, value string
+	if strings.HasPrefix(cmd, "SET") {
+		if len(p) < 1 {
+			return nil
+		}
+		uid, value = src, p[len(p)-1]
+	} else {
+		if len(p) < 2 {
+			return nil
+		}
+		uid, value = p[0], p[len(p)-1]
+	}
+	if !b.behind[sourceSID(uid)] {
+		if self == "FNAME" {
+			return []string{line(nil, uid, "FNAME", true, value)}
+		}
+		return []string{line(nil, uid, self, false, value, "*")}
+	}
+	return []string{line(nil, src, "ENCAP", other == "CHGNAME", sourceSID(uid), other, uid, value)}
+}
+
+// banTypes are UnrealIRCd TKL letters and InspIRCd X-line types.
+var banTypes = map[byte]string{BanGline: "G", BanGZline: "Z", BanShun: "SHUN", BanException: "E", BanQline: "Q"}
+
+// outTKL: TKL +|- type user host setby expire setat [exempt] :reason
+func (b *inspBridge) outTKL(src string, p []string) []string {
+	if len(p) < 5 || len(p[1]) != 1 {
+		return nil
+	}
+	typ := banTypes[p[1][0]]
+	if typ == "" {
+		return nil
+	}
+	mask := p[2] + "@" + p[3]
+	switch p[1][0] {
+	case BanGZline, BanQline:
+		mask = p[3]
+	}
+	if p[0] == "-" {
+		return []string{line(nil, src, "DELLINE", false, typ, mask)}
+	}
+	if len(p) < 8 {
+		return nil
+	}
+	expires, _ := strconv.ParseInt(p[5], 10, 64)
+	setAt, _ := strconv.ParseInt(p[6], 10, 64)
+	dur := int64(0)
+	if expires > 0 {
+		dur = max(expires-setAt, 1)
+	}
+	return []string{line(nil, src, "ADDLINE", true, typ, mask, p[4], strconv.FormatInt(setAt, 10), strconv.FormatInt(dur, 10), p[len(p)-1])}
+}
+
+// outSASL: from the client's server to services it is
+//
+//	ENCAP <services> SASL <uid> * <mode> <data...>
+//
+// and from services to the client's server
+//
+//	ENCAP <its SID> SASL <agent> <uid> <mode> <data...>
+func (b *inspBridge) outSASL(src string, p []string) []string {
+	if len(p) < 4 {
+		return nil
+	}
+	target, uid, rest := p[0], p[1], p[2:]
+	home := sourceSID(uid)
+	if target == home || strings.EqualFold(target, b.names[home]) {
+		ps := append([]string{home, "SASL", src, uid}, rest...)
+		return []string{line(nil, src, "ENCAP", false, ps...)}
+	}
+	ps := append([]string{target, "SASL", uid, "*"}, rest...)
+	return []string{line(nil, src, "ENCAP", false, ps...)}
+}
+
+// ---- their lines in ----
+
+func (b *inspBridge) In(raw string) (run, reply []string) {
+	m, err := irc.Parse(raw)
+	if err != nil {
+		return nil, nil
+	}
+	if m.Source == "" {
+		m.Source = b.peer.SID
+	}
+	if strings.ContainsAny(m.Source, "\r\n\x00 ") {
+		return nil, nil // nobody: the server would refuse it anyway
+	}
+	// A held UID waits only for its own METADATA lines.
+	if b.pending != nil && !(m.Command == "METADATA" && len(m.Params) >= 2 && m.Params[0] == b.pending.p[0]) {
+		run = append(run, b.flushUID())
+	}
+	r, rep := b.in(m)
+	return sound(append(run, r...)), sound(rep)
+}
+
+func (b *inspBridge) flushUID() string {
+	u := b.pending
+	b.pending = nil
+	p := u.p
+	// UID uid ts nick realhost dhost realuser duser ip signon +modes [args] :real
+	uid, ts, nick, realhost, dhost, duser, ip := p[0], p[1], p[2], p[3], p[4], p[6], p[7]
+	b.nicks[uid] = nick
+	b.nickTS[uid], _ = strconv.ParseInt(ts, 10, 64)
+	var modes []byte
+	for _, c := range parseModes(b.theirU, p[9], p[10:len(p)-1]) {
+		if l, ok := b.ourUser(c.l); ok && c.add && l != 's' {
+			modes = append(modes, l)
+		}
+	}
+	cloak := "*"
+	if dhost != realhost {
+		if strings.IndexByte(string(modes), 'x') < 0 {
+			modes = append(modes, 'x')
+		}
+		cloak = dhost
+	}
+	acc := u.acc
+	if acc == "" {
+		acc = "0"
+	}
+	return line(nil, u.src, "UID", true, nick, "1", ts, duser, realhost, uid, acc, "+"+string(modes), "*", cloak, encodeIP(ip), p[len(p)-1])
+}
+
+func (b *inspBridge) in(m irc.Message) (run, reply []string) {
+	p := m.Params
+	src := m.Source
+	last := func() string {
+		if len(p) == 0 {
+			return ""
+		}
+		return p[len(p)-1]
+	}
+	one := func(l string) ([]string, []string) { return []string{l}, nil }
+	switch m.Command {
+	case "BURST", "SINFO", "SNONOTICE", "RSQUIT", "RESYNC", "SVSHOLD", "SVSOPER", "SVSCMODE", "MAP", "RCONNECT":
+		return nil, nil
+	case "SERVER": // :up SERVER name sid [key=value...] :desc
+		if len(p) < 3 {
+			return nil, nil
+		}
+		b.behind[p[1]], b.names[p[1]] = true, p[0]
+		return one(line(nil, src, "SID", true, p[0], "2", p[1], last()))
+	case "ENDBURST":
+		if src == b.peer.SID {
+			b.synced = true
+		}
+		return one(":" + src + " EOS")
+	case "UID":
+		if len(p) < 11 || !strings.HasPrefix(p[9], "+") {
+			return nil, nil
+		}
+		u := &inspUID{src: src, p: p}
+		if b.synced {
+			// After the burst a user must show up at once: its account
+			// (a SASL login) follows as its own line.
+			b.pending = u
+			return one(b.flushUID())
+		}
+		b.pending = u // in the burst: its METADATA lines come right after
+		return nil, nil
+	case "METADATA":
+		return b.inMetadata(src, p), nil
+	case "OPERTYPE":
+		return one(line(nil, src, "UMODE2", false, "+o"))
+	case "FJOIN":
+		return b.inFJoin(src, p), nil
+	case "IJOIN": // :uid IJOIN #chan membid [ts modes]
+		if len(p) < 2 {
+			return nil, nil
+		}
+		k := b.fold(p[0])
+		ts, ok := b.chanTS[k]
+		pre := ""
+		if len(p) > 2 {
+			if t, err := strconv.ParseInt(p[2], 10, 64); err == nil {
+				if !ok || t <= ts {
+					if len(p) > 3 {
+						pre = b.sjoinRanks(p[3]) // their ranks count: not a losing TS
+					}
+					ts, ok = t, true
+					b.chanTS[k] = t
+				}
+			}
+		}
+		if !ok {
+			ts = b.now()
+			b.chanTS[k] = ts
+		}
+		return one(line(nil, sourceSID(src), "SJOIN", true, strconv.FormatInt(ts, 10), p[0], pre+src))
+	case "LMODE":
+		return b.inLMode(src, p), nil
+	case "FMODE": // :src FMODE #chan ts modes args
+		if len(p) < 3 {
+			return nil, nil
+		}
+		ts, _ := strconv.ParseInt(p[1], 10, 64)
+		if cur, ok := b.chanTS[b.fold(p[0])]; ok && ts > cur {
+			return nil, nil // a channel that lost its TS fight
+		}
+		return b.inChanMode(src, p[0], p[2], p[3:]), nil
+	case "MODE": // :src MODE target modes [args]
+		if len(p) < 2 {
+			return nil, nil
+		}
+		if irc.IsChannel(p[0]) {
+			return b.inChanMode(src, p[0], p[1], p[2:]), nil
+		}
+		ms := b.inUserModes(p[1], p[2:])
+		if ms == "" {
+			return nil, nil
+		}
+		if src == p[0] {
+			return one(line(nil, src, "UMODE2", false, ms))
+		}
+		return one(line(nil, src, "SVS2MODE", false, p[0], ms))
+	case "NICK": // :uid NICK new ts
+		if len(p) < 1 {
+			return nil, nil
+		}
+		b.nicks[src] = p[0]
+		if len(p) > 1 {
+			b.nickTS[src], _ = strconv.ParseInt(p[1], 10, 64)
+		}
+		m.Source = src
+		return one(m.String())
+	case "SAVE": // SAVE uid ts: rename to the UID
+		if len(p) < 2 {
+			return nil, nil
+		}
+		if ts, ok := b.nickTS[p[0]]; ok && strconv.FormatInt(ts, 10) != p[1] {
+			return nil, nil // an old SAVE: the nick changed since
+		}
+		b.nicks[p[0]], b.nickTS[p[0]] = p[0], 100
+		return one(line(nil, sourceSID(src), "SVSNICK", false, p[0], p[0], "100"))
+	case "QUIT":
+		b.gone(src)
+		return one(line(nil, src, "QUIT", true, last()))
+	case "KILL":
+		if len(p) > 0 {
+			b.gone(p[0])
+		}
+		m.Source = src
+		return one(m.String())
+	case "KICK": // :src KICK #chan uid [membid] :reason
+		if len(p) < 2 {
+			return nil, nil
+		}
+		reason := ""
+		if len(p) > 2 {
+			reason = last()
+		}
+		return one(line(nil, src, "KICK", true, p[0], p[1], reason))
+	case "INVITE": // :src INVITE uid #chan ts [expiry]
+		if len(p) < 2 {
+			return nil, nil
+		}
+		return one(line(nil, src, "INVITE", false, p[0], p[1]))
+	case "FTOPIC", "SVSTOPIC":
+		return b.inTopic(src, m.Command, p), nil
+	case "AWAY": // :uid AWAY [ts :msg]
+		if len(p) < 2 {
+			return one(":" + src + " AWAY")
+		}
+		return one(line(nil, src, "AWAY", true, last()))
+	case "FHOST": // :uid FHOST dhost realhost
+		if len(p) < 1 || p[0] == "*" {
+			return nil, nil
+		}
+		return one(line(nil, src, "SETHOST", false, p[0]))
+	case "FIDENT":
+		if len(p) < 1 || p[0] == "*" {
+			return nil, nil
+		}
+		return one(line(nil, src, "SETIDENT", false, p[0]))
+	case "FNAME":
+		if len(p) < 1 {
+			return nil, nil
+		}
+		return one(line(nil, src, "SETNAME", true, last()))
+	case "CHGHOST", "CHGIDENT", "CHGNAME":
+		if len(p) < 2 {
+			return nil, nil
+		}
+		return one(line(nil, src, m.Command, m.Command == "CHGNAME", p[0], last()))
+	case "ENCAP": // :src ENCAP target cmd args...
+		if len(p) < 2 {
+			return nil, nil
+		}
+		cmd := strings.ToUpper(p[1])
+		run := b.inEncap(src, p[0], cmd, p[2:])
+		if len(run) > 0 && len(p) >= 4 && !b.behind[sourceSID(p[2])] {
+			// A change to one of our users: InspIRCd waits for the
+			// user's server to announce it (FHOST, FIDENT, FNAME).
+			switch cmd {
+			case "CHGHOST":
+				reply = []string{line(nil, p[2], "FHOST", false, p[len(p)-1], "*")}
+			case "CHGIDENT":
+				reply = []string{line(nil, p[2], "FIDENT", false, p[len(p)-1], "*")}
+			case "CHGNAME":
+				reply = []string{line(nil, p[2], "FNAME", true, p[len(p)-1])}
+			}
+		}
+		return run, reply
+	case "ADDLINE": // :src ADDLINE type mask setter settime duration :reason
+		return b.inAddLine(src, p), nil
+	case "DELLINE": // :src DELLINE type mask
+		if len(p) < 2 {
+			return nil, nil
+		}
+		t, user, host, ok := b.banOf(p[0], p[1])
+		if !ok {
+			return nil, nil
+		}
+		return one(line(nil, src, "TKL", false, "-", t, user, host, b.who(src)))
+	case "SQUIT": // :src SQUIT name|sid :reason
+		if len(p) < 1 {
+			return nil, nil
+		}
+		name := p[0]
+		if n, ok := b.names[name]; ok {
+			name = n
+		}
+		delete(b.behind, b.sidOf(name))
+		return one(line(nil, src, "SQUIT", true, name, last()))
+	case "PING": // :src PING target
+		if len(p) >= 1 && p[0] == b.me.SID {
+			return nil, []string{line(nil, b.me.SID, "PONG", false, src)}
+		}
+		return nil, nil
+	case "PONG": // :src PONG us
+		return one(line(nil, src, "PONG", true, b.names[src], b.me.Name))
+	case "NUM": // :sid NUM source target numeric params...
+		if len(p) < 3 || !b.behind[p[0]] || !isNumeric(p[2]) {
+			return nil, nil
+		}
+		return one(line(nil, p[0], p[2], true, append([]string{p[1]}, p[3:]...)...))
+	case "IDLE": // :uid IDLE target -> :target IDLE uid signon idle
+		if len(p) == 1 && !b.behind[sourceSID(p[0])] {
+			signon := b.nickTS[p[0]]
+			return nil, []string{line(nil, p[0], "IDLE", false, src, strconv.FormatInt(signon, 10), "0")}
+		}
+		return nil, nil
+	case "PRIVMSG", "NOTICE", "TAGMSG", "PART", "SVSJOIN", "SVSPART", "SVSNICK", "ERROR":
+		m.Source = src
+		return one(m.String())
+	}
+	return nil, nil
+}
+
+// who names a source for people: a nick or a server name.
+func (b *inspBridge) who(src string) string {
+	if n := b.nicks[src]; n != "" {
+		return n
+	}
+	if n := b.names[src]; n != "" {
+		return n
+	}
+	return src
+}
+
+// sjoinRanks turns their rank letters ("ov") into our SJOIN prefixes.
+func (b *inspBridge) sjoinRanks(letters string) string {
+	var out []byte
+	for i := 0; i < len(letters); i++ {
+		if r, ok := b.ourChan(letters[i]); ok && b.ours.kind[r] == kindRank {
+			if q := sjoinRank[r]; q != 0 {
+				out = append(out, q)
+			}
+		}
+	}
+	return string(out)
+}
+
+// inFJoin: FJOIN #chan ts +modes [args] :[ranks,]uid[:membid] ...
+func (b *inspBridge) inFJoin(src string, p []string) []string {
+	if len(p) < 4 {
+		return nil
+	}
+	ts, err := strconv.ParseInt(p[1], 10, 64)
+	if err != nil {
+		return nil
+	}
+	k := b.fold(p[0])
+	if cur, ok := b.chanTS[k]; !ok || ts < cur {
+		b.chanTS[k] = ts
+	}
+	var modes []modeChange
+	for _, c := range parseModes(b.theirs, p[2], p[3:len(p)-1]) {
+		if l, ok := b.ourChan(c.l); ok && c.add && b.ours.kind[l] != kindRank && b.ours.kind[l] != kindList {
+			c.l = l
+			modes = append(modes, c)
+		}
+	}
+	var items []string
+	for _, it := range strings.Fields(p[len(p)-1]) {
+		ranks, uid, ok := strings.Cut(it, ",")
+		if !ok {
+			ranks, uid = "", it
+		}
+		uid, _, _ = strings.Cut(uid, ":")
+		if uid == "" {
+			continue
+		}
+		items = append(items, b.sjoinRanks(ranks)+uid)
+	}
+	ps := []string{p[1], p[0]}
+	if len(modes) > 0 {
+		ms, as := writeModes(modes)
+		ps = append(append(ps, ms), as...)
+	}
+	ps = append(ps, strings.Join(items, " "))
+	return []string{line(nil, sourceSID(src), "SJOIN", true, ps...)}
+}
+
+// inLMode: LMODE #chan ts letter [mask setter setat]...
+func (b *inspBridge) inLMode(src string, p []string) []string {
+	if len(p) < 3 || len(p[2]) != 1 {
+		return nil
+	}
+	l, ok := b.ourChan(p[2][0])
+	if !ok {
+		return nil
+	}
+	q := sjoinList[l]
+	if q == 0 {
+		return nil
+	}
+	var items []string
+	for i := 3; i+2 < len(p); i += 3 {
+		items = append(items, fmt.Sprintf("<%s,%s>%c%s", p[i+2], p[i+1], q, p[i]))
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	var out []string
+	for i := 0; i < len(items); i += 10 {
+		out = append(out, line(nil, sourceSID(src), "SJOIN", true, p[1], p[0], strings.Join(items[i:min(i+10, len(items))], " ")))
+	}
+	return out
+}
+
+func (b *inspBridge) inChanMode(src, ch, modes string, args []string) []string {
+	var cs []modeChange
+	for _, c := range parseModes(b.theirs, modes, args) {
+		if l, ok := b.ourChan(c.l); ok {
+			c.l = l
+			cs = append(cs, c)
+		}
+	}
+	if len(cs) == 0 {
+		return nil
+	}
+	ms, as := writeModes(cs)
+	return []string{line(nil, src, "MODE", false, append([]string{ch, ms}, as...)...)}
+}
+
+func (b *inspBridge) inUserModes(modes string, args []string) string {
+	var cs []modeChange
+	for _, c := range parseModes(b.theirU, modes, args) {
+		if l, ok := b.ourUser(c.l); ok && l != 's' {
+			c.l, c.arg = l, ""
+			cs = append(cs, c)
+		}
+	}
+	ms, _ := writeModes(cs)
+	return ms
+}
+
+// inTopic: FTOPIC #chan chants topicts [setter] :text
+func (b *inspBridge) inTopic(src, cmd string, p []string) []string {
+	if len(p) < 4 {
+		return nil
+	}
+	if cmd == "SVSTOPIC" { // SVSTOPIC #chan topicts setter :text
+		return []string{line(nil, src, "TOPIC", true, p[0], p[2], p[1], p[len(p)-1])}
+	}
+	cts, _ := strconv.ParseInt(p[1], 10, 64)
+	if cur, ok := b.chanTS[b.fold(p[0])]; ok && cts > cur {
+		return nil
+	}
+	setter := b.nicks[src]
+	if len(p) > 4 {
+		setter = p[3]
+	} else if setter == "" {
+		setter = b.names[src]
+		if setter == "" {
+			setter = src
+		}
+	}
+	return []string{line(nil, src, "TOPIC", true, p[0], setter, p[2], p[len(p)-1])}
+}
+
+func (b *inspBridge) inMetadata(src string, p []string) []string {
+	if len(p) < 2 {
+		return nil
+	}
+	value := ""
+	if irc.IsChannel(p[0]) || p[0] == "@" {
+		return nil // channel and membership data: mlock, topiclock ...
+	}
+	if len(p) > 2 {
+		value = p[len(p)-1]
+	}
+	key := strings.ToLower(p[1])
+	if p[0] == "*" {
+		if key == "saslmechlist" && len(p) > 2 {
+			return []string{line(nil, src, "MD", true, "client", b.names[sourceSID(src)], "saslmechlist", value)}
+		}
+		return nil
+	}
+	if key != "accountname" {
+		return nil
+	}
+	uid := p[0]
+	if b.pending != nil && b.pending.p[0] == uid {
+		b.pending.acc = value
+		return nil
+	}
+	acc := value
+	if acc == "" {
+		acc = "0"
+	}
+	return []string{line(nil, src, "SVSLOGIN", false, sourceSID(uid), uid, acc)}
+}
+
+// inEncap runs the ENCAP'd commands we know.
+func (b *inspBridge) inEncap(src, target, cmd string, p []string) []string {
+	if b.theirTarget(target) {
+		return nil // for a server on their side
+	}
+	switch cmd {
+	case "CHGHOST", "CHGIDENT", "CHGNAME":
+		if len(p) < 2 {
+			return nil
+		}
+		return []string{line(nil, src, cmd, cmd == "CHGNAME", p[0], p[len(p)-1])}
+	case "SASL":
+		// client's server -> services: <uid> <agent> <mode> <data...>
+		// services -> client's server: <agent> <uid> <mode> <data...>
+		if len(p) < 4 {
+			return nil
+		}
+		if target == "*" {
+			target = b.saslAgent // "any services": the server that took SASL here
+			if target == "" {
+				target = b.me.SID
+			}
+		}
+		if len(p[1]) == 9 && !b.behind[sourceSID(p[1])] {
+			// services answering one of our clients: <agent> <uid> ...
+			return []string{line(nil, src, "SASL", false, append([]string{target, p[1]}, p[2:]...)...)}
+		}
+		return []string{line(nil, src, "SASL", false, append([]string{target, p[0]}, p[2:]...)...)}
+	case "KNOCK":
+		return nil
+	}
+	return nil
+}
+
+// theirTarget reports whether an ENCAP target (a SID or a server name
+// mask) names only servers on their side; "*" and anything on ours (our
+// services server too) is for us.
+func (b *inspBridge) theirTarget(target string) bool {
+	if target == "*" {
+		return false
+	}
+	if ValidSID(target) {
+		return b.behind[target]
+	}
+	if irc.Match(irc.Fold(target), irc.Fold(b.me.Name)) {
+		return false
+	}
+	for sid, n := range b.names {
+		if b.behind[sid] && strings.EqualFold(n, target) {
+			return true
+		}
+	}
+	return false
+}
+
+// banOf turns an X-line into TKL type, user and host.
+func (b *inspBridge) banOf(typ, mask string) (t, user, host string, ok bool) {
+	switch strings.ToUpper(typ) {
+	case "G", "E", "SHUN":
+		user, host, ok = strings.Cut(mask, "@")
+		if !ok {
+			user, host = "*", mask
+		}
+		if i := strings.IndexByte(user, '!'); i >= 0 {
+			user = user[i+1:]
+		}
+		t = map[string]string{"G": "G", "E": "E", "SHUN": "s"}[strings.ToUpper(typ)]
+		return t, user, host, true
+	case "Z":
+		return "Z", "*", mask, true
+	case "Q":
+		return "Q", "*", mask, true
+	}
+	return "", "", "", false
+}
+
+func (b *inspBridge) inAddLine(src string, p []string) []string {
+	if len(p) < 6 {
+		return nil
+	}
+	t, user, host, ok := b.banOf(p[0], p[1])
+	if !ok {
+		return nil
+	}
+	setAt, _ := strconv.ParseInt(p[3], 10, 64)
+	dur, _ := strconv.ParseInt(p[4], 10, 64)
+	expires := int64(0)
+	if dur > 0 {
+		expires = setAt + dur
+	}
+	ps := []string{"+", t, user, host, p[2], strconv.FormatInt(expires, 10), strconv.FormatInt(setAt, 10)}
+	if t == "E" {
+		ps = append(ps, "GZs")
+	}
+	return []string{line(nil, src, "TKL", true, append(ps, p[len(p)-1])...)}
+}
+
+// isNumeric is a three-digit reply code.
+func isNumeric(s string) bool {
+	return len(s) == 3 && s[0] >= '0' && s[0] <= '9' && s[1] >= '0' && s[1] <= '9' && s[2] >= '0' && s[2] <= '9'
+}

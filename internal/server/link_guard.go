@@ -84,6 +84,12 @@ func (s *Server) linkGate(l *linkConn, m irc.Message) bool {
 		if m.Command == "SVSNICK" && len(m.Params) >= 2 && m.Params[0] == m.Params[1] {
 			return true
 		}
+		// InspIRCd sends a user's account (a SASL login done before it
+		// connected) as METADATA after the UID: the same trust as the
+		// account in an UnrealIRCd UID line, so its own server may.
+		if m.Command == "SVSLOGIN" && l.bridge != nil && srv != nil && len(m.Params) >= 2 && uidServer(m.Params[1]) == srv.sid {
+			return true
+		}
 		s.ignoreOnce(l, "svs:"+m.Command, "refused %s from %s: only services may send it", m.Command, m.Source)
 		return false
 	}

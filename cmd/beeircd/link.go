@@ -43,7 +43,40 @@ func cmdLinkInfo(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	fmt.Fprint(stdout, linkInfoText(cfg.Server.Name, cfg.Server.SID, cfg.Link.Role, cfg.Link.Port, fp, cfg.Link.Servers))
+	if hash, err := link.FileCertHash(cfg.Link.Cert); err == nil {
+		svc, _, _ := cfg.ServicesServer()
+		fmt.Fprint(stdout, inspInfoText(cfg.Server.Name, cfg.Link.Port, hash, svc))
+	}
 	return 0
+}
+
+// inspInfoText is the block for an InspIRCd 4 server on the other end.
+// services is our services server's name ("" when services run elsewhere).
+func inspInfoText(name string, port int, hash, services string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, `  On an InspIRCd 4 server, add to inspircd.conf, then: /REHASH
+  (with the ssl_openssl, spanningtree and services modules loaded and an
+  <sslprofile name="Servers"> for links)
+
+    <link name="%s" ipaddr="%s" port="%d"
+          allowmask="*" sslprofile="Servers"
+          sendpass="PASSWORD" recvpass="PASSWORD"
+          fingerprint="%s">
+    <uline server="%s" silent="yes">
+`, name, name, port, hash, name)
+	if services != "" {
+		fmt.Fprintf(&b, `    <uline server="%s" silent="yes">
+    <module name="sasl">
+    <sasl target="%s">
+`, services, services)
+	}
+	b.WriteString(`
+  And here, a [[link.server]] block for it with protocol = "inspircd",
+  password = "PASSWORD" (the same one) and its fingerprint (see "Linking
+  an InspIRCd 4 server" in docs/ADMIN.md).
+
+`)
+	return b.String()
 }
 
 // linkInfoText is what `beeircd link-info` and the installer print: this

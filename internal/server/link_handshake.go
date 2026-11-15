@@ -136,6 +136,8 @@ type linkConn struct {
 	exceptsIn []store.SessionExcept // a BEESESS list coming in (START .. END), nil = none
 	warned    bool                  // NETINFO mismatch reported
 	codec     link.Codec            // reads and writes users and channels
+	bridge    link.Bridge           // another protocol than ours on the wire (InspIRCd)
+	fp        string                // the other side's certificate fingerprint
 	eos       bool                  // their burst is complete
 	netjoin   *netjoinBatch         // JOINs of their burst, for batch clients
 	preLines  int                   // lines before the handshake was done
@@ -327,7 +329,12 @@ func (s *Server) newLink(conn net.Conn, outgoing bool, b *config.LinkServer, fp 
 	if b != nil {
 		l.want = b.Name
 	}
-	l.hs = link.NewUnreal(s.linkLocal(), outgoing, b, fp, s.linkSIDs)
+	l.fp = fp
+	if outgoing && b.Insp() {
+		l.hs = link.NewInsp(s.linkLocal(), true, b, fp)
+	} else {
+		l.hs = link.NewUnreal(s.linkLocal(), outgoing, b, fp, s.linkSIDs)
+	}
 	s.links.conns[l] = true
 	s.wg.Add(1)
 	go l.writeLoop()
@@ -440,11 +447,30 @@ func (s *Server) handleLinkLine(l *linkConn, line string) {
 	if s.links.debug {
 		s.log.Printf("link %s <- %s", l.name(), debugLine(line))
 	}
+	if l.up && l.bridge != nil {
+		run, reply := l.bridge.In(line)
+		for _, r := range reply {
+			l.sendWire(r)
+		}
+		for _, r := range run {
+			if l.closed {
+				return
+			}
+			if m, err := irc.Parse(r); err == nil {
+				s.linkUpLine(l, m)
+			}
+		}
+		return
+	}
 	m, err := irc.Parse(line)
 	if err != nil {
 		return
 	}
 	if !l.up {
+		if l.preLines == 0 && !l.out && link.LooksInsp(m) {
+			// An InspIRCd server connecting: its handshake, not UnrealIRCd's.
+			l.hs = link.NewInsp(s.linkLocal(), false, nil, l.fp)
+		}
 		if l.preLines++; l.preLines > linkMaxPreLines {
 			s.dropLink(l, fmt.Sprintf("more than %d lines before the handshake was done", linkMaxPreLines))
 			return
@@ -462,6 +488,11 @@ func (s *Server) handleLinkLine(l *linkConn, line string) {
 		}
 		return
 	}
+	s.linkUpLine(l, m)
+}
+
+// linkUpLine runs one line (in our dialect) from a link that is up.
+func (s *Server) linkUpLine(l *linkConn, m irc.Message) {
 	if !l.eos {
 		s.netjoin = s.netjoinFor(l)
 	}
@@ -474,6 +505,9 @@ func (s *Server) handleLinkLine(l *linkConn, line string) {
 func (s *Server) linkUp(l *linkConn) {
 	p := l.hs.Peer()
 	l.peer = p
+	if b, ok := l.hs.(link.Bridger); ok {
+		l.bridge = b.Bridge()
+	}
 	if s.cfg.Link.Role == "leaf" {
 		for o := range s.links.conns {
 			if o != l && o.up {
@@ -957,6 +991,17 @@ func (s *Server) linkStatus() []control.Link {
 
 // send queues one line (on the loop).
 func (l *linkConn) send(line string) {
+	if l.bridge != nil && l.up {
+		for _, w := range l.bridge.Out(line) {
+			l.sendWire(w)
+		}
+		return
+	}
+	l.sendWire(line)
+}
+
+// sendWire queues a line as it goes on the wire.
+func (l *linkConn) sendWire(line string) {
 	if l.s.links.debug {
 		l.s.log.Printf("link %s -> %s", l.name(), debugLine(line))
 	}
