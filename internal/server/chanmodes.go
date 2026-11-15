@@ -18,7 +18,7 @@ import (
 // r for ChanServ, Z for the server itself.
 const (
 	halfopFlagModes = "imnt"
-	opFlagModes     = "psRMcCSTNKVQzD"
+	opFlagModes     = "psRMcCSTNKVQzDG"
 )
 
 // Channel mode letters for 004 and 005, without the rank letters.
@@ -26,7 +26,7 @@ const (
 	chanModesList  = "beI"
 	chanModesKey   = "k"
 	chanModesParam = "BEFHJLfl"
-	chanModesFlags = "CDKMNOPQRSTVZcimnprstz"
+	chanModesFlags = "CDGKMNOPQRSTVZcimnprstz"
 )
 
 // maxLinkHops is how many +L channels one JOIN may be sent through.
@@ -126,6 +126,9 @@ func (s *Server) channelText(c *Client, ch *state.Channel, verb, text string) (s
 	}
 	if ch.HasMode('S') {
 		text = stripColour(text)
+	}
+	if ch.HasMode('G') {
+		text = censor(text, s.cfg.Censor.Words, s.cfg.CensorReplace())
 	}
 	if p := ch.Param('B'); p != "" {
 		minLen, pct, _ := twoNumbers(p)
@@ -786,9 +789,10 @@ var chmodesHelp = []string{
 	" S strip colours   C no CTCPs         T no NOTICEs",
 	" N no nick changes K no KNOCK         V no INVITE",
 	" Q no KICK         z TLS only         D delay join (hidden until they talk)",
+	" G hide the words in [censor] of beeircd.conf (they become <censored>)",
 	"Set by others:",
 	" O opers only, P permanent (opers)    r registered (ChanServ)",
 	" Z everyone is on TLS (the server, with +z)",
-	"Halfops and up, and opers with flag g, skip c S C T E B and the message",
+	"Halfops and up, and opers with flag g, skip c S G C T E B and the message",
 	"parts of +f. Channels without +F use the server's flood profile.",
 }

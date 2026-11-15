@@ -64,6 +64,8 @@ type Config struct {
 	Map      MapConf  `toml:"map"`
 	// SpamFilter is [spamfilter] (spamfilter.go).
 	SpamFilter SpamFilter `toml:"spamfilter"`
+	// Censor is [censor], the words +G hides (censor.go).
+	Censor Censor `toml:"censor"`
 	// OperClasses are the [[operclass]] blocks (see Classes).
 	OperClasses []OperClass `toml:"operclass"`
 
@@ -588,6 +590,9 @@ func (c *Config) Check() error {
 	}
 	if p := c.Services.AdminPassword; p != "" && !strings.HasPrefix(p, "$argon2id$") {
 		return fmt.Errorf("[services] admin_password must be a hash from `beeircd mkpasswd`, not the password itself")
+	}
+	if err := c.checkCensor(); err != nil {
+		return err
 	}
 	if err := c.checkSpamFilter(); err != nil {
 		return err

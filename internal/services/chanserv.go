@@ -16,7 +16,7 @@ const (
 	maxAkicks         = 100
 	maxChannelsPerAcc = 20
 	maxEntryMsgs      = 5
-	mlockFlags        = "CDKMNQRSTVcimnpstz"
+	mlockFlags        = "CDGKMNQRSTVcimnpstz"
 )
 
 // chanServAliases are old or other names HELP doesn't show.
@@ -77,7 +77,7 @@ func chanServCommands() map[string]svcCmd {
 		"TOPIC": {"TOPIC #chan [SET|APPEND|PREPEND|LOCK|UNLOCK] [text]", "set or lock the topic",
 			"TOPIC #chan <text>           set the topic (SET may come first)\nTOPIC #chan SET              with no text: clear the topic\nTOPIC #chan APPEND <text>    add to the end\nTOPIC #chan PREPEND <text>   add to the front\nTOPIC #chan LOCK|UNLOCK      only those with TOPIC may change it (the old TOPICLOCK)\nNeeds TOPIC (AOP by default); LOCK and UNLOCK need SET.", csTopic},
 		"MODE": {"MODE #chan LOCK|SET|CLEAR ...", "channel modes and the mode lock",
-			"MODE #chan LOCK ADD <modes>    like +nt-s or +k secret; joins the lock\nMODE #chan LOCK DEL <modes>    take letters out of the lock\nMODE #chan LOCK SET <modes>    replace the whole lock\nMODE #chan LOCK LIST\nMODE #chan SET <modes>         set modes now (the lock still wins)\nMODE #chan CLEAR [what]        BANS, EXCEPTS, INVITES, OPS, HALFOPS, VOICES,\n                               PROTECTS, OWNERS, MODES or ALL (the default)\nThe lock can hold the on/off modes C D K M N Q R S T V c i m n p s t z,\nk and l, and f F L E B J with their value (see /helpop chmodes).\nNeeds MODE (QOP by default).", csModeCommand},
+			"MODE #chan LOCK ADD <modes>    like +nt-s or +k secret; joins the lock\nMODE #chan LOCK DEL <modes>    take letters out of the lock\nMODE #chan LOCK SET <modes>    replace the whole lock\nMODE #chan LOCK LIST\nMODE #chan SET <modes>         set modes now (the lock still wins)\nMODE #chan CLEAR [what]        BANS, EXCEPTS, INVITES, OPS, HALFOPS, VOICES,\n                               PROTECTS, OWNERS, MODES or ALL (the default)\nThe lock can hold the on/off modes C D G K M N Q R S T V c i m n p s t z,\nk and l, and f F L E B J with their value (see /helpop chmodes).\nNeeds MODE (QOP by default).", csModeCommand},
 		"CLEAR": {"CLEAR #chan <what>", "same as MODE CLEAR", "Kept for ConferenceRoom habits: /cs clear #chan bans is /cs mode #chan clear bans.", csClearOld},
 		"ENTRYMSG": {"ENTRYMSG #chan ADD|DEL|LIST|CLEAR ...", "notices people get when they join",
 			"ENTRYMSG #chan ADD <text>\nENTRYMSG #chan DEL <num>\nENTRYMSG #chan LIST\nENTRYMSG #chan CLEAR\nUp to 5 lines, sent to everyone who joins. Needs SET.", csEntryMsg},

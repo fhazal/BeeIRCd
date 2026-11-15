@@ -746,6 +746,22 @@ The rules themselves are in the services database (see [Spam filter](#spam-filte
 | --- | --- | --- |
 | `except` | none | Channels whose messages, notices, parts and topics are never filtered, like `["#help"]` |
 
+### [censor]
+
+Words that channel mode `+G` hides. Ops set `+G` on a channel; from then
+on these words in its messages become the `replace` text. Halfops and up,
+and opers with flag `g`, are not censored. `beeircd rehash` applies changes.
+
+```toml
+[censor]
+words = ["darn", "*spam*"]
+```
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `words` | none | Single words, matched whole and in any case; `*` stands for any letters (`*spam*` also hides `spammers`). Up to 500. Empty: `+G` changes nothing |
+| `replace` | `<censored>` | What each hidden word becomes |
+
 ### [mail]
 
 For NickServ `RESETPASS` and MemoServ mail notices. Off by default.

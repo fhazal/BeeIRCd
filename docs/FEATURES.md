@@ -33,7 +33,7 @@ How to set each one up is in [ADMIN.md](ADMIN.md); installing is in [INSTALL.md]
 | DNS blocklists (DroneBL, EFnetRBL, any list) | ✅ | reject, Z-line, AKILL or SHUN; IPv4 and IPv6 |
 | REHASH (`/rehash`, `beeircd rehash`, SIGHUP) | ✅ | applies what is safe live and lists what needs a restart |
 | WebSocket | 📋 | |
-| `+G` censor | 📋 | |
+| `+G` censor (`[censor]` words) | ✅ | |
 | Module system | 📋 | |
 
 ## Server linking
