@@ -60,6 +60,9 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 			o.msg.Trailing = !tagOnly
 			o.tags = tags
 			o.msgid = s.newMsgID()
+			if s.ml != nil {
+				o.multi = s.ml.partsFor(text)
+			}
 			if tagOnly {
 				o.needCap = "message-tags"
 			}
@@ -102,12 +105,12 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 				}
 				s.deliverTo(mem.User, o)
 			}
-			s.routeChannel(nil, u.UID, ch, status, verb, text, linkTags(tags, o.msgid))
+			s.mlRouteChannel(u.UID, ch, status, verb, text, tags, o.msgid)
 			if c.caps["echo-message"] {
 				c.deliver(o)
 			}
 			if status == "" {
-				s.recordHistory(ch, o)
+				s.mlRecordHistory(ch, o)
 				if verb == "PRIVMSG" {
 					s.noteTalk(ch, c.uid)              // Hive Panel Spotlight
 					s.svc.ChannelText(c.uid, ch, text) // BotServ kickers
@@ -135,7 +138,9 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 		}
 		if s.svc.IsBot(t) {
 			if verb == "PRIVMSG" {
-				s.svc.Message(c.uid, t, m.Params[1])
+				for _, line := range s.mlTexts(m.Params[1]) {
+					s.svc.Message(c.uid, t, line)
+				}
 			}
 			continue
 		}
@@ -149,7 +154,7 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 			continue
 		}
 		if !s.ours(t.UID) {
-			s.routeUser(u.UID, t, verb, text, linkTags(tags, o.msgid))
+			s.mlRouteUser(u.UID, t, verb, text, tags, o.msgid)
 		} else {
 			s.deliverTo(t, o)
 		}

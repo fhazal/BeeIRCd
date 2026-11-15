@@ -59,6 +59,7 @@ func init() {
 		"CHATHISTORY":  {1, false, (*Server).cmdChathistory},
 		"MARKREAD":     {0, false, (*Server).cmdMarkread},
 		"ISUPPORT":     {0, true, (*Server).cmdISupport},
+		"BATCH":        {1, false, (*Server).cmdBatch},
 		"AUTHENTICATE": {1, true, (*Server).cmdAuthenticate},
 		"NS":           {1, false, (*Server).cmdNS},
 		"NICKSERV":     {1, false, (*Server).cmdNS},
@@ -169,6 +170,12 @@ func (s *Server) runLine(c *Client, line string) {
 }
 
 func (s *Server) runCommand(c *Client, m irc.Message) {
+	if in := c.mlIn; in != nil && c.registered && m.Command != "BATCH" {
+		if id, ok := m.Tags["batch"]; ok && id == in.id {
+			s.multilineLine(c, m)
+			return
+		}
+	}
 	cmd, ok := commands[m.Command]
 	switch {
 	case !ok && !c.registered:

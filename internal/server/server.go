@@ -74,6 +74,7 @@ type Server struct {
 	hist histState // channel history (+H, CHATHISTORY)
 	// marks are the read markers of accounts (draft/read-marker).
 	marks map[markKey]time.Time
+	ml    *mlOut // the multiline message being delivered
 	// 7a connect throttle and unregistered caps; throttleSkip says which
 	// IPs skip them (LAN), replaceable in tests.
 	throttle     connThrottle

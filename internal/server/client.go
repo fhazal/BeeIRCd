@@ -50,6 +50,7 @@ type Client struct {
 	closed                bool
 	caps                  map[string]bool      // IRCv3 capabilities this client asked for
 	preAway               string               // AWAY sent before registration (draft/pre-away)
+	mlIn                  *mlIn                // the draft/multiline batch being sent
 	marks                 map[string]time.Time // read markers without an account (draft/read-marker)
 	capture               *[]string            // lines held back for labeled-response
 

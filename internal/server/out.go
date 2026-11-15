@@ -25,7 +25,8 @@ type outMsg struct {
 	account   string
 	bot       bool // from a +B user: IRCv3 bot tag
 	at        time.Time
-	needCap   string // only clients with this capability get it
+	needCap   string   // only clients with this capability get it
+	multi     []mlPart // the lines of a draft/multiline message
 
 	// Built lines by capability set (see capKey): a channel message is
 	// built once per kind of client, not once per member.
@@ -119,6 +120,14 @@ func (c *Client) build(o *outMsg) string {
 
 // deliver sends o to c when c may have it.
 func (c *Client) deliver(o *outMsg) {
+	if o.multi != nil {
+		if o.needCap == "" || c.caps[o.needCap] {
+			for _, l := range c.mlLines(o) {
+				c.queueLine(clip(l) + crlf)
+			}
+		}
+		return
+	}
 	if line, ok := c.format(o); ok {
 		if nj := c.s.netjoin; nj != nil && o.msg.Command == "JOIN" && c.caps["batch"] {
 			line = nj.tag(c, line) // a burst from a server link

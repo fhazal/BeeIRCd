@@ -25,7 +25,7 @@ var capabilities = []string{
 
 // draftCaps are the IRCv3 drafts offered while [server] ircv3_drafts is
 // on.
-var draftCaps = []string{readMarkerCap, preAwayCap, extISupportCap}
+var draftCaps = []string{readMarkerCap, preAwayCap, extISupportCap, multilineCap}
 
 // preAwayCap lets AWAY come before registration (IRCv3 draft/pre-away).
 const preAwayCap = "draft/pre-away"
@@ -43,6 +43,8 @@ func (s *Server) capValue(name string) string {
 	switch name {
 	case "sasl":
 		return "sasl=PLAIN,EXTERNAL"
+	case multilineCap:
+		return multilineCap + "=max-bytes=" + strconv.Itoa(mlMaxBytes) + ",max-lines=" + strconv.Itoa(mlMaxLines)
 	}
 	return name
 }

@@ -97,6 +97,24 @@ func historyLimit(ch *state.Channel) (history.Limit, bool) {
 	return history.Limit{Lines: lines, Age: age}, true
 }
 
+// mlRecordHistory is recordHistory, a line at a time for a multiline
+// message.
+func (s *Server) mlRecordHistory(ch *state.Channel, o *outMsg) {
+	if o.multi == nil {
+		s.recordHistory(ch, o)
+		return
+	}
+	for i, t := range s.mlTexts(o.msg.Param(1)) {
+		l := *o
+		l.multi, l.built = nil, 0
+		l.msg.Params = []string{o.msg.Params[0], t}
+		if i > 0 {
+			l.msgid = s.newMsgID()
+		}
+		s.recordHistory(ch, &l)
+	}
+}
+
 // recordHistory keeps a channel PRIVMSG or NOTICE for +H.
 func (s *Server) recordHistory(ch *state.Channel, o *outMsg) {
 	lim, ok := historyLimit(ch)
