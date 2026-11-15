@@ -83,7 +83,7 @@ can change things; every oper can look.
 `flood-rate`, `ping-interval`, `ping-timeout`, `cloak`, `resolve-hosts`,
 `nick-expire`, `chan-expire`, `identify-within`, `kill-quick`,
 `allow-kill-immed`, `ban-expiry`, `guest-prefix`, `log-channel`,
-`log-connects`, `flood-profile`.
+`log-connects`, `flood-profile`, `find-place-by-ip`, `members`.
 
 ### Opers
 
@@ -384,7 +384,10 @@ then open <http://127.0.0.1:8787>. `beeircd install` sets it up as the
   place yourself: Move or Place, click the map, name the place. Your
   places are `[[map.place]]` blocks in beeircd.conf (`server`, `name`,
   `lat`, `lon`), always win over what a server says about itself, and
-  can be written by hand. Nothing is looked up from an address and no
+  can be written by hand. A server you haven't placed also asks
+  ipinfo.io once where its own IP address is (city level, rounded to about
+  10 km) and uses that over its time zone; `[server] find_place_by_ip =
+  false` turns that off. No person's address is ever looked up, and no
   person is ever on the map.
   Lite turns off the glow and the moving signals (it switches on by itself
   when drawing is slow, and the signals stop with reduced motion). The
@@ -555,6 +558,7 @@ Unknown settings are refused, so a typo shows up in `beeircd check`.
 | `description` | network + " IRC" | Shown in WHOIS and LINKS |
 | `sid` | – | Server ID for linking: a digit and two capitals or digits, like `0EX` (restart) |
 | `resolve_hosts` | `true` | Look up hostnames of connecting IPs |
+| `find_place_by_ip` | `true` | Ask ipinfo.io once where this server's own IP address is, for the Hive Panel's network map (city level, rounded to about 10 km; the answer is kept next to the database). Only the server's own address is sent. Not asked when a `[[map.place]]` block places this server; `false`: its time zone places it |
 | `prefixes` | `"@+"` | `"@+"` or `"~&@%+"` (owner, admin, op, halfop, voice) (restart) |
 | `casemapping` | `"ascii"` | How nicks and channels ignore case: `"ascii"` (only A-Z: `Belon` = `belon`, but `[` and `{` differ, like UnrealIRCd 6 and InspIRCd) or `"rfc1459"` (also `[]\~` = `{}|^`). Every linked server needs the same; UnrealIRCd links need ascii. Changing it moves the stored nicks and channels to the new rule at the next start; going to rfc1459 is refused when two stored names would become one (restart) |
 
@@ -808,6 +812,26 @@ The Hive Panel (`beeircd web`, the `beeircd-web` service). The server reads only
 The panel's fonts (Inter, Space Grotesk, JetBrains Mono) are bundled
 under the SIL Open Font License; the licences are in
 `internal/hivepanel/ui/fonts`.
+
+### [map]
+
+Where the servers are on the Hive Panel's network map: one `[[map.place]]`
+block per server, written by the panel's Move and Place or by hand. A place
+here always wins over what a server says about itself.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `server` | – | The server's name, like `"eu.example.net"` |
+| `name` | – | What the map calls the place, like `"Frankfurt"` (up to 60 letters) |
+| `lat`, `lon` | – | Where it is: latitude -90 to 90, longitude -180 to 180 |
+
+```toml
+[[map.place]]
+server = "eu.example.net"
+name = "Frankfurt"
+lat = 50.11
+lon = 8.68
+```
 
 ### [link]
 
