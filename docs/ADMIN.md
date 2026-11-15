@@ -958,6 +958,36 @@ as op when it has no `customprefix` ranks for them). Load `banexception`
 and `inviteexception` there for `+e` and `+I`. Remote `/STATS`, `/MOTD`
 and AdminServ `SERVER` don't reach an InspIRCd server.
 
+**Anope as the services server.** Instead of the built-in services, a
+BeeIRCd network can use Anope 2.0 (tested with 2.0.20). Anope links to
+one BeeIRCd as an UnrealIRCd server. On that BeeIRCd, turn the built-in
+services off and add a link block for Anope (`beeircd rehash` picks up
+the block; changing `enabled` needs a restart):
+
+    [services]
+    enabled = false
+
+    [[link.server]]
+    name = "services.example.net"
+    password = "PASSWORD"
+    fingerprint = "base64 SHA-256 of Anope's certificate key (command above)"
+
+In Anope's services.conf, point the uplink at our link port and use the
+`unreal4` protocol module and a TLS certificate:
+
+    uplink { host = "bee.example.net"; port = 7000; ssl = yes; password = "PASSWORD" }
+    serverinfo { name = "services.example.net"; id = "00A" ... }
+    module { name = "unreal4" }
+    module { name = "m_ssl_openssl"; cert = "data/anope.crt"; key = "data/anope.key" }
+
+Keep `m_sasl` loaded for SASL logins. Every Anope service works for
+people on any BeeIRCd of the network: NickServ (REGISTER, IDENTIFY,
+RECOVER, AJOIN), ChanServ (access lists, mode locks, topics, AKICK),
+BotServ bots, MemoServ, HostServ vhosts, OperServ (AKILL becomes a
+network ban, MODE, SVSNICK, KILL) and SASL. Anope keeps its own
+database; to move an Anope network to the built-in services instead, see
+[Moving from Anope](#moving-from-anope).
+
 **Oper tools for links.** OperServ `STATS UPLINK` (each link, its lag
 and software), `JUPE <server> [reason]` / `JUPE LIST` / `JUPE DEL`
 (blocks a server name, splits it if linked), `NOOP SET|REVOKE <server>`

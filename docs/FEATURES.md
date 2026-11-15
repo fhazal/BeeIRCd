@@ -50,7 +50,7 @@ How to set each one up is in [ADMIN.md](ADMIN.md); installing is in [INSTALL.md]
 | IRCv3 netsplit and netjoin batches, optional hidden splits | ✅ | |
 | `beeircd link-info` prints what the other server needs | ✅ | the installer can set up a leaf for you |
 | Checks on every line a linked server sends | ✅ | a broken or hostile leaf can't speak for users or services |
-| Anope as the services server | 📋 | today: one BeeIRCd runs services for the network |
+| Anope as the services server | ✅ | Anope 2.0 (unreal4 protocol) links to a BeeIRCd with built-in services off; every service and SASL work network-wide |
 
 ## IRCv3
 
