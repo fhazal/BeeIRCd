@@ -471,6 +471,17 @@ func TestChanServClone(t *testing.T) {
 	// A second run adds nothing new.
 	bee.send("CS CLONE #bchat #dev ACCESS")
 	bee.expect(csLine("Bee", "Copied from #bchat to #dev: 0 access entries."))
+	// SET on both isn't enough for access or levels: that needs #dev's founder.
+	bee.send("CS LEVELS #bchat SET SET 5")
+	bee.expect(csLine("Bee", ""))
+	bee.send("CS LEVELS #dev SET SET 5")
+	bee.expect(csLine("Bee", ""))
+	ember.send("CS CLONE #bchat #dev ACCESS")
+	ember.expect(csLine("ember", "Only the founder of #dev can copy access entries or levels onto it."))
+	ember.send("CS CLONE #bchat #dev")
+	ember.expect(csLine("ember", "Only the founder of #dev can copy access entries or levels onto it."))
+	ember.send("CS CLONE #bchat #dev AKICK")
+	ember.expect(csLine("ember", "Copied from #bchat to #dev: 0 AKICKs."))
 	bee.send("CS CLONE #bchat #dev NOPE")
 	bee.expect(csLine("Bee", "Syntax: CLONE #from #to [ALL|ACCESS|AKICK|BADWORDS]"))
 }

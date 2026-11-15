@@ -12,7 +12,8 @@ import (
 // CLONE does: ALL (the default) brings the settings, mode lock and LEVELS
 // and adds the source's ACCESS, AKICK and BADWORDS entries the target
 // lacks; the other words copy just that list. Entries already on the
-// target stay as they are. Needs SET on both channels.
+// target stay as they are. Needs SET on both channels; ALL and ACCESS
+// need the founder of the target.
 func csClone(s *Services, c *Client, args []string) {
 	what := strings.ToUpper(argAt(args, 2))
 	if what == "" {
@@ -26,8 +27,14 @@ func csClone(s *Services, c *Client, args []string) {
 	if !ok {
 		return
 	}
-	dst, _, ok := s.csPriv(c, argAt(args, 1), "SET")
+	dst, dstLvl, ok := s.csPriv(c, argAt(args, 1), "SET")
 	if !ok {
+		return
+	}
+	// Levels and access entries could rank someone above the cloner: only
+	// the target's founder copies them (LEVELS SET is founder-only too).
+	if (what == "ALL" || what == "ACCESS") && dstLvl.level != store.LevelFounder {
+		s.cs(c, "Only the founder of %s can copy access entries or levels onto it. CLONE %s %s AKICK or BADWORDS needs SET.", dst.Name, src.Name, dst.Name)
 		return
 	}
 	if src.ID == dst.ID {

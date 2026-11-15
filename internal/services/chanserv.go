@@ -87,7 +87,7 @@ You may only give letters whose privileges you have. Needs ACCESS_CHANGE
   N NOKICK  B SAY  c fantasy commands  g greet
 Example: /cs flags #bchat ember +Otv`, csFlags},
 		"CLONE": {"CLONE #from #to [ALL|ACCESS|AKICK|BADWORDS]", "copy one channel's setup to another",
-			"CLONE #from #to          settings, mode lock, LEVELS, and the access, AKICK and\n                         bad word entries #to doesn't have yet\nCLONE #from #to ACCESS   only the access list (AKICK, BADWORDS likewise)\nEntries already on #to stay. #to keeps its founder, successor, description,\nURL and topic. Both channels must be registered; needs SET on both.\nExample: /cs clone #bchat #bchat-dev", csClone},
+			"CLONE #from #to          settings, mode lock, LEVELS, and the access, AKICK and\n                         bad word entries #to doesn't have yet\nCLONE #from #to ACCESS   only the access list (AKICK, BADWORDS likewise)\nEntries already on #to stay. #to keeps its founder, successor, description,\nURL and topic. Both channels must be registered; needs SET on both, and ALL and\nACCESS need the founder of #to.\nExample: /cs clone #bchat #bchat-dev", csClone},
 		"TOPIC": {"TOPIC #chan [SET|APPEND|PREPEND|LOCK|UNLOCK] [text]", "set or lock the topic",
 			"TOPIC #chan <text>           set the topic (SET may come first)\nTOPIC #chan SET              with no text: clear the topic\nTOPIC #chan APPEND <text>    add to the end\nTOPIC #chan PREPEND <text>   add to the front\nTOPIC #chan LOCK|UNLOCK      only those with TOPIC may change it (the old TOPICLOCK)\nNeeds TOPIC (AOP by default); LOCK and UNLOCK need SET.", csTopic},
 		"MODE": {"MODE #chan LOCK|SET|CLEAR ...", "channel modes and the mode lock",
