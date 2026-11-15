@@ -25,7 +25,7 @@ var capabilities = []string{
 
 // draftCaps are the IRCv3 drafts offered while [server] ircv3_drafts is
 // on.
-var draftCaps = []string{readMarkerCap, preAwayCap, extISupportCap, multilineCap, redactCap}
+var draftCaps = []string{readMarkerCap, preAwayCap, extISupportCap, multilineCap, redactCap, accountRegCap}
 
 // preAwayCap lets AWAY come before registration (IRCv3 draft/pre-away).
 const preAwayCap = "draft/pre-away"
@@ -35,7 +35,14 @@ func (s *Server) offered() []string {
 	if !s.cfg.Server.IRCv3Drafts {
 		return capabilities
 	}
-	return append(append([]string(nil), capabilities...), draftCaps...)
+	out := append([]string(nil), capabilities...)
+	for _, d := range draftCaps {
+		if d == accountRegCap && s.svc.Off() {
+			continue // services run on another server
+		}
+		out = append(out, d)
+	}
+	return out
 }
 
 // capValue is name as CAP LS 302 shows it, with its value.
@@ -43,6 +50,8 @@ func (s *Server) capValue(name string) string {
 	switch name {
 	case "sasl":
 		return "sasl=PLAIN,EXTERNAL"
+	case accountRegCap:
+		return s.accountRegValue()
 	case multilineCap:
 		return multilineCap + "=max-bytes=" + strconv.Itoa(mlMaxBytes) + ",max-lines=" + strconv.Itoa(mlMaxLines)
 	}
@@ -90,12 +99,15 @@ func (s *Server) draftsChanged(on bool) {
 			}
 		}
 		if c.caps["cap-notify"] {
-			names := draftCaps
-			if on {
-				names = make([]string, len(draftCaps))
-				for i, d := range draftCaps {
-					names[i] = s.capValue(d)
+			var names []string
+			for _, d := range draftCaps {
+				if d == accountRegCap && s.svc.Off() {
+					continue
 				}
+				if on {
+					d = s.capValue(d)
+				}
+				names = append(names, d)
 			}
 			s.capReply(c, sub, strings.Join(names, " "))
 		}
