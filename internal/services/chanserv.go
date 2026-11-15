@@ -890,14 +890,26 @@ func csUnban(s *Services, c *Client, args []string) {
 }
 
 // bansOn are the bans in live that hit who (or, with who nil, equal mask).
+// Mutes (~m:, timed or not) count: UNBAN and !unmute lift them too.
 func bansOn(live *state.Channel, who *state.User, mask string) []modeChange {
 	var lift []modeChange
 	for _, e := range live.Lists['b'] {
-		if who != nil && matchesMask(e.Mask, who) || who == nil && irc.EqualFold(e.Mask, irc.NormalizeMask(mask)) || irc.EqualFold(e.Mask, mask) {
+		bare := bareMute(e.Mask)
+		if who != nil && matchesMask(e.Mask, who) || who == nil && irc.EqualFold(bare, irc.NormalizeMask(mask)) || irc.EqualFold(e.Mask, mask) || irc.EqualFold(bare, mask) {
 			lift = append(lift, modeChange{false, 'b', e.Mask})
 		}
 	}
 	return lift
+}
+
+// bareMute is a ban mask without ~t:N: and ~m: in front.
+func bareMute(mask string) string {
+	if strings.HasPrefix(mask, "~t:") {
+		if _, inner, ok := strings.Cut(mask[3:], ":"); ok {
+			mask = inner
+		}
+	}
+	return strings.TrimPrefix(mask, "~m:")
 }
 
 // csUnbanEverywhere is UNBAN with no channel (Anope 2.0.20): lift the bans

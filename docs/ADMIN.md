@@ -128,7 +128,8 @@ The bot sits in the channel with op, can talk for it (`/bs say`), greets
 people (NickServ `SET GREET`), kicks for bad words, caps or floods (`/bs
 kick`, `/bs badwords`) and takes `!op`, `!kick` and the other fantasy
 commands (`!mute nick` sets a quiet ban, `~m:`, without a kick; `!mute
-+30m nick` lifts itself). ChanServ's modes and kicks in that channel then
++30m nick` lifts itself, `!unmute nick` lifts it; services bots can't be
+muted or banned). ChanServ's modes and kicks in that channel then
 come from the bot. `/bs help` lists everything.
 
 ## Help desk (HelpServ)

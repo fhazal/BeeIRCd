@@ -33,7 +33,7 @@ var fantasyCmds = map[string]fantasyCmd{
 	"MODE": {"MODE", true}, "MUTE": {"BAN", true}, "OP": {"OP", true}, "OWNER": {"OWNER", true},
 	"PROTECT": {"PROTECT", true}, "QOP": {"QOP", true}, "SEEN": {"SEEN", false},
 	"SOP": {"SOP", true}, "STATUS": {"STATUS", true}, "SUSPEND": {"SUSPEND", true},
-	"SYNC": {"SYNC", true}, "TOPIC": {"TOPIC", true}, "UNBAN": {"UNBAN", true},
+	"SYNC": {"SYNC", true}, "TOPIC": {"TOPIC", true}, "UNBAN": {"UNBAN", true}, "UNMUTE": {"UNBAN", true},
 	"UNSUSPEND": {"UNSUSPEND", true}, "UP": {"UP", true}, "VOICE": {"VOICE", true},
 	"VOP": {"VOP", true},
 }
