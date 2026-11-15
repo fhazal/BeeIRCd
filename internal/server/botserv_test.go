@@ -354,10 +354,11 @@ func TestBotServFantasy(t *testing.T) {
 	ann.expect(":Bzz!bot@bot.host MODE #hive +b ~m:")
 	bee.send("PRIVMSG #hive :!unmute *!*@127.0.0.1")
 	ann.expect(":Bzz!bot@bot.host MODE #hive -b ~m:")
+	bee.expect(":Bzz!bot@bot.host MODE #hive -b ~m:")
 	bee.send("CS BAN #hive Ann") // plain BAN still kicks
 	ann.expect(" KICK #hive Ann :")
 	bee.send("CS UNBAN #hive Ann")
-	bee.expect(" -b ")
+	bee.expect("1 ban removed in #hive.")
 	ann.send("JOIN #hive")
 	ann.expect(" 366 Ann #hive ")
 
