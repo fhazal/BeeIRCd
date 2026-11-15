@@ -809,7 +809,7 @@ The Hive Panel (`beeircd web`, the `beeircd-web` service). The server reads only
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `listen` | `127.0.0.1:8787` | Where the panel answers; a loopback address only |
+| `listen` | `127.0.0.1:8787` | Where the panel answers; a loopback address only. In Docker the installer writes `:8787` and compose.yaml publishes it on `127.0.0.1` of the Docker machine; leave it so, or the panel can't be reached |
 | `trusted_proxy` | none | Reverse proxies (IP addresses) whose forwarded address and https the panel believes |
 | `session_idle` | `30m` | Signed out after this long without a click (1m to 24h) |
 | `members` | `false` | Registered nicks may sign in with their NickServ password, to the YOU pages only (Home, Chat, My nick, My channels, Memos). Also the Members switch in Settings (saved here, applied at once) |

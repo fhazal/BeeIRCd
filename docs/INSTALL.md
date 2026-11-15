@@ -208,22 +208,24 @@ database and history file, and says if a restart would be safe. More in
 
 BeeRoom is the web chat that comes with BeeIRCd: people chat from the
 browser, and the Hive Panel's Chat tab shows it. It has its own signed
-installer; on the same server as BeeIRCd it needs only Node.js 22:
+installer and needs Linux with systemd and Node.js 22 (no systemd: use
+the Docker `chat` profile, see [Docker](#docker)):
 
 ```sh
 curl -fsSL https://beeircd.org/beeroom.sh | sudo sh
 ```
 
-It checks the download's signature, then asks a few questions: the web
-chat's address, the channels people join, and how your web server sends
-visitors to it (Apache, nginx or Caddy are set up for you; "none" or
-another machine work too). On the BeeIRCd machine it adds its WEBIRC
+It checks the download's signature, then asks two questions on the BeeIRCd
+machine: the web chat's address and the channels people join (on another
+machine also the IRC server, its WEBIRC password and the network name). It
+finds Apache, nginx or Caddy by itself and asks before writing their site
+or getting a certificate. On the BeeIRCd machine it adds its WEBIRC
 gateway by itself (`beeircd webirc add`), so BeeIRCd sees each person's
 real IP. Run the same line again later to update. With Docker it is one
-profile instead: see Docker below.
+profile instead: see [Docker](#docker).
 
-To show it in the Hive Panel's Chat tab, see ADMIN.md "Let members reach
-the Hive Panel".
+To show it in the Hive Panel's Chat tab, see
+[Let members reach the Hive Panel](ADMIN.md#let-members-reach-the-hive-panel).
 
 ## Uninstall
 
