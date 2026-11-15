@@ -178,8 +178,14 @@ func (s *Services) toService(c *Client, sv *service, text string) {
 		return
 	}
 	if sv.fallback != nil {
-		if _, ok := sv.command(name); name != "HELP" && (!ok || !s.canUse(c, sv, name)) {
+		switch _, ok := sv.command(name); {
+		case name == "HELP":
+		case !ok:
 			sv.fallback(c, strings.Join(fields, " "))
+			return
+		case !s.canUse(c, sv, name):
+			// A command c may not use: help on that word, never a question.
+			sv.fallback(c, fields[0])
 			return
 		}
 		if name == "HELP" && len(args) > 0 {

@@ -74,6 +74,14 @@ func TestHelpServTopics(t *testing.T) {
 		t.Fatal("a non-oper added a topic")
 	}
 	noticeTo(h, "Bee")
+	// Nor do helper or oper commands become questions for the helpers.
+	for _, line := range []string{"topic add rules hacked", "helper add Bee", "take 1", "close 1 done"} {
+		svc.Message(bee.UID, hs, line)
+	}
+	if len(svc.help.questions) != 0 {
+		t.Errorf("commands queued as questions: %d", len(svc.help.questions))
+	}
+	noticeTo(h, "Bee")
 
 	h.opers = map[string]string{bee.UID: "s"}
 	svc.Message(bee.UID, hs, "topic add rules No spam.")
