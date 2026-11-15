@@ -82,6 +82,10 @@ func TestHelpServTopics(t *testing.T) {
 		t.Errorf("commands queued as questions: %d", len(svc.help.questions))
 	}
 	noticeTo(h, "Bee")
+	svc.Message(bee.UID, hs, "on")
+	if got := noticeTo(h, "Bee"); !strings.Contains(got, "Only opers and people on the helper list") || bee.HasMode('h') {
+		t.Errorf("ON for a non-helper: %q, +h %v", got, bee.HasMode('h'))
+	}
 
 	h.opers = map[string]string{bee.UID: "s"}
 	svc.Message(bee.UID, hs, "topic add rules No spam.")

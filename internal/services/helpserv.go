@@ -616,7 +616,7 @@ func heOn(s *Services, c *Client, _ []string) {
 	case c.user.HasMode('h'):
 		s.he(c, "You are on duty already (user mode +h).")
 	case !s.mayHelp(c):
-		s.helpAnswer(c, c.cmdName)
+		s.he(c, "Only opers and people on the helper list go on duty. To ask something, just type your question: /msg HelpServ how do I ...?")
 	default:
 		s.helpSetMode(c, true)
 		s.he(c, "You are on duty: HelpServ sends you people's questions. /msg HelpServ off when you go.")
@@ -628,7 +628,7 @@ func heOff(s *Services, c *Client, _ []string) {
 		if s.mayHelp(c) {
 			s.he(c, "You are off duty already.")
 		} else {
-			s.helpAnswer(c, c.cmdName)
+			s.he(c, "Only opers and people on the helper list go on and off duty.")
 		}
 		return
 	}
