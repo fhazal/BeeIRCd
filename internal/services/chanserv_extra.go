@@ -709,12 +709,39 @@ func (s *Services) persistJoin(reg *store.Channel) {
 	if live := s.net.Channel(reg.Name); live != nil && live.Member(s.chanServ.user) != nil {
 		return
 	}
-	ev := &state.Join{UID: s.chanServ.user.UID, Channel: reg.Name, TS: time.Now().Unix()}
+	ev := &state.Join{UID: s.chanServ.user.UID, Channel: reg.Name, TS: regTS(reg)}
 	if s.emit(ev) != nil {
 		return
 	}
 	if live := s.net.Channel(reg.Name); live != nil && ev.Created {
 		s.restoreChannel(reg, live)
+	}
+}
+
+// regTS is the creation time services open reg with: when it was
+// registered (as Anope does), so a services restart doesn't make the
+// channel younger than the copies on other servers.
+func regTS(reg *store.Channel) int64 {
+	now := time.Now().Unix()
+	if ts := reg.Registered.Unix(); ts > 0 && ts < now {
+		return ts
+	}
+	return now
+}
+
+// csLostTS runs after ch lost its modes and ranks to an older copy from
+// another server: everyone gets the ranks they earn again, and the mode
+// lock goes back.
+func (s *Services) csLostTS(ch *state.Channel) {
+	reg, err := s.store.ChannelByName(ch.Name)
+	if err != nil || reg == nil || reg.Suspended(time.Now()) {
+		return
+	}
+	s.csMode(ch, mlockChanges(reg, ch))
+	for _, m := range ch.SortedMembers() {
+		if !m.User.Service {
+			s.csAutoModes(reg, ch, m.User)
+		}
 	}
 }
 
