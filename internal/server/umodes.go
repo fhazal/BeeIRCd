@@ -232,7 +232,7 @@ func (s *Server) cmdChgname(c *Client, m irc.Message) {
 		return
 	}
 	if len(m.Params[1]) > maxRealname {
-		s.notice(c, "*** ChgName Error: Requested realname too long -- rejected.")
+		s.stdReply(c, "FAIL", "CHGNAME", "INVALID_REALNAME", "Real names may be at most 50 characters long", "*** ChgName Error: Requested realname too long -- rejected.")
 		return
 	}
 	t := s.opTarget(c, m.Params[0])
@@ -282,11 +282,11 @@ func (s *Server) cmdSethost(c *Client, m irc.Message) {
 	}
 	host := m.Params[0]
 	if !validVhost(host) {
-		s.notice(c, "*** /SetHost Error: A hostname may only contain a-z, A-Z, 0-9, '-' & '.' (at most 63).")
+		s.stdReply(c, "FAIL", "SETHOST", "INVALID_HOST", "A host may only contain a-z, A-Z, 0-9, '-' and '.' (at most 63)", "*** /SetHost Error: A hostname may only contain a-z, A-Z, 0-9, '-' & '.' (at most 63).", host)
 		return
 	}
 	if host == c.user.Host {
-		s.notice(c, "*** /SetHost Error: requested host is same as current host.")
+		s.stdReply(c, "FAIL", "SETHOST", "HOST_UNCHANGED", "That is already your host", "*** /SetHost Error: requested host is same as current host.", host)
 		return
 	}
 	s.changeHost(c, host, "")
@@ -300,7 +300,7 @@ func (s *Server) cmdSetident(c *Client, m irc.Message) {
 	}
 	id := m.Params[0]
 	if !validSetIdent(id) {
-		s.notice(c, "*** /SETIDENT Error: A username may contain a-z, A-Z, 0-9, '-', '_', '~' & '.' (at most 10).")
+		s.stdReply(c, "FAIL", "SETIDENT", "INVALID_IDENT", "A username may only contain a-z, A-Z, 0-9, '-', '_', '~' and '.' (at most 10)", "*** /SETIDENT Error: A username may contain a-z, A-Z, 0-9, '-', '_', '~' & '.' (at most 10).", id)
 		return
 	}
 	s.changeHost(c, "", id)
@@ -314,7 +314,7 @@ func (s *Server) cmdChghost(c *Client, m irc.Message) {
 	}
 	host := m.Params[1]
 	if !validVhost(host) {
-		s.notice(c, "*** /ChgHost Error: A hostname may contain a-z, A-Z, 0-9, '-' & '.' - Please only use them")
+		s.stdReply(c, "FAIL", "CHGHOST", "INVALID_HOST", "A host may only contain a-z, A-Z, 0-9, '-' and '.' (at most 63)", "*** /ChgHost Error: A hostname may contain a-z, A-Z, 0-9, '-' & '.' - Please only use them", host)
 		return
 	}
 	t := s.opTarget(c, m.Params[0])
@@ -331,7 +331,7 @@ func (s *Server) cmdChgident(c *Client, m irc.Message) {
 	}
 	id := m.Params[1]
 	if !validSetIdent(id) {
-		s.notice(c, "*** /ChgIdent Error: A ident may contain a-z, A-Z, 0-9, '-', '_', '~' & '.' - Please only use them")
+		s.stdReply(c, "FAIL", "CHGIDENT", "INVALID_IDENT", "A username may only contain a-z, A-Z, 0-9, '-', '_', '~' and '.' (at most 10)", "*** /ChgIdent Error: A ident may contain a-z, A-Z, 0-9, '-', '_', '~' & '.' - Please only use them", id)
 		return
 	}
 	t := s.opTarget(c, m.Params[0])
@@ -420,7 +420,7 @@ func (s *Server) cmdSanick(c *Client, m irc.Message) {
 	}
 	nick := m.Params[1]
 	if !irc.ValidNick(nick, s.cfg.Limits.NickLen) || services.IsReserved(nick) {
-		s.notice(c, "*** Invalid nickname: '"+nick+"'")
+		s.stdReply(c, "FAIL", "SANICK", "INVALID_NICK", "Invalid nickname: '"+nick+"'", "", nick)
 		return
 	}
 	if !irc.EqualFold(nick, t.user.Nick) && s.net.NickInUse(nick) {
@@ -473,7 +473,8 @@ func (s *Server) cmdSatopic(c *Client, m irc.Message) {
 	}
 	topic := irc.Truncate(m.Params[1], s.cfg.Limits.TopicLen)
 	if topic == ch.Topic {
-		s.notice(c, "The topic on "+ch.Name+" is already what you are trying to change it to.")
+		s.stdReply(c, "WARN", "SATOPIC", "TOPIC_UNCHANGED", "The topic on "+ch.Name+" is already what you are trying to change it to.",
+			"The topic on "+ch.Name+" is already what you are trying to change it to.", ch.Name)
 		return
 	}
 	s.emit(&state.Topic{Source: c.uid, Channel: ch.Name, Text: topic, By: c.user.Nick, At: time.Now()})

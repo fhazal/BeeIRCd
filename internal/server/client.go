@@ -457,5 +457,20 @@ func (s *Server) notice(c *Client, text string) {
 	c.send(irc.Message{Source: s.cfg.Server.Name, Command: "NOTICE", Params: []string{c.target(), text}, Trailing: true}.String())
 }
 
+// stdReply sends an IRCv3 standard reply (kind FAIL, WARN or NOTE) to a
+// client that asked for standard-replies, and a server notice to everyone
+// else: legacy, or "*** "+text when legacy is empty.
+func (s *Server) stdReply(c *Client, kind, cmd, code, text, legacy string, context ...string) {
+	if c.caps["standard-replies"] {
+		p := append(append([]string{cmd, code}, context...), text)
+		c.send(irc.Message{Source: s.cfg.Server.Name, Command: kind, Params: p, Trailing: true}.String())
+		return
+	}
+	if legacy == "" {
+		legacy = "*** " + text
+	}
+	s.notice(c, legacy)
+}
+
 // clientOf returns the connection of a local user.
 func (s *Server) clientOf(u *state.User) *Client { return s.clients[u.UID] }

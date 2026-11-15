@@ -20,7 +20,7 @@ var capabilities = []string{
 	"account-notify", "account-tag", "away-notify", "batch", "cap-notify",
 	"chghost", "draft/chathistory", "draft/no-implicit-names", "echo-message", "extended-join", "extended-monitor", "invite-notify",
 	"labeled-response", "message-tags", "multi-prefix", "sasl", "server-time",
-	"setname", "userhost-in-names",
+	"setname", "standard-replies", "userhost-in-names",
 }
 
 // capLS is the CAP LS list; CAP 302 clients also see values. sts is the

@@ -72,7 +72,7 @@ How to set each one up is in [ADMIN.md](ADMIN.md); installing is in [INSTALL.md]
 | WebIRC (`[[webirc]]` gateways) | ✅ |
 | draft/chathistory | ✅ |
 | UTF8ONLY (`[limits] utf8_only`, off by default) | ✅ |
-| standard-replies (all commands) | 📋 |
+| standard-replies: FAIL, WARN and NOTE with codes for BeeIRCd's own errors (spam filter, K-lines, SETHOST/CHGHOST, OPER, SANICK, SATOPIC, nick collisions); clients without it keep the server notices | ✅ |
 | SASL SCRAM, draft/account-registration, draft/multiline, draft/read-marker, draft/message-redaction | 📋 |
 | STARTTLS | not supported (deprecated) |
 

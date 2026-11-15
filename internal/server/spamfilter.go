@@ -147,7 +147,7 @@ func (s *Server) spamDo(c *Client, r *spamfilter.Rule, t byte, to, text string) 
 		if t == spamfilter.Quit || t == spamfilter.Part {
 			return spamStop // the quit or part still happens
 		}
-		s.notice(c, "*** Your message to "+orStr(to, "the server")+" was blocked: "+reason)
+		s.stdReply(c, "FAIL", spamCommand(t), "SPAMFILTER_BLOCKED", "Your message to "+orStr(to, "the server")+" was blocked: "+reason, "")
 		return spamStop
 	case spamfilter.Kill:
 		s.quit(c, "Spam filter: "+reason)
@@ -204,4 +204,19 @@ func (s *Server) spamUser(c *Client, nick string) bool {
 // actionName is a rule's action for oper notices: "AKILL 1d", "Block".
 func actionName(f spamfilter.Filter) string {
 	return services.ActionWords(f)
+}
+
+// spamCommand is the command a spam filter target letter comes from.
+func spamCommand(t byte) string {
+	switch t {
+	case spamfilter.Channel, spamfilter.Private:
+		return "PRIVMSG"
+	case spamfilter.ChannelNotice, spamfilter.PrivateNotice:
+		return "NOTICE"
+	case spamfilter.Topic:
+		return "TOPIC"
+	case spamfilter.Away:
+		return "AWAY"
+	}
+	return "*"
 }

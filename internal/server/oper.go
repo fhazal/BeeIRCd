@@ -217,7 +217,7 @@ func (s *Server) cmdOper(c *Client, m irc.Message) {
 			}
 			as = " (" + as + ")"
 		}
-		s.notice(c, "*** You are already an IRC operator"+as+". To oper again, de-oper first: /mode "+u.Nick+" -o")
+		s.stdReply(c, "FAIL", "OPER", "ALREADY_OPER", "You are already an IRC operator"+as+". To oper again, de-oper first: /mode "+u.Nick+" -o", "")
 		return
 	}
 	if s.links.noop {
@@ -275,7 +275,7 @@ func (s *Server) cmdOper(c *Client, m irc.Message) {
 		case services.PwLocked:
 			s.reply(c, irc.ErrPasswdMismatch, "Too many wrong passwords. Try again in "+services.RoundUp(s.lockedFor(operLockKey(a.ID), c.ip)))
 		case services.PwBusy:
-			s.notice(c, "*** Still checking your last password. Try again in a moment.")
+			s.stdReply(c, "FAIL", "OPER", "TRY_AGAIN", "Still checking your last password. Try again in a moment.", "")
 		default:
 			s.reply(c, irc.ErrPasswdMismatch, "Password incorrect")
 			s.snotice("Failed /oper as %s from %s (%s@%s): wrong password", o.Account, u.Nick, u.Ident, u.RealHost)
@@ -324,13 +324,13 @@ func (s *Server) firstOperPassword(c *Client, a *store.Account, o *store.Oper, p
 		return
 	}
 	if len(pw) < minOperPassword {
-		s.notice(c, fmt.Sprintf("*** Pick an oper password of at least %d characters, different from your NickServ one.", minOperPassword))
+		s.stdReply(c, "FAIL", "OPER", "WEAK_PASSWORD", fmt.Sprintf("Pick an oper password of at least %d characters, different from your NickServ one.", minOperPassword), "")
 		return
 	}
 	s.hashPassword(c, pw, func(hash string) {
 		if err := s.saveAdminPassword(hash); err != nil {
 			s.log.Printf("saving the admin oper password: %v", err)
-			s.notice(c, "*** Couldn't save the oper password to beeircd.conf: "+err.Error())
+			s.stdReply(c, "FAIL", "OPER", "INTERNAL_ERROR", "Couldn't save the oper password to beeircd.conf: "+err.Error(), "")
 			return
 		}
 		o.PassHash = hash
@@ -417,13 +417,13 @@ func (s *Server) checkSecret(c *Client, key int64, hash, pw string, result func(
 // hashPassword hashes pw off the loop for c and calls done with the hash.
 func (s *Server) hashPassword(c *Client, pw string, done func(hash string)) {
 	if c.pwBusy {
-		s.notice(c, "*** Still busy with your last password. Try again in a moment.")
+		s.stdReply(c, "FAIL", "*", "TRY_AGAIN", "Still busy with your last password. Try again in a moment.", "")
 		return
 	}
 	s.svc.HashSecret(&c.pwBusy, func() bool { return c.closed }, pw, func(h string, err error) {
 		if err != nil {
 			s.log.Printf("hashing a password: %v", err)
-			s.notice(c, "*** Something went wrong on the server. Please try again in a moment.")
+			s.stdReply(c, "FAIL", "*", "INTERNAL_ERROR", "Something went wrong on the server. Please try again in a moment.", "")
 			return
 		}
 		done(h)

@@ -359,7 +359,7 @@ func collisionWinner(rename bool, ex, in collider) (exWins, inWins bool) {
 // renameToUID gives u its UID as nick (collision loser, L5).
 func (s *Server) renameToUID(u *state.User) {
 	if c := s.clientOf(u); c != nil {
-		s.notice(c, "*** Your nick "+u.Nick+" collided with someone on another server who had it first; you are now "+u.UID)
+		s.stdReply(c, "NOTE", "*", "NICK_COLLISION", "Your nick "+u.Nick+" collided with someone on another server who had it first; you are now "+u.UID, "", u.Nick)
 	}
 	s.emit(&state.NickChange{UID: u.UID, Nick: u.UID, TS: time.Now().Unix()})
 }

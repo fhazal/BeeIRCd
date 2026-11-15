@@ -374,7 +374,7 @@ func (s *Server) cmdKline(c *Client, m irc.Message) {
 	if len(args) > 0 && strings.HasPrefix(args[0], "+") {
 		d, err := parseLife(args[0][1:])
 		if err != nil {
-			s.notice(c, "*** "+args[0]+" isn't a time. Use +30m, +12h, +7d, or +0 for until removed.")
+			s.stdReply(c, "FAIL", "KLINE", "INVALID_DURATION", args[0]+" isn't a time. Use +30m, +12h, +7d, or +0 for until removed.", "", args[0])
 			return
 		}
 		life, args = d, args[1:]
@@ -393,13 +393,13 @@ func (s *Server) cmdKline(c *Client, m irc.Message) {
 		mask = "*@" + u.RealHost
 	}
 	if user, host, _ := strings.Cut(mask, "@"); user == "" || host == "" || strings.Trim(host, "*?.") == "" {
-		s.notice(c, "*** That mask would ban everyone; give a user@host with a real host part.")
+		s.stdReply(c, "FAIL", "KLINE", "MASK_TOO_WIDE", "That mask would ban everyone; give a user@host with a real host part.", "", mask)
 		return
 	}
 	reason := orStr(strings.Join(args[1:], " "), "No reason")
 	if err := s.svc.AddKline(mask, reason, c.user.Nick, life); err != nil {
 		s.log.Printf("services database: %v", err)
-		s.notice(c, "*** The K-line couldn't be saved.")
+		s.stdReply(c, "FAIL", "KLINE", "INTERNAL_ERROR", "The K-line couldn't be saved.", "")
 		return
 	}
 	hit := 0
@@ -435,9 +435,9 @@ func (s *Server) cmdUnkline(c *Client, m irc.Message) {
 	switch {
 	case err != nil:
 		s.log.Printf("services database: %v", err)
-		s.notice(c, "*** The K-line couldn't be removed.")
+		s.stdReply(c, "FAIL", "UNKLINE", "INTERNAL_ERROR", "The K-line couldn't be removed.", "")
 	case !gone:
-		s.notice(c, "*** There is no K-line on "+m.Params[0]+".")
+		s.stdReply(c, "FAIL", "UNKLINE", "NO_SUCH_KLINE", "There is no K-line on "+m.Params[0]+".", "", m.Params[0])
 	default:
 		s.snotice("%s removed the K-line on %s", c.user.Nick, strings.ToLower(m.Params[0]))
 		s.notice(c, "*** K-line on "+strings.ToLower(m.Params[0])+" removed.")

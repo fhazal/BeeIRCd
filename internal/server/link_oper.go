@@ -70,7 +70,7 @@ func (s *Server) operRelayTo(c *Client, name, pw string) {
 		return
 	}
 	if c.operRelay != nil && time.Since(c.operRelay.at) < operRelayWait {
-		s.notice(c, "*** Still checking your last /oper. Try again in a moment.")
+		s.stdReply(c, "FAIL", "OPER", "TRY_AGAIN", "Still checking your last /oper. Try again in a moment.", "")
 		return
 	}
 	c.operRelay = &operRelay{via: r.via, name: name, at: time.Now()}
@@ -303,7 +303,7 @@ func (s *Server) operRelayLost(l *linkConn) {
 		if c.operRelay != nil && c.operRelay.via == l {
 			c.operRelay = nil
 			if c.user != nil {
-				s.notice(c, "*** Your /oper went unanswered: the link to the services server dropped. Try again when it is back.")
+				s.stdReply(c, "FAIL", "OPER", "TEMPORARILY_UNAVAILABLE", "Your /oper went unanswered: the link to the services server dropped. Try again when it is back.", "")
 			}
 		}
 	}
