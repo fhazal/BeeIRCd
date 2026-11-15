@@ -372,6 +372,8 @@ func (s *Server) linkLive(l *linkConn, m irc.Message, item any) bool {
 		s.remoteBan(l, m, it)
 	case *link.SpamFilter:
 		s.remoteSpam(l, m, it)
+	case *link.Bee:
+		s.remoteBee(l, it)
 	default:
 		return false
 	}

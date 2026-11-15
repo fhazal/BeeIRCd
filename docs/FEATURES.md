@@ -73,7 +73,8 @@ How to set each one up is in [ADMIN.md](ADMIN.md); installing is in [INSTALL.md]
 | draft/chathistory | ✅ |
 | UTF8ONLY (`[limits] utf8_only`, off by default) | ✅ |
 | standard-replies: FAIL, WARN and NOTE with codes for BeeIRCd's own errors (spam filter, K-lines, SETHOST/CHGHOST, OPER, SANICK, SATOPIC, nick collisions); clients without it keep the server notices | ✅ |
-| SASL SCRAM, draft/account-registration, draft/multiline, draft/read-marker, draft/message-redaction | 📋 |
+| IRCv3 drafts behind `[server] ircv3_drafts` (off by default): draft/read-marker (read position shared by all your devices, across linked servers) | ✅ |
+| draft/account-registration, draft/multiline, draft/message-redaction, draft/pre-away, draft/extended-isupport | 📋 |
 | STARTTLS | not supported (deprecated) |
 
 ## Services

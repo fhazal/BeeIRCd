@@ -48,8 +48,9 @@ type Client struct {
 	webircBusy            bool         // a hashed WEBIRC password is being checked
 	tempShun              bool         // a spam filter shunned this connection (until it reconnects)
 	closed                bool
-	caps                  map[string]bool // IRCv3 capabilities this client asked for
-	capture               *[]string       // lines held back for labeled-response
+	caps                  map[string]bool      // IRCv3 capabilities this client asked for
+	marks                 map[string]time.Time // read markers without an account (draft/read-marker)
+	capture               *[]string            // lines held back for labeled-response
 
 	// SASL and oper state (services keep their own record per user).
 	pwBusy      bool     // a SASL or /oper password check is running

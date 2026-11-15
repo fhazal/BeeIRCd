@@ -88,7 +88,7 @@ can change things; every oper can look.
 `nick-expire`, `chan-expire`, `identify-within`, `kill-quick`,
 `allow-kill-immed`, `ban-expiry`, `guest-prefix`, `log-channel`,
 `log-connects`, `flood-profile`, `find-place-by-ip`, `members`,
-`registration`, `unconfirmed-expire`, `default-language`.
+`registration`, `unconfirmed-expire`, `default-language`, `ircv3-drafts`.
 
 ### Opers
 
@@ -641,6 +641,7 @@ Unknown settings are refused, so a typo shows up in `beeircd check`.
 | `find_place_by_ip` | `true` | Ask ipinfo.io once where this server's own IP address is, for the Hive Panel's network map (city level, rounded to about 10 km; the answer is kept next to the database). Only the server's own address is sent. Not asked when a `[[map.place]]` block places this server; `false`: its time zone places it |
 | `prefixes` | `"@+"` | `"@+"` or `"~&@%+"` (owner, admin, op, halfop, voice) (restart) |
 | `casemapping` | `"ascii"` | How nicks and channels ignore case: `"ascii"` (only A-Z: `Belon` = `belon`, but `[` and `{` differ, like UnrealIRCd 6 and InspIRCd) or `"rfc1459"` (also `[]\~` = `{}|^`). Every linked server needs the same; UnrealIRCd links need ascii. Changing it moves the stored nicks and channels to the new rule at the next start; going to rfc1459 is refused when two stored names would become one (restart) |
+| `ircv3_drafts` | `false` | Offer the IRCv3 drafts that aren't final yet to clients that ask: `draft/read-marker` (read position shared by all your devices). Clients that don't ask see no change. AdminServ `SET ircv3-drafts` switches it live (clients with cap-notify hear CAP NEW / DEL) |
 
 ### [[listen]]
 

@@ -23,14 +23,36 @@ var capabilities = []string{
 	"setname", "standard-replies", "userhost-in-names",
 }
 
+// draftCaps are the IRCv3 drafts offered while [server] ircv3_drafts is
+// on.
+var draftCaps = []string{readMarkerCap}
+
+// offered are the capabilities clients may ask for now.
+func (s *Server) offered() []string {
+	if !s.cfg.Server.IRCv3Drafts {
+		return capabilities
+	}
+	return append(append([]string(nil), capabilities...), draftCaps...)
+}
+
+// capValue is name as CAP LS 302 shows it, with its value.
+func (s *Server) capValue(name string) string {
+	switch name {
+	case "sasl":
+		return "sasl=PLAIN,EXTERNAL"
+	}
+	return name
+}
+
 // capLS is the CAP LS list; CAP 302 clients also see values. sts is the
 // sts value ("" when not offered); it is never in capabilities, so a REQ
 // for it gets NAK as the spec wants.
-func capLS(v302 bool, sts string) string {
-	out := make([]string, 0, len(capabilities)+1)
-	for _, c := range capabilities {
-		if c == "sasl" && v302 {
-			c = "sasl=PLAIN,EXTERNAL"
+func (s *Server) capLS(v302 bool, sts string) string {
+	names := s.offered()
+	out := make([]string, 0, len(names)+1)
+	for _, c := range names {
+		if v302 {
+			c = s.capValue(c)
 		}
 		out = append(out, c)
 	}
@@ -40,13 +62,39 @@ func capLS(v302 bool, sts string) string {
 	return strings.Join(out, " ")
 }
 
-func supportedCap(name string) bool {
-	for _, c := range capabilities {
+func (s *Server) supportedCap(name string) bool {
+	for _, c := range s.offered() {
 		if c == name {
 			return true
 		}
 	}
 	return false
+}
+
+// draftsChanged tells cap-notify clients the drafts came or went, and
+// takes them from clients when they went.
+func (s *Server) draftsChanged(on bool) {
+	sub := "NEW"
+	if !on {
+		sub = "DEL"
+	}
+	for _, c := range s.clients {
+		if !on {
+			for _, d := range draftCaps {
+				delete(c.caps, d)
+			}
+		}
+		if c.caps["cap-notify"] {
+			names := draftCaps
+			if on {
+				names = make([]string, len(draftCaps))
+				for i, d := range draftCaps {
+					names[i] = s.capValue(d)
+				}
+			}
+			s.capReply(c, sub, strings.Join(names, " "))
+		}
+	}
 }
 
 func (s *Server) cmdCap(c *Client, m irc.Message) {
@@ -59,10 +107,10 @@ func (s *Server) cmdCap(c *Client, m irc.Message) {
 		if v >= 302 {
 			c.caps["cap-notify"] = true // implied by CAP LS 302
 		}
-		s.capReply(c, "LS", capLS(v >= 302, s.stsValue(c, v >= 302)))
+		s.capReply(c, "LS", s.capLS(v >= 302, s.stsValue(c, v >= 302)))
 	case "LIST":
 		var on []string
-		for _, name := range capabilities {
+		for _, name := range s.offered() {
 			if c.caps[name] {
 				on = append(on, name)
 			}
@@ -76,7 +124,7 @@ func (s *Server) cmdCap(c *Client, m irc.Message) {
 		wanted := strings.Fields(req)
 		ok := len(wanted) > 0
 		for _, w := range wanted {
-			if !supportedCap(strings.TrimPrefix(w, "-")) {
+			if !s.supportedCap(strings.TrimPrefix(w, "-")) {
 				ok = false
 			}
 		}

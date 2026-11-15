@@ -24,7 +24,7 @@ func TestAdminServSettingsDocumented(t *testing.T) {
 		list = list[:end]
 	}
 	doc := map[string]bool{}
-	for _, m := range regexp.MustCompile("`([a-z-]+)`").FindAllStringSubmatch(list, -1) {
+	for _, m := range regexp.MustCompile("`([a-z0-9-]+)`").FindAllStringSubmatch(list, -1) {
 		doc[m[1]] = true
 	}
 	code := map[string]bool{}

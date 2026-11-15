@@ -174,6 +174,7 @@ func (s *Server) cmdNames(c *Client, m irc.Message) {
 // joinNames sends the names list a JOIN brings, unless the client asked
 // for draft/no-implicit-names (it sends NAMES itself when it wants them).
 func (s *Server) joinNames(c *Client, ch *state.Channel) {
+	s.joinMark(c, ch.Name)
 	if c.caps["draft/no-implicit-names"] {
 		return
 	}

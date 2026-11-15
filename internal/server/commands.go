@@ -57,6 +57,7 @@ func init() {
 		"UNKLINE":      {1, false, (*Server).cmdUnkline},
 		"TAGMSG":       {1, false, (*Server).cmdTagmsg},
 		"CHATHISTORY":  {1, false, (*Server).cmdChathistory},
+		"MARKREAD":     {0, false, (*Server).cmdMarkread},
 		"AUTHENTICATE": {1, true, (*Server).cmdAuthenticate},
 		"NS":           {1, false, (*Server).cmdNS},
 		"NICKSERV":     {1, false, (*Server).cmdNS},

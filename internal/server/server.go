@@ -72,6 +72,8 @@ type Server struct {
 	// held are the clients with lines waiting for a password check (O1).
 	held map[*Client]struct{}
 	hist histState // channel history (+H, CHATHISTORY)
+	// marks are the read markers of accounts (draft/read-marker).
+	marks map[markKey]time.Time
 	// 7a connect throttle and unregistered caps; throttleSkip says which
 	// IPs skip them (LAN), replaceable in tests.
 	throttle     connThrottle
@@ -175,6 +177,7 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 		return nil, err
 	}
 	s.store = db
+	s.loadReadMarkers()
 	for _, n := range db.Notes() {
 		logger.Printf("services database: %s", n)
 	}

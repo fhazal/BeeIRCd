@@ -147,6 +147,10 @@ type Server struct {
 	// "rfc1459" (also []\~ = {}|^). Every linked server needs the same,
 	// and links to UnrealIRCd need ascii. Changing it needs a restart.
 	Casemapping string `toml:"casemapping"`
+	// IRCv3Drafts offers the IRCv3 drafts that aren't final yet
+	// (read-marker, multiline, message-redaction, account-registration,
+	// pre-away, extended-isupport) to clients that ask. Off by default.
+	IRCv3Drafts bool `toml:"ircv3_drafts"`
 }
 
 // FullPrefixes reports whether owner, admin and halfop exist.

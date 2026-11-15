@@ -84,6 +84,8 @@ func (c *unrealCodec) Encode(item any) []string {
 		return []string{c.encodeBan(it)}
 	case *SpamFilter:
 		return []string{c.encodeSpam(it)}
+	case *Bee:
+		return c.encodeBee(it)
 	}
 	return nil
 }
@@ -298,6 +300,8 @@ func (c *unrealCodec) decodeLive(m irc.Message) any {
 		return &Message{Source: m.Source, Verb: m.Command, Target: p[0], Text: arg(1), Tags: m.Tags}
 	case "TKL":
 		return c.decodeBan(m.Source, p)
+	case "BEE":
+		return decodeBee(m.Source, p)
 	}
 	if len(m.Command) == 3 && m.Command[0] >= '0' && m.Command[0] <= '9' && len(p) > 0 {
 		return &Numeric{Source: m.Source, Code: m.Command, Params: p}
