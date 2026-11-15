@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -175,6 +176,7 @@ func (s *Server) statusInfo() *control.Status {
 		Opers:           opers,
 		Services:        s.svc.BotNicks(),
 		MemoryMB:        float64(ms.Sys-ms.HeapReleased) / (1 << 20),
+		MachineMB:       machineMB(),
 		LagAvgMS:        float64(s.loop.average()) / float64(time.Millisecond),
 		Lag99MS:         float64(s.loop.percentile(0.99)) / float64(time.Millisecond),
 		DBBytes:         fileSize(s.cfg.Services.Database) + fileSize(s.cfg.Services.Database+"-wal"),
@@ -461,4 +463,28 @@ func (s *Server) cmdRehash(c *Client, m irc.Message) {
 		return
 	}
 	s.notice(c, "*** "+rehashSummary(r))
+}
+
+// machineMB is the machine's total memory from /proc/meminfo (Linux), or
+// 0 where that file is missing.
+func machineMB() float64 {
+	b, err := os.ReadFile("/proc/meminfo")
+	if err != nil {
+		return 0
+	}
+	return memTotalMB(string(b))
+}
+
+// memTotalMB reads MemTotal (in kB) from /proc/meminfo text.
+func memTotalMB(meminfo string) float64 {
+	for _, line := range strings.Split(meminfo, "\n") {
+		if f := strings.Fields(line); len(f) >= 2 && f[0] == "MemTotal:" {
+			kb, err := strconv.ParseFloat(f[1], 64)
+			if err != nil {
+				return 0
+			}
+			return kb / 1024
+		}
+	}
+	return 0
 }

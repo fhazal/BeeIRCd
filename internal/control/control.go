@@ -184,6 +184,8 @@ type PanelOper struct {
 	// sign-in and sends it back, so a new password ends old sessions. It
 	// stays between the panel and the server (never sent to browsers).
 	Seal string `json:"seal,omitempty"`
+	// IP is the address the browser signed in from (filled by the panel).
+	IP string `json:"ip,omitempty"`
 }
 
 // Setting is one setting the panel can change (AdminServ SET's list).
@@ -645,9 +647,11 @@ type Status struct {
 	Services []string  `json:"services"`
 	// MemoryMB is what the Go runtime holds from the system.
 	MemoryMB float64 `json:"memory_mb"`
-	LagAvgMS float64 `json:"lag_avg_ms"`
-	Lag99MS  float64 `json:"lag_99_ms"`
-	DBBytes  int64   `json:"db_bytes"`
+	// MachineMB is the machine's total memory (0: unknown).
+	MachineMB float64 `json:"machine_mb,omitempty"`
+	LagAvgMS  float64 `json:"lag_avg_ms"`
+	Lag99MS   float64 `json:"lag_99_ms"`
+	DBBytes   int64   `json:"db_bytes"`
 	// HistoryBytes and HistoryChannels: channel history in memory.
 	HistoryBytes    int64  `json:"history_bytes"`
 	HistoryChannels int    `json:"history_channels"`

@@ -799,18 +799,49 @@
           } };
       },
       room() {
-        const c = ovCard('gauge', 'This server', 'What services keep, and how fast this server answers');
-        const fact = label => { const b = h('b', { text: '…' }); return { el: h('div', {}, h('span', { text: label }), b), b }; };
-        const fN = fact('Registered nicks'), fC = fact('Registered channels'), fM = fact('Memos kept'), fR = fact('Reply time'), fMem = fact('Memory');
-        c.card.append(h('div', { class: 'facts' }, fN.el, fC.el, fM.el, fR.el, fMem.el));
+        const c = ovCard('gauge', 'This server', 'How this server is doing, and what you may do here');
+        const desc = c.card.querySelector('.cdesc');
+        // A bar meter: label, value, a track and a printed scale.
+        const bar = label => {
+          const v = h('b', { text: '…' }), fill = h('span', { class: 'ts-fill' }), track = h('div', { class: 'ts-track' }, fill), scale = h('div', { class: 'ts-scale' });
+          return { el: h('div', {}, h('div', { class: 'ts-top' }, h('span', { text: label }), v), track, scale), v, fill, track, scale };
+        };
+        const pct = (n, of) => Math.max(0, Math.min(100, of > 0 ? n / of * 100 : 0)) + '%';
+        const gb = mb => mb >= 1024 ? (Math.round(mb / 1024 * 10) / 10) + ' GB' : Math.round(mb) + ' MB';
+        const bP = bar('People online'), bR = bar('Reply time'), bM = bar('Memory');
+        const mark = h('span', { class: 'ts-mark' }); mark.style.left = '20%'; bR.track.append(mark);
+        put(bR.scale, h('span', { text: '0' }), h('span', { class: 'ts-at2', text: '2 ms smooth' }), h('span', { text: '10 ms' }));
+        const mini = h('div', { class: 'ts-mini' });
+        const left = h('div', { class: 'ts-l' }, h('div', { class: 'ts-bars' }, bP.el, bR.el, bM.el), mini);
+        // You: the signed-in oper and what each of their flags allows.
+        const held = FLAGS.filter(([f]) => has(f)), missing = FLAGS.filter(([f]) => !has(f));
+        const via = h('span', { class: 'ts-via', text: me.ip ? 'signed in from ' + me.ip : '' });
+        const right = h('div', { class: 'ts-r' },
+          h('div', { class: 'ts-who' }, h('b', { text: 'You · ' + me.account }), h('span', { class: 'ts-class', text: me.owner ? 'owner' : (me.class || 'oper') }), via),
+          held.length ? h('div', { class: 'ts-tiles' }, held.map(([f, name, what]) => h('div', { class: 'ts-tile' },
+            h('span', { class: 'fb f-' + f, text: f, 'aria-hidden': 'true' }), h('b', { text: name.charAt(0).toUpperCase() + name.slice(1) }), h('span', { class: 'ts-m', text: what }))))
+            : h('p', { class: 'ts-none', text: 'No oper flags: you can look, not change.' }),
+          missing.length ? h('div', { class: 'ts-not', 'aria-label': 'not yours: ' + missing.map(([f]) => f).join('') }, 'Not yours',
+            missing.map(([f]) => h('span', { class: 'fb sm no', text: f, 'aria-hidden': 'true' }))) : null);
+        c.card.append(h('div', { class: 'ts' }, left, right));
         return { el: c.card, tail: c.tail,
           status(s) {
-            const svc = s.services_on;
-            fN.b.textContent = svc ? fmt(s.nicks) : 'on the hub';
-            fC.b.textContent = svc ? fmt(s.reg_channels) : 'on the hub';
-            fM.b.textContent = svc ? fmt(s.memos) : 'on the hub';
-            fR.b.textContent = (s.lag_avg_ms < 0.1 ? '0.1' : (Math.round(s.lag_avg_ms * 10) / 10)) + ' ms';
-            fMem.b.textContent = Math.round(s.memory_mb) + ' MB';
+            if (s.server) desc.textContent = 'How ' + s.server + ' is doing, and what you may do here';
+            const peak = Math.max(s.peak || 0, s.online || 0);
+            put(bP.v, fmt(s.online), h('small', { text: ' / ' + fmt(peak) + ' peak' }));
+            bP.fill.style.width = pct(s.online, peak);
+            put(bP.scale, h('span', { text: '0' }), h('span', { text: 'peak since start ' + fmt(peak) }));
+            const lag = s.lag_avg_ms || 0;
+            put(bR.v, lag < 0.1 ? '0.1' : String(Math.round(lag * 10) / 10), h('small', { text: lag <= 2 ? ' ms · smooth' : lag > 100 ? ' ms · slow' : ' ms' }));
+            bR.fill.style.width = pct(Math.max(lag, 0.1), 10);
+            bR.fill.className = 'ts-fill' + (lag <= 2 ? ' ok' : lag > 100 ? ' bad' : '');
+            const total = s.machine_mb || 0;
+            put(bM.v, String(Math.round(s.memory_mb)), h('small', { text: total ? ' MB of ' + gb(total) : ' MB' }));
+            bM.track.hidden = bM.scale.hidden = !total;
+            if (total) { bM.fill.style.width = pct(s.memory_mb, total); put(bM.scale, h('span', { text: '0' }), h('span', { text: gb(total) })); }
+            const n = (label, v) => [label, h('b', { text: fmt(v) })];
+            if (s.services_on) put(mini, h('span', {}, ...n('Registered nicks', s.nicks)), h('span', {}, ...n('channels', s.reg_channels)), h('span', {}, ...n('memos kept', s.memos)));
+            else put(mini, h('span', { text: 'Registered nicks, channels and memos are kept on the hub' }));
           } };
       },
       map() {
@@ -1990,7 +2021,7 @@
   ];
   function chips(all) {
     return h('span', { class: 'fl', 'aria-label': 'flags ' + (all || 'none') },
-      FLAGS.map(([f]) => h('span', { class: 'c' + (all.includes(f) ? '' : ' no'), text: f, 'aria-hidden': 'true' })));
+      FLAGS.map(([f]) => h('span', { class: 'c' + (all.includes(f) ? ' f-' + f : ' no'), text: f, 'aria-hidden': 'true' })));
   }
   function opersPage() {
     let data = null, open = null; // open: account name, or '+' when adding

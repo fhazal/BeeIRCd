@@ -389,6 +389,7 @@ func (p *Panel) send(w http.ResponseWriter, oc operCtx, req control.Request, tim
 		out := *resp
 		o := *resp.Oper
 		o.Seal = "" // stays between the panel and the server
+		o.IP = oc.ip
 		out.Oper = &o
 		writeJSON(w, http.StatusOK, &out)
 		return resp
@@ -802,6 +803,7 @@ func (p *Panel) login(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteStrictMode, Secure: p.secure(r), MaxAge: int(maxSession / time.Second)})
 	o := *resp.Oper
 	o.Seal = "" // stays between the panel and the server
+	o.IP = ip
 	writeJSON(w, http.StatusOK, map[string]any{"oper": &o})
 }
 
