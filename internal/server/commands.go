@@ -1,6 +1,7 @@
 package server
 
 import (
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -160,6 +161,17 @@ func (s *Server) runLine(c *Client, line string) {
 		return
 	}
 	if label := m.Tags["label"]; label != "" && c.caps["labeled-response"] {
+		if m.Command == "BATCH" && strings.HasPrefix(m.Param(0), "+") && m.Param(1) == multilineCap {
+			// The answer to a multiline batch comes at BATCH -: the label
+			// waits for it.
+			s.runCommand(c, m)
+			if c.mlIn != nil {
+				c.mlIn.label = label
+			} else if c.capture == nil {
+				s.flushLabeled(c, label, nil)
+			}
+			return
+		}
 		held := []string{}
 		c.capture = &held
 		s.runCommand(c, m)

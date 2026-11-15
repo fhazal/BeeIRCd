@@ -109,3 +109,25 @@ func TestLinkMultiline(t *testing.T) {
 	late.expect("PRIVMSG #x :one")
 	late.expect("PRIVMSG #x :two")
 }
+
+// labeled-response: the label of BATCH + comes back on the echoed batch.
+func TestMultilineLabel(t *testing.T) {
+	s := testServer(t, draftsOn)
+	bee := capLogin(t, s, "Bee", "batch", "echo-message", "labeled-response", "message-tags", multilineCap)
+	bee.send("JOIN #a")
+	bee.expect(" 366 Bee #a ")
+	bee.send("@label=xyz BATCH +1 " + multilineCap + " #a")
+	bee.send("@batch=1 PRIVMSG #a :hi")
+	bee.send("BATCH -1")
+	l := bee.expect(" BATCH +")
+	if !strings.Contains(l, "label=xyz") || !strings.Contains(l, multilineCap+" #a") {
+		t.Errorf("echo batch: %s", l)
+	}
+	bee.expect("PRIVMSG #a :hi")
+	bee.expect(" BATCH -")
+	bee.send("@label=abc BATCH +2 " + multilineCap + " #a")
+	bee.send("BATCH -2")
+	if l := bee.expect("FAIL BATCH MULTILINE_INVALID"); !strings.Contains(l, "label=abc") {
+		t.Errorf("fail without label: %s", l)
+	}
+}

@@ -20,6 +20,7 @@ network = "BeeTest"
 description = "irctest"
 sid = "0IT"
 resolve_hosts = false
+ircv3_drafts = true
 
 [[listen]]
 address = "{hostname}:{port}"

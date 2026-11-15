@@ -33,6 +33,7 @@ type mlIn struct {
 	tags             map[string]string // client tags, from the BATCH line
 	parts            []mlPart
 	bytes            int
+	label            string // labeled-response label of the BATCH + line
 	bad              string // a FAIL code once the batch is broken
 	badCtx           []string
 }
@@ -94,6 +95,16 @@ func (s *Server) cmdBatch(c *Client, m irc.Message) {
 			return
 		}
 		c.mlIn = nil
+		if in.label != "" && c.capture == nil {
+			held := []string{}
+			c.capture = &held
+			s.multilineDone(c, in)
+			if c.capture != nil {
+				c.capture = nil
+				s.flushLabeled(c, in.label, held)
+			}
+			return
+		}
 		s.multilineDone(c, in)
 	default:
 		s.batchFail(c, "MULTILINE_INVALID", "Invalid batch reference")

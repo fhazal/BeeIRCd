@@ -238,6 +238,13 @@ func (s *Server) flushLabeled(c *Client, label string, lines []string) {
 		for _, l := range lines {
 			c.send(l)
 		}
+	case oneBatch(lines):
+		// The answer is one batch already (an echoed multiline message):
+		// the label goes on it.
+		c.send(addTag(lines[0], "label", label))
+		for _, l := range lines[1:] {
+			c.send(l)
+		}
 	default:
 		s.batchSeq++
 		id := strconv.FormatUint(s.batchSeq, 36)
@@ -251,6 +258,32 @@ func (s *Server) flushLabeled(c *Client, label string, lines []string) {
 		}
 		c.send(":" + name + " BATCH -" + id)
 	}
+}
+
+// oneBatch reports whether lines are exactly one multiline batch: BATCH
+// +x draft/multiline, lines tagged batch=x, BATCH -x.
+func oneBatch(lines []string) bool {
+	if len(lines) < 2 {
+		return false
+	}
+	first := strings.Fields(strings.TrimPrefix(lines[0], "@"))
+	if strings.HasPrefix(lines[0], "@") && len(first) > 0 {
+		first = first[1:]
+	}
+	if len(first) < 4 || first[1] != "BATCH" || !strings.HasPrefix(first[2], "+") || first[3] != multilineCap {
+		return false
+	}
+	id := first[2][1:]
+	last := strings.Fields(lines[len(lines)-1])
+	if len(last) < 3 || last[1] != "BATCH" || last[2] != "-"+id {
+		return false
+	}
+	for _, l := range lines[1 : len(lines)-1] {
+		if !strings.HasPrefix(l, "@batch="+id+" ") && !strings.HasPrefix(l, "@batch="+id+";") && !strings.Contains(strings.SplitN(l, " ", 2)[0], ";batch="+id) {
+			return false
+		}
+	}
+	return true
 }
 
 // hasBatchTag reports whether a built line already carries a batch tag.
