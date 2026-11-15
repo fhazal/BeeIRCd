@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/fhazal/beeircd/internal/config"
+	"github.com/fhazal/beeircd/internal/mail"
 )
 
 // fakeSMTP answers just enough SMTP for one mail and returns what it got.
@@ -68,8 +69,7 @@ func TestSendMailSMTP(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 	cfg.Mail.UseMail, cfg.Mail.SendFrom, cfg.Mail.SMTPServer = true, "services@beenet.example", addr
-	s := &Services{cfg: cfg}
-	if err := s.sendMail("Bee", "bee@example.org", "New memo", "Hi Bee,\nline two"); err != nil {
+	if err := mail.Send(cfg.Mail, "Bee", "bee@example.org", "New memo", "Hi Bee,\nline two"); err != nil {
 		t.Fatal(err)
 	}
 	text := <-got

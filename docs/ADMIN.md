@@ -17,6 +17,7 @@ through a local socket, so run them as root (`sudo`) on the server.
 | `beeircd restart` | Runs `check` first and refuses if it fails, so a typo can't take the server down |
 | `beeircd rehash` | Reads `beeircd.conf` again and applies what can change live; lists what needs a restart |
 | `beeircd backup [file]` | Saves config, database, history and certificates to one `.tar.gz` |
+| `beeircd mail-test <address>` | Sends a test mail with the `[mail]` settings, says in plain words why it failed if it did, and checks the sender domain's SPF, DKIM and DMARC records (what decides inbox or spam), with the record to add for each one missing |
 | `beeircd update` | Installs the newest release (see [Updates](#updates)) |
 | `beeircd mkpasswd` | Reads a password and prints its hash, for `admin_password` |
 | `beeircd import-anope <anope.db>` | Brings accounts, channels and settings over from Anope 2.0 (see [Moving from Anope](#moving-from-anope)) |
@@ -86,7 +87,8 @@ can change things; every oper can look.
 `flood-rate`, `ping-interval`, `ping-timeout`, `cloak`, `resolve-hosts`,
 `nick-expire`, `chan-expire`, `identify-within`, `kill-quick`,
 `allow-kill-immed`, `ban-expiry`, `guest-prefix`, `log-channel`,
-`log-connects`, `flood-profile`, `find-place-by-ip`, `members`.
+`log-connects`, `flood-profile`, `find-place-by-ip`, `members`,
+`registration`, `unconfirmed-expire`.
 
 ### Opers
 
@@ -405,6 +407,27 @@ then open <http://127.0.0.1:8787>. `beeircd install` sets it up as the
   Lite turns off the glow and the moving signals (it switches on by itself
   when drawing is slow, and the signals stop with reduced motion). The
   outlines are Natural Earth (public domain), shipped with the panel.
+- **Mail** (Settings, owner only) sets up how services send mail
+  (password resets, memo mails, account confirmation) without editing
+  `[mail]` by hand. Pick Gmail / Google Workspace, Outlook / Microsoft
+  365 or Zoho and the server, port and TLS are filled in: type the
+  address and an *app password* (not the normal password; the card links
+  to where you make one). Or pick your own mail server (host, port,
+  login, password), or Off. The password is saved in `beeircd.conf` and
+  never shown again; leave it empty to keep it. **Send test mail** sends
+  a real mail to any address, also before saving, and a failure shows the
+  mail server's own words plus what they mean (wrong app password, port
+  blocked by the hosting company, TLS on the wrong port). **Will it land
+  in the inbox?** looks up the sender domain's SPF, DKIM and DMARC; each
+  red row says why and gives the DNS record to add, with Copy. Free
+  Gmail, Outlook and Zoho addresses are always green; an own domain
+  without DKIM and DMARC is what usually sends mails to spam. **New
+  NickServ accounts** sets `[services] registration`: Ready at once,
+  Confirm by email, or An oper confirms. Confirm by email can only be
+  picked after a test mail with the saved settings went through (the
+  server remembers the last good test until it restarts). Each
+  change and test goes to "What happened". The same check on the
+  command line: `beeircd mail-test you@example.org`.
 - **Backups** (Settings, owner only) lists the dated backups in the
   backup folder, newest first, with who made the ones made in the panel.
   Back up now makes one. The download button asks for your oper password
@@ -772,13 +795,16 @@ words = ["darn", "*spam*"]
 
 ### [mail]
 
-For NickServ `RESETPASS` and MemoServ mail notices. Off by default.
+For NickServ `RESETPASS`, account confirmation and MemoServ mail notices.
+Off by default. Easiest set up with the Mail card in the Hive Panel
+(Settings), or check it with `beeircd mail-test you@example.org`.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `use_mail` | `false` | Switch mail on |
 | `send_from` | – | From address |
-| `smtp_server` | – | `"smtp.example.org:587"` (STARTTLS when offered); empty: sendmail |
+| `from_name` | – | The name people see as the sender, like `"BeeNet Services"` |
+| `smtp_server` | – | `"smtp.example.org:587"` (STARTTLS when offered), or port 465 (TLS from the start); empty: sendmail. The Hive Panel's Mail card fills it in for Gmail, Outlook and Zoho |
 | `smtp_user`, `smtp_password` | – | |
 | `sendmail_path` | `"/usr/sbin/sendmail -t"` | |
 | `delay` | `5m` | Wait between two mails per person |

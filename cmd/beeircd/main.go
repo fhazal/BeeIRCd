@@ -55,6 +55,8 @@ const usage = `Usage: beeircd <command>
             versions, --yes no questions, --rollback goes back)
   backup    save config, database and certificates [to file]
   rehash    read beeircd.conf again, apply what is safe live
+  mail-test <address>: send a test mail with the [mail] settings
+            and check SPF, DKIM and DMARC of the sender domain
   link-info show this server's link fingerprint and the blocks
             another BeeIRCd or UnrealIRCd server needs to link
   webirc    add <name> <ip>: let a web chat (BeeRoom) on <ip>
@@ -103,6 +105,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdCheck(args[1:], stdout, stderr)
 	case cmd == "backup":
 		return cmdBackup(args[1:], stdout, stderr)
+	case cmd == "mail-test":
+		return cmdMailTest(args[1:], stdout, stderr)
 	case cmd == "link-info":
 		return cmdLinkInfo(args[1:], stdout, stderr)
 	case cmd == "webirc":

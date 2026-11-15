@@ -9,6 +9,9 @@ type Mail struct {
 	UseMail bool `toml:"use_mail"`
 	// SendFrom is the From address, like "services@example.org".
 	SendFrom string `toml:"send_from"`
+	// FromName is the name people see as the sender, like "BeeNet
+	// Services". Empty: just the address.
+	FromName string `toml:"from_name"`
 	// SMTPServer, like "smtp.example.org:587", sends through an SMTP server
 	// (STARTTLS when it offers it). Empty: SendmailPath is used instead.
 	SMTPServer   string `toml:"smtp_server"`

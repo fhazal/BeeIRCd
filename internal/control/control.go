@@ -131,6 +131,7 @@ type Request struct {
 	Block  *LinkBlock `json:"block,omitempty"` // link-save
 	Lat    *float64   `json:"lat,omitempty"`   // map-place
 	Lon    *float64   `json:"lon,omitempty"`   // map-place
+	Mail   *MailForm  `json:"mail,omitempty"`  // mail-save, mail-test
 }
 
 // Response carries the answer to one Request; Error is set when it failed.
@@ -164,6 +165,8 @@ type Response struct {
 	Spam      *Spam        `json:"spam,omitempty"`
 	SpamCheck *SpamCheck   `json:"spamCheck,omitempty"`
 	SpamTest  *SpamTest    `json:"spamTest,omitempty"`
+	Mail      *Mail        `json:"mail,omitempty"`
+	MailTest  *MailTest    `json:"mailTest,omitempty"`
 	// Denied is set (with Error) when the oper may not do this: signed
 	// out, or missing a flag. The panel then signs them out or says so.
 	Denied string `json:"denied,omitempty"` // "signin" or "flag"

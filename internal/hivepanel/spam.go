@@ -56,3 +56,42 @@ func (p *Panel) spamTest(w http.ResponseWriter, r *http.Request, oc operCtx) {
 	}
 	p.send(w, oc, control.Request{Cmd: control.CmdSpamTest, Value: in.Targets, Mask: in.Text}, 10*time.Second)
 }
+
+// The Mail card on Settings: owner only, checked by the server.
+
+type mailIn struct {
+	Mail  control.MailForm `json:"mail"`
+	To    string           `json:"to"`
+	Value string           `json:"value"`
+}
+
+func readMail(w http.ResponseWriter, r *http.Request) (mailIn, bool) {
+	var in mailIn
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&in) != nil {
+		writeErr(w, http.StatusBadRequest, "Bad request.")
+		return in, false
+	}
+	return in, true
+}
+
+func (p *Panel) mailSave(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	if in, ok := readMail(w, r); ok {
+		p.send(w, oc, control.Request{Cmd: control.CmdMailSave, Mail: &in.Mail}, 10*time.Second)
+	}
+}
+
+func (p *Panel) mailTest(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	if in, ok := readMail(w, r); ok {
+		p.send(w, oc, control.Request{Cmd: control.CmdMailTest, Mail: &in.Mail, Value: in.To}, 80*time.Second)
+	}
+}
+
+func (p *Panel) mailReg(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	if in, ok := readMail(w, r); ok {
+		p.send(w, oc, control.Request{Cmd: control.CmdMailReg, Value: in.Value}, 10*time.Second)
+	}
+}
+
+func (p *Panel) mailDNS(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	p.send(w, oc, control.Request{Cmd: control.CmdMailDNS}, 35*time.Second)
+}

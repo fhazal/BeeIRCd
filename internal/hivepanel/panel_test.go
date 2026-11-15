@@ -678,3 +678,23 @@ func TestChannelManagerRoutes(t *testing.T) {
 		}
 	}
 }
+
+func TestMailRoutes(t *testing.T) {
+	rg := newRig(t)
+	tok := rg.login()
+	w := rg.do("POST", "/api/mail-test", `{"mail":{"provider":"gmail","from":"bee@gmail.com","password":"pw"},"to":"me@example.org"}`, tok, nil)
+	last := rg.f.reqs[len(rg.f.reqs)-1]
+	if w.Code == 400 || last.Cmd != control.CmdMailTest || last.Mail == nil || last.Mail.Provider != "gmail" || last.Mail.Password != "pw" || last.Value != "me@example.org" || last.As != "Bee" {
+		t.Errorf("mail-test: %d %+v", w.Code, last)
+	}
+	rg.do("POST", "/api/mail-reg", `{"value":"mail"}`, tok, nil)
+	if last := rg.f.reqs[len(rg.f.reqs)-1]; last.Cmd != control.CmdMailReg || last.Value != "mail" {
+		t.Errorf("mail-reg: %+v", last)
+	}
+	if w := rg.do("POST", "/api/mail-save", `{"mail":`, tok, nil); w.Code != 400 {
+		t.Errorf("bad json: %d", w.Code)
+	}
+	if w := rg.do("POST", "/api/mail-save", `{"mail":{"provider":"off"}}`, "", nil); w.Code != 401 {
+		t.Errorf("signed out: %d", w.Code)
+	}
+}

@@ -226,6 +226,16 @@ func settings() []setting {
 			}},
 		{name: "log-connects", table: "services", key: "log_connects", help: "also log connects and quits there", kind: 'b',
 			get: func(c *config.Config) string { return onoff(c.Services.LogConnectsOn()) }, apply: servicesApply},
+		{name: "registration", table: "services", key: "registration", help: "new NickServ accounts: none (ready at once), mail (confirm by email) or admin (an oper confirms)", kind: 't', hi: 5,
+			get: func(c *config.Config) string { return c.Services.RegistrationMode() }, apply: servicesApply,
+			check: func(v string) string {
+				if v != "none" && v != "mail" && v != "admin" {
+					return "registration is none, mail or admin."
+				}
+				return ""
+			}},
+		{name: "unconfirmed-expire", table: "services", key: "unconfirmed_expire", help: "accounts not confirmed are dropped after", kind: 'd', lo: 3600, hi: 30 * day,
+			get: dur(func(c *config.Config) time.Duration { return c.Services.UnconfirmedExpire.Duration }), apply: servicesApply},
 		{name: "flood-profile", table: "channels", key: "flood_profile", help: "+F profile for channels without their own (off for none)", kind: 't', hi: 20,
 			get: func(c *config.Config) string { return c.Channels.FloodProfile }, apply: func(d, s *config.Config) { d.Channels = s.Channels },
 			check: func(v string) string {

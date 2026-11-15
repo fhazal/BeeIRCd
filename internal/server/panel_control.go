@@ -19,6 +19,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/fhazal/beeircd/internal/control"
+	"github.com/fhazal/beeircd/internal/mail"
 	"github.com/fhazal/beeircd/internal/passwd"
 	"github.com/fhazal/beeircd/internal/services"
 	"github.com/fhazal/beeircd/internal/state"
@@ -369,6 +370,18 @@ func (s *Server) panelControl(req control.Request, setDeadline func(time.Duratio
 		return run('k', func(po *control.PanelOper) { resp = *s.panelSpamAdd(po, req) }), true
 	case control.CmdSpamDel:
 		return run('k', func(po *control.PanelOper) { resp = *s.panelSpamDel(po, req) }), true
+	case control.CmdMail:
+		return run('O', func(*control.PanelOper) { resp.Mail = s.panelMail() }), true
+	case control.CmdMailSave:
+		return run('O', func(po *control.PanelOper) { resp = s.panelMailSave(po, req.IP, req.Mail) }), true
+	case control.CmdMailReg:
+		return run('O', func(po *control.PanelOper) { resp = s.panelMailReg(po, req.IP, req.Value) }), true
+	case control.CmdMailTest:
+		setDeadline(mail.Timeout + 40*time.Second)
+		return s.panelMailTest(req, run), true
+	case control.CmdMailDNS:
+		setDeadline(30 * time.Second)
+		return s.panelMailDNS(run), true
 	case control.CmdSpamTest:
 		return run('k', func(*control.PanelOper) { resp = *s.panelSpamTest(req) }), true
 	case control.CmdBans:

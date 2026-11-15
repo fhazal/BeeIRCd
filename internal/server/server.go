@@ -31,6 +31,7 @@ import (
 // Server is one running BeeIRCd.
 type Server struct {
 	cfg       *config.Config
+	mailOK    mailTested // the last test mail that went through (Hive Panel)
 	log       *log.Logger
 	net       *state.Network
 	clients   map[string]*Client // by UID, registered or not

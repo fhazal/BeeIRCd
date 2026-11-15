@@ -2,18 +2,15 @@ package services
 
 import (
 	crand "crypto/rand"
-	"crypto/tls"
 	"fmt"
 	"math"
 	"math/big"
-	"net"
-	"net/smtp"
-	"os/exec"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/fhazal/beeircd/internal/irc"
+	"github.com/fhazal/beeircd/internal/mail"
 	"github.com/fhazal/beeircd/internal/store"
 )
 
@@ -84,7 +81,8 @@ func (s *Services) mailTo(c *Client, sv *service, a *store.Account, subject, bod
 	}
 	send := s.mailer
 	if send == nil {
-		send = s.sendMail
+		mc := m // a copy: the config may change while it sends
+		send = func(name, addr, subject, body string) error { return mail.Send(mc, name, addr, subject, body) }
 	}
 	name, addr := a.Name, a.Email
 	go func() {
@@ -98,73 +96,6 @@ func (s *Services) mailTo(c *Client, sv *service, a *store.Account, subject, bod
 		})
 	}()
 	return true
-}
-
-// mailText builds the whole mail as Anope's Mail::Message writes it.
-func (s *Services) mailText(name, addr, subject, body string) string {
-	m := s.cfg.Mail
-	to := "\"" + strings.ReplaceAll(name, "\\", "\\\\") + "\" <" + addr + ">"
-	if m.DontQuoteAddresses {
-		to = name + " <" + addr + ">"
-	}
-	return "From: " + m.SendFrom + "\r\nTo: " + to + "\r\nSubject: " + subject +
-		"\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n" +
-		strings.ReplaceAll(body, "\n", "\r\n") + "\r\n"
-}
-
-// sendMail delivers through the SMTP server, or the sendmail program.
-// It runs off the loop.
-func (s *Services) sendMail(name, addr, subject, body string) error {
-	m := s.cfg.Mail
-	text := s.mailText(name, addr, subject, body)
-	if m.SMTPServer == "" {
-		f := strings.Fields(m.SendmailPath)
-		if len(f) == 0 {
-			return fmt.Errorf("no sendmail_path")
-		}
-		cmd := exec.Command(f[0], f[1:]...)
-		cmd.Stdin = strings.NewReader(text)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("%v %s", err, strings.TrimSpace(string(out)))
-		}
-		return nil
-	}
-	host, _, err := net.SplitHostPort(m.SMTPServer)
-	if err != nil {
-		return err
-	}
-	cl, err := smtp.Dial(m.SMTPServer)
-	if err != nil {
-		return err
-	}
-	defer cl.Close()
-	if ok, _ := cl.Extension("STARTTLS"); ok {
-		if err := cl.StartTLS(&tls.Config{ServerName: host}); err != nil {
-			return err
-		}
-	}
-	if m.SMTPUser != "" {
-		if err := cl.Auth(smtp.PlainAuth("", m.SMTPUser, m.SMTPPassword, host)); err != nil {
-			return err
-		}
-	}
-	if err := cl.Mail(m.SendFrom); err != nil {
-		return err
-	}
-	if err := cl.Rcpt(addr); err != nil {
-		return err
-	}
-	w, err := cl.Data()
-	if err != nil {
-		return err
-	}
-	if _, err := w.Write([]byte(text)); err != nil {
-		return err
-	}
-	if err := w.Close(); err != nil {
-		return err
-	}
-	return cl.Quit()
 }
 
 // fill replaces Anope's mail tokens.

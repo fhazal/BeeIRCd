@@ -374,7 +374,7 @@
   const HEAD_ICON = {
     'Health': 'pulse', 'What happened': 'list', 'Services': 'services', 'Bots': 'services', 'Services run on the hub': 'services',
     'Limits': 'gauge', 'Server actions': 'terminal', 'Server details': 'cpu', 'Backups': 'archive', 'Add a ban': 'plus', 'Network map': 'map',
-    'Settings': 'settings', 'Members': 'people', 'What the flags allow': 'opers', 'Change an oper': 'opers', 'Add an oper': 'opers',
+    'Settings': 'settings', 'Members': 'people', 'Mail': 'mail', 'What the flags allow': 'opers', 'Change an oper': 'opers', 'Add an oper': 'opers',
     'This server, for the other side': 'lock', 'Server tree': 'servers', 'Link blocks': 'servers', 'Link block': 'servers', 'Not linked': 'servers',
     'Filters': 'list', 'Try a line': 'search', 'Add a filter': 'plus',
   };
@@ -1346,6 +1346,7 @@
       action('Rehash', 'Re-reads beeircd.conf without a restart', 'Rehash', '/api/rehash', rehashLines));
     actions.append(updateRow);
     const backups = me.owner ? backupsCard() : null;
+    const mailBox = me.owner ? mailCard() : null;
 
     // Member sign-in: people with a registered nick get their own pages
     // (Home, Chat, My nick, My channels, Memos), never the admin ones.
@@ -1374,6 +1375,7 @@
         h('section', { class: 'card' }, h('h2', { text: 'Limits' }), grid, bar),
         h('section', { class: 'card' }, h('h2', { text: 'Server actions' }), actions)),
       membersCard,
+      mailBox && mailBox.el,
       backups && backups.el);
     load();
     return {
@@ -1894,6 +1896,180 @@
     load();
     const timer = setInterval(() => { if (!document.hidden && !el.querySelector('.rm')) bg(load); }, 30000);
     return { el, leave() { clearInterval(timer); clearTimeout(checkTimer); clearTimeout(tryTimer); } };
+  }
+
+  // ---------- Mail card (Settings, owner only) ----------
+  const APP_PW = {
+    gmail: ['Not your Gmail password: make one at ', 'https://myaccount.google.com/apppasswords', 'myaccount.google.com/apppasswords', ' (needs 2-Step Verification).'],
+    outlook: ['Make an app password in ', 'https://account.microsoft.com/security', 'account.microsoft.com/security', '. Microsoft is turning off password sign-in for sending mail; if the test fails, use Gmail or Zoho.'],
+    zoho: ['Make an app password in ', 'https://accounts.zoho.com/home#security/app_password', 'Zoho security settings', '. EU accounts: pick My own mail server with smtp.zoho.eu.'],
+  };
+  function mailCard() {
+    let d = null, prov = 'off', checks = null, testRes = null;
+    const sub = h('span', { class: 'lbl', text: 'Password resets, memo mails and account confirmation · owner only' });
+    const pill = h('span', { class: 'pill', hidden: true });
+    const picks = h('div', { class: 'ml-picks', role: 'group', 'aria-label': 'Send with' });
+    const fieldsBox = h('div', { class: 'grid2 ml-fields' });
+    const inp = (id, attrs) => h('input', Object.assign({ class: 'in', id, type: 'text', autocomplete: 'off', spellcheck: 'false' }, attrs));
+    const from = inp('ml-from', { type: 'email', maxlength: 254, placeholder: 'services@example.org' });
+    const name = inp('ml-name', { maxlength: 60, placeholder: 'BeeNet Services' });
+    const server = inp('ml-server', { maxlength: 200, placeholder: 'mail.example.org:587' });
+    const user = inp('ml-user', { maxlength: 200 });
+    const pw = inp('ml-pw', { type: 'password', autocomplete: 'new-password', maxlength: 200 });
+    const to = inp('ml-to', { type: 'email', maxlength: 254, 'aria-label': 'Send the test mail to', placeholder: 'you@example.org' });
+    const saveBtn = h('button', { type: 'button', class: 'btn main', text: 'Save' });
+    const testBtn = h('button', { type: 'button', class: 'btn' }, icon('send'), 'Send test mail');
+    const testBox = h('div', { class: 'ml-res', hidden: true });
+    const dnsHead = h('div', { class: 'ml-sect', hidden: true });
+    const dnsBox = h('div', { class: 'ml-dns', hidden: true });
+    const regSeg = h('div', { class: 'seg ml-seg', role: 'group', 'aria-label': 'New NickServ accounts' });
+    const regHint = h('span', { class: 'hint' });
+    const actRow = h('div', { class: 'ml-act' }, saveBtn, to, testBtn);
+    const regBox = h('div', { class: 'ml-reg' }, h('div', { class: 'ml-sect' }, icon('people'), 'New NickServ accounts'), h('div', { class: 'ml-regrow' }, regSeg, regHint));
+    const presetOf = id => (d.presets || []).find(p => p.id === id);
+    const srvOf = p => (prov === d.provider && d.server ? d.server : p.server);
+
+    function form() {
+      return { provider: prov, from: from.value.trim(), name: name.value.trim(), server: server.value.trim(), user: user.value.trim(), password: pw.value };
+    }
+    function field(label, input, hint) {
+      return h('label', { class: 'f', for: input.id }, label, input, hint ? h('span', { class: 'hint' }, hint) : null);
+    }
+    function drawPicks() {
+      const opts = (d.presets || []).map(p => [p.id, p.name, p.server]);
+      opts.push(['own', 'My own mail server', 'host, port, login']);
+      if (d.provider === 'sendmail') opts.push(['sendmail', 'This machine', 'sendmail program']);
+      opts.push(['off', 'Off', 'no mail']);
+      put(picks, ...opts.map(([id, label, small]) => {
+        const b = h('button', { type: 'button', class: 'ml-pk', 'aria-pressed': prov === id ? 'true' : 'false' }, h('b', { text: label }), h('small', { text: small }));
+        b.addEventListener('click', () => { prov = id; testRes = null; drawForm(); });
+        return b;
+      }));
+    }
+    function drawForm() {
+      drawPicks();
+      const p = presetOf(prov);
+      pw.placeholder = d.hasPassword && prov === d.provider ? 'saved · type to change' : '';
+      if (prov === 'off') {
+        put(fieldsBox, h('p', { class: 'note ml-wide', text: 'Services send no mail: no password resets by email, no memo mails, no confirmation by email.' }));
+      } else if (p) {
+        const a = APP_PW[p.id];
+        put(fieldsBox,
+          field('Your ' + p.name.split(' /')[0] + ' address', from, 'Mails go out from this address.'),
+          field('App password', pw, a ? [a[0], h('a', { href: a[1], target: '_blank', rel: 'noopener noreferrer', text: a[2] }), a[3]] : null),
+          field('Name people see', name),
+          h('div', { class: 'f' }, 'Connection', h('span', { class: 'in ro', text: srvOf(p) + ' · ' + (/:465$/.test(srvOf(p)) ? 'TLS' : 'STARTTLS') + ' · filled in for you' })));
+      } else if (prov === 'sendmail') {
+        put(fieldsBox, field('Send from', from), field('Name people see', name),
+          h('p', { class: 'note ml-wide', text: "Sent with this machine's sendmail program (sendmail_path in beeircd.conf)." }));
+      } else {
+        put(fieldsBox,
+          field('Mail server', server, 'Like mail.example.org:587 (STARTTLS) or :465 (TLS).'),
+          field('Send from', from),
+          field('Login', user, 'Often the same as the address. Empty: no login.'),
+          field('Password', pw),
+          field('Name people see', name));
+      }
+      actRow.hidden = prov === 'off' && d.provider === 'off';
+      testBtn.hidden = to.hidden = prov === 'off';
+      drawTest();
+    }
+    function line(ok, ...text) {
+      return h('div', { class: 'ml-line ' + (ok ? 'ok' : 'bad') }, icon(ok ? 'check' : 'x'), h('span', {}, text));
+    }
+    function drawTest() {
+      testBox.hidden = !testRes;
+      if (testRes) {
+        const t = testRes;
+        put(testBox, t.ok
+          ? line(true, 'Sent to ' + t.to + ' in ' + (t.took / 1000).toFixed(1) + ' s. Look in your inbox; if it landed in spam, mark it "not spam" once.')
+          : line(false, h('b', { text: t.explain }), h('span', { class: 'ml-raw', text: ' (' + t.raw + ')' })));
+      }
+      const c = checks;
+      dnsHead.hidden = dnsBox.hidden = !c || !c.checks || !c.checks.length || prov === 'off';
+      if (dnsHead.hidden) return;
+      put(dnsHead, icon('lock'), 'Will it land in the inbox?', h('span', { class: 'lbl', text: 'checks ' + c.domain }));
+      put(dnsBox, ...c.checks.map(k => {
+        const fix = k.fix ? h('code', { text: k.fix }) : null;
+        const copy = k.fix ? h('button', { type: 'button', class: 'btn sm', 'aria-label': 'Copy the ' + k.name + ' record' }, 'Copy') : h('span');
+        if (k.fix) copy.addEventListener('click', () => {
+          navigator.clipboard.writeText(k.fix).then(() => toast(['Copied the ', h('b', { text: k.name }), ' record'])).catch(() => toastErr("Couldn't copy; select the text instead."));
+        });
+        return h('div', { class: 'ml-dr ' + k.state }, icon(k.state === 'ok' ? 'check' : k.state === 'warn' ? 'alert' : 'x'),
+          h('b', { text: k.name }), h('span', { class: 'why' }, k.text, fix), copy);
+      }));
+      const bad = c.checks.filter(k => k.state === 'bad').length;
+      if (bad) dnsBox.append(line(false, 'Gmail and Outlook often put mails in spam while ' + (bad === 1 ? 'this row is' : 'these rows are') + ' red. Fix ' + (bad === 1 ? 'it' : 'them') + ', or send with Gmail.'));
+    }
+    function drawReg() {
+      const can = !!d.tested || d.registration === 'mail';
+      put(regSeg, ...[['none', 'Ready at once'], ['mail', 'Confirm by email'], ['admin', 'An oper confirms']].map(([v, label]) => {
+        const lock = v === 'mail' && !can;
+        const b = h('button', { type: 'button', 'aria-pressed': d.registration === v ? 'true' : 'false', text: label, disabled: lock, title: lock ? 'Send a test mail that goes through first' : null });
+        b.addEventListener('click', async () => {
+          if (d.registration === v) return;
+          await busy(b, async () => {
+            try {
+              d = (await api('POST', '/api/mail-reg', { value: v })).mail;
+              toast(['New NickServ accounts: ', h('b', { text: label })]);
+            } catch (e) { toastErr(e.message); }
+          });
+          drawReg();
+        });
+        return b;
+      }));
+      put(regHint, !can ? 'Confirm by email opens once a test mail goes through. ' : null,
+        d.registration === 'none' ? 'New accounts can register channels at once.' :
+          ['Unconfirmed accounts go after ', h('b', { text: d.expire }), ' · they can identify, not register channels']);
+    }
+    function drawPill() {
+      pill.hidden = false;
+      const [cls, dot, text] = d.provider === 'off' ? ['pill off', 'off', 'mail off']
+        : d.tested ? ['pill', 'ok', 'sending works · tested ' + since(d.tested * 1000) + ' ago'] : ['pill warn', 'warn', 'not tested yet'];
+      pill.className = cls;
+      put(pill, h('span', { class: 'dot ' + dot }), text);
+    }
+    function fill() {
+      prov = d.provider;
+      from.value = d.from || ''; name.value = d.name || ''; server.value = d.server || ''; user.value = d.user || ''; pw.value = '';
+      if (!to.value) to.value = d.from || '';
+      drawForm(); drawReg(); drawPill();
+    }
+    async function loadDNS() {
+      if (d.provider === 'off') { checks = null; drawTest(); return; }
+      try { checks = (await api('GET', '/api/mail-dns')).mailTest; } catch (e) { checks = null; }
+      drawTest();
+    }
+    async function load() {
+      try {
+        d = (await api('GET', '/api/mail')).mail;
+        fill();
+        loadDNS();
+      } catch (e) { put(fieldsBox, h('p', { class: 'empty ml-wide', text: e.message })); }
+    }
+    saveBtn.addEventListener('click', () => busy(saveBtn, async () => {
+      try {
+        d = (await api('POST', '/api/mail-save', { mail: form() })).mail;
+        toast([d.provider === 'off' ? 'Mail is off' : d.tested ? 'Mail saved · tested' : 'Mail saved · send a test mail next']);
+        fill();
+        loadDNS();
+      } catch (e) { toastErr('Mail not saved: ' + e.message); }
+    }));
+    testBtn.addEventListener('click', () => busy(testBtn, async () => {
+      try {
+        testRes = (await api('POST', '/api/mail-test', { mail: form(), to: to.value.trim() })).mailTest;
+        checks = testRes;
+        drawTest();
+        d = Object.assign((await api('GET', '/api/mail')).mail, {});
+        drawReg(); drawPill();
+      } catch (e) { toastErr(e.message); }
+    }));
+    to.addEventListener('keydown', e => { if (e.key === 'Enter') testBtn.click(); });
+    const el = h('section', { class: 'card ml-card' },
+      h('div', { class: 'tools ml-head' }, h('div', { class: 'head-text' }, h('h2', { text: 'Mail' }), sub), pill),
+      h('div', { class: 'ml-sect', text: 'Send with' }), picks, fieldsBox, actRow, testBox, dnsHead, dnsBox, regBox);
+    load();
+    return { el };
   }
 
   // ---------- Backups card (Settings, owner only) ----------
