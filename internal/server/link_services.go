@@ -56,7 +56,7 @@ func (s *Server) remoteSvsJoin(l *linkConn, m irc.Message, j *link.SvsJoin) {
 			if ch.Topic != "" {
 				s.sendTopic(c, ch)
 			}
-			s.sendNames(c, ch)
+			s.joinNames(c, ch)
 		}
 	}
 }

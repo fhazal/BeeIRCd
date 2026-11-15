@@ -63,12 +63,15 @@ How to set each one up is in [ADMIN.md](ADMIN.md); installing is in [INSTALL.md]
 | batch, labeled-response, echo-message | ✅ |
 | chghost, invite-notify, multi-prefix, userhost-in-names, setname | ✅ |
 | client tags (typing, reply, react, channel-context) relayed | ✅ |
-| MONITOR | ✅ |
+| MONITOR, extended-monitor | ✅ |
+| WHOX (`WHO <mask> %<fields>[,<token>]`) | ✅ |
+| bot mode (`+B`, `BOT=B`, `bot` tag) | ✅ |
+| draft/no-implicit-names | ✅ |
 | account-extban | ✅ |
 | STS (only with a real CA certificate) | ✅ |
 | WebIRC (`[[webirc]]` gateways) | ✅ |
 | draft/chathistory | ✅ |
-| standard-replies, extended-monitor, WHOX, bot mode, UTF8ONLY, no-implicit-names | 📋 |
+| standard-replies (all commands), UTF8ONLY | 📋 |
 | SASL SCRAM, draft/account-registration, draft/multiline, draft/read-marker, draft/message-redaction | 📋 |
 | STARTTLS | not supported (deprecated) |
 

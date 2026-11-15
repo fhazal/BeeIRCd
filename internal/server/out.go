@@ -165,6 +165,18 @@ func (s *Server) toNeighbours(u *state.User, o *outMsg, self bool) {
 	}
 }
 
+// toWatchers sends o (AWAY, ACCOUNT, CHGHOST, SETNAME) to the clients that
+// MONITOR u with extended-monitor and share no channel with u: those that
+// do already got it from toNeighbours.
+func (s *Server) toWatchers(u *state.User, o *outMsg) {
+	for c := range s.watchers[irc.Fold(u.Nick)] {
+		if c.user == nil || c.user == u || !c.caps["extended-monitor"] || state.SharesChannel(c.user, u) {
+			continue
+		}
+		c.deliver(o)
+	}
+}
+
 // newMsgID returns an ID unique across the network.
 func (s *Server) newMsgID() string {
 	s.msgSeq++

@@ -84,7 +84,7 @@ func (s *Server) joinVia(c *Client, name, key string, hops int) {
 	if ch.Topic != "" {
 		s.sendTopic(c, ch)
 	}
-	s.sendNames(c, ch)
+	s.joinNames(c, ch)
 	s.joinPlayback(c, ch)
 }
 
@@ -164,6 +164,15 @@ func (s *Server) cmdNames(c *Client, m irc.Message) {
 		}
 		s.sendNames(c, ch)
 	}
+}
+
+// joinNames sends the names list a JOIN brings, unless the client asked
+// for draft/no-implicit-names (it sends NAMES itself when it wants them).
+func (s *Server) joinNames(c *Client, ch *state.Channel) {
+	if c.caps["draft/no-implicit-names"] {
+		return
+	}
+	s.sendNames(c, ch)
 }
 
 // sendNames lists ch's members, as many per line as fit.

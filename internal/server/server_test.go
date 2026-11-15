@@ -524,6 +524,38 @@ func TestWho(t *testing.T) {
 	x.quiet(" 352 x * ~bee ") // invisible and no shared channel
 }
 
+func TestWhox(t *testing.T) {
+	s := testServer(t, nil)
+	bee, ember := login(t, s, "Bee"), login(t, s, "ember")
+	bee.send("JOIN #a")
+	bee.expect(" 366 Bee #a ")
+	ember.send("JOIN #a")
+	ember.expect(" 366 ember #a ")
+	ember.send("AWAY :out")
+	ember.expect(" 306 ")
+	// %tcnfar,42: fields come back in WHOX order, whatever order was asked.
+	bee.send("WHO #a %rafnct,42")
+	bee.expect(" 354 Bee 42 #a Bee H@ 0 :Bee Real")
+	bee.expect(" 354 Bee 42 #a ember G 0 :ember Real")
+	bee.expect(" 315 Bee #a :End of /WHO list.")
+	// No realname: the reply has no trailing part; a bad token reads 0.
+	bee.send("WHO ember %tna,abcd")
+	bee.expect(" 354 Bee 0 ember 0")
+	bee.expect(" 315 Bee ember ")
+	// Only you (and opers) see a real IP.
+	bee.send("WHO ember %ni")
+	bee.expect(" 354 Bee 255.255.255.255 ember")
+	ember.send("WHO ember %ni")
+	ember.expect(" 354 ember 127.0.0.1 ember")
+	// o before the % still means opers only; a plain WHO is unchanged.
+	bee.send("WHO #a o%n")
+	bee.quiet(" 354 Bee ember")
+	bee.send("WHO #a")
+	bee.expect(" 352 Bee #a ~bee ")
+	bee.send("VERSION")
+	bee.expect(" WHOX ")
+}
+
 func TestPingTimeout(t *testing.T) {
 	s := testServer(t, func(c *config.Config) {
 		c.Limits.PingInterval.Duration = 150 * time.Millisecond

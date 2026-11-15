@@ -18,7 +18,7 @@ import (
 // capabilities are the IRCv3 features BeeIRCd offers.
 var capabilities = []string{
 	"account-notify", "account-tag", "away-notify", "batch", "cap-notify",
-	"chghost", "draft/chathistory", "echo-message", "extended-join", "invite-notify",
+	"chghost", "draft/chathistory", "draft/no-implicit-names", "echo-message", "extended-join", "extended-monitor", "invite-notify",
 	"labeled-response", "message-tags", "multi-prefix", "sasl", "server-time",
 	"setname", "userhost-in-names",
 }
@@ -435,6 +435,7 @@ func (s *Server) isupport() []string {
 		"TARGMAX=JOIN:,KICK:4,NAMES:1,NOTICE:4,PART:,PRIVMSG:4,WHOIS:1",
 		"TOPICLEN=" + strconv.Itoa(l.TopicLen),
 		"USERLEN=10",
+		"WHOX",
 	}
 }
 

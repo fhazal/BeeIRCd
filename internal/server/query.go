@@ -15,7 +15,7 @@ func (s *Server) cmdWho(c *Client, m irc.Message) {
 	if mask == "" {
 		mask = "*"
 	}
-	opersOnly := m.Param(1) == "o"
+	wx, opersOnly := parseWhox(m.Param(1))
 	if irc.IsChannel(mask) {
 		if ch := s.net.Channel(mask); ch != nil {
 			inside := ch.Member(c.user) != nil || c.can('h')
@@ -27,7 +27,7 @@ func (s *Server) cmdWho(c *Client, m irc.Message) {
 					if opersOnly && !mem.User.HasMode('o') {
 						continue
 					}
-					s.whoLine(c, ch.Name, mem.User, memberPrefix(c, mem))
+					s.whoLine(c, ch.Name, mem.User, memberPrefix(c, mem), wx)
 				}
 			}
 		}
@@ -41,7 +41,7 @@ func (s *Server) cmdWho(c *Client, m irc.Message) {
 	if !strings.ContainsAny(mask, "*?") {
 		if u := s.net.UserByNick(mask); u != nil {
 			if !opersOnly || u.HasMode('o') {
-				s.whoLine(c, "*", u, "")
+				s.whoLine(c, "*", u, "", wx)
 			}
 			s.reply(c, irc.RplEndOfWho, m.Param(0), "End of /WHO list.")
 			return
@@ -55,13 +55,44 @@ func (s *Server) cmdWho(c *Client, m irc.Message) {
 			continue
 		}
 		if irc.Match(mask, u.Nick) || irc.Match(mask, u.Host) || irc.Match(mask, u.Realname) || irc.Match(mask, u.Server) {
-			s.whoLine(c, "*", u, "")
+			s.whoLine(c, "*", u, "", wx)
 		}
 	}
 	s.reply(c, irc.RplEndOfWho, m.Param(0), "End of /WHO list.")
 }
 
-func (s *Server) whoLine(c *Client, channel string, u *state.User, prefix string) {
+// whox is what a WHOX request (WHO <mask> [flags]%<fields>[,<token>])
+// asks for; nil for a plain WHO.
+type whox struct {
+	fields string // the asked field letters, in the order replies use
+	token  string
+}
+
+// whoxOrder is the order of WHOX fields in a 354 reply.
+const whoxOrder = "tcuihsnfdlaor"
+
+// parseWhox reads WHO's second parameter: "o" (opers only) and, after a
+// %, the WHOX fields and token.
+func parseWhox(opt string) (*whox, bool) {
+	flags, rest, ok := strings.Cut(opt, "%")
+	opersOnly := strings.Contains(flags, "o")
+	if !ok {
+		return nil, opersOnly
+	}
+	letters, token, _ := strings.Cut(rest, ",")
+	w := &whox{token: "0"}
+	for _, f := range whoxOrder {
+		if strings.ContainsRune(letters, f) {
+			w.fields += string(f)
+		}
+	}
+	if n := len(token); n >= 1 && n <= 3 && strings.Trim(token, "0123456789") == "" {
+		w.token = token
+	}
+	return w, opersOnly
+}
+
+func (s *Server) whoLine(c *Client, channel string, u *state.User, prefix string, wx *whox) {
 	flags := "H"
 	if u.Away != "" {
 		flags = "G"
@@ -73,7 +104,59 @@ func (s *Server) whoLine(c *Client, channel string, u *state.User, prefix string
 		flags += "B"
 	}
 	flags += prefix
-	s.reply(c, irc.RplWhoReply, channel, u.Ident, u.Host, u.Server, u.Nick, flags, "0 "+u.Realname)
+	if wx == nil {
+		s.reply(c, irc.RplWhoReply, channel, u.Ident, u.Host, u.Server, u.Nick, flags, "0 "+u.Realname)
+		return
+	}
+	out := make([]string, 0, len(wx.fields))
+	for _, f := range wx.fields {
+		switch f {
+		case 't':
+			out = append(out, wx.token)
+		case 'c':
+			out = append(out, channel)
+		case 'u':
+			out = append(out, u.Ident)
+		case 'i':
+			ip := "255.255.255.255" // only you and opers see a real address
+			if (u == c.user || c.isOper()) && u.IP != "" {
+				ip = u.IP
+			}
+			out = append(out, ip)
+		case 'h':
+			out = append(out, u.Host)
+		case 's':
+			out = append(out, u.Server)
+		case 'n':
+			out = append(out, u.Nick)
+		case 'f':
+			out = append(out, flags)
+		case 'd':
+			out = append(out, "0")
+		case 'l':
+			idle := "0"
+			if tc := s.clientOf(u); tc != nil {
+				idle = strconv.FormatInt(int64(time.Since(tc.lastMsg).Seconds()), 10)
+			}
+			out = append(out, idle)
+		case 'a':
+			acct := u.Account
+			if acct == "" {
+				acct = "0"
+			}
+			out = append(out, acct)
+		case 'o':
+			out = append(out, "n/a")
+		case 'r':
+			out = append(out, u.Realname)
+		}
+	}
+	// r (the realname, which may hold spaces) is always last when asked.
+	if strings.HasSuffix(wx.fields, "r") {
+		s.reply(c, irc.RplWhoSpcRpl, out...)
+		return
+	}
+	s.replyBare(c, irc.RplWhoSpcRpl, out...)
 }
 
 func (s *Server) cmdWhois(c *Client, m irc.Message) {

@@ -42,6 +42,7 @@ const (
 	RplEndOfExcept   = "349"
 	RplVersion       = "351"
 	RplWhoReply      = "352"
+	RplWhoSpcRpl     = "354" // WHOX
 	RplNamReply      = "353"
 	RplEndOfNames    = "366"
 	RplBanList       = "367"

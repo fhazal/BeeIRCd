@@ -228,3 +228,60 @@ func TestClipKeepsTags(t *testing.T) {
 		t.Errorf("clip: tags %q, rest %d bytes", tags, len(rest))
 	}
 }
+
+func TestNoImplicitNames(t *testing.T) {
+	s := testServer(t, nil)
+	c := raw(t, s)
+	c.send("CAP REQ :draft/no-implicit-names")
+	c.expect("CAP * ACK :draft/no-implicit-names")
+	c.send("NICK Bee")
+	c.send("USER bee 0 * :Bee")
+	c.send("CAP END")
+	c.expect(" 001 Bee ")
+	c.send("JOIN #a")
+	c.expect(":Bee!~bee@127.0.0.1 JOIN #a")
+	c.quiet(" 353 Bee ")
+	c.send("NAMES #a") // asked for: the list comes
+	c.expect(" 353 Bee = #a :@Bee")
+	c.expect(" 366 Bee #a ")
+	other := login(t, s, "ember") // without the cap JOIN still lists names
+	other.send("JOIN #a")
+	other.expect(" 353 ember = #a :")
+}
+
+func TestExtendedMonitor(t *testing.T) {
+	s := testServer(t, nil)
+	c := raw(t, s)
+	c.send("CAP REQ :extended-monitor away-notify setname")
+	c.expect("CAP * ACK :extended-monitor away-notify setname")
+	c.send("NICK Bee")
+	c.send("USER bee 0 * :Bee")
+	c.send("CAP END")
+	c.expect(" 001 Bee ")
+	plain := raw(t, s) // away-notify without extended-monitor
+	plain.send("CAP REQ :away-notify")
+	plain.expect("CAP * ACK :away-notify")
+	plain.send("NICK nova")
+	plain.send("USER nova 0 * :Nova")
+	plain.send("CAP END")
+	plain.expect(" 001 nova ")
+	ember := login(t, s, "ember")
+	c.send("MONITOR + ember")
+	c.expect(" 730 Bee :ember!")
+	plain.send("MONITOR + ember")
+	plain.expect(" 730 nova :ember!")
+	ember.send("AWAY :lunch")
+	ember.expect(" 306 ")
+	c.expect(":ember!~ember@127.0.0.1 AWAY :lunch")
+	plain.quiet("AWAY :lunch")
+	// Sharing a channel: one copy only.
+	c.send("JOIN #a")
+	c.expect(" 366 Bee #a ")
+	ember.send("JOIN #a")
+	c.expect("ember!~ember@127.0.0.1 JOIN #a")
+	c.expect(":ember!~ember@127.0.0.1 AWAY :lunch") // away-notify on join
+	ember.send("AWAY")
+	ember.expect(" 305 ")
+	c.expect(":ember!~ember@127.0.0.1 AWAY")
+	c.quiet(":ember!~ember@127.0.0.1 AWAY")
+}

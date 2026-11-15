@@ -125,7 +125,7 @@ var helpTopics = map[string][]string{
 	"USERHOST": {"USERHOST <nick> [nick ...]", "Shows the user@host of these nicks."},
 	"VERSION":  {"VERSION", "Shows the server's version and what it supports."},
 	"WALLOPS":  {"WALLOPS <text>", "Sends a message to everyone with user mode +w (opers)."},
-	"WHO":      {"WHO <#channel|mask> [o]", "Lists people on a channel or matching a mask; o shows only opers."},
+	"WHO":      {"WHO <#channel|mask> [o][%fields[,token]]", "Lists people on a channel or matching a mask; o shows only opers. With %fields (WHOX: t c u i h s n f d l a o r) each person is one line with just those fields, a for the account."},
 	"WHOIS":    {"WHOIS <nick>", "Shows who someone is."},
 	"WHOWAS":   {"WHOWAS <nick> [count]", "Shows who used a nick that is gone."},
 }

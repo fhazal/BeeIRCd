@@ -237,7 +237,7 @@ func (h host) ForceJoin(uid, channel string) {
 		if ch.Topic != "" {
 			s.sendTopic(c, ch)
 		}
-		s.sendNames(c, ch)
+		s.joinNames(c, ch)
 	}
 }
 

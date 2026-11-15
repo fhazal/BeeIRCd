@@ -179,6 +179,7 @@ func (s *Server) prepare(ev state.Event) func() {
 			}
 			o.needCap = "away-notify"
 			s.toNeighbours(u, o, false)
+			s.toWatchers(u, o)
 		}
 	case *state.Login:
 		return func() {
@@ -186,6 +187,7 @@ func (s *Server) prepare(ev state.Event) func() {
 			o := s.out(u, "ACCOUNT", accountOrStar(u))
 			o.needCap = "account-notify"
 			s.toNeighbours(u, o, true)
+			s.toWatchers(u, o)
 		}
 	case *state.HostChange:
 		u := s.net.UserByUID(e.UID)
@@ -201,7 +203,7 @@ func (s *Server) prepare(ev state.Event) func() {
 		}
 		o := s.out(u, "CHGHOST", ident, e.Host)
 		o.needCap = "chghost"
-		return func() { s.toNeighbours(u, o, true) }
+		return func() { s.toNeighbours(u, o, true); s.toWatchers(u, o) }
 	case *state.RealnameChange:
 		u := s.net.UserByUID(e.UID)
 		if u == nil || u.Realname == e.Realname {
@@ -211,6 +213,7 @@ func (s *Server) prepare(ev state.Event) func() {
 			o := s.out(u, "SETNAME", e.Realname).text()
 			o.needCap = "setname"
 			s.toNeighbours(u, o, true)
+			s.toWatchers(u, o)
 		}
 	case *state.Invite:
 		return func() {

@@ -86,7 +86,8 @@ Running an IRC network usually means two programs that have to be wired together
 - CAP 302, message-tags, server-time, message-ids
 - SASL, account-notify, account-tag, extended-join
 - batch, labeled-response, echo-message
-- chghost, invite-notify, away-notify, MONITOR
+- chghost, invite-notify, away-notify, MONITOR, extended-monitor
+- WHOX, bot mode, no-implicit-names
 
 </td><td valign="top">
 
