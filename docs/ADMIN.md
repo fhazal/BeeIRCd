@@ -1001,6 +1001,17 @@ SHOW, HISTORY, DIFF, UNDO, DNSBL; it needs `remote_admin = true` there;
 ports, restarts and link blocks are changed in that server's shell). Each
 remote change is logged on both servers with who and what.
 
+**Link notices.** IRC operators (user mode `+s`) see each step of a
+link as a server notice: `Connecting to <server> (host:port)` (once
+while it keeps failing; the log has every try), `Link to <server>
+failed: <why>`, `Link with <server> (SID, ip:port) established over TLS
+1.3 (cipher), certificate pinned: <software>, we connected`, `Link with
+<server>: sync done in 178ms: 86 users on 1 server`, `Server <name>
+joined the network behind <server>`, a warning when a link hasn't
+answered a PING for 30 seconds (and when it answers again), `Link with
+<server> lost after 3h40m: <reason>, lost 86 users on 2 servers`, and
+refusals (wrong password or fingerprint, unknown server).
+
 **Splits and rejoins.** When a link goes, everyone behind it quits with
 "near-server far-server" (or `*.net *.split`, see `hide_split`), inside an
 IRCv3 `netsplit` batch for clients that asked for batches; when it comes

@@ -47,6 +47,7 @@ const (
 	linkHandshakeTimeout = 30 * time.Second
 	linkPingIdle         = 60 * time.Second // PING after this long without a line
 	linkPingTimeout      = 90 * time.Second // drop when the PONG takes longer
+	linkPingWarn         = 30 * time.Second // tell opers the link is lagging
 	linkDialTimeout      = 15 * time.Second
 	linkRetryMin         = 30 * time.Second // after a failed connect, doubling
 	linkRetryMax         = 5 * time.Minute
@@ -130,6 +131,7 @@ type linkConn struct {
 	pingSent  time.Time
 	lag       time.Duration
 	lastPong  time.Time
+	lagWarned bool          // opers were told it isn't answering PING
 	synced    time.Duration // how long their burst took
 	closed    bool
 	ignored   map[string]bool       // commands not handled yet, logged once
@@ -543,7 +545,7 @@ func (s *Server) linkUp(l *linkConn) {
 	if l.out {
 		dir = "we connected"
 	}
-	s.snotice("Link with %s (%s, %s) established: %s, %s", p.Name, p.SID, l.addr, orStr(p.Software, "unknown software"), dir)
+	s.snotice("Link with %s (%s, %s) established%s: %s, %s", p.Name, p.SID, l.addr, tlsInfo(l.conn), orStr(p.Software, "unknown software"), dir)
 }
 
 // burstServers lists the servers to introduce to l: everyone not behind
@@ -613,6 +615,10 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 			// so "not measured yet" stays apart.
 			l.lag = max(time.Since(l.pingSent), time.Microsecond)
 			l.pingSent, l.lastPong = time.Time{}, time.Now()
+			if l.lagWarned {
+				l.lagWarned = false
+				s.snotice("Link with %s answers again (lag %s)", l.peer.Name, l.lag.Round(time.Millisecond))
+			}
 		}
 	case "SID":
 		s.linkSID(l, m)
@@ -626,7 +632,7 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 			l.eos = true
 			l.netjoin.end()
 			l.synced = time.Since(l.since)
-			s.snotice("Link with %s: sync done in %s", r.name, l.synced.Round(time.Millisecond))
+			s.snotice("Link with %s: sync done in %s%s", r.name, l.synced.Round(time.Millisecond), s.burstSize(l))
 			s.sendPlaces(l)
 			s.sendExcepts(l)
 		}
@@ -723,9 +729,9 @@ func (s *Server) linkSQUIT(l *linkConn, m irc.Message) {
 		s.dropLink(l, "they ended the link: "+reason)
 		return
 	}
-	gone := s.splitOff(r.sid, s.links.servers[r.uplink].nameOr(r.uplink), r.name)
+	gone, users := s.splitOff(r.sid, s.links.servers[r.uplink].nameOr(r.uplink), r.name)
 	s.linkBroadcast(l, fmt.Sprintf(":%s SQUIT %s :%s", r.uplink, r.name, reason))
-	s.snotice("Server %s split from %s (%s)%s", r.name, s.links.servers[r.uplink].nameOr(r.uplink), reason, splitCount(gone))
+	s.snotice("Server %s split from %s (%s)%s", r.name, s.links.servers[r.uplink].nameOr(r.uplink), reason, splitCount(gone, users))
 }
 
 func (r *remoteServer) nameOr(fallback string) string {
@@ -735,16 +741,32 @@ func (r *remoteServer) nameOr(fallback string) string {
 	return r.name
 }
 
-func splitCount(n int) string {
-	if n <= 1 {
+func splitCount(servers, users int) string {
+	var p []string
+	if users > 0 {
+		p = append(p, countOf(users, "user"))
+	}
+	if servers > 1 {
+		p = append(p, countOf(servers, "server"))
+	}
+	if len(p) == 0 {
 		return ""
 	}
-	return fmt.Sprintf(", %d servers in all", n)
+	return ", lost " + strings.Join(p, " on ")
+}
+
+// countOf is "1 user", "86 users".
+func countOf(n int, what string) string {
+	if n == 1 {
+		return "1 " + what
+	}
+	return fmt.Sprintf("%d %ss", n, what)
 }
 
 // splitOff removes a server and everything behind it, with the users on
-// them (quit reason "near far"); it returns how many servers went.
-func (s *Server) splitOff(sid, near, far string) int {
+// them (quit reason "near far"); it returns how many servers and users
+// went.
+func (s *Server) splitOff(sid, near, far string) (servers, users int) {
 	gone := map[string]bool{sid: true}
 	for changed := true; changed; {
 		changed = false
@@ -754,11 +776,11 @@ func (s *Server) splitOff(sid, near, far string) int {
 			}
 		}
 	}
-	s.quitSplit(gone, near, far)
+	users = s.quitSplit(gone, near, far)
 	for k := range gone {
 		delete(s.links.servers, k)
 	}
-	return len(gone)
+	return len(gone), users
 }
 
 // linkNetinfo is "NETINFO maxglobal ts protocol cloakhash 0 0 0 :network".
@@ -816,13 +838,13 @@ func (s *Server) dropLink(l *linkConn, reason string) {
 			behind[sid] = true
 		}
 	}
-	s.quitSplit(behind, s.cfg.Server.Name, l.peer.Name)
+	users := s.quitSplit(behind, s.cfg.Server.Name, l.peer.Name)
 	for sid := range behind {
 		delete(s.links.servers, sid)
 	}
 	gone := len(behind)
 	s.linkBroadcast(nil, fmt.Sprintf(":%s SQUIT %s :%s", s.cfg.Server.SID, l.peer.Name, reason))
-	s.snotice("Link with %s lost after %s: %s%s", l.peer.Name, since(time.Since(l.since)), reason, splitCount(gone))
+	s.snotice("Link with %s lost after %s: %s%s", l.peer.Name, since(time.Since(l.since)), reason, splitCount(gone, users))
 }
 
 // orStr is a unless it is empty, else b.
@@ -860,6 +882,10 @@ func (s *Server) linkTick(now time.Time) {
 			l.send("PING :" + s.cfg.Server.Name)
 		case l.up && !l.pingSent.IsZero() && now.Sub(l.pingSent) > linkPingTimeout:
 			s.dropLink(l, fmt.Sprintf("Ping timeout: %d seconds", int(now.Sub(l.lastRecv).Seconds())))
+		case l.up && !l.pingSent.IsZero() && !l.lagWarned && now.Sub(l.pingSent) > linkPingWarn:
+			l.lagWarned = true
+			s.snotice("Link with %s hasn't answered a PING for %d seconds: it is lagging (dropped after %d)",
+				l.peer.Name, int(now.Sub(l.pingSent).Seconds()), int(linkPingTimeout.Seconds()))
 		}
 	}
 	s.autoconnect(now)
@@ -896,6 +922,9 @@ func (s *Server) autoconnect(now time.Time) {
 		}
 		r.dialing, busy = true, true
 		r.next = now.Add(linkRetryMin)
+		if r.lastErr == "" { // while it keeps failing, only the log has each try
+			s.snotice("Connecting to %s (%s:%d)", b.Name, b.Host, b.Port)
+		}
 		s.wg.Add(1)
 		go s.dialLink(b)
 	}
@@ -1101,4 +1130,32 @@ func shortNetErr(err error) string {
 		return op.Err.Error()
 	}
 	return err.Error()
+}
+
+// tlsInfo is " over TLS 1.3 (TLS_AES_128_GCM_SHA256)" for a link's
+// connection; links are always TLS with the certificate pinned.
+func tlsInfo(conn net.Conn) string {
+	tc, ok := conn.(*tls.Conn)
+	if !ok {
+		return ""
+	}
+	st := tc.ConnectionState()
+	return fmt.Sprintf(" over %s (%s), certificate pinned", tls.VersionName(st.Version), tls.CipherSuiteName(st.CipherSuite))
+}
+
+// burstSize is ": 86 users on 2 servers", what l's side of the network
+// brought in.
+func (s *Server) burstSize(l *linkConn) string {
+	servers, users := 0, 0
+	for _, r := range s.links.servers {
+		if r.via == l {
+			servers++
+		}
+	}
+	for _, u := range s.net.Users() {
+		if s.behind(l, uidServer(u.UID)) && !u.Service {
+			users++
+		}
+	}
+	return ": " + countOf(users, "user") + " on " + countOf(servers, "server")
 }

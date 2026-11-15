@@ -594,7 +594,7 @@ func (s *Server) remoteTopic(l *linkConn, src string, t *link.Topic) {
 
 // quitSplit takes every user on the servers in gone off the network, with
 // the classic "near far" quit reason (L8: real names).
-func (s *Server) quitSplit(gone map[string]bool, near, far string) {
+func (s *Server) quitSplit(gone map[string]bool, near, far string) int {
 	var uids []string
 	for _, u := range s.net.Users() {
 		if gone[uidServer(u.UID)] {
@@ -603,7 +603,7 @@ func (s *Server) quitSplit(gone map[string]bool, near, far string) {
 	}
 	sort.Strings(uids)
 	if len(uids) == 0 {
-		return
+		return 0
 	}
 	// The QUITs reach clients with the batch capability inside an IRCv3
 	// netsplit batch; with [link] hide_split non-opers see
@@ -616,6 +616,7 @@ func (s *Server) quitSplit(gone map[string]bool, near, far string) {
 	}
 	s.netsplit = nil
 	b.end()
+	return len(uids)
 }
 
 // ---- netjoin batch ----

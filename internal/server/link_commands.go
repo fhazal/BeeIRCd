@@ -164,7 +164,7 @@ func (s *Server) linkNowBy(who, name string) string {
 	r.dialing, r.next = true, time.Now().Add(linkRetryMin)
 	s.wg.Add(1)
 	go s.dialLink(*b)
-	s.snotice("%s asked to connect to %s", who, b.Name)
+	s.snotice("%s asked to connect to %s (%s:%d)", who, b.Name, b.Host, b.Port)
 	return fmt.Sprintf("Connecting to %s (%s:%d). Opers with +s see how it goes.", b.Name, b.Host, b.Port)
 }
 
@@ -209,9 +209,9 @@ func (s *Server) squitBy(who, source, name, reason string) (text string, ok bool
 		return "", true
 	}
 	r.via.send(fmt.Sprintf(":%s SQUIT %s :%s", source, r.name, reason))
-	gone := s.splitOff(r.sid, s.links.servers[r.uplink].nameOr(r.uplink), r.name)
+	gone, users := s.splitOff(r.sid, s.links.servers[r.uplink].nameOr(r.uplink), r.name)
 	s.linkBroadcast(r.via, fmt.Sprintf(":%s SQUIT %s :%s", r.uplink, r.name, reason))
-	s.snotice("Server %s split (%s)%s", r.name, reason, splitCount(gone))
+	s.snotice("Server %s split (%s)%s", r.name, reason, splitCount(gone, users))
 	return "", true
 }
 
