@@ -238,7 +238,7 @@ sudo beeircd uninstall --purge  # also deletes /etc/beeircd, /var/lib/beeircd (b
 
 The BeeIRCd image runs on any machine with Docker: a NAS (Synology,
 Unraid, TrueNAS), any Linux, or Windows and Mac with Docker Desktop. The
-image is small (about 37 MB) and runs the server as an unprivileged user.
+image is small (about 29 MB) and runs the server as an unprivileged user.
 
 Save [compose.yaml](../deploy/docker/compose.yaml) in an empty folder, then:
 
@@ -279,7 +279,15 @@ docker compose up -d                       # start; it comes back after a reboot
   change `beeircd-data:/data` to `./data:/data`; the container makes it
   belong to its user by itself.
 - **Backups** run daily at 04:00 in the `TZ` time zone set in compose.yaml
-  (UTC by default), newest 7 kept.
+  (UTC by default), newest 7 kept. They are in the same volume as the data
+  (`/data/backups`), so copy them off the machine now and then. To restore
+  one:
+
+  ```sh
+  docker compose stop beeircd beeircd-web
+  docker compose run --rm --no-deps --entrypoint sh beeircd -c "cd /data && rm -f services.db-wal services.db-shm && tar -xzf backups/beeircd-2026-11-12-0400.tar.gz && chown -R beeircd:beeircd /data"
+  docker compose --profile panel --profile chat up -d   # the profiles you use
+  ```
 - **Ports.** compose.yaml publishes 6667 and 6697. Uncomment `7000` for a
   hub and `80` for Let's Encrypt. Open the same ports in your firewall.
 - **Real IPs.** On Linux, people's own IPs reach BeeIRCd, so bans and limits
