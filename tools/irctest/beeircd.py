@@ -17,7 +17,7 @@ TEMPLATE_CONFIG = """
 [server]
 name = "My.Little.Server"
 network = "BeeTest"
-description = "irctest"
+description = "test server"
 sid = "0IT"
 resolve_hosts = false
 ircv3_drafts = true
