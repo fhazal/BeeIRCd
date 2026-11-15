@@ -230,6 +230,7 @@
   // ---------- sign in ----------
   function signedOut(msg) {
     stopLive();
+    if (page && page.leave) page.leave(); // its timers must not ask again
     me = null; status = null; events = null; page = null;
     showSignin(msg);
   }
