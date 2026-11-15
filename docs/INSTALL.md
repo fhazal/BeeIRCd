@@ -238,7 +238,7 @@ The BeeIRCd image runs on any machine with Docker: a NAS (Synology,
 Unraid, TrueNAS), any Linux, or Windows and Mac with Docker Desktop. The
 image is small (about 37 MB) and runs the server as an unprivileged user.
 
-Save [compose.yaml](deploy/docker/compose.yaml) in an empty folder, then:
+Save [compose.yaml](../deploy/docker/compose.yaml) in an empty folder, then:
 
 ```sh
 docker compose run --rm beeircd install    # the same nine questions
