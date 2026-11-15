@@ -26,7 +26,7 @@ func TestOperByCertificate(t *testing.T) {
 		colons += strings.ToUpper(fp[i:i+2]) + ":"
 	}
 	b.send("AS OPER guard SET CERT " + strings.TrimSuffix(colons, ":"))
-	b.expect("guard: class globop")
+	b.expect(", certificate " + strings.ToLower(fp) + ".")
 
 	// Certificate and password both set: both are needed.
 	plain := login(t, s, "plainbot")

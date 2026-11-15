@@ -1008,6 +1008,9 @@ func asOper(s *Server, c *Client, args []string) {
 		if v.vhost != "" {
 			reply += ", vhost " + v.vhost
 		}
+		if len(cur.CertFPs) > 0 { // shown in full, so a paste error stands out
+			reply += ", certificate " + strings.Join(cur.CertFPs, " ")
+		}
 		s.as(c, "%s.", reply)
 	case "DEL":
 		if cur == nil {
