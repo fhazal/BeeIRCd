@@ -106,9 +106,9 @@ func (s *Services) flagsModify(c *Client, name, nick, changes string) {
 	}
 	cur := s.accountLevel(reg, target.ID)
 	onList := cur.level != store.LevelNone
-	// As in Anope: a level entry may only change those below it; a FLAGS
-	// entry is held back by the letters it may give.
-	if onList && me.flags == "" && me.level != store.LevelFounder && cur.level >= me.level {
+	// As in Anope: only those ranked below you (a FLAGS entry ranks as
+	// the highest level its letters need), and only letters you have.
+	if onList && me.level != store.LevelFounder && cur.level >= me.level {
 		s.cs(c, "You can't change %s: their access is the same as or above yours.", target.Name)
 		return
 	}

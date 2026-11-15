@@ -511,6 +511,12 @@ func TestChanServFlags(t *testing.T) {
 	bee.expect(csLine("Bee", "mira added to the VOP list of #bchat."))
 	ember.send("CS FLAGS #bchat mira +K")
 	ember.expect(csLine("ember", "You can't set the K flag: you don't have its privileges on #bchat."))
+	// A FLAGS entry can't change someone ranked as high or higher.
+	registered(t, s, "zed")
+	bee.send("CS ACCESS #bchat ADD zed 9999")
+	bee.expect(csLine("Bee", "zed added"))
+	ember.send("CS FLAGS #bchat zed -fo")
+	ember.expect(csLine("ember", "You can't change zed: their access is the same as or above yours."))
 	ember.send("CS FLAGS #bchat mira +AUTOOP")
 	ember.expect(csLine("ember", "Privilege AUTOOP added to mira on #bchat; the flags are now +NOVcl."))
 
@@ -523,7 +529,7 @@ func TestChanServFlags(t *testing.T) {
 	bee.expect("End of access list.")
 	bee.send("CS FLAGS #bchat LIST +t")
 	bee.expect(" ember ")
-	bee.expect("End of access list: 1 of 2 entries shown.")
+	bee.expect("End of access list: 2 of 3 entries shown.")
 	bee.send("CS ACCESS #bchat LIST")
 	bee.expect(" +Oftv ")
 	bee.send("CS FLAGS #bchat Bee +v")
