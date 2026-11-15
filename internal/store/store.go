@@ -592,6 +592,7 @@ func migrateAccounts(db *sql.DB) error {
 		{"accounts", "secure", "INTEGER NOT NULL DEFAULT 1"},
 		{"channels", "cs_secure", "INTEGER NOT NULL DEFAULT 1"},
 		{"chan_access", "note", "TEXT NOT NULL DEFAULT ''"},
+		{"chan_access", "flags", "TEXT NOT NULL DEFAULT ''"},
 		{"memos", "receipt", "INTEGER NOT NULL DEFAULT 0"},
 	} {
 		var n int

@@ -490,14 +490,18 @@ func (im *importer) access(_ []Object, by map[string][]Object) error {
 		}
 		mask, data := o.Get("mask"), o.Get("data")
 		var lvl int
+		var flags string
 		switch o.Get("provider") {
 		case "access/access":
 			fmt.Sscan(data, &lvl)
 		case "access/xop":
 			lvl = xopLevels[strings.ToUpper(data)]
 		case "access/flags":
-			lvl = flagsLevel(data)
-			im.change("%s: %s FLAGS +%s became level %d", c.Name, mask, data, lvl)
+			flags = importFlags(data)
+			lvl = flagsLevel(flags)
+			if flags != data {
+				im.change("%s: %s FLAGS +%s became +%s", c.Name, mask, data, flags)
+			}
 		}
 		if lvl == 0 {
 			im.skip("%s: access entry %s (%s %q) has no level BeeIRCd knows", c.Name, mask, o.Get("provider"), data)
@@ -511,7 +515,13 @@ func (im *importer) access(_ []Object, by map[string][]Object) error {
 		if a.ID == c.FounderID {
 			continue
 		}
-		if _, err := im.st.SetLevel(c, a, lvl, o.Get("creator"), "", orNow(o.Time("created"))); err != nil {
+		var err error
+		if flags != "" {
+			err = im.st.SetFlags(c, a, flags, lvl, o.Get("creator"), orNow(o.Time("created")))
+		} else {
+			_, err = im.st.SetLevel(c, a, lvl, o.Get("creator"), "", orNow(o.Time("created")))
+		}
+		if err != nil {
 			im.skip("%s: access for %s: %v", c.Name, mask, err)
 			continue
 		}
@@ -520,9 +530,34 @@ func (im *importer) access(_ []Object, by map[string][]Object) error {
 	return nil
 }
 
-// flagsLevel turns Anope FLAGS (BeeIRCd has no FLAGS yet) into the nearest
-// level: changing access or founder flags = SOP, op = AOP, halfop = HOP,
-// voice = VOP, anything else = 1.
+// flagLetters are the FLAGS letters BeeIRCd knows: Anope's, and l
+// (ACCESS_LIST, which Anope puts under f).
+const flagLetters = "ABFGHIKNOQVabcfghiklmoqstuv"
+
+// importFlags keeps the Anope FLAGS letters BeeIRCd knows, sorted; f
+// (both seeing and changing the access lists in Anope) also gets l.
+func importFlags(data string) string {
+	set := map[byte]bool{}
+	for i := 0; i < len(data); i++ {
+		if strings.IndexByte(flagLetters, data[i]) >= 0 {
+			set[data[i]] = true
+		}
+	}
+	if set['f'] {
+		set['l'] = true
+	}
+	var out []byte
+	for i := 0; i < len(flagLetters); i++ {
+		if set[flagLetters[i]] {
+			out = append(out, flagLetters[i])
+		}
+	}
+	return string(out)
+}
+
+// flagsLevel is the rank a FLAGS entry starts at (ChanServ works the
+// real one out from the channel's LEVELS): changing access or founder
+// flags = SOP, op = AOP, halfop = HOP, voice = VOP, anything else = 1.
 func flagsLevel(flags string) int {
 	switch {
 	case strings.ContainsAny(flags, "Ffas"):

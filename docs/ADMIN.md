@@ -246,8 +246,9 @@ differently:
 - A nick that BeeIRCd has already (the admin nick made at install) keeps
   BeeIRCd's account; `-replace` takes Anope's instead. The same goes for
   channels and bots.
-- ChanServ FLAGS entries become the nearest level: access or founder flags
-  SOP, op AOP, halfop HOP, voice VOP.
+- ChanServ FLAGS entries stay FLAGS entries with the same letters. Anope's
+  `f` (seeing and changing the access lists) also gets `l`, BeeIRCd's own
+  letter for seeing them.
 - Access entries on a mask instead of a registered nick, and settings
   BeeIRCd doesn't have (like channel SET EMAIL), are listed and left out.
 - Anope's service bots (NickServ, ChanServ, ...) are not imported: BeeIRCd

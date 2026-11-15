@@ -20,7 +20,7 @@ func (s *Services) csJoinLevel(c *Client, name string) int {
 	if err != nil || reg == nil || reg.Suspended(time.Now()) {
 		return store.LevelNone
 	}
-	return s.accountLevel(reg, s.chanAccount(c, reg))
+	return s.accountLevel(reg, s.chanAccount(c, reg)).level
 }
 
 // csJoin runs after u joined ch. created means u opened the channel.
@@ -47,7 +47,7 @@ func (s *Services) csJoin(c *Client, ch *state.Channel, created bool) {
 			s.persistJoin(reg)
 		}
 	}
-	if lvl == store.LevelNone {
+	if lvl.level == store.LevelNone {
 		kicks, err := s.store.Akicks(reg)
 		if err != nil {
 			return
@@ -65,7 +65,7 @@ func (s *Services) csJoin(c *Client, ch *state.Channel, created bool) {
 		s.csKickUser(ch, u, "This channel is for its access list only.")
 		return
 	}
-	if lvl > store.LevelNone {
+	if lvl.level > store.LevelNone {
 		reg.LastUsed = time.Now()
 		s.store.SaveChannel(reg)
 	}
@@ -85,7 +85,7 @@ func (s *Services) csOnIdentify(c *Client) {
 		if err != nil || reg == nil || reg.Suspended(time.Now()) {
 			continue
 		}
-		if s.accountLevel(reg, s.chanAccount(c, reg)) > store.LevelNone {
+		if s.accountLevel(reg, s.chanAccount(c, reg)).level > store.LevelNone {
 			reg.LastUsed = time.Now()
 			s.store.SaveChannel(reg)
 			s.csAutoModes(reg, ch, c.user)

@@ -104,11 +104,14 @@ func (s *Server) panelMyNick(po *control.PanelOper) *control.Response {
 		return &control.Response{Error: "Something went wrong on the server."}
 	}
 	for _, reg := range chans {
-		lvl, err := s.store.Level(reg, a.ID)
-		if err != nil || lvl == store.LevelNone {
+		lvl, flags := s.store.ChanAccess(reg, a.ID)
+		if lvl == store.LevelNone {
 			continue
 		}
 		mc := control.MyChannel{Name: reg.Name, Level: store.LevelName(lvl)}
+		if flags != "" {
+			mc.Level = "+" + flags
+		}
 		if ch := s.net.Channel(reg.Name); ch != nil {
 			mc.Users = len(ch.Members)
 		}

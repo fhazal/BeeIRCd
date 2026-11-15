@@ -199,7 +199,7 @@ func (s *Services) WebHome(id int64) (*Home, string) {
 	people := map[int64]bool{}
 	for _, reg := range chans {
 		lvl := s.accountLevel(reg, a.ID)
-		mine := lvl != store.LevelNone
+		mine := lvl.level != store.LevelNone
 		list, _ := s.store.AccessList(reg, 0)
 		for _, e := range list {
 			if e.AccountID == a.ID || (mine && s.levelHas(reg, lvl, "ACCESS_LIST")) {
@@ -219,7 +219,7 @@ func (s *Services) WebHome(id int64) (*Home, string) {
 			}
 		}
 		founder := reg.FounderID == a.ID
-		h.Channels = append(h.Channels, HomeChan{Name: reg.Name, Level: store.LevelName(lvl), Founder: founder})
+		h.Channels = append(h.Channels, HomeChan{Name: reg.Name, Level: lvl.name(), Founder: founder})
 		if founder && reg.SuccessorID == 0 {
 			h.Needs = append(h.Needs, HomeNeed{Text: reg.Name + " has no successor",
 				Hint: "If your nick expires, nobody takes the channel over: /msg ChanServ SET " + reg.Name + " SUCCESSOR <nick>", Page: "chan/" + reg.Name}) // the channel manager sets it

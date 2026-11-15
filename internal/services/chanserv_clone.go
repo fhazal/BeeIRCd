@@ -140,7 +140,13 @@ func (s *Services) cloneAccess(src, dst *store.Channel, by string, now time.Time
 		if a == nil {
 			continue
 		}
-		if _, err := s.store.SetLevel(dst, a, e.Level, by, e.Note, now); err != nil {
+		var err error
+		if e.Flags != "" {
+			err = s.store.SetFlags(dst, a, e.Flags, e.Level, by, now)
+		} else {
+			_, err = s.store.SetLevel(dst, a, e.Level, by, e.Note, now)
+		}
+		if err != nil {
 			return n, err
 		}
 		n++

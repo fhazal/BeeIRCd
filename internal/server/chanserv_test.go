@@ -474,3 +474,55 @@ func TestChanServClone(t *testing.T) {
 	bee.send("CS CLONE #bchat #dev NOPE")
 	bee.expect(csLine("Bee", "Syntax: CLONE #from #to [ALL|ACCESS|AKICK|BADWORDS]"))
 }
+
+func TestChanServFlags(t *testing.T) {
+	s := testServer(t, nil)
+	bee := founded(t, s, "Bee")
+	ember := registered(t, s, "ember")
+	mira := registered(t, s, "mira")
+	joinAll("#bchat", ember, mira)
+
+	bee.send("CS FLAGS #bchat ember +Otv")
+	bee.expect(csLine("Bee", "Flags for ember on #bchat set to +Otv."))
+	ember.expect(csSrc + "MODE #bchat +o ember") // O: op on join, given at once
+	// A FLAGS entry has exactly its letters.
+	ember.send("CS TOPIC #bchat flags work")
+	ember.expect("TOPIC #bchat :flags work")
+	ember.send("CS KICK #bchat mira")
+	ember.expect(csLine("ember", "You need the k flag (KICK) on #bchat for that."))
+	ember.send("CS FLAGS #bchat mira +v")
+	ember.expect(csLine("ember", "You need the f flag (ACCESS_CHANGE) on #bchat for that."))
+
+	// Letters can only be given by someone with their privileges.
+	bee.send("CS FLAGS #bchat ember +f")
+	bee.expect(csLine("Bee", "Flags for ember on #bchat set to +Oftv."))
+	bee.send("CS VOP #bchat ADD mira")
+	bee.expect(csLine("Bee", "mira added to the VOP list of #bchat."))
+	ember.send("CS FLAGS #bchat mira +K")
+	ember.expect(csLine("ember", "You can't set the K flag: you don't have its privileges on #bchat."))
+	ember.send("CS FLAGS #bchat mira +AUTOOP")
+	ember.expect(csLine("ember", "Privilege AUTOOP added to mira on #bchat; the flags are now +NOVcl."))
+
+	// LIST shows level entries as letters too, and filters.
+	bee.send("CS VOP #bchat ADD Bee")
+	bee.expect(csLine("Bee", "Bee is the founder of #bchat."))
+	bee.send("CS FLAGS #bchat LIST")
+	bee.expect(csLine("Bee", "Flags list for #bchat"))
+	bee.expect(" ember ")
+	bee.expect("End of access list.")
+	bee.send("CS FLAGS #bchat LIST +t")
+	bee.expect(" ember ")
+	bee.expect("End of access list: 1 of 2 entries shown.")
+	bee.send("CS ACCESS #bchat LIST")
+	bee.expect(" +Oftv ")
+	bee.send("CS FLAGS #bchat Bee +v")
+	bee.expect(csLine("Bee", "Bee is the founder of #bchat."))
+
+	// Taking every letter away takes the entry off.
+	bee.send("CS FLAGS #bchat ember -*")
+	bee.expect(csLine("Bee", "ember removed from the access list of #bchat."))
+	bee.send("CS FLAGS #bchat ember -v")
+	bee.expect(csLine("Bee", "ember isn't on the access list of #bchat."))
+	bee.send("CS FLAGS #bchat ember")
+	bee.expect(csLine("Bee", "Syntax: FLAGS #bchat [MODIFY] <nick> <changes>, like +AOtv or -v"))
+}

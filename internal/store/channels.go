@@ -141,6 +141,7 @@ type AccessEntry struct {
 	AddedBy   string
 	AddedAt   time.Time
 	Note      string // the optional description given with ADD
+	Flags     string // a FLAGS entry's letters ("" for a level entry); Level is then its rank
 }
 
 // Akick is one AKICK mask.
@@ -183,6 +184,7 @@ CREATE TABLE IF NOT EXISTS chan_access (
 	added_by   TEXT NOT NULL,
 	added_at   INTEGER NOT NULL,
 	note       TEXT NOT NULL DEFAULT '',
+	flags      TEXT NOT NULL DEFAULT '', -- a FLAGS entry's letters; level is then its rank
 	PRIMARY KEY (channel_id, account_id)
 );
 CREATE TABLE IF NOT EXISTS chan_akick (
@@ -344,15 +346,44 @@ func (s *Store) SetLevel(c *Channel, a *Account, lvl int, by, note string, now t
 	if s.c.channels[c.ID] == nil || s.c.accounts[a.ID] == nil {
 		return old, nil
 	}
-	_, err := s.db.Exec(`INSERT INTO chan_access (channel_id, account_id, level, added_by, added_at, note) VALUES (?, ?, ?, ?, ?, ?)
+	return old, s.putAccess(c, a, lvl, "", by, note, now)
+}
+
+func (s *Store) putAccess(c *Channel, a *Account, lvl int, flags, by, note string, now time.Time) error {
+	_, err := s.db.Exec(`INSERT INTO chan_access (channel_id, account_id, level, added_by, added_at, note, flags) VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (channel_id, account_id) DO UPDATE SET level = excluded.level, added_by = excluded.added_by,
-		added_at = excluded.added_at, note = excluded.note`,
-		c.ID, a.ID, lvl, by, now.Unix(), note)
+		added_at = excluded.added_at, note = excluded.note, flags = excluded.flags`,
+		c.ID, a.ID, lvl, by, now.Unix(), note, flags)
 	if err != nil {
-		return old, err
+		return err
 	}
-	s.c.setLevel(c.ID, a.ID, &level{level: lvl, addedBy: by, addedAt: sec(now), note: note})
-	return old, nil
+	s.c.setLevel(c.ID, a.ID, &level{level: lvl, addedBy: by, addedAt: sec(now), note: note, flags: flags})
+	return nil
+}
+
+// ChanAccess is account's entry on channel: its level, and for a FLAGS entry
+// its letters (the level is then the rank they were given at).
+func (s *Store) ChanAccess(c *Channel, accountID int64) (int, string) {
+	if accountID != 0 && accountID != c.FounderID {
+		if l := s.c.levels[c.ID][accountID]; l != nil {
+			return l.level, l.flags
+		}
+	}
+	lvl, _ := s.Level(c, accountID)
+	return lvl, ""
+}
+
+// SetFlags puts account on the access list as a FLAGS entry with flags
+// (never empty) at rank, keeping the note of an entry it replaces.
+func (s *Store) SetFlags(c *Channel, a *Account, flags string, rank int, by string, now time.Time) error {
+	if s.c.channels[c.ID] == nil || s.c.accounts[a.ID] == nil || flags == "" {
+		return nil
+	}
+	note := ""
+	if l := s.c.levels[c.ID][a.ID]; l != nil {
+		note = l.note
+	}
+	return s.putAccess(c, a, rank, flags, by, note, now)
 }
 
 // RemoveAccess takes account off the access list; false when it wasn't on it.
@@ -367,12 +398,12 @@ func (s *Store) RemoveAccess(c *Channel, accountID int64) (bool, error) {
 
 // ClearLevel empties one level's list and returns how many were removed.
 func (s *Store) ClearLevel(c *Channel, lvl int) (int, error) {
-	if _, err := s.db.Exec("DELETE FROM chan_access WHERE channel_id = ? AND level = ?", c.ID, lvl); err != nil {
+	if _, err := s.db.Exec("DELETE FROM chan_access WHERE channel_id = ? AND level = ? AND flags = ''", c.ID, lvl); err != nil {
 		return 0, err
 	}
 	n := 0
 	for id, l := range s.c.levels[c.ID] {
-		if l.level == lvl {
+		if l.level == lvl && l.flags == "" {
 			delete(s.c.levels[c.ID], id)
 			n++
 		}
@@ -381,14 +412,14 @@ func (s *Store) ClearLevel(c *Channel, lvl int) (int, error) {
 }
 
 // AccessList returns the access list, highest level first. level 0 means
-// every level.
+// every entry; another level only that level's (FLAGS entries left out).
 func (s *Store) AccessList(c *Channel, lvl int) ([]AccessEntry, error) {
 	var out []AccessEntry
 	for id, l := range s.c.levels[c.ID] {
-		if lvl != 0 && l.level != lvl {
+		if lvl != 0 && (l.level != lvl || l.flags != "") {
 			continue
 		}
-		out = append(out, AccessEntry{AccountID: id, Account: s.c.accountName(id), Level: l.level, AddedBy: l.addedBy, AddedAt: l.addedAt, Note: l.note})
+		out = append(out, AccessEntry{AccountID: id, Account: s.c.accountName(id), Level: l.level, AddedBy: l.addedBy, AddedAt: l.addedAt, Note: l.note, Flags: l.flags})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		a, b := out[i], out[j]

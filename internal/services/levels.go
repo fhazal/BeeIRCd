@@ -20,7 +20,8 @@ import (
 // privilege is one thing a LEVELS table can hand out.
 type privilege struct {
 	name string
-	def  int // Anope 2.1's default
+	flag byte // its letter in FLAGS: Anope 2.0's, but ACCESS_LIST has l (Anope gives it f, which also changes the lists)
+	def  int  // Anope 2.1's default
 	desc string
 }
 
@@ -28,42 +29,42 @@ type privilege struct {
 // chanserv.example.conf; the BotServ ones (ASSIGN, BADWORDS, FANTASIA,
 // GREET, SAY) from 2.0.20's chanserv and botserv example configs.
 var privileges = []privilege{
-	{"ACCESS_CHANGE", 10, "change the access lists"},
-	{"ACCESS_LIST", 3, "see the access lists"},
-	{"AKICK", 10, "use AKICK and ENFORCE"},
-	{"ASSIGN", store.LevelFounder, "assign or unassign a BotServ bot"},
-	{"AUTOHALFOP", 4, "halfop (%) on join"},
-	{"AUTOOP", 5, "op (@) on join"},
-	{"AUTOOWNER", 9999, "owner (~) on join"},
-	{"AUTOPROTECT", 10, "admin (&) on join"},
-	{"AUTOVOICE", 3, "voice (+) on join"},
-	{"BADWORDS", 10, "change the BotServ bad words list"},
-	{"BAN", 4, "use BAN"},
-	{"FANTASIA", 3, "use fantasy commands (!op, !kick ...)"},
-	{"FOUNDER", 10000, "founder rights (when SECUREFOUNDER is off)"},
-	{"GETKEY", 5, "use GETKEY"},
-	{"GREET", 5, "the bot shows your NickServ greet when you join"},
-	{"HALFOP", 5, "halfop and dehalfop others"},
-	{"HALFOPME", 4, "halfop yourself"},
-	{"INFO", 9999, "see every detail in INFO"},
-	{"INVITE", 5, "use INVITE"},
-	{"KICK", 4, "use KICK"},
-	{"MEMO", 10, "read and run the channel memo box"},
-	{"MODE", 9999, "use MODE (and the mode lock)"},
-	{"NOKICK", 1, "never kicked by RESTRICTED"},
-	{"OP", 5, "op and deop others"},
-	{"OPME", 5, "op yourself"},
-	{"OWNER", store.LevelFounder, "give owner (~) to others"},
-	{"OWNERME", 9999, "owner (~) yourself"},
-	{"PROTECT", 9999, "give admin (&) to others"},
-	{"PROTECTME", 10, "admin (&) yourself"},
-	{"SAY", 5, "make the bot SAY and ACT in the channel"},
-	{"SET", 9999, "use SET, ENTRYMSG and LOG"},
-	{"SIGNKICK", 9999, "kicks you ask for don't show your nick"},
-	{"TOPIC", 5, "use TOPIC and change a locked topic"},
-	{"UNBAN", 4, "unban others"},
-	{"VOICE", 4, "voice and devoice others"},
-	{"VOICEME", 3, "voice yourself"},
+	{"ACCESS_CHANGE", 'f', 10, "change the access lists"},
+	{"ACCESS_LIST", 'l', 3, "see the access lists"},
+	{"AKICK", 'K', 10, "use AKICK and ENFORCE"},
+	{"ASSIGN", 's', store.LevelFounder, "assign or unassign a BotServ bot"},
+	{"AUTOHALFOP", 'H', 4, "halfop (%) on join"},
+	{"AUTOOP", 'O', 5, "op (@) on join"},
+	{"AUTOOWNER", 'Q', 9999, "owner (~) on join"},
+	{"AUTOPROTECT", 'A', 10, "admin (&) on join"},
+	{"AUTOVOICE", 'V', 3, "voice (+) on join"},
+	{"BADWORDS", 'K', 10, "change the BotServ bad words list"},
+	{"BAN", 'b', 4, "use BAN"},
+	{"FANTASIA", 'c', 3, "use fantasy commands (!op, !kick ...)"},
+	{"FOUNDER", 'F', 10000, "founder rights (when SECUREFOUNDER is off)"},
+	{"GETKEY", 'G', 5, "use GETKEY"},
+	{"GREET", 'g', 5, "the bot shows your NickServ greet when you join"},
+	{"HALFOP", 'h', 5, "halfop and dehalfop others"},
+	{"HALFOPME", 'h', 4, "halfop yourself"},
+	{"INFO", 'I', 9999, "see every detail in INFO"},
+	{"INVITE", 'i', 5, "use INVITE"},
+	{"KICK", 'k', 4, "use KICK"},
+	{"MEMO", 'm', 10, "read and run the channel memo box"},
+	{"MODE", 's', 9999, "use MODE (and the mode lock)"},
+	{"NOKICK", 'N', 1, "never kicked by RESTRICTED"},
+	{"OP", 'o', 5, "op and deop others"},
+	{"OPME", 'o', 5, "op yourself"},
+	{"OWNER", 'q', store.LevelFounder, "give owner (~) to others"},
+	{"OWNERME", 'q', 9999, "owner (~) yourself"},
+	{"PROTECT", 'a', 9999, "give admin (&) to others"},
+	{"PROTECTME", 'a', 10, "admin (&) yourself"},
+	{"SAY", 'B', 5, "make the bot SAY and ACT in the channel"},
+	{"SET", 's', 9999, "use SET, ENTRYMSG and LOG"},
+	{"SIGNKICK", 'K', 9999, "kicks you ask for don't show your nick"},
+	{"TOPIC", 't', 5, "use TOPIC and change a locked topic"},
+	{"UNBAN", 'u', 4, "unban others"},
+	{"VOICE", 'v', 4, "voice and devoice others"},
+	{"VOICEME", 'v', 3, "voice yourself"},
 }
 
 func findPrivilege(name string) (privilege, bool) {
@@ -85,40 +86,77 @@ func (s *Services) privLevel(reg *store.Channel, name string) int {
 	return p.def
 }
 
-// accountLevel is an account's level on reg: LevelFounder for the founder
+// access is someone's access on a channel: a level (LevelFounder for the
+// founder), or a FLAGS entry, whose letters say which privileges it has;
+// its level is then its rank (see flagsRank), used to order entries and
+// to say whom it may change.
+type access struct {
+	level int
+	flags string
+}
+
+// accountLevel is an account's access on reg: LevelFounder for the founder
 // (and, with SECUREFOUNDER off, for those with the FOUNDER privilege).
-func (s *Services) accountLevel(reg *store.Channel, accountID int64) int {
-	lvl, err := s.store.Level(reg, accountID)
-	if err != nil {
-		return store.LevelNone
+func (s *Services) accountLevel(reg *store.Channel, accountID int64) access {
+	lvl, flags := s.store.ChanAccess(reg, accountID)
+	if flags != "" {
+		a := access{level: s.flagsRank(reg, flags), flags: flags}
+		if !reg.SecureFounder && strings.IndexByte(flags, 'F') >= 0 && s.privLevel(reg, "FOUNDER") != store.LevelDisabled {
+			a.level = store.LevelFounder
+		}
+		return a
 	}
 	if lvl != store.LevelFounder && lvl > store.LevelNone && !reg.SecureFounder {
 		if need := s.privLevel(reg, "FOUNDER"); need != store.LevelDisabled && lvl >= need {
-			return store.LevelFounder
+			return access{level: store.LevelFounder}
 		}
 	}
-	return lvl
+	return access{level: lvl}
 }
 
-// levelHas reports whether someone at lvl on reg has privilege name.
-func (s *Services) levelHas(reg *store.Channel, lvl int, name string) bool {
+// flagsRank is the rank of a FLAGS entry: the highest level its
+// privileges need on reg (founder-only ones count as the top level).
+func (s *Services) flagsRank(reg *store.Channel, flags string) int {
+	rank := store.LevelUOP
+	for _, p := range privileges {
+		if strings.IndexByte(flags, p.flag) < 0 {
+			continue
+		}
+		need := s.privLevel(reg, p.name)
+		if need == store.LevelFounder {
+			need = store.LevelMax
+		}
+		if need > rank {
+			rank = need
+		}
+	}
+	return rank
+}
+
+// levelHas reports whether someone with access a on reg has privilege
+// name. A FLAGS entry has the privileges of its letters, and those
+// everyone has (level 0); LEVELS doesn't change it, as in Anope.
+func (s *Services) levelHas(reg *store.Channel, a access, name string) bool {
 	need := s.privLevel(reg, name)
 	switch {
 	case need == store.LevelDisabled:
 		return false
-	case lvl == store.LevelFounder:
+	case a.level == store.LevelFounder:
 		return true
+	case a.flags != "":
+		p, _ := findPrivilege(name)
+		return need <= 0 || strings.IndexByte(a.flags, p.flag) >= 0
 	case need == store.LevelFounder:
 		return false
 	}
-	return lvl >= need
+	return a.level >= need
 }
 
-// userLevel is a connected user's level on reg (0 when not identified).
-func (s *Services) userLevel(reg *store.Channel, u *state.User) int {
+// userLevel is a connected user's access on reg (none when not identified).
+func (s *Services) userLevel(reg *store.Channel, u *state.User) access {
 	c := s.clientOf(u)
 	if c == nil || s.chanAccount(c, reg) == 0 {
-		return store.LevelNone
+		return access{}
 	}
 	return s.accountLevel(reg, s.chanAccount(c, reg))
 }
@@ -164,27 +202,30 @@ func (s *Services) needWords(need int) string {
 
 // csPriv loads a registered channel for a command that needs privilege
 // name, and returns c's level on it.
-func (s *Services) csPriv(c *Client, chanName, priv string) (*store.Channel, int, bool) {
+func (s *Services) csPriv(c *Client, chanName, priv string) (*store.Channel, access, bool) {
 	reg, lvl, ok := s.csChan(c, chanName, 0)
 	if !ok {
-		return nil, 0, false
+		return nil, access{}, false
 	}
 	if s.chanAccount(c, reg) == 0 {
 		s.cs(c, "Identify first: /ns identify <password>")
 		s.logDeniedUnreg(c, s.chanServ)
-		return nil, 0, false
+		return nil, access{}, false
 	}
 	if !s.levelHas(reg, lvl, priv) {
 		need := s.privLevel(reg, priv)
 		switch {
 		case need == store.LevelDisabled:
 			s.cs(c, "%s is switched off on %s (see /cs levels %s list).", priv, reg.Name, reg.Name)
+		case lvl.flags != "":
+			p, _ := findPrivilege(priv)
+			s.cs(c, "You need the %c flag (%s) on %s for that.", p.flag, priv, reg.Name)
 		case need == store.LevelFounder:
 			s.cs(c, "Only the founder of %s can do that.", reg.Name)
 		default:
 			s.cs(c, "You need to be %s on %s for that.", s.needWords(need), reg.Name)
 		}
-		return nil, 0, false
+		return nil, access{}, false
 	}
 	return reg, lvl, true
 }
@@ -214,16 +255,16 @@ func parseLevel(arg string) (int, bool) {
 
 // accessChange checks that someone at lvl may put an entry at newLevel (0
 // for removing) for target, who is at old now. It answers c when not.
-func (s *Services) accessChange(c *Client, reg *store.Channel, lvl, old, newLevel int, target string) bool {
-	if lvl == store.LevelFounder {
+func (s *Services) accessChange(c *Client, reg *store.Channel, lvl access, old, newLevel int, target string) bool {
+	if lvl.level == store.LevelFounder {
 		return true
 	}
-	if old >= lvl {
+	if old >= lvl.level {
 		s.cs(c, "You can't change %s: their level is the same as or above yours.", target)
 		return false
 	}
-	if newLevel >= lvl {
-		s.cs(c, "You can only give levels below your own (%s) on %s.", store.LevelName(lvl), reg.Name)
+	if newLevel >= lvl.level {
+		s.cs(c, "You can only give levels below your own (%s) on %s.", lvl.name(), reg.Name)
 		return false
 	}
 	return true
@@ -343,7 +384,7 @@ func (s *Services) csAccount(c *Client, reg *store.Channel, nick string) (*store
 
 // accessDel removes entries by nick or number list. level is the xOP list
 // they must be on (0 = any), list its name for replies.
-func (s *Services) accessDel(c *Client, reg *store.Channel, lvl, level int, arg, list string) {
+func (s *Services) accessDel(c *Client, reg *store.Channel, lvl access, level int, arg, list string) {
 	what := "the access list"
 	if level != 0 {
 		what = "the " + list + " list"
@@ -384,7 +425,7 @@ func (s *Services) accessDel(c *Client, reg *store.Channel, lvl, level int, arg,
 	var names []string
 	for _, e := range gone {
 		self := e.AccountID == c.accountID // you may always take yourself off
-		if !self && e.Level >= lvl && lvl != store.LevelFounder {
+		if !self && e.Level >= lvl.level && lvl.level != store.LevelFounder {
 			s.cs(c, "You can't change %s: their level is the same as or above yours.", e.Account)
 			continue
 		}
@@ -418,7 +459,7 @@ func (s *Services) accessList(c *Client, reg *store.Channel, view bool, spec str
 		width = max(width, len(e.Account))
 	}
 	width = max(width, 4)
-	gets := func(lvl int) string {
+	gets := func(lvl access) string {
 		if p := s.levelPrefixes(reg, lvl); p != "" {
 			return p
 		}
@@ -427,11 +468,11 @@ func (s *Services) accessList(c *Client, reg *store.Channel, view bool, spec str
 	s.cs(c, "Access list of %s", reg.Name)
 	s.cs(c, "  %-3s %-7s %-*s  %s", "#", "Level", width, "Nick", "Gets")
 	if spec == "" {
-		s.cs(c, "  %-3s %-7s %-*s  %s", "–", "Founder", width, reg.Founder, gets(store.LevelFounder))
+		s.cs(c, "  %-3s %-7s %-*s  %s", "–", "Founder", width, reg.Founder, gets(access{level: store.LevelFounder}))
 	}
 	for _, i := range show {
 		e := entries[i]
-		line := fmt.Sprintf("  %-3d %-7s %-*s  %s", i+1, store.LevelName(e.Level), width, e.Account, gets(e.Level))
+		line := fmt.Sprintf("  %-3d %-7s %-*s  %s", i+1, entryName(e), width, e.Account, gets(access{level: e.Level, flags: e.Flags}))
 		if view {
 			line = fmt.Sprintf("%-*s  added by %s, %s", 22+width, line, e.AddedBy, e.AddedAt.UTC().Format("2 Jan 2006"))
 		}
@@ -605,17 +646,21 @@ func csStatus(s *Services, c *Client, args []string) {
 		return
 	}
 	acct := s.store.AccountNameByID(accountID)
-	raw, _ := s.store.Level(reg, accountID)
+	raw, rawFlags := s.store.ChanAccess(reg, accountID)
+	at := "at level " + store.LevelName(raw)
+	if rawFlags != "" {
+		at = "with flags +" + rawFlags
+	}
 	lvl := s.accountLevel(reg, accountID)
 	switch {
 	case raw == store.LevelFounder:
 		s.cs(c, "%s is the founder of %s (account %s).", who, reg.Name, acct)
 	case raw == store.LevelNone:
 		s.cs(c, "%s (account %s) isn't on the access list of %s.", who, acct, reg.Name)
-	case lvl == store.LevelFounder:
-		s.cs(c, "%s (account %s) is on the access list of %s at level %s, which has founder rights (SECUREFOUNDER is off).", who, acct, reg.Name, store.LevelName(raw))
+	case lvl.level == store.LevelFounder:
+		s.cs(c, "%s (account %s) is on the access list of %s %s, which has founder rights (SECUREFOUNDER is off).", who, acct, reg.Name, at)
 	default:
-		s.cs(c, "%s (account %s) is on the access list of %s at level %s.", who, acct, reg.Name, store.LevelName(raw))
+		s.cs(c, "%s (account %s) is on the access list of %s %s.", who, acct, reg.Name, at)
 	}
 	var have []string
 	for _, p := range privileges {
@@ -635,4 +680,17 @@ func csStatus(s *Services, c *Client, args []string) {
 			s.cs(c, "              %s", line)
 		}
 	}
+}
+
+// name is how access is shown: a level's name, or +flags.
+func (a access) name() string {
+	if a.flags != "" && a.level != store.LevelFounder {
+		return "+" + a.flags
+	}
+	return store.LevelName(a.level)
+}
+
+// entryName is how an access list entry is shown.
+func entryName(e store.AccessEntry) string {
+	return access{level: e.Level, flags: e.Flags}.name()
 }

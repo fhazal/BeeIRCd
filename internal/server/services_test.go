@@ -475,7 +475,7 @@ func TestHelpLayout(t *testing.T) {
 	x.expect(csLine("x", "ChanServ keeps a channel yours. Commands:"))
 	x.expect(csLine("x", "  REGISTER  register a channel you op in"))
 	x.expect(csLine("x", "Access lists"))
-	l := x.expect(csLine("x", "  ACCESS, LEVELS, SOP, AOP"))
+	l := x.expect(csLine("x", "  ACCESS, FLAGS, LEVELS, SOP, AOP"))
 	if strings.Contains(l, "QOP") || strings.Contains(l, "HOP") {
 		t.Errorf("QOP/HOP shown on an @+ server: %q", l)
 	}

@@ -466,15 +466,15 @@ func nsAlist(s *Services, c *Client, args []string) {
 	}
 	n := 0
 	for _, reg := range chans {
-		lvl, err := s.store.Level(reg, a.ID)
-		if err != nil || lvl == store.LevelNone {
+		lvl, flags := s.store.ChanAccess(reg, a.ID)
+		if lvl == store.LevelNone {
 			continue
 		}
 		if n == 0 {
 			s.ns(c, "Channels where %s has access:", a.Name)
 		}
 		n++
-		s.ns(c, "  %-20s %s", reg.Name, store.LevelName(lvl))
+		s.ns(c, "  %-20s %s", reg.Name, access{level: lvl, flags: flags}.name())
 	}
 	if n == 0 {
 		s.ns(c, "%s isn't on the access list of any channel.", a.Name)

@@ -330,13 +330,18 @@ END
 		t.Errorf("Ben (enc_old) should come in without a usable password: %+v", ben)
 	}
 	c, _ := st.ChannelByName("#club")
-	if lvl, _ := st.Level(c, ben.ID); lvl != 3 {
-		t.Errorf("FLAGS Vv -> level %d, want 3 (VOP)", lvl)
+	if lvl, flags := st.ChanAccess(c, ben.ID); lvl != 3 || flags != "Vv" {
+		t.Errorf("FLAGS Vv -> level %d flags %q, want rank 3 and Vv", lvl, flags)
+	}
+	for in, want := range map[string]string{"Vv": "Vv", "vfO": "Oflv", "fl": "fl", "xyz": "", "": ""} {
+		if got := importFlags(in); got != want {
+			t.Errorf("importFlags(%q) = %q, want %q", in, got, want)
+		}
 	}
 	if ak, _ := st.Akicks(c); len(ak) != 1 || ak[0].Mask != "~a:Ben" {
 		t.Errorf("account akick %+v", ak)
 	}
-	if len(r.Changed) != 2 || len(r.Unknown) != 1 || r.Unknown[0].What != "Mystery" {
+	if len(r.Changed) != 1 || len(r.Unknown) != 1 || r.Unknown[0].What != "Mystery" {
 		t.Errorf("report changed=%v unknown=%v", r.Changed, r.Unknown)
 	}
 }

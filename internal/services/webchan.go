@@ -49,17 +49,17 @@ func (s *Services) WebChan(id int64, name string) (*ChanView, string) {
 		s.log.Printf("services database: %v", err)
 		return nil, "Something went wrong on the server."
 	}
-	lvl := store.LevelNone
+	var lvl access
 	if reg != nil {
 		lvl = s.accountLevel(reg, a.ID)
 	}
-	if reg == nil || lvl == store.LevelNone {
+	if reg == nil || lvl.level == store.LevelNone {
 		return nil, "You aren't on the access list of " + name + "."
 	}
-	v := &ChanView{Reg: reg, Level: store.LevelName(lvl), MemoLimit: reg.MemoLimit, Can: ChanCan{
+	v := &ChanView{Reg: reg, Level: lvl.name(), MemoLimit: reg.MemoLimit, Can: ChanCan{
 		AccessList: s.levelHas(reg, lvl, "ACCESS_LIST"), AccessChange: s.levelHas(reg, lvl, "ACCESS_CHANGE"),
 		Akick: s.levelHas(reg, lvl, "AKICK"), Set: s.levelHas(reg, lvl, "SET"), Topic: s.levelHas(reg, lvl, "TOPIC"),
-		Memo: s.levelHas(reg, lvl, "MEMO"), Founder: lvl == store.LevelFounder}}
+		Memo: s.levelHas(reg, lvl, "MEMO"), Founder: lvl.level == store.LevelFounder}}
 	if v.Can.AccessList {
 		v.Access, _ = s.store.AccessList(reg, 0)
 	}

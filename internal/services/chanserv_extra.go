@@ -378,8 +378,8 @@ func csEnforce(s *Services, c *Client, args []string) {
 		// The newest guess we have: people without status or access go first.
 		members := live.SortedMembers()
 		sort.SliceStable(members, func(i, j int) bool {
-			return members[i].Ranks == 0 && s.userLevel(reg, members[i].User) == 0 &&
-				!(members[j].Ranks == 0 && s.userLevel(reg, members[j].User) == 0)
+			return members[i].Ranks == 0 && s.userLevel(reg, members[i].User).level == 0 &&
+				!(members[j].Ranks == 0 && s.userLevel(reg, members[j].User).level == 0)
 		})
 		for _, m := range members {
 			if over <= 0 || s.net.Channel(reg.Name) == nil {
@@ -922,7 +922,7 @@ func (s *Services) statusAllowed(c *Client, reg *store.Channel, modes []string) 
 			}
 			if target != c.user {
 				switch {
-				case reg.Peace && s.userLevel(reg, target) >= s.userLevel(reg, c.user):
+				case reg.Peace && s.userLevel(reg, target).level >= s.userLevel(reg, c.user).level:
 					s.cs(c, "You do not have the access to change %s's modes.", target.Nick)
 					continue
 				case target.Service:
