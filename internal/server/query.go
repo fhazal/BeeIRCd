@@ -295,8 +295,18 @@ func (s *Server) cmdWhowas(c *Client, m irc.Message) {
 }
 
 func (s *Server) cmdAway(c *Client, m irc.Message) {
-	u := c.user
 	msg := irc.Truncate(m.Param(0), s.cfg.Limits.AwayLen)
+	if !c.registered {
+		// draft/pre-away: a bouncer or phone says it is away while still
+		// connecting; it takes effect with the welcome.
+		if !c.caps[preAwayCap] {
+			s.reply(c, irc.ErrNotRegistered, "You have not registered")
+			return
+		}
+		c.preAway = msg
+		return
+	}
+	u := c.user
 	s.emit(&state.Away{UID: u.UID, Message: msg})
 	if msg != "" {
 		s.reply(c, irc.RplNowAway, "You have been marked as being away")

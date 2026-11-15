@@ -25,7 +25,10 @@ var capabilities = []string{
 
 // draftCaps are the IRCv3 drafts offered while [server] ircv3_drafts is
 // on.
-var draftCaps = []string{readMarkerCap}
+var draftCaps = []string{readMarkerCap, preAwayCap, extISupportCap}
+
+// preAwayCap lets AWAY come before registration (IRCv3 draft/pre-away).
+const preAwayCap = "draft/pre-away"
 
 // offered are the capabilities clients may ask for now.
 func (s *Server) offered() []string {
@@ -350,6 +353,12 @@ func (s *Server) tryRegister(c *Client) {
 	s.snoticeOnly(connect)
 	s.svc.LogUserConnect(u)
 	s.welcome(c)
+	if c.preAway != "" {
+		msg := c.preAway
+		c.preAway = ""
+		s.emit(&state.Away{UID: u.UID, Message: msg})
+		s.reply(c, irc.RplNowAway, "You have been marked as being away")
+	}
 	s.svc.SendNews(c.uid)
 	// Services take it from here (SASL account, nick check) once this
 	// command is done.
@@ -491,13 +500,41 @@ func (s *Server) isupport() []string {
 	return out
 }
 
+// sendISupport sends the 005 lines; in a draft/isupport batch for
+// clients with draft/extended-isupport and batch.
 func (s *Server) sendISupport(c *Client) {
 	tokens := s.isupport()
+	tag := ""
+	if c.caps[extISupportCap] && c.caps["batch"] {
+		s.batchSeq++
+		id := "i" + strconv.FormatUint(s.batchSeq, 36)
+		c.send(":" + s.cfg.Server.Name + " BATCH +" + id + " draft/isupport")
+		tag = "@batch=" + id + " "
+		defer c.send(":" + s.cfg.Server.Name + " BATCH -" + id)
+	}
 	for len(tokens) > 0 {
 		n := min(13, len(tokens))
-		s.reply(c, irc.RplISupport, append(tokens[:n:n], "are supported by this server")...)
+		p := append([]string{c.target()}, append(tokens[:n:n], "are supported by this server")...)
+		c.send(tag + irc.Message{Source: s.cfg.Server.Name, Command: irc.RplISupport, Params: p, Trailing: true}.String())
 		tokens = tokens[n:]
 	}
+}
+
+// extISupportCap: 005 before registration and in a batch (IRCv3
+// draft/extended-isupport).
+const extISupportCap = "draft/extended-isupport"
+
+// cmdISupport is ISUPPORT: the 005 lines again, also before registration.
+func (s *Server) cmdISupport(c *Client, m irc.Message) {
+	if !c.caps[extISupportCap] {
+		if c.registered {
+			s.reply(c, irc.ErrUnknownCommand, "ISUPPORT", "Unknown command")
+		} else {
+			s.reply(c, irc.ErrNotRegistered, "You have not registered")
+		}
+		return
+	}
+	s.sendISupport(c)
 }
 
 func (s *Server) localUsers() int { return s.local }
