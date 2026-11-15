@@ -732,13 +732,14 @@ select.cm-lvl{min-height:32px;width:auto;padding:0 8px;font:12px var(--mono)}
 .role.cm-topic{max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Spam filter page (after 1.0) */
 .sf-col{display:grid;gap:14px;min-width:0}
-table.sf-tbl{min-width:420px}
+table.sf-tbl{min-width:560px}
 table.sf-tbl td{vertical-align:middle}
+.sf-why{color:var(--muted);min-width:140px;max-width:260px;overflow-wrap:anywhere}
 .tag.sf-exp{margin-left:8px;background:transparent;border:1px solid var(--line);color:var(--muted)}
 .tag+.tag{margin-left:4px}
 td .tag.sus{margin-left:8px}
 .sf-ago{display:block;color:var(--dim);font-size:11px;margin-top:2px}
-table.sf-tbl td:nth-child(3),table.sf-tbl td:nth-child(4){white-space:nowrap}
+table.sf-tbl td:nth-child(3),table.sf-tbl td:nth-child(5){white-space:nowrap}
 .sf-warn{color:var(--honey)}
 .sf-seg{width:100%;margin:2px 0 14px}
 .sf-seg button{flex:1;padding:0 8px}

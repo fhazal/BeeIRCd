@@ -154,6 +154,9 @@ page. Rules reach every linked server, BeeIRCd and UnrealIRCd 6 alike.
 - **Matching** is simple (`*` and `?`) or `-regex` (Go RE2: always fast,
   no backreferences), never case-sensitive, on the text without colours
   and bold. The reason uses `_` for spaces, as on UnrealIRCd.
+- **Reason** is what the person sees when a rule catches them. The panel's
+  Filters list shows it in its own column; point at a row to see who set
+  the rule.
 - **Safety net**: a new rule is first tried on about 200 normal chat lines
   (English and Malay). If it would catch any, it is refused and the lines
   are shown; add `-force` (or press **Add anyway** on the panel) if you

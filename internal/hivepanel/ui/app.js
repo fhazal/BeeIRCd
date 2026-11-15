@@ -1859,11 +1859,12 @@
           yes.focus();
         });
         const caught = h('td', { class: 'mono' }, fmt(r.hits), h('span', { class: 'sf-ago', text: r.hits ? ago(r.last) : 'never' }));
-        return h('tr', { class: r.id === freshID ? 'fresh' : null, title: 'Set by ' + r.set_by + ' · ' + r.reason },
+        return h('tr', { class: r.id === freshID ? 'fresh' : null, title: 'Set by ' + r.set_by },
           h('td', { class: 'mono' }, r.match, r.type === 'regex' ? h('span', { class: 'tag sf-exp', text: 'expert' }) : null,
             r.unusable ? h('span', { class: 'tag sus', text: 'not used here', title: 'This regex came from another server and does not work here' }) : null),
           h('td', {}, ...r.words.filter(Boolean).map(w => h('span', { class: 'tag', text: w }))),
           h('td', { class: r.action === 'warn' ? 'sf-warn' : null, text: r.does }),
+          h('td', { class: 'sf-why', text: r.reason }),
           caught, cell);
       }));
       freshID = 0;
@@ -1878,7 +1879,7 @@
           h('section', { class: 'card list-card' },
             h('div', { class: 'ch tools' }, h('h2', { text: 'Filters' }), h('span', { class: 'lbl', text: 'most caught first' })),
             h('div', { class: 'wrap' }, h('table', { class: 'bans sf-tbl' },
-              h('thead', {}, h('tr', {}, ['Match', 'Checks', 'Action', 'Caught'].map(t => h('th', { scope: 'col', text: t })), h('th', { scope: 'col' }, h('span', { class: 'sr', text: 'Remove' })))),
+              h('thead', {}, h('tr', {}, ['Match', 'Checks', 'Action', 'Reason', 'Caught'].map(t => h('th', { scope: 'col', text: t })), h('th', { scope: 'col' }, h('span', { class: 'sr', text: 'Remove' })))),
               tbody))),
           h('section', { class: 'card' }, h('h2', { text: 'Try a line' }),
             h('div', { class: 'sf-try' }, tryText, tryWhere), tryRes)),
