@@ -227,7 +227,7 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 			used++
 			mask, valid := irc.NormalizeBan(arg)
 			if !valid {
-				s.reply(c, irc.ErrInvalidModeParam, ch.Name, string(mc), arg, "Invalid ban mask (extbans: ~a:account ~r:realname ~m:mask ~t:minutes:mask)")
+				s.reply(c, irc.ErrInvalidModeParam, ch.Name, string(mc), arg, "Invalid ban mask (extbans: ~a:account ~r:realname ~m:mask ~f:#chan:mask ~t:minutes:mask)")
 				continue
 			}
 			if add {

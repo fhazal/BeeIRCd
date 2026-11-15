@@ -33,7 +33,7 @@ How to set each one up is in [ADMIN.md](ADMIN.md); installing is in [INSTALL.md]
 | DNS blocklists (DroneBL, EFnetRBL, any list) | ✅ | reject, Z-line, AKILL or SHUN; IPv4 and IPv6 |
 | REHASH (`/rehash`, `beeircd rehash`, SIGHUP) | ✅ | applies what is safe live and lists what needs a restart |
 | WebSocket | 📋 | |
-| `~f:#chan` forward extban, `+G` censor | 📋 | |
+| `+G` censor | 📋 | |
 | Module system | 📋 | |
 
 ## Server linking
@@ -101,7 +101,7 @@ Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few 
 | Oper flags `a b c g h k s` and oper classes | ✅ | built-in helper, globop, admin, netadmin; oper vhost and swhois |
 | `/KILL`, `/WALLOPS`, server notices | ✅ | |
 | One network ban list: AKILL / G-line, ZLINE, Q-line, R-line (realname), SHUN, ELINE exemptions, all with expiry | ✅ | matches the real host and IP, never the cloak |
-| Channel extbans `~a ~r ~m ~t`, timed bans | ✅ | |
+| Channel extbans `~a ~r ~m ~t`, `~f:#chan:mask` forward, timed bans | ✅ | UnrealIRCd's named forms (`~account:`, `~forward:`...) are read too |
 | Channel mode `+O` (opers only) | ✅ | |
 | Spam filter (`/SPAMFILTER`, `STATS F`, UnrealIRCd syntax) | ✅ | shared with BeeIRCd and UnrealIRCd links; page in the Hive Panel |
 

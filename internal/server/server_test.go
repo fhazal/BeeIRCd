@@ -667,3 +667,26 @@ func expectNames(t *testing.T, line, want string) {
 		t.Fatalf("NAMES: got %q, want %q", got, want)
 	}
 }
+
+func TestForwardBan(t *testing.T) {
+	s := testServer(t, nil)
+	bee, x := login(t, s, "Bee"), login(t, s, "x")
+	bee.send("JOIN #a")
+	bee.expect(" 366 Bee #a ")
+	bee.send("MODE #a +b ~f:#jail:x")
+	bee.expect("MODE #a +b ~f:#jail:x!*@*")
+	bee.send("MODE #a +b ~f:#a:nobody")
+	bee.expect("MODE #a +b ~f:#a:nobody!*@*")
+	x.send("JOIN #a")
+	x.expect(" 470 x #a #jail :[Link] #a has you banned, so you are automatically being transferred to #jail")
+	x.expect(":x!~x@127.0.0.1 JOIN #jail")
+	bee.quiet("JOIN #a")
+	// An exception lets them in; a forward to the channel itself is a plain ban.
+	bee.send("MODE #a +e x!*@*")
+	bee.expect("MODE #a +e x!*@*")
+	x.send("JOIN #a")
+	x.expect(":x!~x@127.0.0.1 JOIN #a")
+	nobody := login(t, s, "nobody")
+	nobody.send("JOIN #a")
+	nobody.expect(" 474 nobody #a :Cannot join channel (+b)")
+}

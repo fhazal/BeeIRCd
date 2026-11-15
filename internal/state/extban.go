@@ -25,6 +25,10 @@ func MatchBan(mask string, u *User) (match, mute bool) {
 			return u.Account != "" && irc.Match(arg, u.Account), false
 		case 'r':
 			return irc.Match(arg, u.Realname), false
+		case 'f':
+			_, inner, _ := strings.Cut(arg, ":")
+			m, _ := MatchBan(inner, u)
+			return m, false
 		case 'm', 'q':
 			m, _ := MatchBan(arg, u)
 			return m, true
@@ -37,4 +41,25 @@ func MatchBan(mask string, u *User) (match, mute bool) {
 		}
 	}
 	return false, false
+}
+
+// BanForward is the channel a matching ~f:#chan:mask ban sends u to, or
+// "" when no forward ban matches (timed ~t: forwards count too).
+func (c *Channel) BanForward(u *User) string {
+	for _, e := range c.Lists['b'] {
+		mask := e.Mask
+		if strings.HasPrefix(mask, "~t:") {
+			if _, inner, ok := strings.Cut(mask[3:], ":"); ok {
+				mask = inner
+			}
+		}
+		if !strings.HasPrefix(mask, "~f:") {
+			continue
+		}
+		if m, _ := MatchBan(mask, u); m {
+			to, _, _ := strings.Cut(mask[3:], ":")
+			return to
+		}
+	}
+	return ""
 }

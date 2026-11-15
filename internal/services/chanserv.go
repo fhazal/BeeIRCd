@@ -68,7 +68,7 @@ func chanServCommands() map[string]svcCmd {
 		"DOWN":      {"DOWN #chan", "drop all your channel status", "Takes every status mode you have in the channel.", csDown},
 		"SYNC":      {"SYNC #chan", "give everyone the status they earn", "Gives everyone in the channel the modes their level earns and, with SECUREOPS\non, takes status from those not allowed it. Needs ACCESS_CHANGE.", csSyncCmd},
 		"KICK":      {"KICK #chan <nick> [reason]", "kick through ChanServ", "Needs KICK (HOP by default). With PEACE on, nobody can kick someone on the\nsame level or above, except the founder.", csKick},
-		"BAN":       {"BAN #chan [+expiry] <nick|mask> [reason]", "ban and kick", "Needs BAN (HOP by default). A nick bans that person's host, the way BANTYPE\nsays. With +expiry (+30m, +2h, +7d) the ban lifts itself (a ~t: ban).\nExtbans work too: ~a:account, ~r:realname, ~m:mask (mute).", csBan},
+		"BAN":       {"BAN #chan [+expiry] <nick|mask> [reason]", "ban and kick", "Needs BAN (HOP by default). A nick bans that person's host, the way BANTYPE\nsays. With +expiry (+30m, +2h, +7d) the ban lifts itself (a ~t: ban).\nExtbans work too: ~a:account, ~r:realname, ~m:mask (mute),\n~f:#other:mask (sends them to #other instead).", csBan},
 		"UNBAN":     {"UNBAN [#chan [nick|mask]]", "remove bans", "Needs UNBAN (HOP by default). UNBAN #chan removes every ban on you there;\nwith a nick, the bans on them. UNBAN alone unbans you in every channel where\nyou have UNBAN.", csUnban},
 		"INVITE":    {"INVITE #chan [nick]", "invite yourself or someone", "Needs INVITE (AOP by default). Without a nick it invites you.", csInvite},
 		"GETKEY":    {"GETKEY #chan", "tell you the channel key", "Needs GETKEY (AOP by default).", csGetKey},

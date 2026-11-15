@@ -765,7 +765,7 @@ var chmodesHelp = []string{
 	"~q owner (~)       &a admin (~)        @o op (@)",
 	"%h halfop (@)      +v voice (%)",
 	"Lists:",
-	" b <mask>   ban (extbans ~a ~r ~m ~t)        e <mask>   ban exception",
+	" b <mask>   ban (extbans ~a ~f ~r ~m ~t)     e <mask>   ban exception",
 	" I <mask>   invite exception",
 	"With a value (ops):",
 	" k <key>    key needed to join                l <n>      at most n people",

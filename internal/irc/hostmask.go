@@ -46,10 +46,14 @@ func IsCIDR(mask string) bool {
 // Extbans (UnrealIRCd/InspIRCd style) in +b, +e and +I:
 //
 //	~a:account   ~a:0 = not identified, ~a:* = anyone identified
+//	~f:#chan:mask  forward: a ban that sends people to #chan instead
 //	~r:realname
 //	~m:mask      mute: may stay, may not talk (~q:mask is the same)
 //	~t:min:mask  timed: lifts itself after min minutes
-const ExtbanLetters = "amqrt"
+const ExtbanLetters = "afmqrt"
+
+// namedExtbans are UnrealIRCd's names for the extbans BeeIRCd has.
+var namedExtbans = map[string]string{"account": "a", "forward": "f", "quiet": "q", "realname": "r", "time": "t"}
 
 // MaxTimedBan is the longest ~t ban, in minutes (one year).
 const MaxTimedBan = 525600
@@ -62,6 +66,14 @@ func NormalizeBan(m string) (string, bool) {
 	}
 	if !strings.HasPrefix(m, "~") {
 		return NormalizeMask(m), true
+	}
+	if name, rest, ok := strings.Cut(m[1:], ":"); ok && len(name) > 1 {
+		// UnrealIRCd's named extbans (servers send these with NEXTBANS)
+		letter, known := namedExtbans[strings.ToLower(name)]
+		if !known {
+			return "", false
+		}
+		m = "~" + letter + ":" + rest
 	}
 	if len(m) < 4 || m[2] != ':' {
 		return "", false
@@ -77,6 +89,16 @@ func NormalizeBan(m string) (string, bool) {
 			return "", false
 		}
 		return out, true
+	case 'f':
+		to, rest, ok := strings.Cut(arg, ":")
+		if !ok || !ValidChannel(to, 64) {
+			return "", false
+		}
+		inner, ok := NormalizeBan(rest)
+		if !ok || strings.HasPrefix(inner, "~") {
+			return "", false
+		}
+		return "~f:" + to + ":" + inner, true
 	case 'm', 'q':
 		inner, ok := NormalizeBan(arg)
 		if !ok || strings.HasPrefix(inner, "~m:") || strings.HasPrefix(inner, "~q:") || strings.HasPrefix(inner, "~t:") {

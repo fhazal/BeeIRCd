@@ -31,22 +31,28 @@ func TestMatchHost(t *testing.T) {
 
 func TestNormalizeBan(t *testing.T) {
 	for in, want := range map[string]string{
-		"bee":                "bee!*@*",
-		"~a:Bee":             "~a:Bee",
-		"~A:bee":             "~a:bee",
-		"~a:0":               "~a:0",
-		"~r:*bot*":           "~r:*bot*",
-		"~m:spam":            "~m:spam!*@*",
-		"~q:*!*@bad.example": "~q:*!*@bad.example",
-		"~m:~a:bee":          "~m:~a:bee",
-		"~t:30:*.example":    "~t:30:*!*@*.example",
-		"~t:5:~m:x":          "~t:5:~m:x!*@*",
+		"bee":                 "bee!*@*",
+		"~a:Bee":              "~a:Bee",
+		"~A:bee":              "~a:bee",
+		"~a:0":                "~a:0",
+		"~r:*bot*":            "~r:*bot*",
+		"~m:spam":             "~m:spam!*@*",
+		"~q:*!*@bad.example":  "~q:*!*@bad.example",
+		"~m:~a:bee":           "~m:~a:bee",
+		"~t:30:*.example":     "~t:30:*!*@*.example",
+		"~t:5:~m:x":           "~t:5:~m:x!*@*",
+		"~f:#jail:bee":        "~f:#jail:bee!*@*",
+		"~t:5:~f:#jail:x":     "~t:5:~f:#jail:x!*@*",
+		"~account:Bee":        "~a:Bee", // UnrealIRCd's names
+		"~quiet:*!*@x":        "~q:*!*@x",
+		"~forward:#jail:x":    "~f:#jail:x!*@*",
+		"~time:5:~realname:b": "~t:5:~r:b",
 	} {
 		if got, ok := NormalizeBan(in); !ok || got != want {
 			t.Errorf("NormalizeBan(%q) = %q, %v; want %q", in, got, ok, want)
 		}
 	}
-	for _, bad := range []string{"~", "~a", "~a:", "~z:x", "~t:0:x", "~t:x:y", "~t:999999:x", "~t:5:~t:5:x", "~m:~m:x", "~ab:c"} {
+	for _, bad := range []string{"~", "~a", "~a:", "~z:x", "~t:0:x", "~t:x:y", "~t:999999:x", "~t:5:~t:5:x", "~m:~m:x", "~ab:c", "~f:jail:x", "~f:#jail", "~f:#jail:~a:x", "~country:NL"} {
 		if got, ok := NormalizeBan(bad); ok {
 			t.Errorf("NormalizeBan(%q) = %q, want refused", bad, got)
 		}

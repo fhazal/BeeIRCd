@@ -61,6 +61,11 @@ func (s *Server) joinVia(c *Client, name, key string, hops int) {
 	if ch != nil {
 		uop := s.svc.JoinLevel(c.uid, ch.Name) >= store.LevelUOP // ChanServ UOP and up get past +i and +k
 		if code, text, link := s.joinRefusal(c, ch, key, uop); code != "" {
+			if to := ch.BanForward(u); code == irc.ErrBannedFromChan && to != "" && hops < maxLinkHops && irc.Fold(to) != irc.Fold(ch.Name) {
+				s.reply(c, irc.ErrLinkChannel, ch.Name, to, "[Link] "+ch.Name+" has you banned, so you are automatically being transferred to "+to)
+				s.joinVia(c, to, "", hops+1)
+				return
+			}
 			if to := ch.Param('L'); link && to != "" && hops < maxLinkHops {
 				s.reply(c, irc.ErrLinkChannel, ch.Name, to, "[Link] "+ch.Name+" "+linkReason(code)+", so you are automatically being transferred to the linked channel "+to)
 				s.joinVia(c, to, "", hops+1)
