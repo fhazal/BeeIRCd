@@ -254,7 +254,7 @@ docker compose up -d                       # start; it comes back after a reboot
 | Logs | `docker compose logs beeircd` |
 | Restart | `docker compose restart beeircd` |
 | Update | `docker compose pull && docker compose up -d` (your data stays) |
-| Hive Panel | say yes to it in the questions, then `docker compose --profile panel up -d`; it answers on `127.0.0.1:8787` of the Docker machine only, reach it with the SSH tunnel from [Hive Panel](ADMIN.md#hive-panel-web-admin) |
+| Hive Panel | say yes to it in the questions, then `docker compose --profile panel up -d`; it answers on `127.0.0.1:8787` of the Docker machine only, reach it with the SSH tunnel from [Hive Panel](ADMIN.md#hive-panel-web-admin). Never publish it on other addresses: in Docker the panel counts the Docker machine itself as 127.0.0.1, so visitors from outside would too. For access from elsewhere use HTTPS through a web server on the Docker machine ([Let members reach the Hive Panel](ADMIN.md#let-members-reach-the-hive-panel)) |
 | BeeRoom web chat | `docker compose --profile chat up -d`; it answers on `127.0.0.1:9000` for your web server in front (below) |
 
 - **BeeRoom** needs nothing else: on its first start BeeIRCd adds the web

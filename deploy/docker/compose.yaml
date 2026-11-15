@@ -36,7 +36,7 @@ services:
     restart: unless-stopped
     command: web
     ports:
-      - "127.0.0.1:8787:8787"   # this machine only: reach it with an SSH tunnel
+      - "127.0.0.1:8787:8787"   # this machine only: reach it with an SSH tunnel; never publish it wider
     volumes:
       - beeircd-data:/data
       - beeircd-run:/run/beeircd

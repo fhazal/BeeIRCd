@@ -183,7 +183,7 @@ the machine now and then; they contain password hashes and secrets.
 
 ```sh
 sudo beeircd stop
-mkdir /tmp/restore && tar -xzf /var/lib/beeircd/backups/beeircd-2026-11-12-0400.tar.gz -C /tmp/restore
+sudo mkdir /tmp/restore && sudo tar -xzf /var/lib/beeircd/backups/beeircd-2026-11-12-0400.tar.gz -C /tmp/restore
 sudo cp /tmp/restore/beeircd.conf /etc/beeircd/beeircd.conf
 sudo cp /tmp/restore/services.db /tmp/restore/history.db /var/lib/beeircd/
 sudo cp /tmp/restore/tls/* /etc/beeircd/tls/            # only if the certificate is lost
@@ -191,7 +191,7 @@ sudo cp /tmp/restore/link/link-*.pem /var/lib/beeircd/   # hub or leaf: or where
 sudo chown -R beeircd:beeircd /etc/beeircd /var/lib/beeircd
 sudo rm -f /var/lib/beeircd/services.db-wal /var/lib/beeircd/services.db-shm
 sudo beeircd check && sudo beeircd start
-rm -rf /tmp/restore
+sudo rm -rf /tmp/restore
 ```
 
 To move to a new machine: install there with the same server name, then

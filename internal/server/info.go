@@ -99,7 +99,7 @@ var helpTopics = map[string][]string{
 	"SPAMFILTER": {"SPAMFILTER [add|del|test ...]", "Rules that catch spam as it is sent, on every linked server (opers, flag k). Alone it lists the rules (= STATS F).",
 		"add [-simple|-regex] [-force] <targets> <action> <ban-time|-> <reason> <match ...>",
 		" targets: c channel, p private, n private notice, N channel notice, P part, q quit, t topic, a away, u nick!user@host:realname",
-		" actions: warn block kill tempshun shun gline gzline. Use _ for spaces in the reason.",
+		" actions: warn block kill tempshun shun gline gzline (kline = gline, zline = gzline). Use _ for spaces in the reason.",
 		" A rule that would also catch normal chat is refused unless -force.",
 		"del <id> removes a rule. test <targets> <text> shows which rules would catch text."},
 	"ADMIN":    {"ADMIN [server]", "Shows who runs a server."},
