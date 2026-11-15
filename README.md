@@ -20,7 +20,7 @@ Classic IRC feel · services in the box · IRCv3 · light on a 1-CPU VPS
 </div>
 
 > [!NOTE]
-> BeeIRCd is a free, open-source IRC server by **BajuBesi Labs**, written from scratch in Go. **1.0 is out**: the server with its services, server linking, the Hive Panel web admin and BeeRoom web chat.
+> BeeIRCd is a free, open-source IRC server by **BajuBesi Labs**, written from scratch in Go. **1.1 is out**: the server with its services, server linking, the Hive Panel web admin and BeeRoom web chat, now with a spam filter and moving from Anope.
 
 ---
 
@@ -47,7 +47,8 @@ Running an IRC network usually means two programs that have to be wired together
 - UnrealIRCd-style channel modes, flood guard `+f` / `+F` profiles, `+L` link channels
 - Bans with extbans `~a ~r ~m ~t`, timed bans
 - AKILL, Z-lines, SHUN, SQLINE / SNLINE, DNS blocklists (DroneBL, EFnetRBL)
-- Oper classes, oper vhosts and swhois, `/oper <nick> <password>`
+- Oper classes, oper vhosts and swhois, `/oper <nick> <password>` or a TLS client certificate
+- Spam filter: `/SPAMFILTER` and `STATS F` with UnrealIRCd's syntax, shared over links
 
 </td><td width="50%" valign="top">
 
@@ -59,6 +60,7 @@ Running an IRC network usually means two programs that have to be wired together
 - **OperServ**: AKILL, sessions, news, SEEN, IGNORE
 - **BotServ**: channel bots, kickers, bad words, fantasy commands
 - **AdminServ**: live server settings with HISTORY / DIFF / UNDO
+- **Moving from Anope**: `beeircd import-anope` brings anope.db over, passwords too
 
 </td></tr>
 <tr><td valign="top">
@@ -74,7 +76,7 @@ Running an IRC network usually means two programs that have to be wired together
 **🍯 Hive Panel**
 - Overview: network status, Spotlight, health, server details
 - People, Channels, Bans, Opers, Linked servers with a network map
-- Services, Settings and Backups; changes kept in HISTORY with Undo
+- Services, Settings, Backups and Spam filter; changes kept in HISTORY with Undo
 - Every click checked by the server against your oper flags
 
 </td></tr>
@@ -105,7 +107,7 @@ The full list, with what is planned and what is only an idea, is in [docs/FEATUR
 | Version | What | Status |
 | --- | --- | --- |
 | 1.0 | Server and services, linking (BeeIRCd and UnrealIRCd 6), Hive Panel, BeeRoom web chat | ✅ Released |
-| 1.1 | Spam filter, a calmer "What happened" page in the Hive Panel | 🚧 In progress |
+| 1.1 | Spam filter, moving from Anope, opers by certificate, a calmer "What happened" page | ✅ Released |
 
 ## 📦 Installing
 

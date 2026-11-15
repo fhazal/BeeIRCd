@@ -1,7 +1,7 @@
 # Installing BeeIRCd
 
 BeeIRCd is one program: the IRC server and its services (NickServ, ChanServ,
-MemoServ, OperServ, HostServ, AdminServ, Global) together. The installer asks
+MemoServ, OperServ, HostServ, BotServ, AdminServ, Global) together. The installer asks
 nine questions, writes the files, starts the service and tells you what to do
 next. This page covers the installer, the firewall, certificates and running
 behind a proxy or tunnel. Day-to-day running is in [ADMIN.md](ADMIN.md).
@@ -97,7 +97,7 @@ The installer prints these at the end:
 3. Oper up: `/oper <admin nick> <admin password>`
 
 The NickServ password and the admin (oper) password are two different
-passwords. `/oper` only works once the nick is registered and identified.
+passwords. `/oper` only works once the nick is registered.
 
 ## Firewall
 
@@ -269,8 +269,9 @@ docker compose up -d                       # start; it comes back after a reboot
 
   nginx and Apache work the same way: pass `/` (with WebSockets) to
   `http://127.0.0.1:9000/` and set `X-Forwarded-For`. If `10.89.0.0/24`
-  clashes with a network you already have, change it in both places in
-  compose.yaml.
+  clashes with a network you already have, change `10.89.0` in all three
+  places in compose.yaml (`BEEROOM_WEBIRC`, `ipv4_address`, `subnet`); the
+  next start moves BeeRoom's `[[webirc]]` entry to the new address.
 - **Data.** Config, accounts, channels, history and backups are all in
   `/data`, kept in the `beeircd-data` volume. To use a folder instead,
   change `beeircd-data:/data` to `./data:/data`; the container makes it
@@ -331,7 +332,7 @@ put two different long random strings in the two `secret` lines
 [server]
 name = "irc.example.org"     # the DNS name people connect to
 network = "ExampleNet"
-sid = "0EX"                  # a digit and two letters or digits, unique on your network
+sid = "0EX"                  # a digit and two capitals or digits, unique on your network
 
 [[listen]]
 address = ":6667"

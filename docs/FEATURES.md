@@ -94,13 +94,13 @@ Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few 
 | Feature | | Notes |
 | --- | --- | --- |
 | `/oper <nick> <password>` with a separate oper password per oper | ✅ | identifying to NickServ never opers you |
-| Oper by TLS client certificate, with or without a password | 🔜 | like UnrealIRCd's certfp oper blocks |
+| Oper by TLS client certificate, with or without a password | ✅ | like UnrealIRCd's certfp oper blocks |
 | Oper flags `a b c g h k s` and oper classes | ✅ | built-in helper, globop, admin, netadmin; oper vhost and swhois |
 | `/KILL`, `/WALLOPS`, server notices | ✅ | |
 | One network ban list: AKILL / G-line, ZLINE, Q-line, R-line (realname), SHUN, ELINE exemptions, all with expiry | ✅ | matches the real host and IP, never the cloak |
 | Channel extbans `~a ~r ~m ~t`, timed bans | ✅ | |
 | Channel mode `+O` (opers only) | ✅ | |
-| Spam filter (`/SPAMFILTER`, `STATS F`, UnrealIRCd syntax) | 🔜 | shared with BeeIRCd and UnrealIRCd links; page in the Hive Panel |
+| Spam filter (`/SPAMFILTER`, `STATS F`, UnrealIRCd syntax) | ✅ | shared with BeeIRCd and UnrealIRCd links; page in the Hive Panel |
 
 ## Running it
 
@@ -110,7 +110,8 @@ Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few 
 | `beeircd status`, `check`, `backup`, `rehash`, `start`, `stop`, `restart` | ✅ | over a local socket, no network port |
 | Signed updates (`beeircd update`) | ✅ | checks the signature, backs up, rolls back by itself if the new version doesn't start; `--rollback` goes back |
 | Docker image (amd64, arm64) | ✅ | `ghcr.io/fhazal/beeircd` |
-| Moving from Anope 2.0 (`beeircd import-anope`) | 🔜 | accounts, passwords (no resets), channels, bots, bans and the rest of anope.db |
+| Moving from Anope 2.0 (`beeircd import-anope`) | ✅ | accounts, passwords (no resets), channels, bots, bans and the rest of anope.db |
+| UnrealIRCd oper blocks (`import-anope -unreal-opers`) | ✅ | plain and argon2id passwords kept, certificate opers too; other hashes are named in the report |
 | `beeircd uninstall` | ✅ | keeps your data unless `--purge` |
 
 ## Hive Panel (web admin)
@@ -121,11 +122,11 @@ Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few 
 | Opers sign in with their oper nick and password | ✅ | every request is checked by the server against the oper's flags |
 | Overview: network status, Spotlight, server details, health, What happened | ✅ | blocks can be shown, hidden and arranged |
 | People, Channels, Bans, Opers, Services, Settings, Backups | ✅ | changes go through AdminServ and can be undone |
-| Linked servers with a network map | ✅ | places from each server's time zone or set in `beeircd.conf`; nothing looked up online |
+| Linked servers with a network map | ✅ | places from `beeircd.conf`, or ipinfo.io asked once for the server's own IP (`[server] find_place_by_ip = false`: its time zone) |
 | Themes: Bee, Catppuccin Latte and Mocha, One Dark Pro, Dracula | ✅ | |
 | Jump to (Ctrl K / ⌘K) | ✅ | |
 | Members: registered nicks sign in to their own pages (Home, Chat, My nick, My channels, Memos) | ✅ | off unless you turn it on; needs HTTPS from outside |
-| Redesigned "What happened" page (grouped by day, repeats folded) | 🔜 | |
+| Redesigned "What happened" page (grouped by day, repeats folded) | ✅ | |
 
 ## BeeRoom (web chat)
 

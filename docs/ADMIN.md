@@ -21,6 +21,9 @@ through a local socket, so run them as root (`sudo`) on the server.
 | `beeircd mkpasswd` | Reads a password and prints its hash, for `admin_password` |
 | `beeircd import-anope <anope.db>` | Brings accounts, channels and settings over from Anope 2.0 (see [Moving from Anope](#moving-from-anope)) |
 | `beeircd webirc add <name> <ip>` | Lets a web chat (BeeRoom) on that IP pass on each person's real IP; prints its password (see [[[webirc]]](#webirc)) |
+| `beeircd install` / `uninstall` | Sets BeeIRCd up as a service, or removes it (keeps your data unless `--purge`); see [INSTALL.md](INSTALL.md) |
+| `beeircd link-info` | Prints this server's link fingerprint and the blocks another BeeIRCd or UnrealIRCd server needs to link |
+| `beeircd web` | Runs the Hive Panel (what the `beeircd-web` service runs) |
 | `beeircd version` | Prints the version |
 | `beeircd run` | Runs in the foreground (what the service runs) |
 
@@ -171,7 +174,7 @@ sudo beeircd backup /root/before-change.tar.gz
 
 A backup holds `beeircd.conf`, a live copy of `services.db` (taken without
 stopping anything), `history.db` (still encrypted with your history secret)
-and the certificate files. Backups are readable only by the `beeircd` user and root. Copy backups off
+the TLS certificate files and the link certificate (`link/`). Backups are readable only by the `beeircd` user and root. Copy backups off
 the machine now and then; they contain password hashes and secrets.
 
 `beeircd status` shows when the last backup was made.
@@ -184,6 +187,7 @@ mkdir /tmp/restore && tar -xzf /var/lib/beeircd/backups/beeircd-2026-11-12-0400.
 sudo cp /tmp/restore/beeircd.conf /etc/beeircd/beeircd.conf
 sudo cp /tmp/restore/services.db /tmp/restore/history.db /var/lib/beeircd/
 sudo cp /tmp/restore/tls/* /etc/beeircd/tls/            # only if the certificate is lost
+sudo cp /tmp/restore/link/link-*.pem /var/lib/beeircd/   # hub or leaf: or where [link] cert/key point
 sudo chown -R beeircd:beeircd /etc/beeircd /var/lib/beeircd
 sudo rm -f /var/lib/beeircd/services.db-wal /var/lib/beeircd/services.db-shm
 sudo beeircd check && sudo beeircd start
@@ -192,7 +196,9 @@ rm -rf /tmp/restore
 
 To move to a new machine: install there with the same server name, then
 restore the backup the same way. Keep the backup's `beeircd.conf` (its cloak
-and history secrets go with the data).
+and history secrets go with the data). On a hub or leaf, also bring the
+link certificate (`link/` in the backup): without it the server makes a new
+one, and every server that pinned the old fingerprint refuses the link.
 
 ## Moving from Anope
 
@@ -516,7 +522,7 @@ one holding the key it expects. No passwords are needed.
    port closed, name mismatch) and when it tries again.
 
 Every server needs its own server name and SID (`[server] sid`, a digit
-and two capitals; the installer makes one from the name, check the
+and two capitals or digits, like `0EX`; the installer makes one from the name, check the
 others don't have it). The hub's port 7000 must be open to the leaves.
 
 Linking a server already installed as standalone: set `[link] role`,
