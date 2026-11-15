@@ -199,7 +199,7 @@ func (s *Server) toAlias(c *Client, alias string, m irc.Message) {
 }
 
 // aliasBots are the bots behind /ns, /cs ...
-var aliasBots = map[string]string{"ns": "NickServ", "cs": "ChanServ", "ms": "MemoServ", "os": "OperServ", "hs": "HostServ", "as": "AdminServ"}
+var aliasBots = map[string]string{"ns": "NickServ", "cs": "ChanServ", "ms": "MemoServ", "os": "OperServ", "hs": "HostServ", "bs": "BotServ", "as": "AdminServ"}
 
 // lockedFor and friends keep the oper password code short.
 func (s *Server) lockedFor(key int64, src string) time.Duration { return s.svc.LockedFor(key, src) }
