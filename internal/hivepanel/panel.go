@@ -58,7 +58,11 @@ type Options struct {
 	TrustedProxy []string
 	Idle         time.Duration // sign out after this long without a click
 	ChatURL      string        // BeeRoom ([web] chat_url): the only page the panel may frame
-	Now          func() time.Time
+	// HostAddr is the Docker host as the container sees it (its network's
+	// gateway). Requests from it came through the port compose.yaml
+	// publishes on the host's 127.0.0.1, so they count as 127.0.0.1.
+	HostAddr string
+	Now      func() time.Time
 }
 
 // Panel is the web handler.
@@ -66,6 +70,7 @@ type Panel struct {
 	ask     Asker
 	csp     string // Content-Security-Policy, with BeeRoom as the one frame source
 	proxies map[string]bool
+	host    string // Options.HostAddr
 	idle    time.Duration
 	now     func() time.Time
 	mux     *http.ServeMux
@@ -90,7 +95,7 @@ type ipFails struct {
 
 // New makes the panel.
 func New(o Options) *Panel {
-	p := &Panel{ask: o.Ask, idle: o.Idle, now: o.Now, proxies: map[string]bool{},
+	p := &Panel{ask: o.Ask, idle: o.Idle, now: o.Now, proxies: map[string]bool{}, host: o.HostAddr,
 		sessions: map[string]*session{}, fails: map[string]*ipFails{}}
 	if p.now == nil {
 		p.now = time.Now
@@ -197,6 +202,11 @@ func New(o Options) *Panel {
 
 // ServeHTTP adds the safety headers and refuses requests from elsewhere.
 func (p *Panel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if p.host != "" {
+		if h, port, err := net.SplitHostPort(r.RemoteAddr); err == nil && h == p.host {
+			r.RemoteAddr = net.JoinHostPort("127.0.0.1", port)
+		}
+	}
 	h := w.Header()
 	h.Set("Content-Security-Policy", p.csp)
 	h.Set("X-Content-Type-Options", "nosniff")

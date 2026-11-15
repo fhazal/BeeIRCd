@@ -39,6 +39,7 @@ func Run(ctx context.Context, cfgPath, listen, socket string, logf func(format s
 		TrustedProxy: cfg.Web.TrustedProxy,
 		Idle:         cfg.Web.SessionIdle.Duration,
 		ChatURL:      cfg.Web.ChatURL,
+		HostAddr:     dockerHost(),
 	})
 	ln, err := net.Listen("tcp", cfg.Web.Listen)
 	if err != nil {
