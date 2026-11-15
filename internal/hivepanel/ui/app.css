@@ -756,3 +756,5 @@ table.sf-tbl td:nth-child(3),table.sf-tbl td:nth-child(5){white-space:nowrap}
 .sf-try-res{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;font-size:14px;color:var(--ink);min-height:20px}
 .sf-try-res .lbl{margin-left:4px}
 @media (max-width:760px){.sf-try{grid-template-columns:1fr}.sf-checks{grid-template-columns:1fr}}
+/* Laptops: the Filters list gets the whole row, Try a line and Add a filter share the next one */
+@media (min-width:1001px) and (max-width:1199px){.sf-band{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.sf-band>.sf-col{display:contents}.sf-band .list-card{grid-column:1/-1}}

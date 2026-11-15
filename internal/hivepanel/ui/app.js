@@ -1874,7 +1874,7 @@
       h('header', { class: 'head' }, h('div', { class: 'head-text' }, h('h1', { text: 'Spam filter' }),
         h('span', { class: 'sub', text: 'Rules that catch spam as it is sent, on every linked server' }))),
       h('div', { class: 'tiles5' }, [tFilters, tCaught, tBlock, tWarn, tExcept].map(t => t.el)),
-      h('div', { class: 'band21' },
+      h('div', { class: 'band21 sf-band' },
         h('div', { class: 'sf-col' },
           h('section', { class: 'card list-card' },
             h('div', { class: 'ch tools' }, h('h2', { text: 'Filters' }), h('span', { class: 'lbl', text: 'most caught first' })),
