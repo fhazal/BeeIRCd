@@ -82,7 +82,7 @@ Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few 
 
 | Service | |
 | --- | --- |
-| **NickServ**: REGISTER, IDENTIFY, SASL, RECOVER, GROUP, UNGROUP, ALIST, GLIST, INFO, DROP, LIST, ACCESS + SECURE, STATUS, CERT (identify by TLS certificate), AJOIN, SUSPEND, GETEMAIL, RESETPASS, BUDDY list, and the SET / SASET options | ✅ |
+| **NickServ**: REGISTER, IDENTIFY, SASL, RECOVER, GROUP, UNGROUP, ALIST, GLIST, INFO, DROP, LIST, ACCESS + SECURE, STATUS, CERT (identify by TLS certificate), AJOIN, SUSPEND, GETEMAIL, RESETPASS, email confirmation of new accounts (registration = "mail" or "admin", CONFIRM, RESEND; off by default), BUDDY list, and the SET / SASET options | ✅ |
 | **ChanServ**: access levels and LEVELS (Anope's privileges and defaults), FLAGS (privilege letters as in Anope; ACCESS_LIST has its own letter l), xOP lists, AKICK, MODE LOCK, TOPIC, ENTRYMSG, ENFORCE, LOG, SUSPEND, CLONE, op tools (OWNER, PROTECT, HALFOP, UP, DOWN, KICK, BAN, UNBAN, INVITE, GETKEY), SEEN, and the SET options incl. OVERFLOW | ✅ |
 | **MemoServ**: memos to nicks and to channels, number lists, IGNORE, CANCEL, CHECK, RSEND (read receipts), INFO, SENDALL, STAFF, notify by notice or mail | ✅ |
 | **HostServ**: ON, OFF, GROUP, REQUEST; opers SET, SETALL, DEL, DELALL, LIST, WAITING, ACTIVATE, REJECT | ✅ |

@@ -62,6 +62,11 @@ type Account struct {
 	SuspendReason string
 	SuspendedAt   time.Time
 	SuspendUntil  time.Time // Unix 0 = until UNSUSPEND
+	// Unconfirmed: registered with [services] registration = "mail" or
+	// "admin" and not confirmed yet (Anope's UNCONFIRMED). ConfirmCode is
+	// the passcode the registration mail gave.
+	Unconfirmed bool
+	ConfirmCode string
 }
 
 // Memo is one MemoServ message.
@@ -240,7 +245,8 @@ const accountCols = `a.id, a.name, a.pass_hash, a.email, a.registered, a.last_se
 	a.enforce, a.hide_email, a.hide_host, a.memo_notify, a.memo_limit,
 	a.hide_status, a.hide_quit, a.last_quit, a.protect_delay, a.secure,
 	a.autoop, a.keepmodes, a.last_umodes, a.ns_private, a.url, a.noexpire,
-	a.suspended_by, a.suspend_reason, a.suspended_at, a.suspend_until, a.memo_signon, a.memo_mail`
+	a.suspended_by, a.suspend_reason, a.suspended_at, a.suspend_until, a.memo_signon, a.memo_mail,
+	a.unconfirmed, a.confirm_code`
 
 func scanAccount(row interface{ Scan(...any) error }) (*Account, error) {
 	var a Account
@@ -249,7 +255,8 @@ func scanAccount(row interface{ Scan(...any) error }) (*Account, error) {
 		&a.Enforce, &a.HideEmail, &a.HideHost, &a.MemoNotify, &a.MemoLimit,
 		&a.HideStatus, &a.HideQuit, &a.LastQuit, &a.Protect, &a.Secure,
 		&a.AutoOp, &a.KeepModes, &a.LastModes, &a.Private, &a.URL, &a.NoExpire,
-		&a.SuspendedBy, &a.SuspendReason, &susAt, &susUntil, &a.MemoSignon, &a.MemoMail)
+		&a.SuspendedBy, &a.SuspendReason, &susAt, &susUntil, &a.MemoSignon, &a.MemoMail,
+		&a.Unconfirmed, &a.ConfirmCode)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -321,11 +328,13 @@ func (s *Store) SaveAccount(a *Account) error {
 	_, err := s.db.Exec(`UPDATE accounts SET pass_hash=?, email=?, last_seen=?, last_host=?, enforce=?, hide_email=?,
 		hide_host=?, memo_notify=?, memo_limit=?, hide_status=?, hide_quit=?, last_quit=?, protect_delay=?, secure=?,
 		autoop=?, keepmodes=?, last_umodes=?, ns_private=?, url=?, noexpire=?,
-		suspended_by=?, suspend_reason=?, suspended_at=?, suspend_until=?, memo_signon=?, memo_mail=? WHERE id=?`,
+		suspended_by=?, suspend_reason=?, suspended_at=?, suspend_until=?, memo_signon=?, memo_mail=?,
+		unconfirmed=?, confirm_code=? WHERE id=?`,
 		a.PassHash, a.Email, a.LastSeen.Unix(), a.LastHost, a.Enforce, a.HideEmail, a.HideHost, a.MemoNotify, a.MemoLimit,
 		a.HideStatus, a.HideQuit, a.LastQuit, a.Protect, a.Secure,
 		a.AutoOp, a.KeepModes, a.LastModes, a.Private, a.URL, a.NoExpire,
-		a.SuspendedBy, a.SuspendReason, a.SuspendedAt.Unix(), a.SuspendUntil.Unix(), a.MemoSignon, a.MemoMail, a.ID)
+		a.SuspendedBy, a.SuspendReason, a.SuspendedAt.Unix(), a.SuspendUntil.Unix(), a.MemoSignon, a.MemoMail,
+		a.Unconfirmed, a.ConfirmCode, a.ID)
 	if err != nil {
 		return err
 	}
@@ -336,6 +345,7 @@ func (s *Store) SaveAccount(a *Account) error {
 	have.Secure = a.Secure
 	have.AutoOp, have.KeepModes, have.LastModes, have.Private, have.URL, have.NoExpire = a.AutoOp, a.KeepModes, a.LastModes, a.Private, a.URL, a.NoExpire
 	have.SuspendedBy, have.SuspendReason, have.SuspendedAt, have.SuspendUntil = a.SuspendedBy, a.SuspendReason, sec(a.SuspendedAt), sec(a.SuspendUntil)
+	have.Unconfirmed, have.ConfirmCode = a.Unconfirmed, a.ConfirmCode
 	return nil
 }
 

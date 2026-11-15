@@ -187,6 +187,10 @@ func csRegister(s *Services, c *Client, args []string) {
 		s.logDeniedUnreg(c, s.chanServ)
 		return
 	}
+	if a, _ := s.store.AccountByID(c.accountID); a != nil && a.Unconfirmed {
+		s.cs(c, "You must confirm your account before you can register a channel.")
+		return
+	}
 	if !irc.IsChannel(name) {
 		s.cs(c, "Syntax: REGISTER #chan [description]")
 		return

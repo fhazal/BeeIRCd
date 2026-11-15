@@ -649,6 +649,8 @@ difference is a warning to opers, not a refusal.
 | `ajoin_max` | `10` | Auto-join list length |
 | `list_max` | `50` | Entries NickServ `LIST` shows |
 | `force_email` | `true` | `REGISTER` needs an email |
+| `registration` | `"none"` | How new accounts start, as Anope's `registration`: `"none"` ready at once; `"mail"` REGISTER needs an email and mails a passcode for `/ns confirm <passcode>` (needs `[mail]`; `/ns resend` mails it again); `"admin"` an oper confirms each one with `/ns confirm <nick>`. Until confirmed an account can identify but not register channels |
+| `unconfirmed_expire` | `1d` | Unconfirmed accounts are dropped this long after REGISTER (`0s` never) |
 | `max_memos` | `20` | Memo limit of a new account |
 | `memo_send_delay` | `3s` | Wait between two memos (`0s` off; opers don't wait) |
 
@@ -781,7 +783,7 @@ For NickServ `RESETPASS` and MemoServ mail notices. Off by default.
 | `sendmail_path` | `"/usr/sbin/sendmail -t"` | |
 | `delay` | `5m` | Wait between two mails per person |
 | `dont_quote_addresses` | `false` | |
-| `reset_subject`, `reset_message`, `memo_subject`, `memo_message` | Anope's texts | `%n` nick, `%N` network, `%c` code, `%s` sender, `%d` memo number, `%t` memo text |
+| `reset_subject`, `reset_message`, `registration_subject`, `registration_message`, `memo_subject`, `memo_message` | Anope's texts | `%n` nick, `%N` network, `%c` code, `%s` sender, `%d` memo number, `%t` memo text |
 
 ### [hostserv]
 

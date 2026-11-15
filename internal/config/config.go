@@ -376,6 +376,7 @@ func (c *Config) SetDefaults() {
 		sv.Database = "/var/lib/beeircd/services.db"
 	}
 	setDur(&sv.NickExpire, 90*24*time.Hour)
+	setDur(&sv.UnconfirmedExpire, 24*time.Hour)
 	setDur(&sv.IdentifyWithin, 60*time.Second)
 	setDur(&sv.KillQuick, 20*time.Second)
 	setDur(&sv.BanExpiry, 30*24*time.Hour)
@@ -477,6 +478,21 @@ type Services struct {
 	// MemoSendDelay is how long someone waits between two memos
 	// (senddelay, 3 s; opers don't wait). "0s" switches it off.
 	MemoSendDelay *Duration `toml:"memo_send_delay"`
+	// Registration is Anope's ns_register registration: "none" (an account
+	// is ready at once), "mail" (REGISTER mails a passcode for NickServ
+	// CONFIRM) or "admin" (an oper confirms each new account).
+	Registration string `toml:"registration"`
+	// UnconfirmedExpire drops accounts not confirmed this long after
+	// REGISTER (unconfirmedexpire, 1 day).
+	UnconfirmedExpire Duration `toml:"unconfirmed_expire"`
+}
+
+// RegistrationMode is registration with its default, "none".
+func (s Services) RegistrationMode() string {
+	if s.Registration == "" {
+		return "none"
+	}
+	return strings.ToLower(s.Registration)
 }
 
 // On reports whether this server runs services (default on).
@@ -527,6 +543,15 @@ var (
 func (c *Config) Check() error {
 	if err := c.checkClasses(); err != nil {
 		return err
+	}
+	switch c.Services.RegistrationMode() {
+	case "none", "admin":
+	case "mail":
+		if !c.Mail.On() {
+			return fmt.Errorf("[services] registration = \"mail\" needs [mail] use_mail = true and send_from")
+		}
+	default:
+		return fmt.Errorf("[services] registration %q: use \"none\", \"mail\" or \"admin\"", c.Services.Registration)
 	}
 	if err := c.Web.check(); err != nil {
 		return err

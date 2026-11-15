@@ -140,7 +140,7 @@ func nsRegister(s *Services, c *Client, args []string) {
 		return
 	}
 	email := ""
-	if len(args) < 2 && s.cfg.Services.ForceEmailOn() {
+	if len(args) < 2 && (s.cfg.Services.ForceEmailOn() || s.regMode() == "mail") {
 		s.ns(c, "Syntax: REGISTER <password> <email>")
 		return
 	}
@@ -179,6 +179,7 @@ func nsRegister(s *Services, c *Client, args []string) {
 		c.cmdName = cmd
 		s.nsLogCmd(c, "to register %s (email: %s)", nick, orNone(email))
 		s.login(c, a)
+		s.afterRegister(c, a)
 	})
 }
 
@@ -861,6 +862,9 @@ func nsInfo(s *Services, c *Client, args []string) {
 	}
 	if a.Private {
 		opts = append(opts, "private")
+	}
+	if a.Unconfirmed {
+		opts = append(opts, "unconfirmed")
 	}
 	if a.AutoOp {
 		opts = append(opts, "auto-op")

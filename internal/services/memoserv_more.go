@@ -41,8 +41,10 @@ func nsMailCommands() map[string]svcCmd {
 	return map[string]svcCmd{
 		"RESETPASS": {"RESETPASS <nick> <email>", "get a code to reset a lost password",
 			"Sends a passcode to the nickname with instructions on how to\nreset their password. The email must be the one the nickname\nis registered with. Then: /ns confirm <nick> <passcode>", nsResetPass},
-		"CONFIRM": {"CONFIRM <nick> <passcode>", "use the code RESETPASS sent you",
-			"Identifies you to the nick with the passcode a RESETPASS mail gave you, so\nyou can set a new password: /ns set password <new password>", nsConfirm},
+		"CONFIRM": {"CONFIRM <passcode> | <nick> <passcode>", "confirm your account, or use a RESETPASS code",
+			"CONFIRM <passcode>\nConfirms your new account with the passcode the registration mail gave you.\n\nCONFIRM <nick> <passcode>\nIdentifies you to the nick with the passcode a RESETPASS mail gave you, so\nyou can set a new password: /ns set password <new password>\n\nIRC operators: CONFIRM <nick> confirms someone's new account.", nsConfirm},
+		"RESEND": {"RESEND", "mail your registration passcode again",
+			"Sends the passcode for CONFIRM to your account's email again,\nif your account isn't confirmed yet.", nsResend},
 		"BUDDY": {"BUDDY {ADD | DEL | LIST} [nick]", "friends you hear about",
 			"BUDDY ADD <nick>\nBUDDY DEL <nick>\nBUDDY LIST\nYour list of friends, kept with your account (up to 32). NickServ tells you\nwhen one of them identifies or goes offline, and who is online when you\nidentify. (Like ConferenceRoom's BUDDY; MONITOR does the same in clients\nthat know it.)", nsBuddy},
 	}
@@ -225,11 +227,8 @@ func nsResetPass(s *Services, c *Client, args []string) {
 	}
 }
 
-func nsConfirm(s *Services, c *Client, args []string) {
-	if len(args) < 2 {
-		s.ns(c, "Syntax: CONFIRM <nick> <passcode>")
-		return
-	}
+// nsConfirmReset is CONFIRM <nick> <passcode> with a RESETPASS code.
+func nsConfirmReset(s *Services, c *Client, args []string) {
 	a, err := s.store.AccountByNick(args[0])
 	if err != nil {
 		s.dbErr(c, s.nickServ, err)

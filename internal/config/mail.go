@@ -27,8 +27,11 @@ type Mail struct {
 	// %s sender, %d memo number, %t memo text (memo).
 	ResetSubject string `toml:"reset_subject"`
 	ResetMessage string `toml:"reset_message"`
-	MemoSubject  string `toml:"memo_subject"`
-	MemoMessage  string `toml:"memo_message"`
+	// The mail of registration = "mail" (%n nick, %N network, %c code).
+	RegistrationSubject string `toml:"registration_subject"`
+	RegistrationMessage string `toml:"registration_message"`
+	MemoSubject         string `toml:"memo_subject"`
+	MemoMessage         string `toml:"memo_message"`
 }
 
 // On reports whether services can send mail.
@@ -44,6 +47,12 @@ func (m *Mail) setDefaults() {
 	}
 	if m.ResetMessage == "" {
 		m.ResetMessage = "Hi,\n\nYou have requested to have the password for %n reset.\nTo reset your password, type \" /msg NickServ CONFIRM %n %c \"\n\nIf you don't know why this mail was sent to you, please ignore it silently.\n\n%N administrators."
+	}
+	if m.RegistrationSubject == "" {
+		m.RegistrationSubject = "Nickname registration for %n"
+	}
+	if m.RegistrationMessage == "" {
+		m.RegistrationMessage = "Hi,\n\nYou have requested to register the nickname %n on %N.\nPlease type \" /msg NickServ CONFIRM %c \" to complete registration.\n\nIf you don't know why this mail was sent to you, please ignore it silently.\n\n%N administrators."
 	}
 	if m.MemoSubject == "" {
 		m.MemoSubject = "New memo"

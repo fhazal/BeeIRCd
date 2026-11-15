@@ -574,7 +574,7 @@ func nsList(s *Services, c *Client, args []string) {
 			case "NOEXPIRE":
 				noexpire = true
 			case "UNCONFIRMED":
-				unconfirmed = true // no unconfirmed accounts here: matches nothing
+				unconfirmed = true
 			}
 		}
 	}
@@ -597,7 +597,7 @@ func nsList(s *Services, c *Client, args []string) {
 		switch {
 		case a.Private && !oper && !mine:
 			continue
-		case noexpire && !a.NoExpire, suspended && !a.Suspended(now), unconfirmed:
+		case noexpire && !a.NoExpire, suspended && !a.Suspended(now), unconfirmed && !a.Unconfirmed:
 			continue
 		}
 		last := a.LastHost
@@ -676,6 +676,7 @@ func (s *Services) saveModes(c *Client) {
 // afterLogin runs once someone is identified (IDENTIFY, SASL, certificate):
 // their kept user modes come back and the auto join list is joined.
 func (s *Services) afterLogin(c *Client, a *store.Account) {
+	s.confirmWarning(c, a)
 	if a.KeepModes && a.LastModes != "" {
 		s.host.SetUserModes(c.user.UID, s.nickServ.user.UID, a.LastModes)
 	}

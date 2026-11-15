@@ -134,7 +134,9 @@ func (s *Services) helpSetup() {
 	ns.groups = []helpGroup{{"Commands for IRC operators", []string{"SASET", "SUSPEND", "UNSUSPEND", "GETEMAIL"}}}
 	ns.cmdNeed = map[string]byte{"SASET": 's', "SUSPEND": 's', "UNSUSPEND": 's', "GETEMAIL": 'o'}
 	mailOn := func() bool { return s.cfg.Mail.On() }
-	ns.cmdShown = map[string]func() bool{"RESETPASS": mailOn, "CONFIRM": mailOn}
+	confirmOn := func() bool { return s.cfg.Mail.On() || s.confirmOn() }
+	regMail := func() bool { return s.regMode() == "mail" }
+	ns.cmdShown = map[string]func() bool{"RESETPASS": mailOn, "CONFIRM": confirmOn, "RESEND": regMail}
 	s.memoServ.groups = []helpGroup{{"Commands for IRC operators", []string{"SENDALL", "STAFF"}}}
 	s.memoServ.cmdNeed = map[string]byte{"SENDALL": 'g', "STAFF": 'o'}
 

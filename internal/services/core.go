@@ -363,6 +363,7 @@ func (s *Services) Expire(now time.Time) {
 	}
 	s.expireAccountSuspends(now)
 	s.expireAccounts(now)
+	s.expireUnconfirmed(now)
 	s.expireChannels(now)
 	s.expireSuspends(now)
 	s.expireBans(now)
