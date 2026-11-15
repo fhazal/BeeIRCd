@@ -39,7 +39,7 @@ func operServCommands() map[string]svcCmd {
 		"SNLINE": {"SNLINE ADD|DEL|LIST|VIEW|CLEAR ...", "ban by realname",
 			"SNLINE ADD [+expiry] <realname-mask|/regex/|nick> <reason>\nSNLINE DEL|LIST|VIEW|CLEAR like AKILL.\nMatches the realname (gecos). Write spaces in a mask as ?, or use a /regex/\n(no case). A nick takes that person's realname. /RLINE does the same.\nExample: /os snline add *free?bitcoin* spam", osNetBan(store.BanSNLine)},
 		"SHUN": {"SHUN ADD|DEL|LIST|VIEW|CLEAR ...", "silence someone without disconnecting",
-			"SHUN ADD [+expiry] <user@host|nick> <reason>\nSHUN DEL|LIST|VIEW|CLEAR like AKILL.\nA shunned person stays connected but can only PART, QUIT and answer PINGs;\nevery other command is quietly dropped. /SHUN does the same.", osNetBan(store.BanShun)},
+			"SHUN ADD [+expiry] <user@host|nick> <reason>\nSHUN DEL|LIST|VIEW|CLEAR like AKILL.\nA shunned person stays connected but can only PART, QUIT and answer PINGs;\nevery other command is quietly dropped. /SHUN does the same.\nSpam in messages is caught by /SPAMFILTER instead (rules: /STATS F).", osNetBan(store.BanShun)},
 		"SQLINE": {"SQLINE ADD|DEL|LIST|CLEAR ...", "nicks nobody may use",
 			"SQLINE ADD [+expiry] <nick-mask> [reason]\nSQLINE DEL <nick-mask>\nSQLINE LIST\nSQLINE CLEAR\nThe same list as FORBID NICK: nobody but opers may use or register a matching\nnick. /QLINE does the same.", osSQLine},
 		"KILL": {"KILL <nick> [reason]", "disconnect someone",

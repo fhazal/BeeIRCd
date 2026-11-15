@@ -24,7 +24,7 @@ func nsMoreCommands() map[string]svcCmd {
 		"GLIST": {"GLIST [nick]", "your nicks and when they expire",
 			"Lists all nicknames in your group, and when each expires. Services\nOperators may give a nick to see another group.", nsGlist},
 		"SUSPEND": {"SUSPEND <nick> [+expiry] [reason]", "close an account (opers)",
-			"Suspends a registered nickname, which prevents it from being used\nwhile keeping all the data for that nick. If an expiry is given\nthe nick will be released after that period of time, else the\ndefault expiry from the configuration is used. Opers with flag s.", nsSuspend},
+			"Suspends a registered nickname, which prevents it from being used\nwhile keeping all the data for that nick. If an expiry is given\nthe nick is released after that time; without it the nick stays\nsuspended until UNSUSPEND. Opers with flag s.", nsSuspend},
 		"UNSUSPEND": {"UNSUSPEND <nick>", "open a suspended account again (opers)",
 			"Unsuspends a nickname which allows it to be used again. Opers with flag s.", nsUnsuspend},
 		"GETEMAIL": {"GETEMAIL <email>", "accounts using an email (opers)",

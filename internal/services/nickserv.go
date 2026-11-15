@@ -28,7 +28,7 @@ var nickServAliases = map[string]string{
 func nickServCommands() map[string]svcCmd {
 	return map[string]svcCmd{
 		"REGISTER": {"REGISTER <password> [email]", "register the nick you are using",
-			"Registers your current nick to you, so nobody else can use it.\nPasswords need at least 6 characters. The email is optional; opers use it to\nhelp if you forget your password.\nExample: /ns register honeypot42 bee@example.org", nsRegister},
+			"Registers your current nick to you, so nobody else can use it.\nPasswords need at least 6 characters. Most networks ask for an email (the\nforce_email setting, on by default); opers use it to help if you forget\nyour password.\nExample: /ns register honeypot42 bee@example.org", nsRegister},
 		"IDENTIFY": {"IDENTIFY [account] <password>", "prove the nick is yours",
 			"Identifies you to your account. Give an account to identify to it while\nusing another nick.\nExample: /ns identify honeypot42", nsIdentify},
 		"LOGOUT": {"LOGOUT", "stop being identified",

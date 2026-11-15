@@ -139,7 +139,7 @@ func (s *Server) operServExtras() map[string]services.BotCommand {
 		"JUPE": {Syntax: "JUPE <server> [reason] | JUPE LIST | JUPE DEL <server>", Short: "block a server name",
 			Long: "JUPE <server> [reason]   splits the server if it is linked and puts a fake\n                         one in its place, so it can't link again\nJUPE LIST                the jupes\nJUPE DEL <server>        lift a jupe\nNeeds oper flag c (links).", Run: run(osJupe)},
 		"NOOP": {Syntax: "NOOP SET|REVOKE <server>", Short: "no IRC operators on a server",
-			Long: "NOOP SET <server>     everyone opered on that server loses it and nobody\n                      can /oper there until\nNOOP REVOKE <server>  lifts it\nNeeds oper flag c (links).", Run: run(osNoop)},
+			Long: "NOOP SET <server>     everyone opered on that server loses it and nobody\n                      can /oper there until NOOP REVOKE\nNOOP REVOKE <server>  lifts it\nNeeds oper flag c (links).", Run: run(osNoop)},
 		"SERVER": {Syntax: "SERVER LIST|ADD|SET|DEL|LINK|UNLINK ...", Short: "the servers we link with",
 			Long: serverHelp, Run: run(func(s *Server, c *Client, args []string) { s.serverCmd(c, s.svcBot("OperServ"), args) })},
 	}
