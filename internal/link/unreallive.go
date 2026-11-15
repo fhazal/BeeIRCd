@@ -228,7 +228,19 @@ func (c *unrealCodec) decodeLive(m irc.Message) any {
 		if strings.HasPrefix(p[0], "#") {
 			return c.decodeMode(m.Source, p[0], p[1], p[2:])
 		}
-		return &UMode{Source: m.Source, UID: p[0], Modes: p[1]}
+		um := &UMode{Source: m.Source, UID: p[0], Modes: p[1]}
+		if modes, ok := svidMode(p[1]); ok && len(p) >= 3 {
+			// +d with a value is the services account, not deaf: "0" logs
+			// out, digits only are an old services stamp (no change).
+			um.Modes = modes
+			switch acc := p[2]; {
+			case acc == "0" || acc == "*":
+				um.Login = &Login{Source: m.Source, Target: "*", UID: p[0]}
+			case strings.Trim(acc, "0123456789") != "":
+				um.Login = &Login{Source: m.Source, Target: "*", UID: p[0], Account: acc}
+			}
+		}
+		return um
 	case "SVSLOGIN":
 		if len(p) < 3 {
 			return nil
@@ -356,4 +368,26 @@ func (c *unrealCodec) decodeBan(src string, p []string) any {
 		b.Reason = p[len(p)-1]
 	}
 	return b
+}
+
+// svidMode reports whether modes sets +d (with SVSMODE: the services
+// account), and returns modes without it.
+func svidMode(modes string) (string, bool) {
+	add, found := true, false
+	var out strings.Builder
+	for i := 0; i < len(modes); i++ {
+		switch ch := modes[i]; {
+		case ch == '+' || ch == '-':
+			add = ch == '+'
+			out.WriteByte(ch)
+		case ch == 'd' && add:
+			found = true
+		default:
+			out.WriteByte(ch)
+		}
+	}
+	if !found {
+		return modes, false
+	}
+	return strings.Trim(out.String(), "+-"), true
 }
