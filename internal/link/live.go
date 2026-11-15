@@ -35,7 +35,12 @@ type Mode struct {
 
 // UMode changes a user's modes ("+x-i"). Source is the user itself, or a
 // server or service doing it to them.
-type UMode struct{ Source, UID, Modes string }
+type UMode struct {
+	Source, UID, Modes string
+	// Login is set when services log UID in or out with the mode change
+	// (UnrealIRCd's SVSMODE/SVS2MODE +d <account>, as Anope sends it).
+	Login *Login
+}
 
 // Login sets the account UID is identified to; "" logs out.
 type Login struct{ Source, Target, UID, Account string }

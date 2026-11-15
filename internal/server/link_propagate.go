@@ -501,6 +501,12 @@ func (s *Server) remoteUMode(l *linkConn, m *link.UMode) {
 	if u == nil {
 		return
 	}
+	if m.Login != nil && u.Account != m.Login.Account {
+		s.emitFrom(l, m.Source, &state.Login{UID: u.UID, Account: m.Login.Account})
+	}
+	if strings.Trim(m.Modes, "+-") == "" {
+		return
+	}
 	if s.ours(u.UID) {
 		// Services elsewhere change one of ours (SVS2MODE +r, -o ...).
 		s.svsMode(u, m.Modes)
