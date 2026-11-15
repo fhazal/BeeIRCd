@@ -68,7 +68,7 @@ networks:
   bee:
     ipam:
       config:
-        - subnet: 10.89.0.0/24   # change both 10.89.0 parts if this clashes with your network
+        - subnet: 10.89.0.0/24   # clashes with your network? change 10.89.0 here, in ipv4_address and in BEEROOM_WEBIRC
 
 volumes:
   beeircd-data:

@@ -28,11 +28,32 @@ share_beeroom() {
 	if [ -z "$(webirc_password)" ]; then
 		beeircd webirc add -q beeroom "$BEEROOM_WEBIRC" >/dev/null
 		echo "WEBIRC gateway beeroom added for $BEEROOM_WEBIRC (the BeeRoom container)"
+	else
+		webirc_move
 	fi
 	umask 022
 	webirc_password >/link/webirc.new && mv /link/webirc.new /link/webirc
 	awk '/^\[/ { s = ($0 == "[server]") } s && /^network *=/ { sub(/^network *= *"/, ""); sub(/".*$/, ""); print; exit }' "$conf" >/link/network.new
 	mv /link/network.new /link/network
+}
+
+# webirc_move points the beeroom [[webirc]] block at BEEROOM_WEBIRC when
+# the address in compose.yaml changed after the first start.
+webirc_move() {
+	want="hosts = [\"$BEEROOM_WEBIRC\"]"
+	awk -v want="$want" '
+	function flush() { for (i = 1; i <= k; i++) { l = buf[i]; if (n == "beeroom" && l ~ /^hosts *=/) l = want; print l } k = 0 }
+	/^\[/ { flush(); w = ($0 == "[[webirc]]"); n = "" }
+	w { buf[++k] = $0; if ($0 ~ /^name *=/) { n = $0; sub(/^name *= *"/, "", n); sub(/".*$/, "", n) }; next }
+	{ print }
+	END { flush() }' "$conf" >"$conf.new" || { rm -f "$conf.new"; return 0; }
+	if cmp -s "$conf" "$conf.new"; then
+		rm -f "$conf.new"
+		return 0
+	fi
+	cat "$conf.new" >"$conf"
+	rm -f "$conf.new"
+	echo "WEBIRC gateway beeroom moved to $BEEROOM_WEBIRC"
 }
 
 # webirc_password prints the password of the [[webirc]] block named beeroom.
