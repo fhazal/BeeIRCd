@@ -163,12 +163,12 @@ func (s *Services) toService(c *Client, sv *service, text string) {
 	c.cmdName = name // as typed, like Anope's source.command
 	switch {
 	case sv.need == 'o' && !c.isOper():
-		s.svcReply(c, sv, sv.user.Nick+" is for IRC operators.")
+		s.say(c, sv, "%s is for IRC operators.", sv.user.Nick)
 		// Anope's operserv.cpp: OnBotPrivmsg for non-opers.
 		s.logTo(sv, "Denied access to "+sv.user.Nick+" from "+anopeMask(c.user)+" (non-oper)")
 		return
 	case sv.need == 'a' && !c.can('a'):
-		s.svcReply(c, sv, sv.user.Nick+" is for server admins (oper flag a).")
+		s.say(c, sv, "%s is for server admins (oper flag a).", sv.user.Nick)
 		s.logDenied(c, sv)
 		return
 	case sv.alias == "":
@@ -201,7 +201,7 @@ func (s *Services) toService(c *Client, sv *service, text string) {
 	}
 	cmd, ok := sv.command(name)
 	if !ok {
-		s.svcReply(c, sv, fmt.Sprintf("Unknown command %s. Type /%s help for a list.", fields[0], sv.alias))
+		s.say(c, sv, "Unknown command %s. Type /%s help for a list.", fields[0], sv.alias)
 		return
 	}
 	c.csUsedOn = ""
@@ -217,6 +217,9 @@ func (s *Services) toService(c *Client, sv *service, text string) {
 
 // svcReply sends a notice from a service.
 func (s *Services) svcReply(c *Client, sv *service, text string) {
+	if s.translated(sv) {
+		text = s.tr(c, text)
+	}
 	if c.reply != nil {
 		c.reply(text)
 		return
@@ -228,10 +231,10 @@ func (s *Services) svcReply(c *Client, sv *service, text string) {
 }
 
 func (s *Services) ns(c *Client, format string, a ...any) {
-	s.svcReply(c, s.nickServ, fmt.Sprintf(format, a...))
+	s.say(c, s.nickServ, format, a...)
 }
 func (s *Services) ms(c *Client, format string, a ...any) {
-	s.svcReply(c, s.memoServ, fmt.Sprintf(format, a...))
+	s.say(c, s.memoServ, format, a...)
 }
 
 // dbErr reports a database failure without details to the user.

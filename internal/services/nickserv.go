@@ -46,7 +46,7 @@ func nickServCommands() map[string]svcCmd {
 		"ALIST": {"ALIST [nick]", "channels where you have access",
 			"Lists the channels where your account is on the access list, with your level.\nOpers may give someone else's nick.", nsAlist},
 		"SET": {"SET <option> <value>", "change your account",
-			"SET PASSWORD <new password>\nSET EMAIL <email>|OFF\nSET KILL {ON | QUICK | IMMED | OFF}   rename people who use your nick and don't\n    identify: ON after 60 s (default), QUICK after 20 s, IMMED at once (only\n    where the network allows it)\nSET SECURE {ON | OFF}   on (default): your ACCESS list never stands in for\n    your password\nSET HIDE {EMAIL | STATUS | USERMASK | QUIT} {ON | OFF}   what INFO shows others:\n    email, oper status, last user@host, last quit message (email and\n    user@host hidden)\nSET AUTOOP {ON | OFF}      ChanServ gives you your status when you join (on)\nSET DISPLAY <nick>         which of your nicks is the account's name\nSET GREET [message]       what a channel bot says when you join (BotServ\n    SET GREET); without a message, it is removed\nSET KEEPMODES {ON | OFF}   your user modes (+iwx) come back when you identify\nSET PRIVATE {ON | OFF}     hide you from NickServ LIST (on)\nSET URL [url]              a URL in INFO; without one, it is removed", nsSet},
+			"SET PASSWORD <new password>\nSET EMAIL <email>|OFF\nSET KILL {ON | QUICK | IMMED | OFF}   rename people who use your nick and don't\n    identify: ON after 60 s (default), QUICK after 20 s, IMMED at once (only\n    where the network allows it)\nSET SECURE {ON | OFF}   on (default): your ACCESS list never stands in for\n    your password\nSET HIDE {EMAIL | STATUS | USERMASK | QUIT} {ON | OFF}   what INFO shows others:\n    email, oper status, last user@host, last quit message (email and\n    user@host hidden)\nSET AUTOOP {ON | OFF}      ChanServ gives you your status when you join (on)\nSET DISPLAY <nick>         which of your nicks is the account's name\nSET GREET [message]       what a channel bot says when you join (BotServ\n    SET GREET); without a message, it is removed\nSET KEEPMODES {ON | OFF}   your user modes (+iwx) come back when you identify\nSET LANGUAGE <language>    the language services answer you in: en English,\n    ms Bahasa Melayu (/ns set language shows the list)\nSET PRIVATE {ON | OFF}     hide you from NickServ LIST (on)\nSET URL [url]              a URL in INFO; without one, it is removed", nsSet},
 		"SASET": {"SASET <option> <nick> <value>", "change someone's account (opers)",
 			"Like SET, for another account. Needs oper flag s.\nExample: /ns saset password Bee newpass42\nSASET NOEXPIRE <nick> {ON | OFF}   the account never expires", nsSaset},
 		"INFO": {"INFO [nick]", "who owns a nick, when last seen",
@@ -691,6 +691,30 @@ func (s *Services) setOption(c *Client, a *store.Account, cmd, opt string, args 
 			return save("Nick "+a.Name+" will not expire.", "to enable noexpire for "+a.Name)
 		}
 		return save("Nick "+a.Name+" will expire.", "to disable noexpire for "+a.Name)
+	case "LANGUAGE":
+		l := languages[strings.ToLower(val)]
+		if l == nil {
+			if val != "" {
+				s.ns(c, "Unknown language %s.", val)
+			}
+			s.ns(c, "Syntax: %s LANGUAGE <language>", cmd)
+			s.ns(c, "Languages:")
+			for _, code := range languageCodes() {
+				s.ns(c, "  %s  %s", code, languages[code].name)
+			}
+			return false
+		}
+		a.Language = l.code
+		if cmd == "SASET" {
+			return save(fmt.Sprintf(s.tr(c, "Language for %s changed to %s."), a.Name, l.name), "to change the language of "+a.Name+" to "+l.code)
+		}
+		if err := s.store.SaveAccount(a); err != nil {
+			s.dbErr(c, s.nickServ, err)
+			return false
+		}
+		s.ns(c, "Language changed to %s.", l.name) // in the new language already
+		s.nsLog(c, a.ID, "to change their language to %s", l.code)
+		return true
 	case "URL":
 		url := strings.Join(args, " ")
 		a.URL = irc.Truncate(url, 300)

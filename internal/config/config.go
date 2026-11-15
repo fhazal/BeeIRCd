@@ -485,6 +485,10 @@ type Services struct {
 	// REGISTER (unconfirmedexpire, 1 day; 0s never). See
 	// UnconfirmedExpireOr.
 	UnconfirmedExpire *Duration `toml:"unconfirmed_expire"`
+	// DefaultLanguage is the language services answer in for people who
+	// haven't picked one with SET LANGUAGE (Anope's defaultlanguage):
+	// "en" (default) or "ms".
+	DefaultLanguage string `toml:"default_language"`
 }
 
 // UnconfirmedExpireOr is unconfirmed_expire with its default (1 day); 0

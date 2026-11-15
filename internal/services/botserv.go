@@ -49,7 +49,7 @@ const (
 )
 
 func (s *Services) bs(c *Client, format string, a ...any) {
-	s.svcReply(c, s.botServ, fmt.Sprintf(format, a...))
+	s.say(c, s.botServ, format, a...)
 }
 
 // botCommands are BotServ's commands.

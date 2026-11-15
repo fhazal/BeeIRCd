@@ -91,6 +91,7 @@ Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few 
 | **AdminServ**: server settings, MOTD, ports, opers and classes from IRC, with HISTORY, DIFF and UNDO | ✅ |
 | Mail (SMTP with STARTTLS or TLS on 465, or a sendmail program) with Anope's templates; easy setup in the Hive Panel (Gmail, Outlook, Zoho presets, test mail with plain-words errors, SPF / DKIM / DMARC check) and `beeircd mail-test` | ✅ |
 | Services log channel, lines exactly as Anope writes them | ✅ |
+| Services in your language: NickServ `SET LANGUAGE` (English, Bahasa Melayu), a network default (`default_language`); the oper tools stay English | ✅ |
 | **HelpServ**: help on any command, channel mode, user mode or services command (`/msg HelpServ chmodes`), your own answers (TOPIC), questions in words go to helpers with user mode +h (LIST, TAKE, CLOSE, CANCEL), a helper list for people who aren't opers (HELPER) | ✅ |
 
 ## Opers and bans

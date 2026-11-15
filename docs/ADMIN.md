@@ -88,7 +88,7 @@ can change things; every oper can look.
 `nick-expire`, `chan-expire`, `identify-within`, `kill-quick`,
 `allow-kill-immed`, `ban-expiry`, `guest-prefix`, `log-channel`,
 `log-connects`, `flood-profile`, `find-place-by-ip`, `members`,
-`registration`, `unconfirmed-expire`.
+`registration`, `unconfirmed-expire`, `default-language`.
 
 ### Opers
 
@@ -716,6 +716,7 @@ difference is a warning to opers, not a refusal.
 | `list_max` | `50` | Entries NickServ `LIST` shows |
 | `force_email` | `true` | `REGISTER` needs an email |
 | `registration` | `"none"` | How new accounts start, as Anope's `registration`: `"none"` ready at once; `"mail"` REGISTER needs an email and mails a passcode for `/ns confirm <passcode>` (needs `[mail]`; `/ns resend` mails it again); `"admin"` an oper confirms each one with `/ns confirm <nick>`. Until confirmed an account can identify but not register channels |
+| `default_language` | `"en"` | Language NickServ, ChanServ, MemoServ, HostServ, BotServ and HelpServ answer in for people who didn't pick one with `/ns set language`: `"en"` English or `"ms"` Bahasa Melayu. OperServ and AdminServ stay English |
 | `unconfirmed_expire` | `1d` | Unconfirmed accounts are dropped this long after REGISTER (`0s` never) |
 | `max_memos` | `20` | Memo limit of a new account |
 | `memo_send_delay` | `3s` | Wait between two memos (`0s` off; opers don't wait) |

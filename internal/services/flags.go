@@ -1,7 +1,5 @@
 package services
 
-import "fmt"
-
 var flagNames = map[byte]string{
 	'a': "admin",
 	'b': "bots",
@@ -17,7 +15,7 @@ func (s *Services) needFlag(c *Client, sv *service, f byte) bool {
 	if c.can(f) {
 		return true
 	}
-	s.svcReply(c, sv, fmt.Sprintf("You need oper flag %c (%s) for that.", f, flagNames[f]))
+	s.say(c, sv, "You need oper flag %c (%s) for that.", f, flagNames[f])
 	s.logDenied(c, sv) // Anope: a command whose permission the oper lacks
 	return false
 }

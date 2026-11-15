@@ -111,7 +111,7 @@ Example: /cs flags #bchat ember +Otv`, csFlags},
 }
 
 func (s *Services) cs(c *Client, format string, a ...any) {
-	s.svcReply(c, s.chanServ, fmt.Sprintf(format, a...))
+	s.say(c, s.chanServ, format, a...)
 }
 
 // csLookup loads a registered channel and c's level on it (founder rights

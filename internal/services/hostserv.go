@@ -56,7 +56,7 @@ func hostServCommands() map[string]svcCmd {
 }
 
 func (s *Services) hs(c *Client, format string, a ...any) {
-	s.svcReply(c, s.hostServ, fmt.Sprintf(format, a...))
+	s.say(c, s.hostServ, format, a...)
 }
 
 // hsLog logs a HostServ command: COMMAND, or ADMIN for the oper ones.

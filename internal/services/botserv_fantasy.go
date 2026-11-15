@@ -103,7 +103,7 @@ func (s *Services) fantasyHelp(c *Client) {
 		}
 	}
 	sort.Strings(names)
-	s.svcReply(c, s.chanServ, "Fantasy commands (type them in the channel with "+fantasyChar+" in front, like "+fantasyChar+"op):")
+	s.say(c, s.chanServ, "Fantasy commands (type them in the channel with %[1]s in front, like %[1]sop):", fantasyChar)
 	for i := 0; i < len(names); i += 10 {
 		s.svcReply(c, s.chanServ, "  "+strings.Join(names[i:min(i+10, len(names))], " "))
 	}

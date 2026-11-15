@@ -110,7 +110,7 @@ func (s *Services) helpLoad() {
 }
 
 func (s *Services) he(c *Client, format string, a ...any) {
-	s.svcReply(c, s.helpServ, fmt.Sprintf(format, a...))
+	s.say(c, s.helpServ, format, a...)
 }
 
 // helping reports whether c sees and takes questions: +h or an oper.

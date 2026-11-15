@@ -39,11 +39,11 @@ func (s *Services) serviceHelp(c *Client, sv *service, args []string) {
 			name = real
 		}
 		if !ok || !s.canUse(c, sv, name) {
-			s.svcReply(c, sv, fmt.Sprintf("No help for %s. Type /%s help for a list.", args[0], sv.alias))
+			s.say(c, sv, "No help for %s. Type /%s help for a list.", args[0], sv.alias)
 			return
 		}
-		s.svcReply(c, sv, "Syntax: "+cmd.syntax)
-		for _, l := range strings.Split(cmd.long, "\n") {
+		s.say(c, sv, "Syntax: %s", cmd.syntax)
+		for _, l := range strings.Split(s.trFor(c, sv, cmd.long), "\n") {
 			s.svcReply(c, sv, "  "+l)
 		}
 		return
@@ -64,7 +64,7 @@ func (s *Services) serviceHelp(c *Client, sv *service, args []string) {
 		}
 	}
 	if all {
-		s.svcReply(c, sv, "All commands of "+sv.user.Nick+":")
+		s.say(c, sv, "All commands of %s:", sv.user.Nick)
 	} else {
 		s.svcReply(c, sv, sv.intro)
 	}
@@ -73,7 +73,7 @@ func (s *Services) serviceHelp(c *Client, sv *service, args []string) {
 		width = max(width, len(name))
 	}
 	for _, name := range lines {
-		s.svcReply(c, sv, fmt.Sprintf("  %-*s  %s", width, name, sv.cmds[name].short))
+		s.svcReply(c, sv, fmt.Sprintf("  %-*s  %s", width, name, s.trFor(c, sv, sv.cmds[name].short)))
 	}
 	shownGroups := 0
 	if !all {
@@ -89,7 +89,7 @@ func (s *Services) serviceHelp(c *Client, sv *service, args []string) {
 			}
 			shownGroups++
 			s.svcReply(c, sv, " ")
-			s.svcReply(c, sv, g.title)
+			s.svcReply(c, sv, s.trFor(c, sv, g.title))
 			for _, line := range wrapNames(names, 60) {
 				s.svcReply(c, sv, "  "+line)
 			}
@@ -97,9 +97,9 @@ func (s *Services) serviceHelp(c *Client, sv *service, args []string) {
 	}
 	s.svcReply(c, sv, " ")
 	if shownGroups > 0 {
-		s.svcReply(c, sv, fmt.Sprintf("Every command with a line each: /%s help all", sv.alias))
+		s.say(c, sv, "Every command with a line each: /%s help all", sv.alias)
 	}
-	s.svcReply(c, sv, fmt.Sprintf("More on one command: /%s help <command>", sv.alias))
+	s.say(c, sv, "More on one command: /%s help <command>", sv.alias)
 }
 
 // wrapNames joins names with ", " into lines of about width characters.

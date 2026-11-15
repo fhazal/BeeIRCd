@@ -234,6 +234,19 @@ func settings() []setting {
 				}
 				return ""
 			}},
+		{name: "default-language", table: "services", key: "default_language", help: "the language services answer people in who didn't choose one with NickServ SET LANGUAGE: " + services.Languages(), kind: 't', hi: 10,
+			get: func(c *config.Config) string {
+				if services.KnownLanguage(c.Services.DefaultLanguage) {
+					return strings.ToLower(c.Services.DefaultLanguage)
+				}
+				return "en"
+			}, apply: servicesApply,
+			check: func(v string) string {
+				if !services.KnownLanguage(v) {
+					return "default-language is one of: " + services.Languages() + "."
+				}
+				return ""
+			}},
 		{name: "unconfirmed-expire", table: "services", key: "unconfirmed_expire", help: "accounts not confirmed are dropped after", kind: 'd', lo: 3600, hi: 30 * day,
 			get: dur(func(c *config.Config) time.Duration { return c.Services.UnconfirmedExpireOr() }), apply: servicesApply},
 		{name: "flood-profile", table: "channels", key: "flood_profile", help: "+F profile for channels without their own (off for none)", kind: 't', hi: 20,

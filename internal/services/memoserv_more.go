@@ -2,7 +2,6 @@ package services
 
 import (
 	crand "crypto/rand"
-	"fmt"
 	"math"
 	"math/big"
 	"strconv"
@@ -69,10 +68,10 @@ func (s *Services) mailTo(c *Client, sv *service, a *store.Account, subject, bod
 			s.svcReply(c, sv, "Services have been configured to not send mail.")
 			return false
 		case now.Sub(c.lastMail) < m.DelayOr():
-			s.svcReply(c, sv, fmt.Sprintf("Please wait %d seconds and retry.", int(math.Ceil((m.DelayOr()-now.Sub(c.lastMail)).Seconds()))))
+			s.say(c, sv, "Please wait %d seconds and retry.", int(math.Ceil((m.DelayOr() - now.Sub(c.lastMail)).Seconds())))
 			return false
 		case a.Email == "":
-			s.svcReply(c, sv, fmt.Sprintf("E-mail for %s is invalid.", a.Name))
+			s.say(c, sv, "E-mail for %s is invalid.", a.Name)
 			return false
 		}
 		c.lastMail = now

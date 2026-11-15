@@ -67,6 +67,9 @@ type Account struct {
 	// the passcode the registration mail gave.
 	Unconfirmed bool
 	ConfirmCode string
+	// Language is SET LANGUAGE: the language services answer in ("" the
+	// network's default_language).
+	Language string
 }
 
 // Memo is one MemoServ message.
@@ -246,7 +249,7 @@ const accountCols = `a.id, a.name, a.pass_hash, a.email, a.registered, a.last_se
 	a.hide_status, a.hide_quit, a.last_quit, a.protect_delay, a.secure,
 	a.autoop, a.keepmodes, a.last_umodes, a.ns_private, a.url, a.noexpire,
 	a.suspended_by, a.suspend_reason, a.suspended_at, a.suspend_until, a.memo_signon, a.memo_mail,
-	a.unconfirmed, a.confirm_code`
+	a.unconfirmed, a.confirm_code, a.language`
 
 func scanAccount(row interface{ Scan(...any) error }) (*Account, error) {
 	var a Account
@@ -256,7 +259,7 @@ func scanAccount(row interface{ Scan(...any) error }) (*Account, error) {
 		&a.HideStatus, &a.HideQuit, &a.LastQuit, &a.Protect, &a.Secure,
 		&a.AutoOp, &a.KeepModes, &a.LastModes, &a.Private, &a.URL, &a.NoExpire,
 		&a.SuspendedBy, &a.SuspendReason, &susAt, &susUntil, &a.MemoSignon, &a.MemoMail,
-		&a.Unconfirmed, &a.ConfirmCode)
+		&a.Unconfirmed, &a.ConfirmCode, &a.Language)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -329,12 +332,12 @@ func (s *Store) SaveAccount(a *Account) error {
 		hide_host=?, memo_notify=?, memo_limit=?, hide_status=?, hide_quit=?, last_quit=?, protect_delay=?, secure=?,
 		autoop=?, keepmodes=?, last_umodes=?, ns_private=?, url=?, noexpire=?,
 		suspended_by=?, suspend_reason=?, suspended_at=?, suspend_until=?, memo_signon=?, memo_mail=?,
-		unconfirmed=?, confirm_code=? WHERE id=?`,
+		unconfirmed=?, confirm_code=?, language=? WHERE id=?`,
 		a.PassHash, a.Email, a.LastSeen.Unix(), a.LastHost, a.Enforce, a.HideEmail, a.HideHost, a.MemoNotify, a.MemoLimit,
 		a.HideStatus, a.HideQuit, a.LastQuit, a.Protect, a.Secure,
 		a.AutoOp, a.KeepModes, a.LastModes, a.Private, a.URL, a.NoExpire,
 		a.SuspendedBy, a.SuspendReason, a.SuspendedAt.Unix(), a.SuspendUntil.Unix(), a.MemoSignon, a.MemoMail,
-		a.Unconfirmed, a.ConfirmCode, a.ID)
+		a.Unconfirmed, a.ConfirmCode, a.Language, a.ID)
 	if err != nil {
 		return err
 	}
@@ -346,6 +349,7 @@ func (s *Store) SaveAccount(a *Account) error {
 	have.AutoOp, have.KeepModes, have.LastModes, have.Private, have.URL, have.NoExpire = a.AutoOp, a.KeepModes, a.LastModes, a.Private, a.URL, a.NoExpire
 	have.SuspendedBy, have.SuspendReason, have.SuspendedAt, have.SuspendUntil = a.SuspendedBy, a.SuspendReason, sec(a.SuspendedAt), sec(a.SuspendUntil)
 	have.Unconfirmed, have.ConfirmCode = a.Unconfirmed, a.ConfirmCode
+	have.Language = a.Language
 	return nil
 }
 
