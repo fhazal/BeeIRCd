@@ -781,6 +781,8 @@ func (p *Panel) login(w http.ResponseWriter, r *http.Request) {
 			msg = "Wrong nick or password."
 		}
 		if strings.HasPrefix(msg, "Wrong") {
+			// Said to everyone, so it tells nothing about which nicks exist.
+			msg += " Sign in with a nick registered with NickServ."
 			switch left := p.ipFailed(ip); {
 			case left == 0:
 				msg += " Too many wrong tries: wait " + waitWords(ipLockFor) + "."

@@ -311,7 +311,9 @@ then open <http://127.0.0.1:8787>. `beeircd install` sets it up as the
 (it needs the control socket).
 
 - **Sign in** with your oper nick and oper password, the same as `/oper`.
-  With Settings → Members on (`[web] members`), anyone with a registered
+  The nick must be registered with NickServ first (on a new server: the
+  IRC steps the installer prints, then the panel); until then the panel
+  answers "Wrong nick or password" like for any unknown nick. With Settings → Members on (`[web] members`), anyone with a registered
   nick can also sign in with their nick and NickServ password, to their
   own pages only (Home, Chat, My nick, My channels, Memos); an oper who
   uses the NickServ password gets those pages too. The oper entry's hosts are checked against the

@@ -273,7 +273,7 @@ func TestLoginLimitPerAddress(t *testing.T) {
 		if w.Code != 401 {
 			t.Fatalf("try %d: %d", i, w.Code)
 		}
-		if i == 0 && !strings.Contains(last, "4 tries left") {
+		if i == 0 && (!strings.Contains(last, "4 tries left") || !strings.Contains(last, "registered with NickServ")) {
 			t.Errorf("first wrong try: %s", last)
 		}
 	}

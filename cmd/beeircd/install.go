@@ -977,7 +977,8 @@ const beeroomHint = "\n  BeeRoom, the web chat for your users (needs Node 22):\n
 func webSteps(name string) string {
 	return "\n  Hive Panel (the web admin), from your computer:\n" +
 		"    ssh -N -L 8787:127.0.0.1:8787 you@" + name + "\n" +
-		"    then open http://127.0.0.1:8787 and sign in with your oper nick and oper password\n"
+		"    then open http://127.0.0.1:8787 and sign in with your oper nick and oper password\n" +
+		"    (do the IRC steps first: the nick must be registered with NickServ)\n"
 }
 
 // firstSteps tells the admin how to get opered on a new server: the oper
