@@ -148,6 +148,47 @@ people connect by an IP or a name the certificate doesn't cover, turn it off:
 sts = false
 ```
 
+## WebSocket for web clients
+
+Web IRC clients (Kiwi IRC, gamja, your own page) can connect straight to
+BeeIRCd over WebSocket. Add a port for them:
+
+```toml
+[[listen]]
+address = ":8097"
+tls = true                       # wss://irc.example.org:8097
+websocket = true
+origins = ["https://chat.example.org"]   # leave out to let any page connect
+```
+
+Behind nginx or Apache (which then does the TLS), let the port trust the
+web server and take the visitor's IP from `X-Forwarded-For`:
+
+```toml
+[[listen]]
+address = "127.0.0.1:8097"
+websocket = true
+proxy = true
+proxy_from = ["127.0.0.1"]
+```
+
+```nginx
+location /irc {
+    proxy_pass http://127.0.0.1:8097;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 10m;
+}
+```
+
+People on WebSocket are ordinary users: bans, sessions, cloaks and flood
+limits use their real IP, and `X-Forwarded-Proto: https` counts as a
+secure connection (`+z` channels, WHOIS). `beeircd status` lists the
+port as WebSocket.
+
 ## Behind a proxy or a tunnel
 
 When connections reach BeeIRCd through a load balancer or a tunnel (for

@@ -575,6 +575,7 @@ type Port struct {
 	Address string `json:"address"`
 	TLS     bool   `json:"tls"`
 	Proxy   bool   `json:"proxy"`
+	WS      bool   `json:"websocket,omitempty"`
 }
 
 // Spotlight is what the Hive Panel's Spotlight card tells, one story at a

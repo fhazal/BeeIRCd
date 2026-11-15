@@ -32,7 +32,7 @@ How to set each one up is in [ADMIN.md](ADMIN.md); installing is in [INSTALL.md]
 | PROXY protocol v1 and v2 | ✅ | only from the proxies you list |
 | DNS blocklists (DroneBL, EFnetRBL, any list) | ✅ | reject, Z-line, AKILL or SHUN; IPv4 and IPv6 |
 | REHASH (`/rehash`, `beeircd rehash`, SIGHUP) | ✅ | applies what is safe live and lists what needs a restart |
-| WebSocket | 📋 | |
+| WebSocket | ✅ | `websocket = true` on a port: ws:// or wss://, IRCv3 binary/text subprotocols, allowed origins, real IP from the web server in front |
 | `+G` censor (`[censor]` words) | ✅ | |
 | Module system | 📋 | |
 

@@ -203,7 +203,7 @@ func (s *Server) statusInfo() *control.Status {
 	sort.Strings(st.OperNicks)
 	s.lmu.Lock()
 	for _, l := range s.listeners {
-		st.Ports = append(st.Ports, control.Port{Address: l.addr, TLS: l.tls, Proxy: l.proxy})
+		st.Ports = append(st.Ports, control.Port{Address: l.addr, TLS: l.tls, Proxy: l.proxy, WS: l.websocket})
 	}
 	s.lmu.Unlock()
 	if s.links.ln != nil {

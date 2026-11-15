@@ -102,6 +102,9 @@ func statusScreen(st *control.Status, p paint, now time.Time, timerOff bool) str
 		if pt.TLS {
 			kind = "TLS"
 		}
+		if pt.WS {
+			kind = map[bool]string{false: "WebSocket", true: "WebSocket TLS"}[pt.TLS]
+		}
 		if pt.Proxy {
 			kind += " (proxy)"
 		}

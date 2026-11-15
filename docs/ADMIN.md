@@ -586,6 +586,8 @@ One block per port.
 | `tls` | `false` | Encrypted port |
 | `proxy` | `false` | Connections start with a PROXY v1/v2 header ([INSTALL.md](INSTALL.md#behind-a-proxy-or-a-tunnel)) |
 | `proxy_from` | – | IPs or CIDRs allowed on a proxy port (needed with `proxy`) |
+| `websocket` | `false` | IRC over WebSocket for web pages (`ws://`, or `wss://` with `tls`), as in the IRCv3 WebSocket spec: one line per message, subprotocols `binary.ircv3.net` and `text.ircv3.net` (text when the page asks for none). With `proxy`, the web server in front gives the real IP in `X-Forwarded-For` instead of a PROXY header ([INSTALL.md](INSTALL.md#websocket-for-web-clients)) |
+| `origins` | any page | WebSocket ports: the web pages that may connect, as `"https://chat.example.org"` or a host like `"*.example.org"`; others get 403 |
 
 ### [tls]
 

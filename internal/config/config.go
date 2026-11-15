@@ -161,6 +161,11 @@ type Listen struct {
 	// (IPs or CIDRs) may connect to such a port.
 	Proxy     bool     `toml:"proxy"`
 	ProxyFrom []string `toml:"proxy_from"`
+	// WebSocket: IRC over WebSocket for web pages (wss:// with tls). With
+	// proxy, the proxy in front gives the real IP in X-Forwarded-For
+	// instead of a PROXY header. Origins limits which pages may connect.
+	WebSocket bool     `toml:"websocket"`
+	Origins   []string `toml:"origins"`
 }
 
 // TLS points at the certificate. With SelfSigned, missing files are made.
@@ -541,6 +546,9 @@ func (c *Config) Check() error {
 		}
 	}
 	for _, l := range c.Listen {
+		if len(l.Origins) > 0 && !l.WebSocket {
+			return fmt.Errorf("[[listen]] %s: origins is for websocket = true ports", l.Address)
+		}
 		if !l.Proxy {
 			continue
 		}

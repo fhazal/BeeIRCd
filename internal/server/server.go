@@ -123,8 +123,10 @@ type listener struct {
 	net.Listener // plain TCP; TLS is added per connection
 	tls          bool
 	addr         string // as written in the config
-	proxy        bool   // PROXY protocol header first
+	proxy        bool   // PROXY protocol header first (WebSocket: X-Forwarded-For)
 	proxyFrom    []*net.IPNet
+	websocket    bool
+	origins      []string
 	tlsConf      *tls.Config // captured: accept goroutines must not read Server.tlsConf
 }
 
@@ -219,7 +221,8 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 			db.Close()
 			return nil, fmt.Errorf("listen on %s: %w", l.Address, err)
 		}
-		li := listener{Listener: ln, tls: l.TLS, addr: l.Address, proxy: l.Proxy, tlsConf: tlsConf}
+		li := listener{Listener: ln, tls: l.TLS, addr: l.Address, proxy: l.Proxy, tlsConf: tlsConf,
+			websocket: l.WebSocket, origins: l.Origins}
 		for _, m := range l.ProxyFrom {
 			n, _ := config.ParseCIDR(m) // checked by config.Check
 			li.proxyFrom = append(li.proxyFrom, n)
@@ -402,6 +405,11 @@ func (s *Server) acceptLoop(l listener) {
 		// firewall) per line.
 		if tc, ok := conn.(*net.TCPConn); ok {
 			tc.SetNoDelay(false)
+		}
+		if l.websocket {
+			s.wg.Add(1)
+			go s.acceptWebSocket(conn, l)
+			continue
 		}
 		if l.proxy {
 			s.wg.Add(1)
