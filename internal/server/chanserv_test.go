@@ -437,3 +437,40 @@ func TestChanServNeedWordsNamesTheLevel(t *testing.T) {
 	v.send("CS SET #bchat KEEPTOPIC OFF")
 	v.expect(csLine("Vee", "You need to be the founder on #bchat for that."))
 }
+
+func TestChanServClone(t *testing.T) {
+	s := testServer(t, nil)
+	bee := founded(t, s, "Bee")
+	ember := registered(t, s, "ember")
+	joinAll("#dev", bee)
+	bee.send("CS REGISTER #dev Dev talk")
+	bee.expect(csLine("Bee", "#dev is registered to Bee. You are its Founder."))
+	bee.send("CS AOP #bchat ADD ember")
+	bee.expect("ember added to the AOP list")
+	bee.send("CS AKICK #bchat ADD *!*@spam.example no spam")
+	bee.expect("to the AKICK list of #bchat.")
+	bee.send("CS SET PEACE #bchat OFF")
+	bee.expect(csLine("Bee", ""))
+	bee.send("CS MODE #bchat LOCK ADD +s")
+	bee.expect("The mode lock of #bchat is now")
+
+	// Only someone with SET on both channels may clone.
+	ember.send("CS CLONE #bchat #dev")
+	ember.expect(csLine("ember", "You need to be"))
+	bee.send("CS CLONE #bchat #bchat")
+	bee.expect(csLine("Bee", "#bchat and #bchat are the same channel."))
+	bee.send("CS CLONE #bchat #dev")
+	bee.expect(csLine("Bee", "Copied from #bchat to #dev: settings, mode lock and levels, 1 access entry, 1 AKICK, 0 bad words."))
+	bee.expect(csSrc + "MODE #dev +s") // the copied mode lock applies at once
+	bee.send("CS ACCESS #dev LIST")
+	bee.expect(" ember ")
+	bee.send("CS AKICK #dev LIST")
+	bee.expect("*!*@spam.example  no spam")
+	bee.send("CS INFO #dev")
+	bee.expect("Dev talk") // the description stays #dev's own
+	// A second run adds nothing new.
+	bee.send("CS CLONE #bchat #dev ACCESS")
+	bee.expect(csLine("Bee", "Copied from #bchat to #dev: 0 access entries."))
+	bee.send("CS CLONE #bchat #dev NOPE")
+	bee.expect(csLine("Bee", "Syntax: CLONE #from #to [ALL|ACCESS|AKICK|BADWORDS]"))
+}

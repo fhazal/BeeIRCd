@@ -142,7 +142,7 @@ func (s *Services) helpSetup() {
 	cs.groups = []helpGroup{
 		{"Access lists", []string{"ACCESS", "LEVELS", "QOP", "SOP", "AOP", "HOP", "VOP", "UOP", "STATUS"}},
 		{"Channel status", []string{"OWNER", "DEOWNER", "PROTECT", "DEPROTECT", "OP", "DEOP", "HALFOP", "DEHALFOP", "VOICE", "DEVOICE", "UP", "DOWN", "SYNC"}},
-		{"Channel management", []string{"SET", "MODE", "TOPIC", "ENTRYMSG", "AKICK", "BAN", "UNBAN", "KICK", "ENFORCE", "GETKEY", "LOG"}},
+		{"Channel management", []string{"SET", "MODE", "TOPIC", "ENTRYMSG", "AKICK", "BAN", "UNBAN", "KICK", "ENFORCE", "GETKEY", "LOG", "CLONE"}},
 		{"Commands for IRC operators", []string{"SUSPEND", "UNSUSPEND"}},
 	}
 	cs.cmdNeed = map[string]byte{"SUSPEND": 's', "UNSUSPEND": 's'}
