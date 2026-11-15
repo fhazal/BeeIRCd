@@ -280,8 +280,8 @@ docker compose up -d                       # start; it comes back after a reboot
   belong to its user by itself.
 - **Backups** run daily at 04:00 in the `TZ` time zone set in compose.yaml
   (UTC by default), newest 7 kept. They are in the same volume as the data
-  (`/data/backups`), so copy them off the machine now and then. To restore
-  one:
+  (`/data/backups`), so copy them off the machine now and then
+  (`docker compose cp beeircd:/data/backups ./backups`). To restore one:
 
   ```sh
   docker compose stop beeircd beeircd-web
