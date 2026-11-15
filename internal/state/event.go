@@ -509,7 +509,7 @@ func (n *Network) Clone() *Network {
 	}
 	for key, ch := range n.channels {
 		cc := &Channel{Name: ch.Name, TS: ch.TS, Key: ch.Key, Limit: ch.Limit, Topic: ch.Topic, TopicBy: ch.TopicBy, TopicAt: ch.TopicAt,
-			Modes: make(map[byte]bool), Members: make(map[string]*Member), Lists: make(map[byte][]ListEntry), Invited: make(map[string]bool)}
+			Modes: make(map[byte]bool), Members: make(map[string]*Member), Lists: make(map[byte][]ListEntry), Invited: make(map[string]bool), net: c}
 		for k, v := range ch.Modes {
 			cc.Modes[k] = v
 		}

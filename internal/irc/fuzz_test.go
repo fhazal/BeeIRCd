@@ -67,7 +67,7 @@ func FuzzSplitFraming(f *testing.F) {
 }
 
 func FuzzNormalizeBan(f *testing.F) {
-	for _, s := range []string{"nick", "*!*@host", "~a:acct", "~t:10:*!*@h", "~m:~r:x*", "1.2.3.0/24", "*!*@[::1]", "a!b", "~t:x"} {
+	for _, s := range []string{"nick", "*!*@host", "~a:acct", "~t:10:*!*@h", "~m:~r:x*", "1.2.3.0/24", "*!*@[::1]", "a!b", "~t:x", "~msgbypass:moderated:~a:x", "~text:block:*x*", "~mute:~channel:@#c", "~t:5:~forward:#j:x", "~S:AB:cd"} {
 		f.Add(s)
 	}
 	f.Fuzz(func(t *testing.T, mask string) {

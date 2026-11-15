@@ -611,6 +611,13 @@ func (b *inspBridge) outChanMode(src, ch, modes string, args []string) []string 
 	}
 	var cs []modeChange
 	for _, c := range parseModes(b.ours, modes, args) {
+		if b.ours.kind[c.l] == kindList {
+			mask, ok := irc.InspBan(c.arg)
+			if !ok {
+				continue // an extban InspIRCd doesn't have
+			}
+			c.arg = mask
+		}
 		if t, ok := b.theirChan(c.l); ok {
 			c.l = t
 			cs = append(cs, c)
@@ -688,8 +695,9 @@ func (b *inspBridge) outSJoin(src string, p []string) []string {
 			continue
 		}
 		if l := listFromSJoin(it[0]); l != 0 {
-			if t, ok := b.theirChan(l); ok {
-				lists[t] = append(lists[t], it[1:], setBy, setAt)
+			t, ok := b.theirChan(l)
+			if mask, known := irc.InspBan(it[1:]); ok && known {
+				lists[t] = append(lists[t], mask, setBy, setAt)
 			}
 			continue
 		}
@@ -1166,7 +1174,9 @@ func (b *inspBridge) inLMode(src string, p []string) []string {
 	}
 	var items []string
 	for i := 3; i+2 < len(p); i += 3 {
-		items = append(items, fmt.Sprintf("<%s,%s>%c%s", p[i+2], p[i+1], q, p[i]))
+		if mask, ok := irc.FromInspBan(p[i]); ok {
+			items = append(items, fmt.Sprintf("<%s,%s>%c%s", p[i+2], p[i+1], q, mask))
+		}
 	}
 	if len(items) == 0 {
 		return nil
@@ -1182,6 +1192,13 @@ func (b *inspBridge) inChanMode(src, ch, modes string, args []string) []string {
 	var cs []modeChange
 	for _, c := range parseModes(b.theirs, modes, args) {
 		if l, ok := b.ourChan(c.l); ok {
+			if b.ours.kind[l] == kindList {
+				mask, ok := irc.FromInspBan(c.arg)
+				if !ok {
+					continue // inverted or unknown: we can't keep it
+				}
+				c.arg = mask
+			}
 			c.l = l
 			cs = append(cs, c)
 		}

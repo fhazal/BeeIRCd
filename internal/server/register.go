@@ -213,8 +213,13 @@ func (s *Server) cmdNick(c *Client, m irc.Message) {
 	}
 	if !c.isOper() && !irc.EqualFold(nick, u.Nick) {
 		for _, ch := range u.Channels {
-			if mem := ch.Member(u); ch.HasMode('N') && !mem.AtLeast(state.RankOp) {
+			mem := ch.Member(u)
+			if ch.HasMode('N') && !mem.AtLeast(state.RankOp) {
 				s.reply(c, irc.ErrNoNickChange, "Can not change nickname while on "+ch.Name+" (+N)")
+				return
+			}
+			if !mem.AtLeast(state.RankVoice) && ch.Stops(u, state.StopNick) {
+				s.reply(c, irc.ErrBanNickChange, ch.Name, "Cannot change nickname while banned on channel")
 				return
 			}
 		}
@@ -314,6 +319,7 @@ func (s *Server) tryRegister(c *Client) {
 		Server:   s.cfg.Server.Name,
 		TLS:      c.tls,
 		CertFP:   c.certfp,
+		Gateway:  c.webirc,
 		SignOn:   now,
 		NickTS:   now.Unix(),
 		Modes:    map[byte]bool{'i': true},

@@ -301,5 +301,5 @@ func TestFloodProfileSettingAndHelp(t *testing.T) {
 	b.expect(" 704 Boss CHMODES :***** Channel modes *****")
 	b.expect(" 705 Boss CHMODES : F <name>   flood profile:")
 	b.send("HELPOP")
-	b.expect(" 705 Boss * :Other topics: CHMODES (channel modes), UMODES (user modes).")
+	b.expect(" 705 Boss * :Other topics: CHMODES (channel modes), EXTBANS (special bans), UMODES (user modes).")
 }

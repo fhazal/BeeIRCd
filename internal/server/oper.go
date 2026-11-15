@@ -89,6 +89,7 @@ func (s *Server) operUpView(c *Client, o *store.Oper, v operView) {
 	u := c.user
 	was := c.operFlags
 	c.operFlags, c.operTitle, c.operAccount, c.operSwhois, c.operClass = v.flags, v.title, o.AccountID, v.swhois, v.class
+	u.OperClass, u.OperName = v.class, o.Account // ~O: and ~oper: bans
 	s.opers[c] = true
 	c.noLag.Store(true)
 	s.showOperVhost(c, v.vhost)
@@ -122,6 +123,7 @@ func (s *Server) deoper(c *Client, why string) {
 		return
 	}
 	c.operFlags, c.operTitle, c.operAccount, c.operSwhois, c.operClass = "", "", 0, nil, ""
+	u.OperClass, u.OperName = "", ""
 	c.operVia = nil
 	delete(s.opers, c)
 	c.noLag.Store(false)

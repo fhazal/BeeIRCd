@@ -103,9 +103,25 @@ func (s *Server) cmdPart(c *Client, m irc.Message) {
 		case ch.Member(c.user) == nil:
 			s.reply(c, irc.ErrNotOnChannel, ch.Name, "You're not on that channel")
 		default:
-			s.partOne(c.user, ch, reason)
+			s.partOne(c.user, ch, s.partReason(c, ch, reason))
 		}
 	}
+}
+
+// partReason drops the part message of someone a ban keeps quiet (a ban,
+// ~q, ~p), like UnrealIRCd: a part message is a way to talk.
+func (s *Server) partReason(c *Client, ch *state.Channel, reason string) string {
+	u := c.user
+	if reason == "" || c.isOper() {
+		return reason
+	}
+	if mem := ch.Member(u); mem != nil && mem.AtLeast(state.RankVoice) {
+		return reason
+	}
+	if ch.IsMuted(u) || ch.Stops(u, state.StopPartMsg) {
+		return ""
+	}
+	return reason
 }
 
 func (s *Server) partOne(u *state.User, ch *state.Channel, reason string) {
@@ -286,6 +302,10 @@ func (s *Server) kick(c *Client, name string, nicks []string, reason string) {
 		s.reply(c, irc.ErrCannotDoCommand, "KICK", "channel is +Q")
 		return
 	}
+	if !c.isOper() && ch.Stops(u, state.StopKick) {
+		s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You may not kick people in this channel (you're banned from it)")
+		return
+	}
 	for _, nick := range nicks {
 		t := s.net.UserByNick(nick)
 		if t == nil {
@@ -336,6 +356,9 @@ func (s *Server) cmdInvite(c *Client, m irc.Message) {
 			return
 		case ch.HasMode('V') && !c.isOper():
 			s.reply(c, irc.ErrNoInvite, "Cannot invite (+V) at channel "+ch.Name)
+			return
+		case !c.isOper() && ch.Stops(u, state.StopInvite):
+			s.reply(c, irc.ErrNoInvite, "Cannot invite at channel "+ch.Name+" (you're banned from inviting)")
 			return
 		case ch.HasMode('i') && !mem.AtLeast(state.RankHalfop):
 			s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You're not channel operator")

@@ -41,6 +41,12 @@ type User struct {
 	// their oper status (users on other servers; ours keep it on the
 	// client), so services here know what they may do.
 	OperClass, OperFlags string
+	// OperName is the oper block an oper of this server logged in with
+	// (~oper: bans).
+	OperName string
+	// Gateway is the [[webirc]] gateway a user of this server came
+	// through, "" = none (~gateway: bans).
+	Gateway string
 	// Cloak is the host +x shows, for users on other servers: their
 	// server made it. Ours are made on the spot (cloakFor).
 	Cloak    string
@@ -215,6 +221,7 @@ type Channel struct {
 	Members map[string]*Member   // by UID
 	Lists   map[byte][]ListEntry // 'b', 'e', 'I'
 	Invited map[string]bool      // UIDs invited since their last join
+	net     *Network             // for ~i:#chan (inherit) bans
 	// Params holds the argument of the other parameter modes (f F H L E B J).
 	Params map[byte]string
 }
@@ -268,42 +275,6 @@ func (c *Channel) ModeString(showKey bool) (string, []string) {
 		}
 	}
 	return string(b), params
-}
-
-// Matches reports whether any entry of list matches u.
-// Mute entries (~m, ~q) don't count here.
-func (c *Channel) Matches(list byte, u *User) bool {
-	for _, e := range c.Lists[list] {
-		if m, mute := MatchBan(e.Mask, u); m && !mute {
-			return true
-		}
-	}
-	return false
-}
-
-// IsBanned reports whether u is banned (from joining) and not excepted.
-func (c *Channel) IsBanned(u *User) bool { return c.Matches('b', u) && !c.Matches('e', u) }
-
-// IsMuted reports whether a ban or a mute (~m) stops u talking, and no
-// exception lets them. A mute exception (+e ~m:mask) lifts mutes but not
-// bans, like UnrealIRCd and InspIRCd.
-func (c *Channel) IsMuted(u *User) bool {
-	for _, e := range c.Lists['b'] {
-		if m, _ := MatchBan(e.Mask, u); m {
-			return !c.matchesAny('e', u)
-		}
-	}
-	return false
-}
-
-// matchesAny is Matches that also counts mute entries.
-func (c *Channel) matchesAny(list byte, u *User) bool {
-	for _, e := range c.Lists[list] {
-		if m, _ := MatchBan(e.Mask, u); m {
-			return true
-		}
-	}
-	return false
 }
 
 // addListEntry adds mask to list. It returns false when the mask is already
@@ -494,6 +465,7 @@ func (n *Network) join(u *User, name string, ts int64, ranks Rank, burst bool) (
 			Members: make(map[string]*Member),
 			Lists:   make(map[byte][]ListEntry),
 			Invited: make(map[string]bool),
+			net:     n,
 		}
 		if burst {
 			ch.Modes = map[byte]bool{}

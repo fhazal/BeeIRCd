@@ -145,6 +145,7 @@ func (s *Server) setUserModes(c *Client, srcUID, modeStr string) bool {
 	}
 	if deopered {
 		c.operFlags, c.operTitle, c.operAccount, c.operSwhois, c.operClass = "", "", 0, nil, ""
+		u.OperClass, u.OperName = "", ""
 		delete(s.opers, c)
 		c.noLag.Store(false)
 		s.showOperVhost(c, "")
@@ -236,7 +237,11 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 			used++
 			mask, valid := irc.NormalizeBan(arg)
 			if !valid {
-				s.reply(c, irc.ErrInvalidModeParam, ch.Name, string(mc), arg, "Invalid ban mask (extbans: ~a:account ~r:realname ~m:mask ~f:#chan:mask ~t:minutes:mask)")
+				s.reply(c, irc.ErrInvalidModeParam, ch.Name, string(mc), arg, "Invalid ban mask or unknown extban (/HELP EXTBANS lists them)")
+				continue
+			}
+			if !irc.ExtbanAllowed(mc, mask) {
+				s.reply(c, irc.ErrInvalidModeParam, ch.Name, string(mc), arg, "This extban can't be used in +"+string(mc)+" (/HELP EXTBANS)")
 				continue
 			}
 			if add {

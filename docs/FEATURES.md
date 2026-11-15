@@ -104,7 +104,7 @@ Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few 
 | Oper flags `a b c g h k s` and oper classes | ✅ | built-in helper, globop, admin, netadmin; oper vhost and swhois |
 | `/KILL`, `/WALLOPS`, server notices | ✅ | |
 | One network ban list: AKILL / G-line, ZLINE, Q-line, R-line (realname), SHUN, ELINE exemptions, all with expiry | ✅ | matches the real host and IP, never the cloak |
-| Channel extbans `~a ~r ~m ~t`, `~f:#chan:mask` forward, timed bans | ✅ | UnrealIRCd's named forms (`~account:`, `~forward:`...) are read too |
+| Channel extbans: every extban of UnrealIRCd 6 and InspIRCd 4 (country, ASN and security groups to come) | ✅ | Either server's names work; links translate them (`/HELP EXTBANS`) |
 | Channel mode `+O` (opers only) | ✅ | |
 | Spam filter (`/SPAMFILTER`, `STATS F`, UnrealIRCd syntax) | ✅ | shared with BeeIRCd and UnrealIRCd links; page in the Hive Panel |
 

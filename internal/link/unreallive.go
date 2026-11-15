@@ -134,7 +134,11 @@ func (c *unrealCodec) encodeMode(m *Mode) []string {
 			}
 			modes.WriteByte(it.Mode)
 			if it.Arg != "" {
-				args = append(args, it.Arg)
+				arg := it.Arg
+				if strings.IndexByte(c.listModes, it.Mode) >= 0 {
+					arg = c.banOut(arg)
+				}
+				args = append(args, arg)
 			}
 		}
 		line := ":" + m.Source + " MODE " + m.Channel + " " + modes.String()
@@ -333,6 +337,9 @@ func (c *unrealCodec) decodeMode(src, channel, modes string, args []string) *Mod
 				continue // missing argument: skip it, like UnrealIRCd
 			}
 			it.Arg, args = args[0], args[1:]
+			if strings.IndexByte(c.listModes, l) >= 0 {
+				it.Arg = banIn(it.Arg)
+			}
 		}
 		m.Items = append(m.Items, it)
 	}

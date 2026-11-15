@@ -174,6 +174,30 @@ line (up to 10):
 A question waits up to an hour and goes when the person who asked quits;
 one open question per person. `/he` is short for `/msg HelpServ`.
 
+## Channel bans and extbans
+
+`+b`, `+e` and `+I` take plain masks (`nick!user@host`) and extbans.
+BeeIRCd has the extbans of UnrealIRCd 6 and InspIRCd 4, once each:
+people can type either server's name for one (`~quiet:`, `~mute:`,
+`~nonick:`...) and BeeIRCd keeps it in its short form. `/HELP EXTBANS`
+lists them all.
+
+| Kind | Extbans |
+|---|---|
+| Who | `~a:account` (`~a:0` = not logged in), `~c:[@]#chan`, `~r:realname`, `~S:fingerprint`, `~O:operclass`, `~oper:name`, `~unauthed:mask`, `~bot:mask`, `~gateway:name`, `~server:name`, `~realmask:nick!user@host+realname` |
+| What they may not do | `~q:` / `~m:` talk, `~j:` join, `~n:` change nick, `~p:` part message, `~noctcp:`, `~nonotice:`, `~blockcolor:`, `~stripcolor:`, `~nokick:`, `~blockinvite:` |
+| Special | `~t:minutes:ban` lifts itself, `~f:#chan:mask` sends them elsewhere, `~T:block:text` / `~T:censor:word`, `+e ~m:type:mask` (skip `external`, `censor`, `moderated`, `color` or `notice`), `+e ~F:mask` (skip `+f`), `~i:#chan` (use that channel's bans or invite exceptions) |
+
+"Who" extbans also go inside the others: `+b ~q:~a:0` mutes everyone
+who isn't logged in. As on UnrealIRCd and InspIRCd, a plain ban also
+stops talking and nick changes (voice skips both), and someone a ban
+keeps quiet leaves without their part message.
+
+On links, UnrealIRCd servers get UnrealIRCd's names and InspIRCd servers
+InspIRCd's. Extbans the other server doesn't have (InspIRCd has no
+`~j`, `~p`, `~T`, `~m:type`, `~F` or `~i`) stay on the BeeIRCd side, and
+InspIRCd's inverted bans (`!R:account`) aren't taken.
+
 ## Spam filter
 
 Rules that catch spam as it is sent, like UnrealIRCd's spamfilter. Opers

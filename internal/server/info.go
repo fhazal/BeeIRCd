@@ -68,6 +68,7 @@ var helpTopics = map[string][]string{
 	"VERIFY":       {"VERIFY <account> <code>", "Confirms a new account with the code from the registration mail (IRCv3 account-registration), like /msg NickServ CONFIRM."},
 	"CHATHISTORY":  {"CHATHISTORY LATEST|BEFORE|AFTER|AROUND|BETWEEN|TARGETS ...", "Fetches the history of a +H channel you are in (IRCv3 chathistory); your client does this for you. At most 100 lines per request."},
 	"CHMODES":      chmodesHelp,
+	"EXTBANS":      extbansHelp,
 	"UMODES":       umodesHelp,
 	"KNOCK":        {"KNOCK <#channel> [reason]", "Asks the ops of a +i, +k or full +l channel to let you in. Not on +K channels."},
 	"SILENCE":      {"SILENCE [+|-]<nick|mask>", "Ignores private messages, notices and invites from someone, on the server.", "SILENCE alone lists your entries (at most 32)."},
@@ -191,7 +192,7 @@ var umodesHelp = []string{
 func helpIndex() []string {
 	var names []string
 	for n := range helpTopics {
-		if n != "CHMODES" && n != "UMODES" {
+		if n != "CHMODES" && n != "UMODES" && n != "EXTBANS" {
 			names = append(names, n)
 		}
 	}
@@ -203,7 +204,7 @@ func helpIndex() []string {
 		names = names[n:]
 	}
 	return append(lines,
-		"Other topics: CHMODES (channel modes), UMODES (user modes).",
+		"Other topics: CHMODES (channel modes), EXTBANS (special bans), UMODES (user modes).",
 		"Services: /ns help, /cs help, /ms help, /hs help, /bs help, /os help, /as help",
 		"Ask a person: /msg HelpServ <your question>")
 }

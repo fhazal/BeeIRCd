@@ -116,20 +116,32 @@ func (s *Server) channelText(c *Client, ch *state.Channel, verb, text string) (s
 	}
 	ctcp := len(text) > 1 && text[0] == '\x01'
 	action := ctcp && strings.HasPrefix(text, "\x01ACTION")
+	colourOK := ch.Bypasses(u, "color")
 	switch {
-	case verb == "NOTICE" && ch.HasMode('T'):
+	case verb == "NOTICE" && ch.HasMode('T') && !ch.Bypasses(u, "notice"):
 		return "", "NOTICEs are not permitted in this channel", false
+	case verb == "NOTICE" && ch.Stops(u, state.StopNotice):
+		return "", "You may not send NOTICEs to this channel (you're banned from it)", false
 	case ctcp && !action && ch.HasMode('C'):
 		return "", "CTCPs are not permitted in this channel", false
-	case ch.HasMode('c') && hasColour(text):
+	case ctcp && !action && ch.Stops(u, state.StopCTCP):
+		return "", "You may not send CTCPs to this channel (you're banned from it)", false
+	case ch.HasMode('c') && hasColour(text) && !colourOK:
 		return "", "Color is not permitted in this channel", false
+	case hasColour(text) && ch.Stops(u, state.StopColor):
+		return "", "You may not send colours to this channel (you're banned from it)", false
 	}
-	if ch.HasMode('S') {
+	if (ch.HasMode('S') && !colourOK) || ch.Stops(u, state.StripColor) {
 		text = stripColour(text)
 	}
-	if ch.HasMode('G') {
+	if ch.HasMode('G') && !ch.Bypasses(u, "censor") {
 		text = censor(text, s.cfg.Censor.Words, s.cfg.CensorReplace())
 	}
+	out, blocked := ch.TextBan(text, s.cfg.CensorReplace())
+	if blocked {
+		return "", "Message blocked by a text ban (~T) of this channel", false
+	}
+	text = out
 	if p := ch.Param('B'); p != "" {
 		minLen, pct, _ := twoNumbers(p)
 		if capsOver(text, minLen, pct) {
@@ -144,6 +156,9 @@ func (s *Server) channelText(c *Client, ch *state.Channel, verb, text string) (s
 		if uf.repeat(&uf.eLine, &uf.eCount, &uf.eStart, text, secs, now) >= lines {
 			return "", "Your message repeats what you sent before (+E)", false
 		}
+	}
+	if ch.FloodExempt(u) {
+		return text, "", false // +e ~F: the +f limits don't count them
 	}
 	rules := s.floodRules(ch)
 	if ctcp && !action {
@@ -768,7 +783,7 @@ var chmodesHelp = []string{
 	"~q owner (~)       &a admin (~)        @o op (@)",
 	"%h halfop (@)      +v voice (%)",
 	"Lists:",
-	" b <mask>   ban (extbans ~a ~f ~r ~m ~t)     e <mask>   ban exception",
+	" b <mask>   ban (and extbans: HELP EXTBANS)  e <mask>   ban exception",
 	" I <mask>   invite exception",
 	"With a value (ops):",
 	" k <key>    key needed to join                l <n>      at most n people",
@@ -795,4 +810,30 @@ var chmodesHelp = []string{
 	" Z everyone is on TLS (the server, with +z)",
 	"Halfops and up, and opers with flag g, skip c S G C T E B and the message",
 	"parts of +f. Channels without +F use the server's flood profile.",
+}
+
+var extbansHelp = []string{
+	"***** Extbans (in +b, +e, +I) *****",
+	"Written ~x:value. UnrealIRCd names (~account:) and InspIRCd names",
+	"(~mute:, ~nonick:...) work too and become the short form.",
+	"Who (in +b, +e or +I, alone or inside the ones below):",
+	" ~a:<account>   logged in to account (~a:0 = not logged in)",
+	" ~c:[+%@&~]#ch  is in #ch (with at least that status)",
+	" ~r:<realname>  real name    ~S:<fingerprint>  TLS client certificate",
+	" ~O:<class>     oper class   ~oper:<name>      oper login",
+	" ~unauthed:<mask> not logged in   ~bot:<mask>  bot (+B)",
+	" ~gateway:<name> web gateway  ~server:<name>   their server",
+	" ~realmask:<nick!user@host+realname>",
+	"What they may not do (in +b; in +e only that is allowed again):",
+	" ~q:<mask> or ~m:<mask> talk         ~j:<mask> join (+b only)",
+	" ~n:<mask> change nick               ~p:<mask> show a part message",
+	" ~noctcp ~nonotice ~blockcolor ~stripcolor ~nokick ~blockinvite :<mask>",
+	"Special:",
+	" ~t:<minutes>:<ban>  lifts itself    ~f:#ch:<mask> send them to #ch (+b)",
+	" ~T:block:<text> / ~T:censor:<word>  messages matching text (+b)",
+	" ~m:<type>:<mask> skip external, censor, moderated, color or notice (+e)",
+	" ~F:<mask> skip the +f flood guard (+e)",
+	" ~i:#ch  use #ch's bans (+b) or invite exceptions (+I)",
+	"A plain ban also stops talking and nick changes; voice skips both.",
+	"Examples: +b ~q:~a:0   +e ~m:moderated:~a:Bee   +b ~T:block:*http*",
 }

@@ -123,6 +123,7 @@ const (
 	RplHelpTxt           = "705"
 	RplEndOfHelp         = "706"
 	ErrNoNickChange      = "447"
+	ErrBanNickChange     = "437"
 	ErrLinkChannel       = "470"
 	ErrSecureOnlyChan    = "489"
 	ErrDelayRejoin       = "495"

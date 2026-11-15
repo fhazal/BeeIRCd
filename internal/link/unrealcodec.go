@@ -16,6 +16,9 @@ import (
 // sjoin.c, src/modules/nick.c cmd_uid).
 type unrealCodec struct {
 	bee bool // the other side is BeeIRCd (BEE=1)
+	// unreal: the other side is UnrealIRCd itself (not BeeIRCd, not the
+	// InspIRCd bridge): bans go with UnrealIRCd's extban names.
+	unreal bool
 	// paramModes are the other side's channel modes that take a
 	// parameter when set (CHANMODES groups B and C).
 	paramModes string
@@ -26,7 +29,7 @@ type unrealCodec struct {
 
 // Codec returns the codec for the protocol the handshake agreed on.
 func (h *unreal) Codec() Codec {
-	c := &unrealCodec{bee: h.peer.Bee}
+	c := &unrealCodec{bee: h.peer.Bee, unreal: !h.peer.Bee}
 	groups := strings.Split(h.peer.Tokens["CHANMODES"], ",")
 	if len(groups) >= 3 {
 		c.paramModes = groups[1] + groups[2]
@@ -45,6 +48,25 @@ func (h *unreal) Codec() Codec {
 }
 
 func (c *unrealCodec) Rename() bool { return c.bee }
+
+// banOut writes a ban, exception or invite exception for the other side:
+// UnrealIRCd 6 gets its own names (~quiet:mask), BeeIRCd and the
+// InspIRCd bridge our form.
+func (c *unrealCodec) banOut(m string) string {
+	if c.unreal {
+		return irc.UnrealBan(m)
+	}
+	return m
+}
+
+// banIn reads a list entry from a link the way we write it (UnrealIRCd's
+// ~quiet:mask becomes ~q:mask); entries we don't know stay as sent.
+func banIn(m string) string {
+	if n, ok := irc.NormalizeBan(m); ok {
+		return n
+	}
+	return m
+}
 
 // SJOIN prefixes for member ranks (UnrealIRCd's chanmodes/*.c
 // sjoin_prefix) and list modes.
@@ -167,7 +189,7 @@ func (c *unrealCodec) Channel(ch Channel, sid string) []string {
 		if p == 0 {
 			continue
 		}
-		items = append(items, fmt.Sprintf("<%d,%s>%c%s", l.SetAt, l.SetBy, p, l.Mask))
+		items = append(items, fmt.Sprintf("<%d,%s>%c%s", l.SetAt, l.SetBy, p, c.banOut(l.Mask)))
 	}
 	var out []string
 	cur, body := first, ""
@@ -316,7 +338,7 @@ func (c *unrealCodec) decodeSJoin(p []string) any {
 			continue
 		}
 		if mode := listFromSJoin(it[0]); mode != 0 {
-			ch.Lists = append(ch.Lists, ListEntry{Mode: mode, Mask: it[1:], SetBy: setBy, SetAt: setAt})
+			ch.Lists = append(ch.Lists, ListEntry{Mode: mode, Mask: banIn(it[1:]), SetBy: setBy, SetAt: setAt})
 			continue
 		}
 		var ranks []byte
