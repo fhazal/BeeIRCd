@@ -810,7 +810,11 @@ func csBan(s *Services, c *Client, args []string) {
 		return
 	}
 	t := s.net.UserByNick(arg)
-	if t != nil && !t.Service {
+	if t != nil && t.Service {
+		s.cs(c, "%s is a services bot: it can't be banned or muted.", t.Nick)
+		return
+	}
+	if t != nil {
 		if reg.Peace && s.userLevel(reg, t).level >= lvl.level && lvl.level != store.LevelFounder {
 			s.cs(c, "You can't ban %s: their level is the same as or above yours.", t.Nick)
 			return
