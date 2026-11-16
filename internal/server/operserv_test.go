@@ -146,6 +146,29 @@ func code(line string) string {
 	return m[1] + m[2]
 }
 
+// The admin from beeircd.conf keeps the WHOIS lines, title and vhost of
+// their own oper entry.
+func TestAdminKeepsOwnWhoisLines(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := registered(t, s, "Boss")
+	var err error
+	s.onLoop(func() {
+		a, _ := s.store.AccountByNick("Boss")
+		err = s.store.SaveOper(&store.Oper{AccountID: a.ID, Account: a.Name, Class: "netadmin", Title: "is the Founder", Vhost: "staff.test.local", Swhois: []string{"looks very helpful"}, AddedBy: "test"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.send("OPER Boss " + operPW)
+	b.expect(" 381 Boss ")
+	c := login(t, s, "ann")
+	c.send("WHOIS Boss")
+	c.expect(" 311 ann Boss ~boss staff.test.local * :")
+	c.expect(" 313 ann Boss :is the Founder")
+	c.expect(" 320 ann Boss :looks very helpful")
+	c.expect(" 318 ann Boss ")
+}
+
 func TestOperUpAndWhois(t *testing.T) {
 	s, path, _ := fileServer(t, "")
 	b := boss(t, s)

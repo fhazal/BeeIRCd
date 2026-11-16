@@ -72,8 +72,17 @@ func (s *Server) isAdminAccount(a *store.Account) bool {
 // every flag, from any host, with the password from beeircd.conf.
 func (s *Server) operEntry(a *store.Account) (*store.Oper, error) {
 	if s.isAdminAccount(a) {
-		return &store.Oper{AccountID: a.ID, Account: a.Name, Class: "netadmin", Flags: allFlags,
-			Vhost: s.cfg.Services.AdminVhost, Hosts: s.adminHosts(), PassHash: s.cfg.Services.AdminPassword}, nil
+		o := &store.Oper{AccountID: a.ID, Account: a.Name, Class: "netadmin", Flags: allFlags,
+			Vhost: s.cfg.Services.AdminVhost, Hosts: s.adminHosts(), PassHash: s.cfg.Services.AdminPassword}
+		// Their own entry, when they have one, still says how they look:
+		// title, WHOIS lines, and the vhost when beeircd.conf names none.
+		if own, err := s.store.OperByAccount(a.ID); err == nil && own != nil {
+			o.Title, o.Swhois = own.Title, own.Swhois
+			if o.Vhost == "" {
+				o.Vhost = own.Vhost
+			}
+		}
+		return o, nil
 	}
 	return s.store.OperByAccount(a.ID)
 }
