@@ -1470,7 +1470,7 @@ One `[module.NAME]` block per module holds that module's own settings; what goes
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `allow` | – | The rights the module is given, like `["kill"]`. Without a right the module can read, send notices and add commands |
+| `allow` | – | The rights the module is given: `"kill"`, `"kick"`, `"topic"`, `"join"`, `"usermode"`, `"ban"`, `"http"`, `"http-local"`. Without a right the module can read, check, send notices, keep its own data and add commands |
 
 ### [[showfile]]
 

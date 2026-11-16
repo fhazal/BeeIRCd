@@ -71,24 +71,24 @@ var Hooks = map[string]Hook{
 	"server_split":     {Event, false, "a server left"},
 	"ban_add":          {Event, false, "a network ban was added"},
 	"ban_remove":       {Event, false, "a network ban was removed"},
-	"check_connect":    {Check, false, "a new connection, before it is let in"},
-	"check_nick":       {Check, false, "a nick change"},
-	"check_join":       {Check, false, "a join"},
-	"check_create":     {Check, false, "making a new channel"},
-	"check_tagmsg":     {Check, false, "a tag-only message"},
-	"check_part":       {Check, false, "a part message"},
-	"check_quit":       {Check, false, "a quit message"},
-	"check_topic":      {Check, false, "a topic change"},
-	"check_kick":       {Check, false, "a kick"},
-	"check_mode":       {Check, false, "a channel mode change"},
-	"check_invite":     {Check, false, "an invite"},
-	"check_knock":      {Check, false, "a knock"},
-	"check_away":       {Check, false, "an away message"},
-	"check_command":    {Check, false, "any command"},
-	"check_oper":       {Check, false, "/oper"},
-	"check_whois":      {Check, false, "a WHOIS answer"},
-	"check_list":       {Check, false, "a channel in LIST"},
-	"check_names":      {Check, false, "a member in NAMES or WHO"},
+	"check_connect":    {Check, true, "a new connection, before it is let in"},
+	"check_nick":       {Check, true, "a nick change"},
+	"check_join":       {Check, true, "a join"},
+	"check_create":     {Check, true, "making a new channel"},
+	"check_tagmsg":     {Check, true, "a tag-only message"},
+	"check_part":       {Check, true, "a part message"},
+	"check_quit":       {Check, true, "a quit message"},
+	"check_topic":      {Check, true, "a topic change"},
+	"check_kick":       {Check, true, "a kick"},
+	"check_mode":       {Check, true, "a channel mode change"},
+	"check_invite":     {Check, true, "an invite"},
+	"check_knock":      {Check, true, "a knock"},
+	"check_away":       {Check, true, "an away message"},
+	"check_command":    {Check, true, "any command"},
+	"check_oper":       {Check, true, "/oper"},
+	"check_whois":      {Check, true, "a WHOIS answer"},
+	"check_list":       {Check, true, "a channel in LIST"},
+	"check_names":      {Check, true, "a member in NAMES or WHO"},
 }
 
 // Functions are the functions the server gives a module.
@@ -96,12 +96,26 @@ var Functions = []string{
 	"module", "on", "command",
 	"notice", "numeric", "fail", "snotice", "log",
 	"find_user", "find_channel", "users", "channels", "members",
-	"after", "every", "kill", "has_right",
+	"after", "every", "has_right", "data",
+	"kill", "kick", "set_topic", "force_join", "set_user_mode", "ban",
+}
+
+// Tables are the tables of functions the server gives a module.
+var Tables = map[string][]string{
+	"store": {"get", "set", "delete", "keys"},
+	"http":  {"get", "post"},
 }
 
 // Rights are what [module.NAME] allow can list.
 var Rights = map[string]string{
-	"kill": "disconnect people",
+	"kill":       "disconnect people",
+	"kick":       "kick people from channels",
+	"topic":      "set channel topics",
+	"join":       "make people join channels",
+	"usermode":   "set user modes on people of this server",
+	"ban":        "ban an IP address from the network for a time",
+	"http":       "make web requests to the internet",
+	"http-local": "make web requests to this machine and private networks too",
 }
 
 var nameOK = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,31}$`)
@@ -219,6 +233,13 @@ func CheckSource(name, src string) []string {
 		L.SetGlobal(f, L.NewFunction(nop))
 	}
 	L.SetGlobal("config", L.NewTable())
+	for name, fns := range Tables {
+		t := L.NewTable()
+		for _, f := range fns {
+			t.RawSetString(f, L.NewFunction(nop))
+		}
+		L.SetGlobal(name, t)
+	}
 	L.SetGlobal("module", L.NewFunction(func(L *lua.LState) int {
 		in := ReadInfo(L.CheckTable(1))
 		info = &in

@@ -41,8 +41,13 @@ type module struct {
 	loaded   time.Time
 	calls    uint64
 	depth    int
-	dead     string // why it must be unloaded once the running call is over
-	fromConf bool   // listed in [modules] load (not only /MODULE LOAD)
+	dead     string            // why it must be unloaded once the running call is over
+	kept     map[string]string // store.*: what it keeps in the database
+	keptSize int
+	udata    map[string]*lua.LTable // data(user), by UID
+	cdata    map[string]*lua.LTable // data(channel), by name
+	httpBusy int
+	fromConf bool // listed in [modules] load (not only /MODULE LOAD)
 }
 
 type modCommand struct {
@@ -61,11 +66,12 @@ type modTimer struct {
 }
 
 type modules struct {
-	byName   map[string]*module
-	order    []string
-	cmds     map[string]*modCommand
-	hooked   map[string]int // handlers per hook, over all modules
-	lastTick time.Time
+	byName    map[string]*module
+	order     []string
+	cmds      map[string]*modCommand
+	hooked    map[string]int // handlers per hook, over all modules
+	lastTick  time.Time
+	lastSweep time.Time
 }
 
 func (s *Server) modulesStart() {
@@ -97,6 +103,7 @@ func (s *Server) modLoad(name string, fromConf bool) error {
 	m := &module{name: name, path: path, L: luamod.NewState(), hooks: map[string][]*lua.LFunction{}, loaded: time.Now(), fromConf: fromConf}
 	m.rights = s.modRights(name)
 	s.modAPI(m)
+	s.modAPIMore(m)
 	m.L.SetGlobal("config", s.modConfig(m))
 	fail := func(err error) error {
 		s.modDrop(m)
@@ -266,6 +273,75 @@ func (s *Server) modFireOne(m *module, hook string, build func(m *module) *lua.L
 	}
 }
 
+// modRefused is what a module's `return false` says when the caller has
+// no silent way to refuse.
+const modRefused = "Refused by a module of this network"
+
+// modAsk asks the modules that listen to a check hook. fill puts the
+// people and channels into the table a handler gets; vals are the texts a
+// handler may change by setting e.<key> (they are updated in place). why
+// is the reason of a handler that refused by returning a text; drop is
+// true when one returned false. answer, when not nil, sees what each
+// handler returned (for hooks that give something back).
+func (s *Server) modAsk(hook string, vals map[string]string, fill func(m *module, e *lua.LTable), answer func(lua.LValue)) (why string, drop bool) {
+	if !s.modHas(hook) {
+		return "", false
+	}
+	for _, name := range append([]string(nil), s.mods.order...) {
+		m := s.mods.byName[name]
+		if m == nil {
+			continue
+		}
+		for _, fn := range m.hooks[hook] {
+			e := m.L.NewTable()
+			if fill != nil {
+				fill(m, e)
+			}
+			for k, v := range vals {
+				e.RawSetString(k, lua.LString(v))
+			}
+			ret, ok := s.modCall(m, fn, e)
+			if !ok {
+				if s.mods.byName[name] != m {
+					break // unloaded meanwhile
+				}
+				continue
+			}
+			switch v := ret.(type) {
+			case lua.LString:
+				return irc.CleanFraming(string(v)), false
+			case lua.LBool:
+				if !bool(v) {
+					return "", true
+				}
+			}
+			if answer != nil {
+				answer(ret)
+			}
+			for k := range vals {
+				if nv, isText := e.RawGetString(k).(lua.LString); isText {
+					vals[k] = irc.CleanFraming(string(nv))
+				}
+			}
+		}
+	}
+	return "", false
+}
+
+// modRefuses asks a check hook for c's command cmd, and tells c when a
+// module refused it. It reports whether one did.
+func (s *Server) modRefuses(c *Client, cmd, hook string, vals map[string]string, fill func(m *module, e *lua.LTable)) bool {
+	why, drop := s.modAsk(hook, vals, fill, nil)
+	if drop {
+		why = modRefused
+	}
+	if why == "" {
+		return false
+	}
+	s.reply(c, irc.ErrCannotDoCommand, cmd, why)
+	return true
+}
+
 // modCheckMessage asks the modules about a message from a local person,
 // before it is delivered. why refuses it with that reason, drop drops it
 // without a word, text is what goes on.
@@ -273,34 +349,14 @@ func (s *Server) modCheckMessage(c *Client, ch *state.Channel, t *state.User, ve
 	if !s.modHas("check_message") {
 		return text, "", false
 	}
-	for _, name := range append([]string(nil), s.mods.order...) {
-		m := s.mods.byName[name]
-		if m == nil {
-			continue
-		}
-		for _, fn := range m.hooks["check_message"] {
-			e := s.modMessageTable(m, c.user, ch, t, verb, text)
-			ret, ok := s.modCall(m, fn, e)
-			if !ok {
-				if s.mods.byName[name] != m {
-					break
-				}
-				continue
-			}
-			switch v := ret.(type) {
-			case lua.LString:
-				return text, string(v), false
-			case lua.LBool:
-				if !bool(v) {
-					return text, "", true
-				}
-			}
-			if nt, isText := e.RawGetString("text").(lua.LString); isText && string(nt) != "" {
-				text = irc.CleanFraming(string(nt))
-			}
-		}
+	vals := map[string]string{"text": text}
+	why, drop = s.modAsk("check_message", vals, func(m *module, e *lua.LTable) {
+		s.modMessageFill(m, e, c.user, ch, t, verb)
+	}, nil)
+	if vals["text"] != "" {
+		text = vals["text"]
 	}
-	return text, "", false
+	return text, why, drop
 }
 
 // modMessageDone tells the modules a local person's message was delivered.
@@ -310,6 +366,12 @@ func (s *Server) modMessageDone(u *state.User, ch *state.Channel, t *state.User,
 
 func (s *Server) modMessageTable(m *module, u *state.User, ch *state.Channel, t *state.User, verb, text string) *lua.LTable {
 	e := m.L.NewTable()
+	s.modMessageFill(m, e, u, ch, t, verb)
+	e.RawSetString("text", lua.LString(text))
+	return e
+}
+
+func (s *Server) modMessageFill(m *module, e *lua.LTable, u *state.User, ch *state.Channel, t *state.User, verb string) {
 	e.RawSetString("user", s.modUser(m, u))
 	if ch != nil {
 		e.RawSetString("channel", s.modChannel(m, ch))
@@ -317,9 +379,7 @@ func (s *Server) modMessageTable(m *module, u *state.User, ch *state.Channel, t 
 	if t != nil {
 		e.RawSetString("target", s.modUser(m, t))
 	}
-	e.RawSetString("text", lua.LString(text))
 	e.RawSetString("notice", lua.LBool(verb == "NOTICE"))
-	return e
 }
 
 // modPrepare looks at ev before it is applied and returns what tells the
@@ -605,6 +665,10 @@ func (s *Server) modTick(now time.Time) {
 		if s.mods.byName[name] == m {
 			m.timers = append(keep, m.timers...) // plus the ones the calls added
 		}
+	}
+	if now.Sub(s.mods.lastSweep) >= time.Minute {
+		s.mods.lastSweep = now
+		s.modSweep()
 	}
 	if now.Sub(s.mods.lastTick) >= time.Second {
 		s.mods.lastTick = now

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	lua "github.com/yuin/gopher-lua"
+
 	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/services"
@@ -87,6 +89,16 @@ func (s *Server) operUp(c *Client, o *store.Oper) { s.operUpView(c, o, s.viewOf(
 // leaf v comes from the services server (o.AccountID 0: no account here).
 func (s *Server) operUpView(c *Client, o *store.Oper, v operView) {
 	u := c.user
+	if why, drop := s.modAsk("check_oper", map[string]string{"name": o.Account, "class": v.class}, func(m *module, e *lua.LTable) {
+		e.RawSetString("user", s.modUser(m, u))
+	}, nil); why != "" || drop {
+		if why == "" {
+			why = modRefused
+		}
+		s.snotice("A module refused /oper for %s (%s): %s", u.Nick, o.Account, why)
+		s.reply(c, irc.ErrNoOperHost, why)
+		return
+	}
 	was := c.operFlags
 	c.operFlags, c.operTitle, c.operAccount, c.operSwhois, c.operClass = v.flags, v.title, o.AccountID, v.swhois, v.class
 	u.OperClass, u.OperName = v.class, o.Account // ~O: and ~oper: bans

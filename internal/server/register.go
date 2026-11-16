@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	lua "github.com/yuin/gopher-lua"
+
 	"github.com/fhazal/beeircd/internal/cloak"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/services"
@@ -231,6 +233,15 @@ func (s *Server) cmdNick(c *Client, m irc.Message) {
 	if !s.spamUser(c, nick) {
 		return
 	}
+	if why, drop := s.modAsk("check_nick", map[string]string{"nick": nick}, func(m *module, e *lua.LTable) {
+		e.RawSetString("user", s.modUser(m, u))
+	}, nil); why != "" || drop {
+		if why == "" {
+			why = modRefused
+		}
+		s.reply(c, irc.ErrErroneusNickname, nick, why)
+		return
+	}
 	if err := s.emit(&state.NickChange{UID: u.UID, Nick: nick, TS: time.Now().Unix()}); err != nil {
 		s.reply(c, irc.ErrNicknameInUse, nick, "Nickname is already in use")
 		return
@@ -292,7 +303,17 @@ func (s *Server) cmdPong(c *Client, m irc.Message) {
 func (s *Server) cmdQuit(c *Client, m irc.Message) {
 	reason := "Quit"
 	if r := m.Param(0); r != "" {
-		reason = "Quit: " + irc.Truncate(r, s.cfg.Limits.KickLen)
+		vals := map[string]string{"reason": r}
+		if c.registered {
+			if why, drop := s.modAsk("check_quit", vals, func(m *module, e *lua.LTable) {
+				e.RawSetString("user", s.modUser(m, c.user))
+			}, nil); why != "" || drop {
+				vals["reason"] = "" // nobody can be kept from leaving: only the message goes
+			}
+		}
+		if vals["reason"] != "" {
+			reason = "Quit: " + irc.Truncate(vals["reason"], s.cfg.Limits.KickLen)
+		}
 	}
 	s.quit(c, reason)
 }
@@ -378,6 +399,15 @@ func (s *Server) tryRegister(c *Client) {
 		return
 	}
 	if why := s.throttleNew(u, now); why != "" {
+		s.quit(c, why)
+		return
+	}
+	if why, drop := s.modAsk("check_connect", nil, func(m *module, e *lua.LTable) {
+		e.RawSetString("user", s.modUser(m, u))
+	}, nil); why != "" || drop {
+		if why == "" {
+			why = modRefused
+		}
 		s.quit(c, why)
 		return
 	}

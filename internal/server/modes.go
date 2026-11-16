@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	lua "github.com/yuin/gopher-lua"
+
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/state"
 )
@@ -186,6 +188,12 @@ func (s *Server) channelMode(c *Client, m irc.Message) {
 	var rank state.Rank
 	if mem != nil {
 		rank = mem.Top()
+	}
+	if s.modRefuses(c, "MODE", "check_mode", map[string]string{"modes": strings.Join(m.Params[1:], " ")}, func(m *module, e *lua.LTable) {
+		e.RawSetString("user", s.modUser(m, u))
+		e.RawSetString("channel", s.modChannel(m, ch))
+	}) {
+		return
 	}
 	s.applyChannelModes(c, u, ch, rank, m.Params[1], m.Params[2:])
 }

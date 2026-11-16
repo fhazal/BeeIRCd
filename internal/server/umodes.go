@@ -4,6 +4,8 @@ import (
 	"strings"
 	"time"
 
+	lua "github.com/yuin/gopher-lua"
+
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/services"
 	"github.com/fhazal/beeircd/internal/state"
@@ -160,6 +162,19 @@ func (s *Server) cmdKnock(c *Client, m irc.Message) {
 		refuse("You're banned!")
 	case !c.can('g') && !s.knockAllowed(c):
 		refuse("You are KNOCK flooding")
+	case func() bool {
+		why, drop := s.modAsk("check_knock", map[string]string{"reason": reason}, func(m *module, e *lua.LTable) {
+			e.RawSetString("user", s.modUser(m, u))
+			e.RawSetString("channel", s.modChannel(m, ch))
+		}, nil)
+		if drop {
+			why = modRefused
+		}
+		if why != "" {
+			refuse(why)
+		}
+		return why != ""
+	}():
 	default:
 		text := "[Knock] by " + u.Prefix() + " (" + reason + ")"
 		for _, mem := range ch.Members {

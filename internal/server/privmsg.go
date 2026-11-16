@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	lua "github.com/yuin/gopher-lua"
+
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/state"
 )
@@ -90,6 +92,13 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 			if why := s.antiSpam(c, ch, nil, verb, text); why != "" {
 				fail(irc.ErrCannotSendToChan, ch.Name, why)
 				continue
+			}
+			if tagOnly {
+				if why, drop := s.modAsk("check_tagmsg", nil, func(m *module, e *lua.LTable) {
+					s.modMessageFill(m, e, u, ch, nil, verb)
+				}, nil); why != "" || drop {
+					continue // tag messages are refused without a word, like the server's own checks
+				}
 			}
 			if !tagOnly {
 				t, why, drop := s.modCheckMessage(c, ch, nil, verb, text)
@@ -179,6 +188,13 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 		if why := s.antiSpam(c, nil, t, verb, text); why != "" {
 			fail(irc.ErrCantSendToUser, t.Nick, why)
 			continue
+		}
+		if tagOnly && !t.Service {
+			if why, drop := s.modAsk("check_tagmsg", nil, func(m *module, e *lua.LTable) {
+				s.modMessageFill(m, e, u, nil, t, verb)
+			}, nil); why != "" || drop {
+				continue
+			}
 		}
 		if !tagOnly && !t.Service {
 			nt, why, drop := s.modCheckMessage(c, nil, t, verb, text)

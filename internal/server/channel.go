@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	lua "github.com/yuin/gopher-lua"
+
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
@@ -85,6 +87,19 @@ func (s *Server) joinVia(c *Client, name, key string, hops int) {
 			return
 		}
 	}
+	if ch == nil && s.modRefuses(c, "JOIN", "check_create", map[string]string{"name": name}, func(m *module, e *lua.LTable) {
+		e.RawSetString("user", s.modUser(m, u))
+	}) {
+		return
+	}
+	if s.modRefuses(c, "JOIN", "check_join", map[string]string{"name": name}, func(m *module, e *lua.LTable) {
+		e.RawSetString("user", s.modUser(m, u))
+		if ch != nil {
+			e.RawSetString("channel", s.modChannel(m, ch))
+		}
+	}) {
+		return
+	}
 	ev := &state.Join{UID: u.UID, Channel: name, TS: time.Now().Unix()}
 	if s.emit(ev) != nil {
 		return
@@ -113,7 +128,14 @@ func (s *Server) cmdPart(c *Client, m irc.Message) {
 		case ch.Member(c.user) == nil:
 			s.reply(c, irc.ErrNotOnChannel, ch.Name, "You're not on that channel")
 		default:
-			s.partOne(c.user, ch, s.partReason(c, ch, reason))
+			vals := map[string]string{"reason": s.partReason(c, ch, reason)}
+			if why, drop := s.modAsk("check_part", vals, func(m *module, e *lua.LTable) {
+				e.RawSetString("user", s.modUser(m, c.user))
+				e.RawSetString("channel", s.modChannel(m, ch))
+			}, nil); why != "" || drop {
+				vals["reason"] = "" // nobody can be kept in a channel: only the message goes
+			}
+			s.partOne(c.user, ch, irc.Truncate(vals["reason"], s.cfg.Limits.KickLen))
 		}
 	}
 }
@@ -173,6 +195,14 @@ func (s *Server) cmdTopic(c *Client, m irc.Message) {
 	if topic == ch.Topic {
 		return
 	}
+	vals := map[string]string{"text": topic}
+	if s.modRefuses(c, "TOPIC", "check_topic", vals, func(m *module, e *lua.LTable) {
+		e.RawSetString("user", s.modUser(m, u))
+		e.RawSetString("channel", s.modChannel(m, ch))
+	}) {
+		return
+	}
+	topic = irc.Truncate(vals["text"], s.cfg.Limits.TopicLen)
 	s.reveal(u, ch)
 	s.emit(&state.Topic{Source: u.UID, Channel: ch.Name, Text: topic, By: u.Nick, At: time.Now()})
 }
@@ -226,9 +256,19 @@ func (s *Server) sendNames(c *Client, ch *state.Channel) {
 			names, size = nil, head
 		}
 	}
+	hooked := s.modHas("check_names")
 	for _, mem := range ch.Members { // unsorted, like InspIRCd: sorting cost a lot on every JOIN
 		if (!inside && mem.User.HasMode('i')) || !ch.Sees(c.user, mem) {
 			continue
+		}
+		if hooked && mem.User != c.user {
+			if why, drop := s.modAsk("check_names", nil, func(m *module, e *lua.LTable) {
+				e.RawSetString("user", s.modUser(m, c.user))
+				e.RawSetString("member", s.modUser(m, mem.User))
+				e.RawSetString("channel", s.modChannel(m, ch))
+			}, nil); why != "" || drop {
+				continue
+			}
 		}
 		n := memberPrefix(c, mem) + mem.User.Nick
 		if c.caps["userhost-in-names"] {
@@ -258,6 +298,12 @@ func (s *Server) cmdList(c *Client, m irc.Message) {
 	s.reply(c, irc.RplListStart, "Channel", "Users  Name")
 	for _, ch := range chans {
 		if (ch.HasMode('s') || ch.HasMode('p')) && ch.Member(c.user) == nil && !c.can('h') {
+			continue
+		}
+		if why, drop := s.modAsk("check_list", nil, func(m *module, e *lua.LTable) {
+			e.RawSetString("user", s.modUser(m, c.user))
+			e.RawSetString("channel", s.modChannel(m, ch))
+		}, nil); why != "" || drop {
 			continue
 		}
 		modes, _ := ch.ModeString(false)
@@ -302,7 +348,15 @@ func (s *Server) kick(c *Client, name string, nicks []string, reason string) {
 		if t == nil {
 			continue
 		}
-		s.emit(&state.Kick{Source: c.user.UID, UID: t.UID, Channel: ch.Name, Reason: reason})
+		kv := map[string]string{"reason": reason}
+		if s.modRefuses(c, "KICK", "check_kick", kv, func(m *module, e *lua.LTable) {
+			e.RawSetString("user", s.modUser(m, t))
+			e.RawSetString("source", s.modUser(m, c.user))
+			e.RawSetString("channel", s.modChannel(m, ch))
+		}) {
+			continue
+		}
+		s.emit(&state.Kick{Source: c.user.UID, UID: t.UID, Channel: ch.Name, Reason: irc.Truncate(kv["reason"], s.cfg.Limits.KickLen)})
 		if s.net.Channel(ch.Name) == nil {
 			return // the last one left: the channel is gone
 		}
@@ -398,6 +452,12 @@ func (s *Server) cmdInvite(c *Client, m irc.Message) {
 	}
 	if s.silenced(t, u) {
 		return // SILENCE: the invite is dropped quietly
+	}
+	if why, drop := s.modAsk("check_invite", map[string]string{"name": name}, func(m *module, e *lua.LTable) {
+		e.RawSetString("user", s.modUser(m, t))
+		e.RawSetString("source", s.modUser(m, u))
+	}, nil); why != "" || drop {
+		return // the inviter was told already: dropped like a silenced one
 	}
 	s.emit(&state.Invite{Source: u.UID, UID: t.UID, Channel: name})
 }

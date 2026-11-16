@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	lua "github.com/yuin/gopher-lua"
+
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/version"
@@ -229,6 +231,20 @@ func (s *Server) whoisOne(c *Client, u *state.User, reply func(code string, p ..
 		idle := int64(time.Since(tc.lastMsg).Seconds())
 		reply(irc.RplWhoisIdle, u.Nick, strconv.FormatInt(idle, 10), strconv.FormatInt(u.SignOn.Unix(), 10), "seconds idle, signon time")
 	}
+	s.modAsk("check_whois", nil, func(m *module, e *lua.LTable) {
+		e.RawSetString("user", s.modUser(m, c.user))
+		e.RawSetString("target", s.modUser(m, u))
+	}, func(v lua.LValue) {
+		// A handler may return a line, or a list of lines, to add.
+		add := func(x lua.LValue) {
+			if line, ok := x.(lua.LString); ok && line != "" {
+				reply(irc.RplWhoisSpecial, u.Nick, irc.CleanFraming(string(line)))
+			}
+		}
+		if t, ok := v.(*lua.LTable); ok {
+			t.ForEach(func(_, x lua.LValue) { add(x) })
+		}
+	})
 	reply(irc.RplEndOfWhois, u.Nick, "End of /WHOIS list.")
 	if u.HasMode('W') && u != c.user && tc != nil { // +W: opers see who looks them up
 		me := c.user
@@ -314,6 +330,17 @@ func (s *Server) cmdAway(c *Client, m irc.Message) {
 		return
 	}
 	u := c.user
+	if msg != "" {
+		vals := map[string]string{"text": msg}
+		if s.modRefuses(c, "AWAY", "check_away", vals, func(m *module, e *lua.LTable) {
+			e.RawSetString("user", s.modUser(m, u))
+		}) {
+			return
+		}
+		if msg = irc.Truncate(vals["text"], s.cfg.Limits.AwayLen); msg == "" {
+			return
+		}
+	}
 	s.emit(&state.Away{UID: u.UID, Message: msg})
 	if msg != "" {
 		s.reply(c, irc.RplNowAway, "You have been marked as being away")

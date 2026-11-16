@@ -5,6 +5,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	lua "github.com/yuin/gopher-lua"
+
 	"github.com/fhazal/beeircd/internal/irc"
 )
 
@@ -240,9 +242,26 @@ func (s *Server) runCommand(c *Client, m irc.Message) {
 		if c.registered && !s.spamCheck(c, &m) {
 			return
 		}
+		if c.registered && !neverAsked[m.Command] && s.modHas("check_command") {
+			if s.modRefuses(c, m.Command, "check_command", map[string]string{"command": m.Command}, func(mod *module, e *lua.LTable) {
+				e.RawSetString("user", s.modUser(mod, c.user))
+				params := mod.L.NewTable()
+				for _, p := range m.Params {
+					params.Append(lua.LString(p))
+				}
+				e.RawSetString("params", params)
+			}) {
+				return
+			}
+		}
 		cmd.run(s, c, m)
 	}
 }
+
+// neverAsked are the commands a module's check_command is not asked
+// about: what keeps a connection alive, lets someone leave, and what an
+// oper needs to take a bad module out.
+var neverAsked = map[string]bool{"PING": true, "PONG": true, "QUIT": true, "MODULE": true, "OPER": true, "REHASH": true}
 
 // utf8Params reports whether every parameter of m is UTF-8.
 func utf8Params(m irc.Message) bool {

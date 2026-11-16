@@ -2,7 +2,7 @@
 
 A module adds something of your own to BeeIRCd: a greeting, a command, a word filter. It is one Lua file. You don't need a compiler, and you load it while the server runs.
 
-This is the first version of modules. It has the hooks and functions listed here; more are planned (see [What is planned](#what-is-planned)).
+This is an early version of modules. It has the hooks and functions listed here; more are planned (see [What is planned](#what-is-planned)).
 
 ## A first module
 
@@ -110,13 +110,36 @@ Told after it happened (these can't stop anything, and run for people on every s
 | `tick` | nothing; once a second |
 | `load`, `unload` | nothing; this module started or is about to stop |
 
-Asked before it happens:
+Asked before it happens. The function may:
 
-| Hook | `e` has | The function may |
+- return nothing: it goes ahead;
+- return a text: it is refused, and the person is told that text;
+- return `false`: it is refused without a reason of your own;
+- set one of the fields marked "can change": it goes ahead with the new value.
+
+| Hook | `e` has | Can change |
 | --- | --- | --- |
-| `check_message` | `user`, `channel` or `target`, `text`, `notice` | return a text to refuse it with that reason; return `false` to drop it without a word; set `e.text` to change it; return nothing to let it pass |
+| `check_connect` | `user` (someone about to be let in; refusing disconnects them) | – |
+| `check_nick` | `user`, `nick` (the nick they want) | – |
+| `check_join` | `user`, `name`, `channel` (nil when it does not exist yet) | – |
+| `check_create` | `user`, `name` (a channel that would be made) | – |
+| `check_message` | `user`, `channel` or `target`, `text`, `notice` | `text`; `false` drops it without a word |
+| `check_tagmsg` | `user`, `channel` or `target` (typing notes, reactions) | – ; always refused without a word |
+| `check_part` | `user`, `channel`, `reason` | `reason`; refusing only removes the message |
+| `check_quit` | `user`, `reason` | `reason`; refusing only removes the message |
+| `check_topic` | `user`, `channel`, `text` | `text` |
+| `check_kick` | `user` (who would be kicked), `source`, `channel`, `reason` | `reason` |
+| `check_mode` | `user`, `channel`, `modes` (as typed, like `+k secret`) | – ; refuses the whole command |
+| `check_invite` | `user` (who is invited), `source`, `name` | – ; refused without a word |
+| `check_knock` | `user`, `channel`, `reason` | – |
+| `check_away` | `user`, `text` | `text` |
+| `check_command` | `user`, `command`, `params` (a list) | – ; not asked for PING, PONG, QUIT, OPER, REHASH and MODULE |
+| `check_oper` | `user`, `name` (the oper entry), `class` | – |
+| `check_whois` | `user` (who asks), `target` | return a text or a list of texts to add lines |
+| `check_list` | `user`, `channel` | return `false` to leave the channel out |
+| `check_names` | `user` (who asks), `member`, `channel` | return `false` to leave the member out of NAMES |
 
-`check_message` only runs for people connected to this server, like the server's own checks. Load the module on every server of the network.
+These only run for people connected to this server, like the server's own checks. Load the module on every server of the network.
 
 ### People and channels
 
@@ -150,7 +173,31 @@ command("HUG", { params = 1, help = "HUG <nick>: sends a hug", opers = false }, 
 | `after(seconds, function)` | Runs the function once, later |
 | `every(seconds, function)` | Runs it again and again |
 | `has_right(name)` | Whether the module was given a right |
-| `kill(user, reason)` | Disconnects someone. Needs the right `kill` |
+| `data(user)` or `data(channel)` | A table of your own that lasts as long as that person is connected or that channel exists; gone after a reload |
+
+Kept across restarts (in the server's database, 10 MB per module, each module its own):
+
+| Function | Does |
+| --- | --- |
+| `store.set(key, value)` | Keeps a text, a number, `true` or `false`; `nil` forgets the key |
+| `store.get(key)` | What was kept, or nil |
+| `store.delete(key)` | Forgets it |
+| `store.keys(prefix)` | The keys that start with `prefix` (all of them without one), sorted |
+
+Acting, each with a right (see [Rights](#rights)):
+
+| Function | Does | Right |
+| --- | --- | --- |
+| `kill(user, reason)` | Disconnects someone | `kill` |
+| `kick(channel, user, reason)` | Kicks someone, as the server | `kick` |
+| `set_topic(channel, text)` | Sets a topic, as the server | `topic` |
+| `force_join(user, "#channel")` | Makes someone join | `join` |
+| `set_user_mode(user, "+R")` | Sets user modes on someone connected to this server; never `o` | `usermode` |
+| `ban(user or ip, reason, seconds)` | Bans the IP address from the network (an AKILL), 60 seconds to 30 days, one hour when not given | `ban` |
+| `http.get(url, function(status, body, err))` | A web request; the function is called when the answer is in | `http` |
+| `http.post(url, body, function(status, body, err), type)` | The same with a body; `type` is `application/json` when not given | `http` |
+
+Web requests take at most 10 seconds and 256 KB, four at a time per module, and do not hold the server up. Addresses on the server's own machine and on private networks are refused unless the module also has the right `http-local`.
 
 From Lua itself a module has `string`, `table`, `math` and the basic functions. It has no files, no programs and no network.
 
@@ -166,6 +213,13 @@ allow = ["kill"]
 | Right | Lets the module |
 | --- | --- |
 | `kill` | disconnect people |
+| `kick` | kick people from channels |
+| `topic` | set channel topics |
+| `join` | make people join channels |
+| `usermode` | set user modes on people of this server |
+| `ban` | ban an IP address from the network for a time |
+| `http` | make web requests to the internet |
+| `http-local` | make web requests to this machine and private networks too |
 
 Without the right, the call fails and the opers are told which line to add.
 
@@ -178,4 +232,4 @@ Without the right, the call fails and the opers are told which line to add.
 
 ## What is planned
 
-Not in this version yet: the other "asked before" hooks (`check_join`, `check_nick`, `check_connect` and more; `beeircd module hooks` lists them), functions that act on channels (modes, kicks, topics, bans), data that is kept across restarts, web requests, a module's own channel modes, user modes and extbans, services commands and admin API methods.
+Not in this version yet: changing channel modes from a module, notices to a whole channel, a module's own channel modes, user modes and extbans, services commands, admin API methods, hooks for accounts, opers, server links and network bans (`beeircd module hooks` lists them), and a limit on how much memory a module may use.
