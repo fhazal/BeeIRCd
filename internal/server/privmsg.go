@@ -212,14 +212,8 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 	}
 }
 
-// cannotSend returns why u may not talk in ch, or "" when it may.
-func cannotSend(ch *state.Channel, u *state.User) string {
-	why, _ := cannotSendWhy(ch, u)
-	return why
-}
-
-// cannotSendWhy is cannotSend; soft reports a stop that +U turns into a
-// message for the ops (+m and bans).
+// cannotSendWhy returns why u may not talk in ch, or "" when it may. soft
+// reports a stop that +U turns into a message for the ops (+m and bans).
 func cannotSendWhy(ch *state.Channel, u *state.User) (why string, soft bool) {
 	mem := ch.Member(u)
 	if mem != nil && mem.AtLeast(state.RankVoice) {
