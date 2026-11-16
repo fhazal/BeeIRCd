@@ -72,6 +72,10 @@ type Client struct {
 	monitor     map[string]string // MONITOR list: folded nick -> nick as given
 	watch       map[string]string // WATCH list, like monitor (watch.go)
 	accept      map[string]bool   // ACCEPT list for user mode +g: UIDs (callerid.go)
+	// greetWait holds the connect notices until the first line came, so a
+	// web browser gets a clean HTTP answer ([server] web_redirect).
+	greetWait   bool
+	greetHeld   []string
 	calleridAt  map[string]time.Time
 	dccAllow    map[string]bool // DCCALLOW list: UIDs (dcc.go)
 	dccWarned   bool            // told once what DCCALLOW is for
@@ -134,6 +138,7 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 		caps:        make(map[string]bool),
 		floodBurst:  s.cfg.Limits.FloodBurst,
 		floodRate:   s.cfg.Limits.FloodRate,
+		greetWait:   s.cfg.Server.WebRedirect != "" && !ws,
 	}
 	s.clients[c.uid] = c
 	s.perIP[c.ip]++
@@ -490,6 +495,10 @@ func (s *Server) replyBare(c *Client, code string, params ...string) {
 
 // notice sends a server notice to c.
 func (s *Server) notice(c *Client, text string) {
+	if c.greetWait {
+		c.greetHeld = append(c.greetHeld, text)
+		return
+	}
 	c.send(irc.Message{Source: s.cfg.Server.Name, Command: "NOTICE", Params: []string{c.target(), text}, Trailing: true}.String())
 }
 

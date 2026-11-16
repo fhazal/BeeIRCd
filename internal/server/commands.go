@@ -187,6 +187,17 @@ func (s *Server) runLine(c *Client, line string) {
 }
 
 func (s *Server) runCommand(c *Client, m irc.Message) {
+	if c.greetWait {
+		c.greetWait = false
+		held := c.greetHeld
+		c.greetHeld = nil
+		if !c.registered && s.webRedirect(c, m) {
+			return
+		}
+		for _, text := range held {
+			s.notice(c, text)
+		}
+	}
 	if in := c.mlIn; in != nil && c.registered && m.Command != "BATCH" {
 		if id, ok := m.Tags["batch"]; ok && id == in.id {
 			s.multilineLine(c, m)

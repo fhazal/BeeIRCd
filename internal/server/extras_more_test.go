@@ -178,7 +178,16 @@ func TestPingCookie(t *testing.T) {
 }
 
 func TestWebRedirect(t *testing.T) {
-	s := testServer(t, func(c *config.Config) { c.Server.WebRedirect = "https://chat.example/" })
+	// With lookups on, the connect notices would come before the answer
+	// and no browser could read it: they wait for the first line.
+	s := testServer(t, func(c *config.Config) {
+		c.Server.WebRedirect = "https://chat.example/"
+		c.Server.IdentLookup = true
+	})
+	n := raw(t, s)
+	n.nick = "ann"
+	n.send("NICK ann")
+	n.expect("Checking Ident")
 	c := raw(t, s)
 	c.send("GET / HTTP/1.1")
 	c.conn.SetReadDeadline(time.Now().Add(3 * time.Second))
