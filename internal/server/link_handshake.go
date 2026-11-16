@@ -69,9 +69,14 @@ type linkState struct {
 	ln      net.Listener
 	conns   map[*linkConn]bool
 	servers map[string]*remoteServer // by SID: every server behind a link
-	retry   map[string]*linkRetry    // by lower-case block name
-	over    []*linkConn              // send queue overflowed, drop after this job
-	debug   bool                     // BEEIRCD_LINK_DEBUG=1: log every link line
+	// farAccept is who people on other servers let through their +g
+	// (acceptor UID -> accepted UIDs); farTold when a sender last heard
+	// about it (caller ID across links, usertools.go).
+	farAccept map[string]map[string]bool
+	farTold   map[string]time.Time
+	retry     map[string]*linkRetry // by lower-case block name
+	over      []*linkConn           // send queue overflowed, drop after this job
+	debug     bool                  // BEEIRCD_LINK_DEBUG=1: log every link line
 	// saslServer takes SASL for our clients when services are off here
 	// (it sent MD saslmechlist); sasl are logins our services run for
 	// clients on other servers, by UID.
@@ -656,6 +661,8 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		s.remoteQuery(l, m)
 	case "TSCTL":
 		s.remoteTsctl(l, m)
+	case "ACCEPT":
+		s.remoteAccept(l, m)
 	case "SDESC":
 		s.remoteSdesc(l, m)
 	case "UNINVITE":

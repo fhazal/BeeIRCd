@@ -39,6 +39,56 @@ type inspBridge struct {
 	behind    map[string]bool   // SIDs on their side of the link
 	names     map[string]string // SID -> server name (both sides)
 	pending   *inspUID          // a UID held back for its account METADATA
+	// theirExt is the extbans they have, from CAPAB EXTBANS (name ->
+	// "acting" or "matching"); nil when they sent none.
+	theirExt map[string]string
+}
+
+// parseInspExtbans reads CAPAB EXTBANS: "acting:mute=m matching:account=R".
+func parseInspExtbans(list string) map[string]string {
+	out := map[string]string{}
+	for _, w := range strings.Fields(list) {
+		kind, rest, ok := strings.Cut(w, ":")
+		if name, _, _ := strings.Cut(rest, "="); ok && name != "" {
+			out[name] = kind
+		}
+	}
+	return out
+}
+
+// banOut writes our mask m for their ban lists; false for what they can't
+// keep. InspIRCd turns an extban it doesn't have into a useless mask, so
+// those are left out. A forward ban goes as its extban when they have it
+// and as banredirect's mask#channel when not.
+func (b *inspBridge) banOut(m string) (string, bool) {
+	out, ok := irc.InspBan(m)
+	if !ok || b.theirExt == nil {
+		return out, ok
+	}
+	rest := out
+	for {
+		name, arg, found := strings.Cut(rest, ":")
+		if !found || name == "" || strings.Trim(name, "abcdefghijklmnopqrstuvwxyz") != "" {
+			return out, true
+		}
+		kind, have := b.theirExt[name]
+		switch {
+		case have && kind == "acting" && name == "redirect":
+			_, rest, _ = strings.Cut(arg, ":")
+		case have && kind == "acting":
+			rest = arg
+		case have:
+			return out, true
+		case name == "redirect" && rest == out:
+			to, in, _ := strings.Cut(arg, ":")
+			if to == "" || in == "" || strings.Contains(in, ":") {
+				return "", false
+			}
+			return in + to, true
+		default:
+			return "", false
+		}
+	}
 }
 
 // inspUID is a user from their burst, kept until its METADATA lines
@@ -397,6 +447,15 @@ func (b *inspBridge) out(m irc.Message) []string {
 		return b.outChange(src, m.Command, p, "FNAME", "CHGNAME")
 	case "TKL":
 		return b.outTKL(src, p)
+	case "SAJOIN", "SAPART", "SANICK", "ACCEPT":
+		// InspIRCd has the same commands, sent to the person's own server.
+		m.Source = src
+		return []string{m.String()}
+	case "TSCTL": // :uid TSCTL alltime -> InspIRCd's ALLTIME
+		if strings.EqualFold(arg(0), "alltime") {
+			return []string{line(nil, src, "ALLTIME", false)}
+		}
+		return nil
 	case "PING":
 		return []string{line(nil, b.me.SID, "PING", false, b.peer.SID)}
 	case "PONG": // :us PONG ourname :theirsid
@@ -613,7 +672,7 @@ func (b *inspBridge) outChanMode(src, ch, modes string, args []string) []string 
 	var cs []modeChange
 	for _, c := range parseModes(b.ours, modes, args) {
 		if b.ours.kind[c.l] == kindList {
-			mask, ok := irc.InspBan(c.arg)
+			mask, ok := b.banOut(c.arg)
 			if !ok {
 				continue // an extban InspIRCd doesn't have
 			}
@@ -697,7 +756,7 @@ func (b *inspBridge) outSJoin(src string, p []string) []string {
 		}
 		if l := listFromSJoin(it[0]); l != 0 {
 			t, ok := b.theirChan(l)
-			if mask, known := irc.InspBan(it[1:]); ok && known {
+			if mask, known := b.banOut(it[1:]); ok && known {
 				lists[t] = append(lists[t], mask, setBy, setAt)
 			}
 			continue
@@ -1088,9 +1147,12 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 			return nil, []string{line(nil, p[0], "IDLE", false, src, strconv.FormatInt(signon, 10), "0")}
 		}
 		return nil, nil
-	case "PRIVMSG", "NOTICE", "TAGMSG", "PART", "SVSJOIN", "SVSPART", "SVSNICK", "ERROR":
+	case "PRIVMSG", "NOTICE", "TAGMSG", "PART", "SVSJOIN", "SVSPART", "SVSNICK", "ERROR",
+		"SAJOIN", "SAPART", "SANICK", "ACCEPT":
 		m.Source = src
 		return one(m.String())
+	case "ALLTIME": // an oper asks every server for its clock
+		return one(line(nil, src, "TSCTL", false, "alltime"))
 	}
 	return nil, nil
 }
@@ -1265,6 +1327,16 @@ func (b *inspBridge) inMetadata(src string, p []string) []string {
 		}
 		return nil
 	}
+	if key == "callerid_data" && (b.pending == nil || b.pending.p[0] != p[0]) {
+		// "<time>,<uid>,<uid>": who this person lets through their +g.
+		var out []string
+		for i, w := range strings.Split(value, ",") {
+			if i > 0 && w != "" && len(out) < 100 {
+				out = append(out, line(nil, p[0], "ACCEPT", false, w))
+			}
+		}
+		return out
+	}
 	if key != "accountname" {
 		return nil
 	}
@@ -1310,6 +1382,11 @@ func (b *inspBridge) inEncap(src, target, cmd string, p []string) []string {
 		return []string{line(nil, src, "SASL", false, append([]string{target, p[0]}, p[2:]...)...)}
 	case "KNOCK":
 		return nil
+	case "SAJOIN", "SAPART", "SANICK":
+		// :oper ENCAP <sid> SAJOIN <uid> <#channel>
+		return []string{line(nil, src, cmd, len(p) > 2, p...)}
+	case "ALLTIME":
+		return []string{line(nil, src, "TSCTL", false, "alltime")}
 	}
 	return nil
 }

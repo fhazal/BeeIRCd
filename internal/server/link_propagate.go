@@ -710,7 +710,7 @@ func (s *Server) remoteMessage(l *linkConn, raw irc.Message, m *link.Message) {
 		return
 	}
 	if !s.ours(t.UID) {
-		if o := s.linkOf(t.UID); o != nil && o != l {
+		if o := s.linkOf(t.UID); o != nil && o != l && !s.farCallerBlocked(t, from, m.Verb == "PRIVMSG") {
 			s.routeUser(m.Source, t, m.Verb, m.Text, linkTags(tags, msgid))
 		}
 		return

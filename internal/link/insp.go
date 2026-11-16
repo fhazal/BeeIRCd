@@ -37,6 +37,8 @@ type insp struct {
 	peer       Peer
 	chanModes  string // their CAPAB CHANMODES
 	userModes  string // their CAPAB USERMODES
+	extBans    string // their CAPAB EXTBANS
+	haveExt    bool
 }
 
 // NewInsp starts an InspIRCd 4 handshake (see NewUnreal for the
@@ -129,6 +131,8 @@ func (h *insp) capabIn(p []string) ([]string, error) {
 		h.chanModes = arg
 	case "USERMODES":
 		h.userModes = arg
+	case "EXTBANS":
+		h.extBans, h.haveExt = arg, true
 	case "END":
 		if !h.capSent {
 			return nil, refuse("CAPAB END before CAPAB START")
@@ -265,5 +269,9 @@ type Bridge interface {
 }
 
 func (h *insp) Bridge() Bridge {
-	return newInspBridge(h.me, h.peer, h.chanModes, h.userModes)
+	b := newInspBridge(h.me, h.peer, h.chanModes, h.userModes)
+	if h.haveExt {
+		b.theirExt = parseInspExtbans(h.extBans)
+	}
+	return b
 }

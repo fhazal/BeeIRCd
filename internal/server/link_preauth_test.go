@@ -2,7 +2,9 @@ package server
 
 import (
 	"crypto/tls"
+	"errors"
 	"io"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -44,7 +46,8 @@ func TestLinkPreAuthLimits(t *testing.T) {
 	tc := strangerTLS(t, hub)
 	go tc.Write([]byte(strings.Repeat("PING :x\r\n", 2000)))
 	tc.SetReadDeadline(time.Now().Add(5 * time.Second))
-	if _, err := io.Copy(io.Discard, tc); err != nil {
+	// Dropped is a clean close or a reset; only a timeout means it stayed.
+	if _, err := io.Copy(io.Discard, tc); errors.Is(err, os.ErrDeadlineExceeded) {
 		t.Fatalf("a stranger sending 2000 lines before the handshake was not dropped: %v", err)
 	}
 	waitLink(t, "the reason in the log", func() bool { return hub.logHas("before the handshake") })

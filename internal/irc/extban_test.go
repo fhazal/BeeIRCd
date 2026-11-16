@@ -148,6 +148,8 @@ func TestExtbanUnrealAndInsp(t *testing.T) {
 		"nonick:j:@#bees": "~n:~c:@#bees",
 		"z:abcd":          "~S:abcd",
 		"C:*!*@x":         "~noctcp:*!*@x",
+		"*!*@fwd#over":    "~f:#over:*!*@fwd",
+		"nick!u@h#a-b":    "~f:#a-b:nick!u@h",
 	} {
 		if got, ok := FromInspBan(in); !ok || got != want {
 			t.Errorf("FromInspBan(%q) = %q, %v; want %q", in, got, ok, want)

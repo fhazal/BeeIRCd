@@ -159,7 +159,7 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 			}
 			continue
 		}
-		if s.callerBlocked(t, u, verb == "PRIVMSG") {
+		if s.callerBlocked(t, u, verb == "PRIVMSG") || s.farCallerBlocked(t, u, verb == "PRIVMSG") {
 			continue
 		}
 		if why := s.antiSpam(c, nil, t, verb, text); why != "" {

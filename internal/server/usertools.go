@@ -201,6 +201,7 @@ func (s *Server) cmdAccept(c *Client, m irc.Message) {
 				s.reply(c, errAcceptNot, t.Nick, "is not on your accept list")
 			default:
 				delete(c.accept, t.UID)
+				s.acceptOut(nil, c.uid, t, true)
 			}
 		default:
 			nick := strings.TrimPrefix(w, "+")
@@ -212,9 +213,123 @@ func (s *Server) cmdAccept(c *Client, m irc.Message) {
 				s.reply(c, errAcceptExist, t.Nick, "is already on your accept list")
 			case !s.acceptAdd(c, t):
 				s.reply(c, errAcceptFull, "Accept list is full")
+			default:
+				s.acceptOut(nil, c.uid, t, false)
 			}
 		}
 	}
+}
+
+// acceptOut tells the server of t that acceptor lets t through their +g.
+// InspIRCd checks caller ID on the sender's server, so it has to know;
+// UnrealIRCd has no caller ID and is not told.
+func (s *Server) acceptOut(from *linkConn, acceptor string, t *state.User, remove bool) {
+	if s.ours(t.UID) {
+		return
+	}
+	o := s.linkOf(t.UID)
+	if o == nil || o == from || !(o.peer.Bee || o.bridge != nil) {
+		return
+	}
+	uid := t.UID
+	if remove {
+		uid = "-" + uid
+	}
+	o.send(":" + acceptor + " ACCEPT " + uid)
+}
+
+// remoteAccept is ACCEPT from someone on another server: kept, and passed
+// on towards the person it is about.
+func (s *Server) remoteAccept(l *linkConn, m irc.Message) {
+	a := s.net.UserByUID(m.Source)
+	if a == nil || len(m.Params) == 0 {
+		return
+	}
+	ls := &s.links
+	for _, w := range strings.Split(m.Params[0], ",") {
+		remove := strings.HasPrefix(w, "-")
+		t := s.net.UserByUID(strings.TrimLeft(w, "+-"))
+		if t == nil || t == a {
+			continue
+		}
+		list := ls.farAccept[a.UID]
+		switch {
+		case remove:
+			delete(list, t.UID)
+			if len(list) == 0 {
+				delete(ls.farAccept, a.UID)
+			}
+		case list[t.UID]:
+		default:
+			if len(ls.farAccept) > 5000 || len(list) >= acceptMax {
+				s.farAcceptPrune()
+				list = ls.farAccept[a.UID]
+			}
+			if len(list) >= acceptMax {
+				continue
+			}
+			if ls.farAccept == nil {
+				ls.farAccept = map[string]map[string]bool{}
+			}
+			if list == nil {
+				list = map[string]bool{}
+				ls.farAccept[a.UID] = list
+			}
+			list[t.UID] = true
+		}
+		s.acceptOut(l, a.UID, t, remove)
+	}
+}
+
+// farAcceptPrune forgets the lists of people who left, and the people on
+// them who left.
+func (s *Server) farAcceptPrune() {
+	for a, list := range s.links.farAccept {
+		if s.net.UserByUID(a) == nil {
+			delete(s.links.farAccept, a)
+			continue
+		}
+		for t := range list {
+			if s.net.UserByUID(t) == nil {
+				delete(list, t)
+			}
+		}
+	}
+}
+
+// farCallerBlocked is callerBlocked for t on an InspIRCd server, which
+// leaves caller ID to the sender's side: this server is that side for
+// everyone it passes on to that link.
+func (s *Server) farCallerBlocked(t, from *state.User, tell bool) bool {
+	if from == nil || !t.HasMode('g') || from == t || from.Service || from.Modes['o'] || s.ours(t.UID) {
+		return false
+	}
+	if o := s.linkOf(t.UID); o == nil || o.bridge == nil {
+		return false
+	}
+	if o := s.linkOf(from.UID); o != nil && o.bridge != nil {
+		return false // their own server looked already
+	}
+	ls := &s.links
+	if ls.farAccept[t.UID][from.UID] {
+		return false
+	}
+	if !tell {
+		return true
+	}
+	h := host{s}
+	h.Numeric(from.UID, errTargUModeG, t.Nick, "is in +g mode (server-side ignore).")
+	now, key := time.Now(), t.UID+" "+from.UID
+	if last, ok := ls.farTold[key]; ok && now.Sub(last) < calleridEvery {
+		return true
+	}
+	if ls.farTold == nil || len(ls.farTold) > 2000 {
+		ls.farTold = map[string]time.Time{}
+	}
+	ls.farTold[key] = now
+	h.Numeric(from.UID, rplTargNotify, t.Nick, "has been informed that you messaged them.")
+	h.Numeric(t.UID, rplUModeGMsg, from.Nick, from.Ident+"@"+from.Host, "is messaging you, and you have user mode +g set. Use /ACCEPT "+from.Nick+" to allow.")
+	return true
 }
 
 // callerBlocked reports whether t (one of ours, with +g) refuses a private

@@ -23,7 +23,7 @@ How to set each one up is in [ADMIN.md](ADMIN.md); installing is in [INSTALL.md]
 | Input limits | ✅ | lines over 510 bytes or tags over 4096 bytes get 417 and are dropped, not cut |
 | User modes `i w o s r x` | ✅ | |
 | User modes `B d D R T p Z H W q z` | ✅ | UnrealIRCd letters and rules: bot, deaf, private-message filters, hidden channels, hidden oper, WHOIS notice, unkickable, TLS |
-| Caller ID: user mode `g` and ACCEPT | ✅ | private messages only from people on your accept list (InspIRCd's callerid, numerics 716-718); works across linked BeeIRCd servers |
+| Caller ID: user mode `g` and ACCEPT | ✅ | private messages only from people on your accept list (InspIRCd's callerid, numerics 716-718); works across linked BeeIRCd and InspIRCd servers |
 | WATCH and MONITOR notify lists | ✅ | WATCH with UnrealIRCd's numerics (128 nicks), MONITOR (100); one list engine |
 | Channel modes `o v b e I k l i m n p s t R M r` | ✅ | |
 | Channel modes `c S C T N K V Q z Z D P O` | ✅ | UnrealIRCd letters and rules |

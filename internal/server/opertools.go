@@ -120,8 +120,21 @@ func (s *Server) relayOper(c *Client, m irc.Message, beeOnly bool) bool {
 	switch {
 	case o == nil || !o.up || o.closed:
 		s.reply(c, irc.ErrNoSuchNick, m.Params[idx], "No such nick/channel")
-	case o.bridge != nil || beeOnly && !o.peer.Bee:
+	case o.bridge != nil && !bridgeCarries[m.Command] || beeOnly && !o.peer.Bee:
 		s.notice(c, "*** "+m.Command+" can't reach "+t.Nick+": "+t.Server+" is behind a link that doesn't carry it")
+	case o.bridge != nil && m.Command != "SANICK":
+		// InspIRCd takes one channel in each SAJOIN or SAPART.
+		for _, name := range strings.Split(m.Params[1], ",") {
+			if name == "" {
+				continue
+			}
+			line := ":" + c.uid + " " + m.Command + " " + t.UID + " " + name
+			if r := m.Param(2); r != "" && m.Command == "SAPART" {
+				line += " :" + r
+			}
+			o.send(line)
+		}
+		s.snotice("%s used %s on %s (on %s): %s", c.user.Nick, m.Command, t.Nick, t.Server, strings.Join(m.Params[1:], " "))
 	default:
 		p := append([]string{}, m.Params...)
 		p[idx] = t.UID
@@ -139,10 +152,16 @@ func (s *Server) relayedIn(l *linkConn, m irc.Message) bool {
 	if !ok || !isUID(m.Source) || s.net.UserByUID(m.Source) == nil {
 		return false
 	}
-	if (m.Command == "SAJOIN" || m.Command == "SAPART") && !s.beeLink(m.Source) {
-		// An UnrealIRCd oper: its server checked their rights, and we
-		// don't know their flags. Joined and parted as before.
-		return false
+	if !s.beeLink(m.Source) {
+		// An UnrealIRCd or InspIRCd oper: their server checked their
+		// rights, and we don't know their flags.
+		switch m.Command {
+		case "SAJOIN", "SAPART":
+			return false // joined and parted as before
+		case "SANICK":
+			s.farSanick(l, m)
+			return true
+		}
 	}
 	if idx >= len(m.Params) {
 		return true
@@ -164,6 +183,35 @@ func (s *Server) relayedIn(l *linkConn, m irc.Message) bool {
 	}
 	s.runFor(m.Source, func(c *Client) { cmd.run(s, c, m) })
 	return true
+}
+
+// bridgeCarries are the relayCmds an InspIRCd link carries too.
+var bridgeCarries = map[string]bool{"SAJOIN": true, "SAPART": true, "SANICK": true}
+
+// farSanick is SANICK from an oper of another kind of server.
+func (s *Server) farSanick(l *linkConn, m irc.Message) {
+	if len(m.Params) < 2 {
+		return
+	}
+	t, from := s.userByUIDOrNick(m.Params[0]), s.net.UserByUID(m.Source)
+	if t == nil || from == nil {
+		return
+	}
+	if !s.ours(t.UID) {
+		if o := s.linkOf(t.UID); o != nil && o != l && (o.peer.Bee || o.bridge != nil) {
+			o.send(":" + m.Source + " SANICK " + t.UID + " " + m.Params[1])
+		}
+		return
+	}
+	nick, old := m.Params[1], t.Nick
+	if !irc.ValidNick(nick, s.cfg.Limits.NickLen) || services.IsReserved(nick) || (!irc.EqualFold(nick, old) && s.net.NickInUse(nick)) {
+		host{s}.ServerNotice(from.UID, "*** SANICK: "+old+" can't be renamed to "+nick)
+		return
+	}
+	if err := s.emit(&state.NickChange{UID: t.UID, Nick: nick, TS: time.Now().Unix()}); err != nil {
+		return
+	}
+	s.snotice("%s used SANICK to change %s to %s", from.Nick, old, nick)
 }
 
 // ---- SA commands ----

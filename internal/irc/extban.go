@@ -435,6 +435,10 @@ func FromInspBan(m string) (string, bool) {
 	}
 	name, arg, ok := strings.Cut(m, ":")
 	if !ok || strings.ContainsAny(name, "!@") {
+		// InspIRCd's banredirect writes a forward ban as mask#channel.
+		if i := strings.LastIndexByte(m, '#'); i > 0 && !strings.ContainsAny(m[i:], "!@:") && strings.ContainsAny(m[:i], "!@") {
+			return NormalizeBan("~forward:" + m[i:] + ":" + m[:i])
+		}
 		return NormalizeBan(m)
 	}
 	e := extByInsp[name]
