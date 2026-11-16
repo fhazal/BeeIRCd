@@ -20,7 +20,7 @@ const (
 	maxRealname = 50
 	maxIdentLen = 10
 	maxVhostLen = 63
-	saFlag      = 'a' // SAJOIN SAPART SANICK SAMODE SATOPIC
+	saFlag      = 'a' // SAJOIN SAPART SANICK SAMODE SATOPIC, and the tools in opertools.go
 	chgFlag     = 'h' // SETHOST SETIDENT CHGHOST CHGIDENT CHGNAME
 )
 
@@ -345,7 +345,7 @@ func (s *Server) cmdChgident(c *Client, m irc.Message) {
 // ---- SA commands (oper flag a) ----
 
 func (s *Server) cmdSajoin(c *Client, m irc.Message) {
-	if !s.needFlag(c, nil, saFlag) {
+	if !s.needFlag(c, nil, saFlag) || s.relayOper(c, m, false) {
 		return
 	}
 	t := s.opTarget(c, m.Params[0])
@@ -375,7 +375,7 @@ func (s *Server) cmdSajoin(c *Client, m irc.Message) {
 }
 
 func (s *Server) cmdSapart(c *Client, m irc.Message) {
-	if !s.needFlag(c, nil, saFlag) {
+	if !s.needFlag(c, nil, saFlag) || s.relayOper(c, m, false) {
 		return
 	}
 	t := s.opTarget(c, m.Params[0])
@@ -411,7 +411,7 @@ func (s *Server) cmdSapart(c *Client, m irc.Message) {
 }
 
 func (s *Server) cmdSanick(c *Client, m irc.Message) {
-	if !s.needFlag(c, nil, saFlag) {
+	if !s.needFlag(c, nil, saFlag) || s.relayOper(c, m, false) {
 		return
 	}
 	t := s.opTarget(c, m.Params[0])

@@ -180,6 +180,7 @@ var umodesHelp = []string{
 	" D no private messages (opers still can)  R private messages only from",
 	"                                            identified users",
 	" T no CTCPs          p hide my channels in WHOIS",
+	" g caller ID: private messages only from people on my /ACCEPT list",
 	" Z private messages only with TLS users",
 	"Opers:",
 	" H hide that I'm an oper                  W see who WHOISes me",

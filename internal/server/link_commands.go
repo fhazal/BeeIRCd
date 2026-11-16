@@ -351,6 +351,8 @@ func (s *Server) remoteQuery(l *linkConn, m irc.Message) {
 			s.adminHere(c)
 		case "TIME":
 			s.reply(c, irc.RplTime, s.cfg.Server.Name, time.Now().Format("Monday January 2 2006 -- 15:04:05 -07:00"))
+		case "TRACE":
+			s.traceHere(c)
 		case "STATS":
 			letter := "*"
 			if len(m.Params) > 1 && m.Params[0] != "" {

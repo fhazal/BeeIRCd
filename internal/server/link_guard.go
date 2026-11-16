@@ -24,6 +24,7 @@ var servicesOnly = map[string]bool{
 // operOnly are commands a user sends only as an IRC operator.
 var operOnly = map[string]bool{
 	"CHGHOST": true, "CHGIDENT": true, "CHGNAME": true, "SAJOIN": true, "SAPART": true,
+	"SANICK": true, "SAQUIT": true, "NICKLOCK": true, "NICKUNLOCK": true, "TSCTL": true, "SDESC": true,
 }
 
 // linkSource finds who sent m on l: a server behind l, or a user of one

@@ -289,57 +289,70 @@ func (s *Server) cmdKick(c *Client, m irc.Message) {
 
 // kick removes nicks from the channel name on behalf of c.
 func (s *Server) kick(c *Client, name string, nicks []string, reason string) {
-	u := c.user
-	ch := s.net.Channel(name)
+	ch, mem := s.kickFrom(c, name, "KICK")
 	if ch == nil {
-		s.reply(c, irc.ErrNoSuchChannel, name, "No such channel")
-		return
-	}
-	mem := ch.Member(u)
-	if mem == nil {
-		s.reply(c, irc.ErrNotOnChannel, ch.Name, "You're not on that channel")
-		return
-	}
-	if !mem.AtLeast(state.RankHalfop) {
-		s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You're not channel operator")
-		return
-	}
-	if ch.HasMode('Q') && !c.isOper() {
-		s.reply(c, irc.ErrCannotDoCommand, "KICK", "channel is +Q")
-		return
-	}
-	if !c.isOper() && ch.Stops(u, state.StopKick) {
-		s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You may not kick people in this channel (you're banned from it)")
 		return
 	}
 	for _, nick := range nicks {
-		t := s.net.UserByNick(nick)
+		t := s.kickTarget(c, ch, mem, nick, "KICK", "kick")
 		if t == nil {
-			s.reply(c, irc.ErrNoSuchNick, nick, "No such nick/channel")
 			continue
 		}
-		tm := ch.Member(t)
-		if tm == nil {
-			s.reply(c, irc.ErrUserNotInChannel, t.Nick, ch.Name, "They aren't on that channel")
-			continue
-		}
-		if t.Service {
-			s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You can't kick "+t.Nick+": it is a network service")
-			continue
-		}
-		if t.HasMode('q') && t != u && !c.can('a') {
-			s.reply(c, irc.ErrCannotDoCommand, "KICK", "user is unkickable (user mode +q)")
-			continue
-		}
-		if t != u && !canKick(mem, tm) {
-			s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You can't kick "+t.Nick+": their channel status protects them")
-			continue
-		}
-		s.emit(&state.Kick{Source: u.UID, UID: t.UID, Channel: ch.Name, Reason: reason})
+		s.emit(&state.Kick{Source: c.user.UID, UID: t.UID, Channel: ch.Name, Reason: reason})
 		if s.net.Channel(ch.Name) == nil {
 			return // the last one left: the channel is gone
 		}
 	}
+}
+
+// kickFrom checks that c may kick people from the channel name (KICK and
+// REMOVE); nil when not, with the reason sent.
+func (s *Server) kickFrom(c *Client, name, cmd string) (*state.Channel, *state.Member) {
+	u := c.user
+	ch := s.net.Channel(name)
+	if ch == nil {
+		s.reply(c, irc.ErrNoSuchChannel, name, "No such channel")
+		return nil, nil
+	}
+	mem := ch.Member(u)
+	switch {
+	case mem == nil:
+		s.reply(c, irc.ErrNotOnChannel, ch.Name, "You're not on that channel")
+	case !mem.AtLeast(state.RankHalfop):
+		s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You're not channel operator")
+	case ch.HasMode('Q') && !c.isOper():
+		s.reply(c, irc.ErrCannotDoCommand, cmd, "channel is +Q")
+	case !c.isOper() && ch.Stops(u, state.StopKick):
+		s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You may not kick people in this channel (you're banned from it)")
+	default:
+		return ch, mem
+	}
+	return nil, nil
+}
+
+// kickTarget finds nick in ch and checks that c (member mem) may kick
+// them; verb is "kick" or "remove" for the answers.
+func (s *Server) kickTarget(c *Client, ch *state.Channel, mem *state.Member, nick, cmd, verb string) *state.User {
+	u := c.user
+	t := s.userByUIDOrNick(nick)
+	if t == nil {
+		s.reply(c, irc.ErrNoSuchNick, nick, "No such nick/channel")
+		return nil
+	}
+	tm := ch.Member(t)
+	switch {
+	case tm == nil:
+		s.reply(c, irc.ErrUserNotInChannel, t.Nick, ch.Name, "They aren't on that channel")
+	case t.Service:
+		s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You can't "+verb+" "+t.Nick+": it is a network service")
+	case t.HasMode('q') && t != u && !c.can('a'):
+		s.reply(c, irc.ErrCannotDoCommand, cmd, "user is unkickable (user mode +q)")
+	case t != u && !canKick(mem, tm):
+		s.reply(c, irc.ErrChanOPrivsNeeded, ch.Name, "You can't "+verb+" "+t.Nick+": their channel status protects them")
+	default:
+		return t
+	}
+	return nil
 }
 
 func (s *Server) cmdInvite(c *Client, m irc.Message) {

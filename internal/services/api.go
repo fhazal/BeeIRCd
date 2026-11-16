@@ -251,6 +251,16 @@ func (s *Services) ThrottleBan(ip, reason string, life time.Duration) {
 	s.autoBan(store.BanZline, ip, reason, "Throttle", life)
 }
 
+// OperBan adds a timed network ban on ip for an oper's command
+// (CLEARCHAN G and Z): an AKILL on *@ip, or a ZLINE.
+func (s *Services) OperBan(zline bool, ip, reason, setBy string, life time.Duration) {
+	kind := store.BanAkill
+	if zline {
+		kind = store.BanZline
+	}
+	s.autoBan(kind, ip, reason, setBy, life)
+}
+
 func (s *Services) autoBan(kind, ip, reason, setBy string, life time.Duration) {
 	mask := ip
 	if kind != store.BanZline {

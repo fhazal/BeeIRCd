@@ -3,6 +3,7 @@ package server
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/state"
@@ -40,12 +41,7 @@ func (s *Server) cmdMonitor(c *Client, m irc.Message) {
 					c.monitor = make(map[string]string)
 				}
 				c.monitor[key] = nick
-				w := s.watchers[key]
-				if w == nil {
-					w = make(map[*Client]bool)
-					s.watchers[key] = w
-				}
-				w[c] = true
+				s.indexWatch(c, key)
 			}
 			if u := s.net.UserByNick(nick); u != nil {
 				online = append(online, u.Prefix())
@@ -117,6 +113,27 @@ func (s *Server) unwatch(c *Client, key string) {
 		return
 	}
 	delete(c.monitor, key)
+	s.unindexWatch(c, key)
+}
+
+// indexWatch notes that c wants to hear about the nick key (MONITOR or
+// WATCH); unindexWatch drops it once neither list has the nick.
+func (s *Server) indexWatch(c *Client, key string) {
+	w := s.watchers[key]
+	if w == nil {
+		w = make(map[*Client]bool)
+		s.watchers[key] = w
+	}
+	w[c] = true
+}
+
+func (s *Server) unindexWatch(c *Client, key string) {
+	if _, ok := c.monitor[key]; ok {
+		return
+	}
+	if _, ok := c.watch[key]; ok {
+		return
+	}
 	if w := s.watchers[key]; w != nil {
 		delete(w, c)
 		if len(w) == 0 {
@@ -130,18 +147,31 @@ func (s *Server) monitorDrop(c *Client) {
 	for key := range c.monitor {
 		s.unwatch(c, key)
 	}
+	s.watchDrop(c)
 }
 
 // monitorOnline and monitorOffline tell the watchers of a nick.
 func (s *Server) monitorOnline(u *state.User) {
-	for c := range s.watchers[irc.Fold(u.Nick)] {
-		s.reply(c, irc.RplMonOnline, u.Prefix())
+	key := irc.Fold(u.Nick)
+	for c := range s.watchers[key] {
+		if _, ok := c.monitor[key]; ok {
+			s.reply(c, irc.RplMonOnline, u.Prefix())
+		}
+		if _, ok := c.watch[key]; ok {
+			s.reply(c, rplLogon, u.Nick, u.Ident, u.Host, strconv.FormatInt(u.NickTS, 10), "logged online")
+		}
 	}
 }
 
-func (s *Server) monitorOffline(nick string) {
-	for c := range s.watchers[irc.Fold(nick)] {
-		s.reply(c, irc.RplMonOffline, nick)
+func (s *Server) monitorOffline(nick, ident, host string) {
+	key := irc.Fold(nick)
+	for c := range s.watchers[key] {
+		if _, ok := c.monitor[key]; ok {
+			s.reply(c, irc.RplMonOffline, nick)
+		}
+		if _, ok := c.watch[key]; ok {
+			s.reply(c, rplLogoff, nick, ident, host, strconv.FormatInt(time.Now().Unix(), 10), "logged offline")
+		}
 	}
 }
 
@@ -160,14 +190,14 @@ func (s *Server) monitorPrepare(ev state.Event) func() {
 		}
 	case *state.UserQuit:
 		if u := s.net.UserByUID(e.UID); u != nil {
-			nick := u.Nick
-			return func() { s.monitorOffline(nick) }
+			nick, ident, host := u.Nick, u.Ident, u.Host
+			return func() { s.monitorOffline(nick, ident, host) }
 		}
 	case *state.NickChange:
 		if u := s.net.UserByUID(e.UID); u != nil && !irc.EqualFold(u.Nick, e.Nick) {
-			old := u.Nick
+			old, ident, host := u.Nick, u.Ident, u.Host
 			return func() {
-				s.monitorOffline(old)
+				s.monitorOffline(old, ident, host)
 				if nu := s.net.UserByUID(e.UID); nu != nil {
 					s.monitorOnline(nu)
 				}

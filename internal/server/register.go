@@ -211,6 +211,10 @@ func (s *Server) cmdNick(c *Client, m irc.Message) {
 	if nick == u.Nick {
 		return
 	}
+	if c.nickLocked {
+		s.reply(c, irc.ErrNoNickChange, "You may not change your nickname: an IRC operator locked it")
+		return
+	}
 	if !c.isOper() && !irc.EqualFold(nick, u.Nick) {
 		for _, ch := range u.Channels {
 			mem := ch.Member(u)
@@ -289,8 +293,11 @@ func (s *Server) cmdQuit(c *Client, m irc.Message) {
 // tryRegister finishes registration once NICK, USER, CAP and the host
 // lookup are all done.
 func (s *Server) tryRegister(c *Client) {
-	if c.registered || c.closed || c.nick == "" || c.ident == "" || !c.hostDone || c.dnsblBusy || c.capBusy || c.saslBusy || c.webircBusy {
+	if c.registered || c.closed || c.nick == "" || c.ident == "" || !c.hostDone || c.dnsblBusy || c.capBusy || c.saslBusy || c.webircBusy || c.identBusy {
 		return
+	}
+	if c.identAnswer != "" {
+		c.ident = c.identAnswer // their ident server answered: no ~
 	}
 	if r := c.dnsblListed; r != nil {
 		c.dnsblListed = nil
@@ -340,6 +347,10 @@ func (s *Server) tryRegister(c *Client) {
 	}
 	if s.localUsers() >= s.cfg.Limits.MaxUsers {
 		s.quit(c, "This server is full. Please try again later.")
+		return
+	}
+	if s.jump != nil {
+		s.jumpRedirect(c) // JUMPSERVER: go there instead
 		return
 	}
 	if k := s.svc.ConnectBan(c.ident, c.host, c.ip, c.realname); k != nil {
@@ -430,7 +441,7 @@ func (s *Server) setHost(c *Client, host string) {
 	s.reply(c, irc.RplHostHidden, host, "is now your displayed host")
 }
 
-const userModes = "BDHRTWZdhiopqrswxz"
+const userModes = "BDHRTWZdghiopqrswxz"
 
 // operOnlyModes go when someone stops being an oper.
 const operOnlyModes = "HWq"
@@ -492,9 +503,11 @@ func (s *Server) channelModesWithParam() string {
 func (s *Server) isupport() []string {
 	l := s.cfg.Limits
 	out := []string{
+		"ACCEPT=" + strconv.Itoa(acceptMax),
 		"ACCOUNTEXTBAN=a",
 		"AWAYLEN=" + strconv.Itoa(l.AwayLen),
 		"BOT=B",
+		"CALLERID=g",
 		"CASEMAPPING=" + irc.Casemapping(),
 		"CHANLIMIT=#:" + strconv.Itoa(l.MaxChannels),
 		"CHANMODES=" + chanModesList + "," + chanModesKey + "," + chanModesParam + "," + chanModesFlags,
@@ -519,6 +532,7 @@ func (s *Server) isupport() []string {
 		"TARGMAX=JOIN:,KICK:4,NAMES:1,NOTICE:4,PART:,PRIVMSG:4,WHOIS:1",
 		"TOPICLEN=" + strconv.Itoa(l.TopicLen),
 		"USERLEN=10",
+		"WATCH=" + strconv.Itoa(watchMax),
 		"WHOX",
 	}
 	if l.UTF8Only {

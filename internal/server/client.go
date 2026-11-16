@@ -70,9 +70,17 @@ type Client struct {
 	certfp      string            // SHA-256 of the TLS client certificate, "" = none
 	sessionLate bool              // over its IP's session limit at connect: check again with the hostname
 	monitor     map[string]string // MONITOR list: folded nick -> nick as given
-	silence     []string          // SILENCE masks (nick!ident@host)
-	knocks      []time.Time       // recent KNOCKs, for the knock flood limit
-	operFlags   string            // oper flags like "abcghks", "" when not an oper
+	watch       map[string]string // WATCH list, like monitor (watch.go)
+	accept      map[string]bool   // ACCEPT list for user mode +g: UIDs (callerid.go)
+	calleridAt  map[string]time.Time
+	dccAllow    map[string]bool // DCCALLOW list: UIDs (dcc.go)
+	dccWarned   bool            // told once what DCCALLOW is for
+	nickLocked  bool            // NICKLOCK: may not change nick
+	identBusy   bool            // an ident lookup is running (ident.go)
+	identAnswer string          // the username their identd gave
+	silence     []string        // SILENCE masks (nick!ident@host)
+	knocks      []time.Time     // recent KNOCKs, for the knock flood limit
+	operFlags   string          // oper flags like "abcghks", "" when not an oper
 	operTitle   string
 	operClass   string    // oper class in use ("" = flags only)
 	operSwhois  []string  // extra WHOIS lines (320) while opered
@@ -149,6 +157,7 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 	if c.closed {
 		return
 	}
+	s.identStart(c)
 
 	if !s.cfg.ResolveHosts() {
 		c.hostDone = true

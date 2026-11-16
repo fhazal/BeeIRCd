@@ -73,6 +73,9 @@ type Config struct {
 	SecurityGroups []SecurityGroup `toml:"security_group"`
 	ConnThrottle   ConnThrottle    `toml:"connthrottle"`
 	Restricts      []Restrict      `toml:"restrict"`
+	// DenyDCC and AllowDCC say which files may be sent with DCC SEND.
+	DenyDCC  []DenyDCC  `toml:"deny_dcc"`
+	AllowDCC []AllowDCC `toml:"allow_dcc"`
 	// OperClasses are the [[operclass]] blocks (see Classes).
 	OperClasses []OperClass `toml:"operclass"`
 
@@ -158,6 +161,10 @@ type Server struct {
 	// (read-marker, multiline, message-redaction, account-registration,
 	// pre-away, extended-isupport) to clients that ask. Off by default.
 	IRCv3Drafts bool `toml:"ircv3_drafts"`
+	// IdentLookup asks the ident server (port 113) of each connecting
+	// computer for the username. Off by default: almost nobody runs one
+	// any more and waiting for an answer slows every login down.
+	IdentLookup bool `toml:"ident_lookup"`
 }
 
 // FullPrefixes reports whether owner, admin and halfop exist.
@@ -578,6 +585,9 @@ func (c *Config) Check() error {
 		return fmt.Errorf("[services] registration %q: use \"none\", \"mail\" or \"admin\"", c.Services.Registration)
 	}
 	if err := c.Web.check(); err != nil {
+		return err
+	}
+	if err := c.checkDCC(); err != nil {
 		return err
 	}
 	if err := c.Map.check(); err != nil {

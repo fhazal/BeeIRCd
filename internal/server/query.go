@@ -271,6 +271,7 @@ func (s *Server) addWhowasNick(prefix string, u *state.User) {
 	nick, rest, _ := strings.Cut(prefix, "!")
 	ident, host, _ := strings.Cut(rest, "@")
 	s.whowas = append(s.whowas, whowasEntry{nick, ident, host, u.Realname, u.Server, time.Now()})
+	s.whowasDirty = true
 	if len(s.whowas) > whowasSize {
 		s.whowas = s.whowas[len(s.whowas)-whowasSize:]
 	}

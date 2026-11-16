@@ -11,19 +11,27 @@ How to set each one up is in [ADMIN.md](ADMIN.md); installing is in [INSTALL.md]
 | Registration, PING, QUIT, NICK, USER, PASS | ✅ | PASS is ignored (no server password) |
 | JOIN, PART, KICK, INVITE, TOPIC, NAMES, LIST | ✅ | KICK takes `#a,#b nick1,nick2` pairs (RFC 2812) |
 | PRIVMSG, NOTICE, TAGMSG, STATUSMSG (`@#`, `+#`) | ✅ | |
-| WHO, WHOIS, WHOWAS, ISON, USERHOST, AWAY | ✅ | `WHO exactnick` shows +i users; `WHO *` also lists the services |
+| WHO, WHOIS, WHOWAS, ISON, USERHOST, AWAY | ✅ | `WHO exactnick` shows +i users; `WHO *` also lists the services; WHOWAS is kept across restarts (a week) |
 | MOTD, LUSERS, VERSION, TIME, INFO, HELP, HELPOP | ✅ | HELP covers every command and the channel modes |
 | Input limits | ✅ | lines over 510 bytes or tags over 4096 bytes get 417 and are dropped, not cut |
 | User modes `i w o s r x` | ✅ | |
 | User modes `B d D R T p Z H W q z` | ✅ | UnrealIRCd letters and rules: bot, deaf, private-message filters, hidden channels, hidden oper, WHOIS notice, unkickable, TLS |
+| Caller ID: user mode `g` and ACCEPT | ✅ | private messages only from people on your accept list (InspIRCd's callerid, numerics 716-718); works across linked BeeIRCd servers |
+| WATCH and MONITOR notify lists | ✅ | WATCH with UnrealIRCd's numerics (128 nicks), MONITOR (100); one list engine |
 | Channel modes `o v b e I k l i m n p s t R M r` | ✅ | |
 | Channel modes `c S C T N K V Q z Z D P O` | ✅ | UnrealIRCd letters and rules |
 | Flood guard `+f [10j#R10,40m#M10]:15` and `+F` profiles | ✅ | UnrealIRCd syntax; a server-wide default profile |
 | `+L` link channel, `+E` repeat, `+B` caps, `+J` rejoin delay | ✅ | |
 | Channel history `+H lines:time`, playback on join, CHATHISTORY | ✅ | kept encrypted on disk (AES-256-GCM), so a restart keeps it |
 | KNOCK, SILENCE, SETNAME, CHGNAME | ✅ | |
+| CYCLE, REMOVE / FPART, UNINVITE | ✅ | REMOVE is a kick that shows as a PART, so clients don't rejoin by themselves |
+| DCC file rules: `[[deny_dcc]]`, `[[allow_dcc]]`, DCCALLOW | ✅ | UnrealIRCd's deny dcc: file types refused for everyone, or only until the receiver allows the sender |
+| Ident lookups (`[server] ident_lookup`) | ✅ | off by default |
 | SETHOST, SETIDENT, CHGHOST, CHGIDENT | ✅ | opers with flag h |
-| SAJOIN, SAPART, SANICK, SAMODE, SATOPIC | ✅ | opers with flag a |
+| SAJOIN, SAPART, SANICK, SAMODE, SATOPIC | ✅ | opers with flag a; they reach people on other servers too |
+| SAKICK, SAQUIT, CLEARCHAN, NICKLOCK, NICKUNLOCK | ✅ | opers with flag a (InspIRCd's commands) |
+| TRACE, CHECK, TLINE, SETIDLE, TSCTL ALLTIME / ALLTIME | ✅ | opers; ALLTIME shows every server's clock |
+| SDESC, JUMPSERVER | ✅ | opers with flag a (UnrealIRCd's commands): change the server description, send people to another server before maintenance |
 | Prefixes `@+` (default) or `~&@%+` | ✅ | `[server] prefixes` |
 | TLS 1.2+, self-signed or your own certificate | ✅ | a changed certificate is picked up without a restart |
 | Let's Encrypt built in | ✅ | HTTP-01, port 80 open only while asking, renewed by itself, loaded live |

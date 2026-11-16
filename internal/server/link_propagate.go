@@ -234,6 +234,12 @@ func (s *Server) linkLines(o *linkConn, ev state.Event, src string, from *linkCo
 		}
 		return cd.Encode(&link.Realname{Source: source, UID: e.UID, Realname: e.Realname})
 	case *state.Invite:
+		if e.Remove {
+			if !o.peer.Bee {
+				return nil // UNINVITE is ours and InspIRCd's; nothing to say to UnrealIRCd
+			}
+			return []string{":" + srcOr(e.Source, src) + " UNINVITE " + e.UID + " " + e.Channel}
+		}
 		return cd.Encode(&link.Invite{Source: srcOr(e.Source, src), UID: e.UID, Channel: e.Channel})
 	}
 	return nil // ChannelTS, Reveal: each server works those out itself
@@ -710,6 +716,12 @@ func (s *Server) remoteMessage(l *linkConn, raw irc.Message, m *link.Message) {
 		return
 	}
 	if from != nil && s.silenced(t, from) {
+		return
+	}
+	if s.callerBlocked(t, from, m.Verb == "PRIVMSG") {
+		return
+	}
+	if file, ok := dccFile(m.Text); ok && m.Verb != "TAGMSG" && s.dccSoftBlocked(from, t, file) {
 		return
 	}
 	if s.svc.IsBot(t) {

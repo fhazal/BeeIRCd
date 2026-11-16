@@ -295,6 +295,79 @@ command = "list"
 connect_time = "60s"
 ```
 
+## Oper tools
+
+Besides `/KILL`, the SA commands and the network bans, opers have the
+tools of UnrealIRCd and InspIRCd. `/HELP <command>` explains each one.
+
+| Command | Flag | What it does |
+| --- | --- | --- |
+| `SAKICK <#channel> <nick> [reason]` | `a` | Kicks someone as the server, whatever their status |
+| `SAQUIT <nick> <reason>` | `a` | Makes someone quit with your reason, as if they left by themselves |
+| `CLEARCHAN <#channel> [KICK\|KILL\|G\|Z] [reason]` | `a` | Empties a channel: everyone but you, opers and services is kicked (default), killed, or banned for an hour by host (`G`) or IP (`Z`) |
+| `NICKLOCK <nick> <newnick>`, `NICKUNLOCK <nick>` | `a` | Changes a nick and holds it until unlocked or until they reconnect |
+| `SDESC <text>` | `a` | Changes this server's description (LINKS, WHOIS) until the next restart or rehash |
+| `JUMPSERVER <server[:port]> [<tls server[:port]>] <NEW\|ALL> [reason]` | `a` | Sends people to another server; see below |
+| `TRACE [server]` | any | This server's connections: people, opers, linked servers |
+| `CHECK <nick\|#channel\|mask>` | any | Everything the server knows about a person or channel, or who matches a mask |
+| `TLINE <user@host>` | any | Counts who a ban mask would hit, without banning anyone |
+| `SETIDLE <time>` | any | Sets your own idle time (`90`, `30m`, `2h`) |
+| `TSCTL ALLTIME` or `ALLTIME` | any | The clock of every server, to spot one that is off |
+
+SAJOIN, SAPART, SANICK, SAQUIT, NICKLOCK and NICKUNLOCK also work on
+people connected to another server: the command travels to their server,
+which carries it out. NICKLOCK and SAQUIT need that server to be BeeIRCd
+(on other software SAQUIT becomes a KILL).
+
+**Moving people before maintenance.** `/JUMPSERVER irc2.example.org NEW
+back in an hour` sends everyone who connects from then on to
+irc2.example.org (numeric 010; most clients follow it by themselves) and
+closes their connection. `ALL` instead of `NEW` also moves everyone
+connected now, except opers. A second address is for TLS connections:
+`/JUMPSERVER irc2.example.org:6667 irc2.example.org:6697 ALL`.
+`/JUMPSERVER` alone shows the setting and `/JUMPSERVER OFF` ends it; a
+restart ends it too. It applies to the server you type it on.
+
+### For everyone
+
+- **Caller ID.** `/MODE yournick +g` lets only people on your accept list
+  message you. `/ACCEPT nick` adds someone, `/ACCEPT -nick` removes them,
+  `/ACCEPT *` shows the list (30 people, until you disconnect). People
+  you message yourself are added for you. A refused sender is told, and
+  you are told who tried, at most once a minute for each sender. Opers
+  and services always get through.
+- **Notify lists.** `WATCH` and `MONITOR` both tell a client when a nick
+  comes online or leaves; clients pick the one they know.
+- `CYCLE #channel` leaves and rejoins, `REMOVE #channel nick [reason]`
+  (channel ops) makes someone leave as a PART instead of a KICK, and
+  `UNINVITE nick #channel` takes an invite back.
+- WHOWAS remembers people for a week, also across a restart.
+
+### DCC file rules
+
+Like UnrealIRCd's `deny dcc`. Nothing is blocked until you add blocks:
+
+```toml
+# Never: programs
+[[deny_dcc]]
+filename = "*.exe"
+reason = "Programs can carry viruses"
+
+# Only from people the receiver trusts
+[[deny_dcc]]
+filename = "*.zip"
+reason = "Archive"
+soft = true
+```
+
+A `soft` block holds the file back until the receiver types `/DCCALLOW
++nick` for the sender (10 people, until they disconnect; `/DCCALLOW LIST`,
+`/DCCALLOW HELP`). The receiver is told who tried to send what. Blocks
+without `soft` refuse the file type for everyone, in private and in
+channels. `[[allow_dcc]]` makes exceptions, and opers are never blocked.
+The rules look at the file name in the DCC SEND request; the file itself
+travels between the two people, not through the server.
+
 ## Spam filter
 
 Rules that catch spam as it is sent, like UnrealIRCd's spamfilter. Opers
@@ -766,6 +839,7 @@ Unknown settings are refused, so a typo shows up in `beeircd check`.
 | `find_place_by_ip` | `true` | Ask ipinfo.io once where this server's own IP address is, for the Hive Panel's network map (city level, rounded to about 10 km; the answer is kept next to the database). Only the server's own address is sent. Not asked when a `[[map.place]]` block places this server; `false`: its time zone places it |
 | `prefixes` | `"@+"` | `"@+"` or `"~&@%+"` (owner, admin, op, halfop, voice) (restart) |
 | `casemapping` | `"ascii"` | How nicks and channels ignore case: `"ascii"` (only A-Z: `Belon` = `belon`, but `[` and `{` differ, like UnrealIRCd 6 and InspIRCd) or `"rfc1459"` (also `[]\~` = `{}|^`). Every linked server needs the same; UnrealIRCd links need ascii. Changing it moves the stored nicks and channels to the new rule at the next start; going to rfc1459 is refused when two stored names would become one (restart) |
+| `ident_lookup` | `false` | Ask the ident server (port 113) of every connecting computer for the username; with an answer the username shows without the leading `~`. Off by default: almost nobody runs an ident server any more, and each login waits up to 3 seconds for the answer. Not asked on WebSocket or `proxy` ports |
 | `ircv3_drafts` | `false` | Offer the IRCv3 drafts that aren't final yet to clients that ask: `draft/read-marker` (read position shared by all your devices), `draft/pre-away` (bouncers and phones set AWAY while connecting), `draft/extended-isupport` (the 005 list before sign-in with `ISUPPORT`), `draft/multiline` (a pasted block of up to 24 lines or 4096 bytes is one message, checked once by the spam filter and flood rules; clients without it and other servers get the lines one by one), `draft/message-redaction` (`REDACT` takes a message back: the sender for 15 minutes, channel ops and IRC operators at any time; clients with it hide the message, +H history forgets it, other BeeIRCd servers pass it on; clients without it still show the message), `draft/account-registration` (`REGISTER <nick|*> <email|*> <password>` and `VERIFY <nick> <code>` from a client's sign-up screen, with NickServ's rules: `force_email`, `registration`, `reg_delay`; offered on the server that runs services, once the connection is complete). Clients that don't ask see no change. AdminServ `SET ircv3-drafts` switches it live (clients with cap-notify hear CAP NEW / DEL) |
 
 ### [[listen]]
@@ -1076,6 +1150,21 @@ under `[security_group.exclude]` (the same items).
 | `command` | A command, like `"list"`, `"invite"`, `"knock"`, or `private-message`, `private-notice`, `channel-message`, `channel-notice`, `channel-create`, `join` |
 | `connect_time` | Allowed once connected this long (up to `24h`); none: only the `except` groups may use it |
 | `except` | Groups that may always use it, like `["known-users"]` |
+
+### [[deny_dcc]]
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `filename` | – | File names refused in DCC SEND, with `*` and `?`, like `"*.exe"` |
+| `reason` | a standard text | What the sender is told |
+| `soft` | `false` | `true`: only held back until the receiver allows the sender with `/DCCALLOW +nick`. `false`: refused for everyone |
+
+### [[allow_dcc]]
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `filename` | – | File names let through although a `[[deny_dcc]]` block of the same kind (the same `soft`) matches, like `"*.txt"` under a deny of `"*"` |
+| `soft` | `false` | Which kind of `[[deny_dcc]]` block this is an exception to |
 
 ### [update]
 

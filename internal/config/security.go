@@ -328,3 +328,36 @@ func (c *Config) RestrictFor(name string) (Restrict, bool) {
 	}
 	return Restrict{}, false
 }
+
+// DenyDCC is a [[deny_dcc]] block: DCC SEND of files with a matching name
+// is refused (UnrealIRCd's deny dcc).
+type DenyDCC struct {
+	// Filename: a file name with * and ?, like "*.exe".
+	Filename string `toml:"filename"`
+	// Reason is shown to the sender.
+	Reason string `toml:"reason"`
+	// Soft: the receiver can still allow it from someone they trust with
+	// /DCCALLOW +nick. Without it the file type is refused for everyone.
+	Soft bool `toml:"soft"`
+}
+
+// AllowDCC is an [[allow_dcc]] block: an exception to the [[deny_dcc]]
+// blocks of the same kind (soft or not), like "*.txt" under a deny of "*".
+type AllowDCC struct {
+	Filename string `toml:"filename"`
+	Soft     bool   `toml:"soft"`
+}
+
+func (c *Config) checkDCC() error {
+	for _, d := range c.DenyDCC {
+		if strings.TrimSpace(d.Filename) == "" {
+			return fmt.Errorf("[[deny_dcc]] needs a filename, like \"*.exe\"")
+		}
+	}
+	for _, a := range c.AllowDCC {
+		if strings.TrimSpace(a.Filename) == "" {
+			return fmt.Errorf("[[allow_dcc]] needs a filename, like \"*.txt\"")
+		}
+	}
+	return nil
+}

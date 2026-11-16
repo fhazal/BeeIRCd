@@ -604,6 +604,9 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 	if !s.linkGate(l, m) {
 		return
 	}
+	if s.relayedIn(l, m) {
+		return
+	}
 	switch m.Command {
 	case "PING":
 		if dest := param(1); dest == "" || strings.EqualFold(dest, s.cfg.Server.Name) || dest == s.cfg.Server.SID {
@@ -649,8 +652,14 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		s.linkSASL(l, m)
 	case "WHOIS":
 		s.remoteWhois(l, m)
-	case "MOTD", "VERSION", "ADMIN", "TIME", "STATS":
+	case "MOTD", "VERSION", "ADMIN", "TIME", "STATS", "TRACE":
 		s.remoteQuery(l, m)
+	case "TSCTL":
+		s.remoteTsctl(l, m)
+	case "SDESC":
+		s.remoteSdesc(l, m)
+	case "UNINVITE":
+		s.remoteUninvite(l, m)
 	case "SVSNOOP":
 		s.remoteNoop(l, m)
 	case "BEEADMIN":

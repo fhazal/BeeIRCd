@@ -30,18 +30,22 @@ import (
 
 // Server is one running BeeIRCd.
 type Server struct {
-	cfg       *config.Config
-	mailOK    mailTested // the last test mail that went through (Hive Panel)
-	log       *log.Logger
-	net       *state.Network
-	clients   map[string]*Client // by UID, registered or not
-	events    chan func()
-	done      chan struct{}
-	listeners []listener
-	created   time.Time
-	whowas    []whowasEntry
-	maxLocal  int
-	maxGlobal int // most people on the network at once (LUSERS)
+	cfg         *config.Config
+	mailOK      mailTested // the last test mail that went through (Hive Panel)
+	log         *log.Logger
+	net         *state.Network
+	clients     map[string]*Client // by UID, registered or not
+	events      chan func()
+	done        chan struct{}
+	listeners   []listener
+	created     time.Time
+	whowas      []whowasEntry
+	whowasDirty bool // entries not saved yet (whowasdb.go)
+	whowasSaved time.Time
+	jump        *jumpServer // JUMPSERVER: where people are sent, nil = off
+	identPort   int         // where ident servers listen (113; tests change it)
+	maxLocal    int
+	maxGlobal   int // most people on the network at once (LUSERS)
 	// Hive Panel Spotlight (spotlight.go): when each person last talked
 	// in each channel (times only), and today's most people at once.
 	talk       map[*state.Channel]map[string]int64
@@ -187,6 +191,7 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	s.store = db
 	s.loadReadMarkers()
 	s.loadReputation(time.Now())
+	s.loadWhowas(time.Now())
 	for _, n := range db.Notes() {
 		logger.Printf("services database: %s", n)
 	}
@@ -361,6 +366,7 @@ func (s *Server) Serve(ctx context.Context) error {
 			s.historyTick(now)
 			s.throttleTick(now)
 			s.repTick(now)
+			s.whowasTick(now)
 			s.groupTick(now)
 			s.certTick(now)
 			s.svc.Tick(now)
@@ -488,6 +494,7 @@ func (s *Server) shutdown(reason string) {
 	s.saveHistorySnapshot(snap)
 	s.svc.SaveSeen()
 	s.saveReputation(time.Now())
+	s.saveWhowas(time.Now())
 	if err := s.store.Close(); err != nil {
 		s.log.Printf("closing services database: %v", err)
 	}

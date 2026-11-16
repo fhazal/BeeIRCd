@@ -109,6 +109,7 @@ func (s *Server) webircApply(c *Client, name, ip, host, flags string) {
 	c.tls = gatewayTLS && slices.Contains(strings.Fields(flags), "secure")
 	// Forget lookups still running for the gateway's IP.
 	c.lookupGen++
+	c.identBusy, c.identAnswer = false, "" // an ident answer was the gateway's
 	c.hostDone = true
 	c.dnsblBusy, c.dnsblListed = false, nil
 	s.log.Printf("webirc %s: %s is %s (%s)", name, old, ip, host)

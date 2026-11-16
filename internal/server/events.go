@@ -217,6 +217,21 @@ func (s *Server) prepare(ev state.Event) func() {
 			s.toWatchers(u, o)
 		}
 	case *state.Invite:
+		if e.Remove {
+			return func() {
+				name := e.Channel
+				if ch := s.net.Channel(e.Channel); ch != nil {
+					name = ch.Name
+				}
+				by := s.cfg.Server.Name
+				if u := s.net.UserByUID(e.Source); u != nil {
+					by = u.Nick
+				}
+				if tc := s.clients[e.UID]; tc != nil && tc.user != nil {
+					s.reply(tc, "493", "You were uninvited from "+name+" by "+by)
+				}
+			}
+		}
 		return func() {
 			t := s.net.UserByUID(e.UID)
 			name := e.Channel

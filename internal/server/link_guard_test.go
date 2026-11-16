@@ -242,7 +242,8 @@ func rogueRandom(t *testing.T, seed uint64) {
 	cmds := []string{"PRIVMSG", "NOTICE", "TAGMSG", "NICK", "QUIT", "PART", "KICK", "MODE", "UMODE2", "SVSMODE", "SVS2MODE",
 		"SVSLOGIN", "SETHOST", "CHGHOST", "SETIDENT", "CHGIDENT", "SETNAME", "CHGNAME", "INVITE", "SVSNICK", "TKL", "TOPIC",
 		"AWAY", "KILL", "SVSKILL", "SVSJOIN", "SAJOIN", "SVSPART", "SAPART", "SJOIN", "MD", "SASL", "WHOIS", "MOTD", "VERSION",
-		"ADMIN", "TIME", "STATS", "SVSNOOP", "BEEADMIN", "BEEOPER", "BEEOPERR", "NETINFO", "PING", "PONG", "001", "311", "SINFO"}
+		"ADMIN", "TIME", "STATS", "SVSNOOP", "BEEADMIN", "BEEOPER", "BEEOPERR", "NETINFO", "PING", "PONG", "001", "311", "SINFO",
+		"SANICK", "SAQUIT", "NICKLOCK", "NICKUNLOCK", "REMOVE", "UNINVITE", "TSCTL", "SDESC", "TRACE"}
 	sources := []string{leaf.sid, b, "", "9ZZ", "0ZZAAAAAA", "bob", "leaf.test.local", "services.test.local"}
 	pool := []string{a, b, "#x", "#y", "*", "", "+", "-", "0", "1700000000", "-5", "99999999999999999999", "+ovbk", "-ovbk+l",
 		"+bbbbbbbbbbbbbbbbbbbb", "*!*@*", "*@*", "G", "Z", "Q", "n", "s", "e", "+G", "client", "channel", "bee-operflags",

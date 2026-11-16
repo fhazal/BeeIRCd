@@ -152,6 +152,8 @@ type Invite struct {
 	Source  string
 	UID     string
 	Channel string
+	// Remove takes the invite back (UNINVITE).
+	Remove bool
 }
 
 func (*UserAdd) event()        {}
@@ -301,7 +303,11 @@ func (n *Network) Apply(ev Event) error {
 			return ErrNoSuchUser
 		}
 		if ch := n.Channel(e.Channel); ch != nil {
-			ch.Invited[e.UID] = true
+			if e.Remove {
+				delete(ch.Invited, e.UID)
+			} else {
+				ch.Invited[e.UID] = true
+			}
 		}
 	default:
 		return errors.New("unknown event")

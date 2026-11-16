@@ -104,7 +104,7 @@ func (s *Server) setUserModes(c *Client, srcUID, modeStr string) bool {
 					flip('h', false) // an oper's +h goes with oper, a listed helper's stays
 				}
 			}
-		case 'B', 'd', 'D', 'R', 'T', 'p', 'Z':
+		case 'B', 'd', 'D', 'R', 'T', 'p', 'Z', 'g':
 			if cur[mc] != add {
 				flip(mc, add)
 			}

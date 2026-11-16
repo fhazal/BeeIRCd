@@ -88,6 +88,12 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 				}
 				s.reveal(u, ch)
 			}
+			if file, ok := dccFile(text); ok && !tagOnly && !c.isOper() {
+				if d := s.dccDenied(file, false); d != nil {
+					fail(irc.ErrCannotSendToChan, ch.Name, "Cannot DCC SEND file "+file+" ("+dccReason(d)+")")
+					continue
+				}
+			}
 			if !tagOnly {
 				t, why, drop := s.channelText(c, ch, verb, text)
 				if why != "" {
@@ -139,6 +145,21 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 				fail(irc.ErrCantSendToUser, t.Nick, why)
 			}
 			continue
+		}
+		if s.callerBlocked(t, u, verb == "PRIVMSG") {
+			continue
+		}
+		if file, ok := dccFile(text); ok && !tagOnly && !c.isOper() && !t.Service {
+			if d := s.dccDenied(file, false); d != nil {
+				fail(irc.ErrCantSendToUser, t.Nick, "Cannot DCC SEND file "+file+" ("+dccReason(d)+")")
+				continue
+			}
+			if s.dccSoftBlocked(u, t, file) {
+				continue
+			}
+		}
+		if u.HasMode('g') && t != u && !t.Service && !tagOnly {
+			s.acceptAdd(c, t) // +g: whoever you write to may answer
 		}
 		o := build(t.Nick)
 		if !tagOnly {
