@@ -448,6 +448,10 @@ func TestLinkOperTools(t *testing.T) {
 	bob.expect(" 493 robert :You were uninvited from #y by op")
 	op.send("MODE #y +i")
 	op.expect("MODE #y +i")
+	waitLink(t, "+i on the leaf", func() (set bool) {
+		leaf.s.onLoop(func() { set = leaf.s.net.Channel("#y").Modes['i'] })
+		return
+	})
 	bob.send("JOIN #y")
 	bob.expect(" 473 robert #y ")
 	op.send("SAJOIN robert #y")
