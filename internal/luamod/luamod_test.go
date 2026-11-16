@@ -40,7 +40,7 @@ func TestCheckSource(t *testing.T) {
 		"name":      {"m", "module { name = \"other\", version = \"1\" }\non(\"join\", function(e) end)\n", "does not match the file name m.lua"},
 		"version":   {"m", "module { name = \"m\" }\non(\"join\", function(e) end)\n", "has no version"},
 		"hook":      {"m", "module { name = \"m\", version = \"1\" }\non(\"on_join\", function(e) end)\n", "did you mean join?"},
-		"planned":   {"m", "module { name = \"m\", version = \"1\" }\non(\"check_join\", function(e) end)\n", "planned but not in this version"},
+		"planned":   {"m", "module { name = \"m\", version = \"1\" }\non(\"server_link\", function(e) end)\n", "planned but not in this version"},
 		"command":   {"m", "module { name = \"m\", version = \"1\" }\ncommand(\"MY CMD\", {}, function() end)\n", "letters and digits only"},
 		"nothing":   {"m", "module { name = \"m\", version = \"1\" }\n", "would do nothing"},
 		"api":       {"m", "module { name = \"m\", version = \"1\", api = 9 }\non(\"join\", function(e) end)\n", "module interface 9"},
