@@ -59,6 +59,8 @@ func (s *Server) panelBackupGet(req control.Request, done func(control.Response)
 			done(control.Response{Backup: &control.Backup{File: path, Bytes: fi.Size()}})
 		case services.PwLocked:
 			done(control.Response{Error: "Too many wrong passwords for this oper. Try again in " + services.RoundUp(s.lockedFor(key, req.IP)) + "."})
+		case services.PwDown:
+			done(control.Response{Error: "The login server can't be reached right now. Try again in a moment."})
 		default:
 			s.panelEvent(po.Account, req.IP, "could not download backup "+name+": wrong password")
 			s.snotice("Hive Panel: wrong password for %s's backup download from %s", po.Account, req.IP)

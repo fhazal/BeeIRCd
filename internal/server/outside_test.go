@@ -134,6 +134,25 @@ func TestOutsideNoCreate(t *testing.T) {
 	c.expect(nsLine("ann", "ann isn't registered. Register it: /ns register <password> [email]"))
 }
 
+// Nobody can register here: the "register it" hint would send people
+// to a command that refuses them.
+func TestOutsideNoCreateNoLocalPasswords(t *testing.T) {
+	no := false
+	s := testServer(t, outsideSQL(outsideDB(t), func(a *config.Auth) { a.Create, a.LocalPasswords = &no, &no }))
+	c := login(t, s, "ann")
+	c.send("NS IDENTIFY " + pwOutside)
+	c.expect(nsLine("ann", "ann has no account here. Ask an admin of this network."))
+}
+
+// /oper while the outside source is down says so, not "Password incorrect".
+func TestOutsideOperDown(t *testing.T) {
+	gone := filepath.ToSlash(filepath.Join(t.TempDir(), "no", "such", "dir", "users.db"))
+	s, _, _ := fileServer(t, "\n[auth]\nsource = \"sql\"\nopers = true\n[auth.sql]\ndriver = \"sqlite\"\ndsn = \""+gone+"\"\nquery = \"SELECT password FROM users WHERE name = $name\"\n")
+	b := registered(t, s, "Boss")
+	b.send("OPER Boss " + pwOutside)
+	b.expect(" 464 Boss :The login server can't be reached right now. Try again in a moment.")
+}
+
 func TestOutsideDown(t *testing.T) {
 	// A database that can't be opened: the source is down.
 	gone := filepath.Join(t.TempDir(), "no", "such", "dir", "users.db")

@@ -153,6 +153,9 @@ func (s *Server) panelLogin(req control.Request, done func(control.Response)) {
 				return
 			}
 			done(control.Response{Error: "Too many wrong passwords for this oper. Try again in " + services.RoundUp(s.lockedFor(key, ip)) + ".", Denied: "signin"})
+		case services.PwDown:
+			s.panelEvent(nick, ip, "could not sign in: the login server can't be reached")
+			done(control.Response{Error: "The login server can't be reached right now. Try again in a moment.", Denied: "signin"})
 		default:
 			if members { // maybe their NickServ password: the member pages
 				s.memberLogin(a, nick, pw, ip, func(r control.Response) {

@@ -54,8 +54,8 @@ func (u RPCUser) Allows(method string) bool {
 
 // From reports whether the user may call from ip.
 func (u RPCUser) From(ip net.IP) bool {
-	if len(u.IPs) == 0 {
-		return ip.IsLoopback()
+	if ip.IsLoopback() {
+		return true // this machine may always call; ips adds to it
 	}
 	for _, m := range u.IPs {
 		if n, err := ParseCIDR(m); err == nil && n.Contains(ip) {

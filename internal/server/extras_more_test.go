@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -263,5 +264,32 @@ func TestMoreSmallOptionsCheck(t *testing.T) {
 		if err := cfg.Check(); err == nil {
 			t.Errorf("%s: accepted", name)
 		}
+	}
+}
+
+// The small [server] options apply on a rehash, without a restart.
+func TestSmallServerOptionsRehash(t *testing.T) {
+	s, path, _ := fileServer(t, "")
+	o := boss(t, s)
+	conf, _ := os.ReadFile(path)
+	text := strings.Replace(string(conf), "[server]\n", "[server]\nping_cookie = true\nconnect_modes = \"+R\"\nhide_servers = true\n", 1)
+	if text == string(conf) {
+		t.Fatal("no [server] line in the test config")
+	}
+	os.WriteFile(path, []byte(text), 0o600)
+	o.send("REHASH")
+	if l := o.expect("re-read beeircd.conf"); strings.Contains(l, "restart") {
+		t.Fatalf("a restart is asked for: %q", l)
+	}
+	c := raw(t, s)
+	c.nick = "ann"
+	c.send("NICK ann")
+	c.send("USER ann 0 * :Ann")
+	l := c.expect("PING :")
+	c.send("PONG :" + strings.TrimSpace(l[strings.Index(l, "PING :")+6:]))
+	c.expect(" 001 ann ")
+	c.send("MODE ann")
+	if l := c.expect(" 221 ann "); !strings.Contains(l, "R") {
+		t.Fatalf("user modes: %q", l)
 	}
 }

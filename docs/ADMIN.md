@@ -903,8 +903,9 @@ ips = ["192.0.2.10"]              # may call from this address too
 **Three ways in**
 
 - **HTTPS**: `POST https://server:8600/api` with HTTP Basic auth (the
-  name and password of an `[[rpc.user]]` block), one call per request. It
-  uses the server's certificate from `[tls]`.
+  name and password of an `[[rpc.user]]` block), one call per request
+  (JSON-RPC batches, several calls in one list, are not taken; every call
+  needs an `id`). It uses the server's certificate from `[tls]`.
 - **WebSocket** on the same address and path, with the same sign-in: many
   calls on one connection, and the live log.
 - **A socket file** (`socket = "/run/beeircd/rpc.sock"`): one JSON object
@@ -1389,7 +1390,7 @@ under `[security_group.exclude]` (the same items).
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `enabled` | `false` | Cap the messages one channel or person can be sent, by everyone together |
+| `enabled` | `false` | Cap the messages one channel or person can be sent, by everyone on this server together (each server counts for itself) |
 | `channel_privmsg` | `45:5` | Messages per seconds to one channel |
 | `channel_notice` | `15:5` | Notices to one channel |
 | `channel_tagmsg` | `15:5` | Tag-only messages (like typing notes) to one channel |
@@ -1452,7 +1453,7 @@ In `[auth.sql]`:
 | `name` | – | In a `[[rpc.user]]` block: the name a tool signs in with (letters, digits, `_`, `.`, `-`) |
 | `password` | – | In a `[[rpc.user]]` block: its password as a hash from `beeircd mkpasswd` |
 | `allow` | every method | In a `[[rpc.user]]` block: the methods it may call, like `["user.*", "server_ban.list"]` |
-| `ips` | this machine only | In a `[[rpc.user]]` block: addresses or ranges it may call from |
+| `ips` | this machine only | In a `[[rpc.user]]` block: other addresses or ranges it may call from; this machine may always call |
 
 ### [[showfile]]
 

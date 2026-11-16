@@ -219,7 +219,11 @@ func nsIdentify(s *Services, c *Client, args []string) {
 		return
 	}
 	if a == nil {
-		s.ns(c, "%s isn't registered. Register it: /ns register <password> [email]", nick)
+		if s.LocalPasswords() {
+			s.ns(c, "%s isn't registered. Register it: /ns register <password> [email]", nick)
+		} else {
+			s.ns(c, "%s has no account here. Ask an admin of this network.", nick)
+		}
 		s.nsLogCmd(c, "and failed to identify to nonexistent account %s", nick)
 		return
 	}

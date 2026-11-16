@@ -157,6 +157,7 @@
 "%s isn't part of your account." = "%s bukan sebahagian daripada akaun anda."
 "%s isn't registered with ChanServ." = "%s tidak didaftarkan dengan ChanServ."
 "%s isn't registered." = "%s tidak didaftarkan."
+"%s has no account here. Ask an admin of this network." = "%s tiada akaun di sini. Sila hubungi admin rangkaian ini."
 "%s isn't registered. Register it: /ns register <password> [email]" = "%s tidak didaftarkan. Daftarkannya: /ns register <kata laluan> [e-mel]"
 "%s isn't suspended." = "%s tidak digantung."
 "%s list of %s:" = "Senarai %s bagi %s:"

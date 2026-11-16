@@ -336,7 +336,7 @@ func restartOnly(ch config.Change) bool {
 	case "":
 		return ch.Key == "ports"
 	case "server":
-		return ch.Key != "description" && ch.Key != "resolve_hosts"
+		return !serverLive[ch.Key]
 	case "cloak", "tls", "control":
 		return true
 	case "rpc":
@@ -351,13 +351,24 @@ func restartOnly(ch config.Change) bool {
 	return false
 }
 
+// serverLive are the [server] settings a rehash applies at once: they are
+// read each time they are used. The rest (name, SID, cloaking...) is
+// fixed while the server runs.
+var serverLive = map[string]bool{
+	"description": true, "resolve_hosts": true, "hide_servers": true, "connect_modes": true,
+	"oper_modes": true, "oper_join": true, "ping_cookie": true, "web_redirect": true,
+}
+
 // keepRestartOnly copies the settings that need a restart from old into
 // fresh, so applying fresh changes only what is safe live.
 func keepRestartOnly(fresh, old *config.Config) {
 	fresh.Listen = old.Listen
-	desc, resolve := fresh.Server.Description, fresh.Server.ResolveHosts
+	live := fresh.Server
 	fresh.Server = old.Server
-	fresh.Server.Description, fresh.Server.ResolveHosts = desc, resolve
+	fresh.Server.Description, fresh.Server.ResolveHosts = live.Description, live.ResolveHosts
+	fresh.Server.HideServers, fresh.Server.ConnectModes = live.HideServers, live.ConnectModes
+	fresh.Server.OperModes, fresh.Server.OperJoin = live.OperModes, live.OperJoin
+	fresh.Server.PingCookie, fresh.Server.WebRedirect = live.PingCookie, live.WebRedirect
 	fresh.Cloak, fresh.TLS, fresh.Control = old.Cloak, old.TLS, old.Control
 	fresh.RPC.Listen, fresh.RPC.Socket = old.RPC.Listen, old.RPC.Socket
 	servers := fresh.Link.Servers

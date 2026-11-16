@@ -385,7 +385,9 @@ func TestRPCConfig(t *testing.T) {
 			t.Errorf("Allows(%s) = %v", method, !want)
 		}
 	}
-	if !u.From(net.ParseIP("192.0.2.9")) || u.From(net.ParseIP("127.0.0.1")) || !(config.RPCUser{}).From(net.ParseIP("::1")) {
+	// This machine may always call; ips adds other addresses.
+	if !u.From(net.ParseIP("192.0.2.9")) || !u.From(net.ParseIP("127.0.0.1")) || u.From(net.ParseIP("203.0.113.1")) ||
+		!(config.RPCUser{}).From(net.ParseIP("::1")) || (config.RPCUser{}).From(net.ParseIP("192.0.2.9")) {
 		t.Error("From is wrong")
 	}
 }

@@ -337,8 +337,14 @@ func (s *Server) rpcLogin(name, pass string, ip net.IP) (rc *rpcConn, why string
 	}) {
 		return nil, "The server is stopping."
 	}
-	if !found || ip == nil || !u.From(ip) {
+	if !found || ip == nil {
 		return fail()
+	}
+	if !u.From(ip) {
+		// Not a wrong password: it isn't even looked at, and doesn't
+		// count towards the lock.
+		s.post(func() { s.snotice("RPC: '%s' may not call from %s (see ips in its [[rpc.user]] block)", u.Name, key) })
+		return nil, "Wrong name or password, or this address may not use that name."
 	}
 	sum := sha256.Sum256([]byte(pass))
 	cacheKey := u.Name + "\x00" + u.Password

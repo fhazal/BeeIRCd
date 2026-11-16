@@ -280,6 +280,9 @@ func (s *Server) cmdOper(c *Client, m irc.Message) {
 			s.reply(c, irc.ErrPasswdMismatch, "Too many wrong passwords. Try again in "+services.RoundUp(s.lockedFor(operLockKey(a.ID), c.ip)))
 		case services.PwBusy:
 			s.stdReply(c, "FAIL", "OPER", "TRY_AGAIN", "Still checking your last password. Try again in a moment.", "")
+		case services.PwDown:
+			s.reply(c, irc.ErrPasswdMismatch, "The login server can't be reached right now. Try again in a moment.")
+			s.snotice("Failed /oper as %s from %s (%s@%s): the login server can't be reached", o.Account, u.Nick, u.Ident, u.RealHost)
 		default:
 			s.reply(c, irc.ErrPasswdMismatch, "Password incorrect")
 			s.snotice("Failed /oper as %s from %s (%s@%s): wrong password", o.Account, u.Nick, u.Ident, u.RealHost)

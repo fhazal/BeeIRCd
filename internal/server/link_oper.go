@@ -165,6 +165,8 @@ func (s *Server) remoteOper(l *linkConn, m irc.Message) {
 			fail(irc.ErrPasswdMismatch, "Too many wrong passwords. Try again in "+services.RoundUp(s.lockedFor(operLockKey(a.ID), u.IP)), "locked out")
 		case services.PwBusy:
 			s.operAnswer(uid, "FAIL NOTICE :Still checking your last password. Try again in a moment.")
+		case services.PwDown:
+			fail(irc.ErrPasswdMismatch, "The login server can't be reached right now. Try again in a moment.", "the login server can't be reached")
 		default:
 			fail(irc.ErrPasswdMismatch, "Password incorrect", "wrong password")
 		}
