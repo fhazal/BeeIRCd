@@ -196,7 +196,9 @@ func (s *Server) runCommand(c *Client, m irc.Message) {
 	cmd, ok := commands[m.Command]
 	if !ok && c.registered {
 		if f := s.showFile(m.Command); f != nil {
-			s.runShowFile(c, f)
+			if !c.tempShun && !s.svc.Shunned(c.user) && !s.restrictedCommand(c, m.Command) {
+				s.runShowFile(c, f)
+			}
 			return
 		}
 		full, done := s.abbreviated(c, m.Command)

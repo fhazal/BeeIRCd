@@ -150,6 +150,10 @@ func TestShowFileAndAbbreviations(t *testing.T) {
 	}
 	c.send("NOSUCH.")
 	c.expect(" 421 ann NOSUCH. :Unknown command")
+	// A shunned person gets no answer from a text command either.
+	s.onLoop(func() { s.clients[s.net.UserByNick("ann").UID].tempShun = true })
+	c.send("FAQ")
+	c.quiet(" 375 ")
 }
 
 func TestAbbreviationsOffByDefault(t *testing.T) {
