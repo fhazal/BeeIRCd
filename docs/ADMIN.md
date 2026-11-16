@@ -1454,6 +1454,24 @@ In `[auth.sql]`:
 | `allow` | every method | In a `[[rpc.user]]` block: the methods it may call, like `["user.*", "server_ban.list"]` |
 | `ips` | this machine only | In a `[[rpc.user]]` block: addresses or ranges it may call from |
 
+### [modules]
+
+Lua modules loaded into the server. How to write one: [Writing modules](MODULES.md).
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `load` | – | The modules loaded at start, like `["greet"]`: each is the file `greet.lua` in the modules folder. `/REHASH` loads new ones and unloads the ones taken out |
+| `dir` | `modules` next to `beeircd.conf` | The folder the module files are in |
+| `time_limit` | `50ms` | How long one call into a module may run before it is stopped (`1ms` to `1s`) |
+
+### [module]
+
+One `[module.NAME]` block per module holds that module's own settings; what goes in it is up to the module. One setting belongs to BeeIRCd:
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `allow` | – | The rights the module is given, like `["kill"]`. Without a right the module can read, send notices and add commands |
+
 ### [[showfile]]
 
 A command of your own that shows a text, like `/FAQ`. One block per command; a name BeeIRCd already uses keeps its own meaning.

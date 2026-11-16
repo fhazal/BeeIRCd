@@ -66,6 +66,7 @@ type Server struct {
 	msgSeq     uint64
 	batchSeq   uint64
 	sinks      []func(state.Event) // get every event after it was applied
+	mods       *modules            // Lua modules ([modules])
 	beforeEmit func(state.Event)   // tests: runs before each event
 	timedBans  []timedBan          // ~t: channel list entries waiting to lift
 	// Channel modes: flood guard counters (by folded channel),
@@ -172,6 +173,7 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 		floods:       make(map[string]*chanFloodState),
 		floodCache:   make(map[string]floodSet),
 		floodBoot:    floodBootDelay,
+		mods:         &modules{byName: map[string]*module{}, cmds: map[string]*modCommand{}, hooked: map[string]int{}},
 		rejoinBlock:  make(map[string]time.Time),
 		held:         make(map[*Client]struct{}),
 		resolve:      lookupHost,
@@ -313,6 +315,7 @@ func (s *Server) Serve(ctx context.Context) error {
 	s.startUpdateCheck()
 	s.startGeoIP()
 	s.startPlaceLookup()
+	s.modulesStart()
 	s.log.Printf("%s ready on %d port(s)", s.cfg.Server.Name, len(s.listeners))
 	tick := time.NewTicker(s.tickEvery())
 	defer tick.Stop()
@@ -379,6 +382,7 @@ func (s *Server) Serve(ctx context.Context) error {
 			s.repTick(now)
 			s.whowasTick(now)
 			s.antiSpamTick(now)
+			s.modTick(now)
 			s.groupTick(now)
 			s.certTick(now)
 			s.svc.Tick(now)
@@ -489,6 +493,7 @@ func (s *Server) closeListeners() {
 func (s *Server) shutdown(reason string) {
 	s.log.Printf("stopping: %s", reason)
 	snap := s.historySnapshot() // before everyone quits and channels go
+	s.modulesStop()
 	close(s.done)
 	s.closeListeners()
 	s.closeLinks(reason)

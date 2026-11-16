@@ -76,6 +76,9 @@ func docSettings(md string) map[string]map[string]bool {
 // a section (like [[link.server]]) counts as part of it.
 func settingKeys(t reflect.Type) []string {
 	var keys []string
+	if t.Kind() != reflect.Struct {
+		return nil // a free-form block, like [module.NAME]: only the section must be there
+	}
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
 		name := docKey(f)

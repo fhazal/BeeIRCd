@@ -79,6 +79,10 @@ type Config struct {
 	Auth Auth `toml:"auth"`
 	// ShowFiles are commands of your own that show a text, like FAQ.
 	ShowFiles []ShowFile `toml:"showfile"`
+	// Modules are Lua modules loaded into the server; Module holds each
+	// module's own [module.NAME] settings, free form.
+	Modules Modules                   `toml:"modules"`
+	Module  map[string]map[string]any `toml:"module"`
 	// ExtJWT hands out signed tokens for other services (EXTJWT).
 	ExtJWT ExtJWT `toml:"extjwt"`
 	// More spam protection, each off by default (antispam.go).

@@ -57,6 +57,8 @@ const usage = `Usage: beeircd <command>
   rehash    read beeircd.conf again, apply what is safe live
   mail-test <address>: send a test mail with the [mail] settings
             and check SPF, DKIM and DMARC of the sender domain
+  module    tools for writing Lua modules: new <name>, check <file>,
+            hooks
   link-info show this server's link fingerprint and the blocks
             another BeeIRCd or UnrealIRCd server needs to link
   webirc    add <name> <ip>: let a web chat (BeeRoom) on <ip>
@@ -107,6 +109,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdBackup(args[1:], stdout, stderr)
 	case cmd == "mail-test":
 		return cmdMailTest(args[1:], stdout, stderr)
+	case cmd == "module":
+		return cmdModule(args[1:], stdout, stderr)
 	case cmd == "link-info":
 		return cmdLinkInfo(args[1:], stdout, stderr)
 	case cmd == "webirc":

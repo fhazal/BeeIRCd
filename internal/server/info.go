@@ -165,6 +165,9 @@ func (s *Server) helpLines(subject string) []string {
 		return helpIndex()
 	}
 	lines := helpTopics[subject]
+	if lines == nil {
+		lines = s.modHelp(subject)
+	}
 	if subject == "CHMODES" && lines != nil && !s.cfg.FullPrefixes() {
 		lines = shortPrefixHelp(lines)
 	}

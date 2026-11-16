@@ -129,6 +129,9 @@ func (c *Config) checkSmall() error {
 		}
 		seen[strings.ToLower(v.Name)] = true
 	}
+	if err := c.checkModules(); err != nil {
+		return err
+	}
 	for _, ch := range c.Server.OperJoin {
 		if !strings.HasPrefix(ch, "#") || strings.ContainsAny(ch, " ,") {
 			return fmt.Errorf("[server] oper_join: %q is not a channel name", ch)

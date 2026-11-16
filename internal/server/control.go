@@ -412,6 +412,7 @@ func (s *Server) rehash(by string) (*control.Rehash, error) {
 			out.Applied = append(out.Applied, "certificate read again")
 		}
 	}
+	s.modRehash()
 	s.snotice("%s re-read beeircd.conf: %s", by, rehashSummary(out))
 	return out, nil
 }

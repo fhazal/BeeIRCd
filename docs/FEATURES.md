@@ -19,6 +19,7 @@ How to set each one up is in [ADMIN.md](ADMIN.md); installing is in [INSTALL.md]
 | Private messages to opers only, a ban list only ops can read, shortened commands (`WHOW.`) | ✅ | `[limits] restrict_msg`, `abbreviations`; `[channels] hide_bans` |
 | A PING new connections must answer, and a redirect for browsers that open an IRC port | ✅ | `[server] ping_cookie`, `web_redirect` |
 | EXTJWT: signed tokens for other services | ✅ | `[extjwt]` |
+| Lua modules: your own hooks and commands, loaded while the server runs | 🟡 | First version: [Writing modules](MODULES.md) |
 | Hidden server list, modes and channels at `/oper`, modes on connect, switched-off commands, who may make channels | ✅ | `[server] hide_servers`, `oper_modes`, `oper_join`, `connect_modes`; `[limits] disabled_commands`; `[channels] create` |
 | Input limits | ✅ | lines over 510 bytes or tags over 4096 bytes get 417 and are dropped, not cut |
 | User modes `i w o s r x` | ✅ | |

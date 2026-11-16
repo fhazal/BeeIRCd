@@ -195,6 +195,9 @@ func (s *Server) runCommand(c *Client, m irc.Message) {
 	}
 	cmd, ok := commands[m.Command]
 	if !ok && c.registered {
+		if s.modRunCommand(c, m) {
+			return
+		}
 		if f := s.showFile(m.Command); f != nil {
 			s.runShowFile(c, f)
 			return

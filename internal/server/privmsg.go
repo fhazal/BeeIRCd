@@ -91,6 +91,17 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 				fail(irc.ErrCannotSendToChan, ch.Name, why)
 				continue
 			}
+			if !tagOnly {
+				t, why, drop := s.modCheckMessage(c, ch, nil, verb, text)
+				if why != "" {
+					fail(irc.ErrCannotSendToChan, ch.Name, why)
+					continue
+				}
+				if drop {
+					continue
+				}
+				text = t
+			}
 			if mem := ch.Member(u); mem != nil && mem.Hidden {
 				if tagOnly {
 					continue // typing in a +D channel would show you're there
@@ -131,6 +142,9 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 			if c.caps["echo-message"] {
 				c.deliver(o)
 			}
+			if !tagOnly {
+				s.modMessageDone(u, ch, nil, verb, text)
+			}
 			if status == "" {
 				s.mlRecordHistory(ch, o)
 				if verb == "PRIVMSG" {
@@ -165,6 +179,17 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 		if why := s.antiSpam(c, nil, t, verb, text); why != "" {
 			fail(irc.ErrCantSendToUser, t.Nick, why)
 			continue
+		}
+		if !tagOnly && !t.Service {
+			nt, why, drop := s.modCheckMessage(c, nil, t, verb, text)
+			if why != "" {
+				fail(irc.ErrCantSendToUser, t.Nick, why)
+				continue
+			}
+			if drop {
+				continue
+			}
+			text = nt
 		}
 		if file, ok := dccFile(text); ok && !tagOnly && !c.isOper() && !t.Service {
 			if d := s.dccDenied(file, false); d != nil {
@@ -212,6 +237,9 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 			s.mlRouteUser(u.UID, t, verb, text, tags, o.msgid)
 		} else {
 			s.deliverTo(t, o)
+		}
+		if !tagOnly && !t.Service {
+			s.modMessageDone(u, nil, t, verb, text)
 		}
 		if verb == "PRIVMSG" && t.Away != "" {
 			s.reply(c, irc.RplAway, t.Nick, t.Away)

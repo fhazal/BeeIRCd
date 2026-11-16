@@ -18,6 +18,7 @@ func (s *Server) emit(ev state.Event) error {
 	}
 	secure := s.beforeModeEvent(ev)
 	deliver := s.prepare(ev)
+	mods := s.modPrepare(ev)
 	watch := s.monitorPrepare(ev)
 	histGone := s.historyChannels(ev)
 	if err := s.net.Apply(ev); err != nil {
@@ -40,6 +41,9 @@ func (s *Server) emit(ev state.Event) error {
 		sink(ev)
 	}
 	s.afterModeEvent(ev, secure)
+	if mods != nil {
+		mods()
+	}
 	return nil
 }
 
