@@ -162,6 +162,7 @@ func New(o Options) *Panel {
 	m.HandleFunc("GET /api/mail-dns", p.withOper(p.mailDNS))
 	m.HandleFunc("GET /api/people", p.withOper(p.people))
 	m.HandleFunc("GET /api/person", p.withOper(p.person))
+	m.HandleFunc("GET /api/where", p.withOper(p.simple(control.CmdWhere)))
 	m.HandleFunc("POST /api/notice", p.withOper(p.act(control.CmdNotice)))
 	m.HandleFunc("POST /api/kill", p.withOper(p.act(control.CmdKill)))
 	m.HandleFunc("POST /api/ban", p.withOper(p.act(control.CmdBan)))

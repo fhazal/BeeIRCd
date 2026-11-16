@@ -39,6 +39,7 @@ const (
 	CmdNotice = "notice" // UID + Value (the text) -> Done
 	CmdKill   = "kill"   // UID + Value (the reason) -> Done (flag k)
 	CmdBan    = "ban"    // UID + Value (reason) + Life -> Done (flag k: OperServ AKILL)
+	CmdWhere  = "where"  // -> Where (flag h; error when GeoIP is off)
 
 	// Bans page, all flag k like OperServ's ban commands.
 	CmdBans     = "bans"      // Kind -> Bans
@@ -148,6 +149,7 @@ type Response struct {
 	Events    []Event      `json:"events,omitempty"`
 	People    *People      `json:"people,omitempty"`
 	Person    *Person      `json:"person,omitempty"`
+	Where     *Where       `json:"where,omitempty"`
 	Done      *Done        `json:"done,omitempty"`
 	Bans      *Bans        `json:"bans,omitempty"`
 	Match     *Match       `json:"match,omitempty"`
@@ -212,6 +214,7 @@ type People struct {
 	Matched  int           `json:"matched"` // after search and filter
 	Offset   int           `json:"offset"`
 	Rows     []PersonBrief `json:"rows"`
+	Geo      bool          `json:"geo,omitempty"` // the rows have country and network
 }
 
 // PersonBrief is one row of the People list.
@@ -224,6 +227,11 @@ type PersonBrief struct {
 	Oper     bool      `json:"oper,omitempty"`
 	Channels int       `json:"channels"`
 	SignOn   time.Time `json:"signon"`
+	// Country (ISO code) and network (ASN) from GeoIP, for opers with
+	// flag h only.
+	Country string `json:"country,omitempty"`
+	ASN     uint32 `json:"asn,omitempty"`
+	ASOrg   string `json:"as_org,omitempty"`
 }
 
 // Person is everything the panel shows about one person. RealHost and IP
@@ -241,6 +249,32 @@ type Person struct {
 	Idle     time.Time `json:"idle,omitzero"`     // last message (people on this server)
 	OperAs   string    `json:"oper_as,omitempty"` // class or flags
 	Local    bool      `json:"local"`             // on this server
+	// CountryName is the country's English name (flag h, GeoIP on).
+	CountryName string `json:"country_name,omitempty"`
+}
+
+// Where is how many people connect from each country and network (GeoIP,
+// flag h): the biggest first, at most whereMax of each.
+type Where struct {
+	Countries []Place `json:"countries"`
+	Networks  []Place `json:"networks"`
+	// MoreCountries/MoreNetworks count the people in the ones left out.
+	MoreCountries int `json:"more_countries,omitempty"`
+	MoreNetworks  int `json:"more_networks,omitempty"`
+	// NoCountry/NoNetwork are people GeoIP knows nothing about (local
+	// and gateway addresses).
+	NoCountry int       `json:"no_country"`
+	NoNetwork int       `json:"no_network"`
+	Total     int       `json:"total"`
+	Source    string    `json:"source"`         // the database ("DBIP-Country-Lite")
+	Built     time.Time `json:"built,omitzero"` // when it was made
+}
+
+// Place is one country ("MY", "Malaysia") or network ("AS4788", its owner).
+type Place struct {
+	Code   string `json:"code"`
+	Name   string `json:"name,omitempty"`
+	People int    `json:"people"`
 }
 
 // Bans is the Bans page: how many of each kind, and the list of one.

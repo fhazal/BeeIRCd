@@ -9,6 +9,7 @@ package server
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -27,9 +28,47 @@ const (
 
 func (s *Server) isOperUser(u *state.User) bool { return u.Modes['o'] }
 
-func brief(u *state.User) control.PersonBrief {
-	return control.PersonBrief{UID: u.UID, Nick: u.Nick, Host: u.Host, Server: u.Server, Account: u.Account,
+// brief is u's row; geo adds the country and network (flag h only).
+func brief(u *state.User, geo bool) control.PersonBrief {
+	b := control.PersonBrief{UID: u.UID, Nick: u.Nick, Host: u.Host, Server: u.Server, Account: u.Account,
 		Oper: u.Modes['o'], Channels: len(u.Channels), SignOn: u.SignOn}
+	if geo {
+		b.Country, b.ASN, b.ASOrg = u.Country, u.ASN, u.ASOrg
+	}
+	return b
+}
+
+// geoOn reports whether GeoIP has a database loaded.
+func (s *Server) geoOn() bool {
+	return s.cfg.GeoIP.On() && (s.geo.set.Country != nil || s.geo.set.ASN != nil)
+}
+
+// geoHit reports whether q (lower case) is u's country code or name, or
+// network number ("as4788", "4788") or owner.
+func (s *Server) geoHit(u *state.User, q string, names map[string]string) bool {
+	if u.Country != "" {
+		if q == strings.ToLower(u.Country) {
+			return true
+		}
+		name, ok := names[u.Country]
+		if !ok {
+			name = strings.ToLower(s.geo.set.Lookup(u.IP).Name)
+			names[u.Country] = name
+		}
+		if len(q) >= 3 && strings.Contains(name, q) {
+			return true
+		}
+	}
+	if u.ASN != 0 {
+		n := strings.TrimPrefix(q, "as")
+		if n == strconv.FormatUint(uint64(u.ASN), 10) {
+			return true
+		}
+		if len(q) >= 3 && strings.Contains(strings.ToLower(u.ASOrg), q) {
+			return true
+		}
+	}
+	return false
 }
 
 // panelPeople is one page of the People list for po.
@@ -39,7 +78,9 @@ func (s *Server) panelPeople(po *control.PanelOper, req control.Request) *contro
 	if len(q) > 100 {
 		q = q[:100]
 	}
-	out := &control.People{}
+	geo := seeHosts && s.geoOn()
+	out := &control.People{Geo: geo}
+	names := map[string]string{}
 	var match []*state.User
 	for _, u := range s.net.Users() {
 		if u.Service {
@@ -75,6 +116,9 @@ func (s *Server) panelPeople(po *control.PanelOper, req control.Request) *contro
 			if !hit && seeHosts {
 				hit = strings.Contains(strings.ToLower(u.RealHost), q) || strings.Contains(u.IP, q)
 			}
+			if !hit && geo {
+				hit = s.geoHit(u, q, names)
+			}
 			if !hit {
 				continue
 			}
@@ -93,7 +137,7 @@ func (s *Server) panelPeople(po *control.PanelOper, req control.Request) *contro
 	end := min(off+limit, len(match))
 	out.Rows = make([]control.PersonBrief, 0, end-off)
 	for _, u := range match[off:end] {
-		out.Rows = append(out.Rows, brief(u))
+		out.Rows = append(out.Rows, brief(u, geo))
 	}
 	return out
 }
@@ -104,9 +148,16 @@ func (s *Server) panelPerson(po *control.PanelOper, uid string) *control.Person 
 	if u == nil || u.Service {
 		return nil
 	}
-	p := &control.Person{PersonBrief: brief(u), Ident: u.Ident, Realname: u.Realname, TLS: u.TLS, Away: u.Away, Modes: u.ModeString()}
-	if strings.IndexByte(po.Flags, 'h') >= 0 {
+	seeHosts := strings.IndexByte(po.Flags, 'h') >= 0
+	geo := seeHosts && s.geoOn()
+	p := &control.Person{PersonBrief: brief(u, geo), Ident: u.Ident, Realname: u.Realname, TLS: u.TLS, Away: u.Away, Modes: u.ModeString()}
+	if seeHosts {
 		p.RealHost, p.IP = u.RealHost, irc.DisplayIP(u.IP)
+	}
+	if geo && u.Country != "" {
+		if p.CountryName = s.geo.set.Lookup(u.IP).Name; p.CountryName == "" {
+			p.CountryName = u.Country
+		}
 	}
 	for _, ch := range u.Channels {
 		pre := ""

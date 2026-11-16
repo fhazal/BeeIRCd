@@ -3,9 +3,11 @@ package server
 import (
 	"context"
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 
+	"github.com/fhazal/beeircd/internal/control"
 	"github.com/fhazal/beeircd/internal/geoip"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/state"
@@ -36,6 +38,7 @@ func (s *Server) startGeoIP() {
 		if err != nil {
 			continue // not there yet: the download brings it
 		}
+		s.log.Printf("geoip: %s database %s, made %s", kind, db.Type, time.Unix(int64(db.Built), 0).UTC().Format("2006-01-02"))
 		s.geoSet(kind, db)
 	}
 	if !s.cfg.GeoIP.DownloadOn() {
@@ -164,4 +167,72 @@ func (s *Server) whoisGeo(u *state.User, reply func(code string, p ...string)) {
 		}
 		reply(irc.RplWhoisASN, u.Nick, strconv.FormatUint(uint64(u.ASN), 10), text)
 	}
+}
+
+// whereMax is how many countries and networks the panel gets; the rest
+// are counted together.
+const whereMax = 50
+
+// panelWhere counts the people of the network by country and network;
+// nil when GeoIP is off.
+func (s *Server) panelWhere() *control.Where {
+	if !s.geoOn() {
+		return nil
+	}
+	out := &control.Where{Countries: []control.Place{}, Networks: []control.Place{}}
+	if db := s.geo.set.Country; db != nil {
+		out.Source, out.Built = db.Type, time.Unix(int64(db.Built), 0).UTC()
+	} else if db := s.geo.set.ASN; db != nil {
+		out.Source, out.Built = db.Type, time.Unix(int64(db.Built), 0).UTC()
+	}
+	countries, networks := map[string]*control.Place{}, map[uint32]*control.Place{}
+	for _, u := range s.net.Users() {
+		if u.Service {
+			continue
+		}
+		out.Total++
+		if u.Country == "" {
+			out.NoCountry++
+		} else if p := countries[u.Country]; p != nil {
+			p.People++
+		} else {
+			name := s.geo.set.Lookup(u.IP).Name
+			if name == "" {
+				name = u.Country
+			}
+			countries[u.Country] = &control.Place{Code: u.Country, Name: name, People: 1}
+		}
+		if u.ASN == 0 {
+			out.NoNetwork++
+		} else if p := networks[u.ASN]; p != nil {
+			p.People++
+		} else {
+			networks[u.ASN] = &control.Place{Code: "AS" + strconv.FormatUint(uint64(u.ASN), 10), Name: u.ASOrg, People: 1}
+		}
+	}
+	out.Countries, out.MoreCountries = topPlaces(countries)
+	out.Networks, out.MoreNetworks = topPlaces(networks)
+	return out
+}
+
+// topPlaces sorts the places, biggest first (then by code), and keeps
+// whereMax of them; more is the people in the rest.
+func topPlaces[K comparable](m map[K]*control.Place) (list []control.Place, more int) {
+	list = make([]control.Place, 0, len(m))
+	for _, p := range m {
+		list = append(list, *p)
+	}
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].People != list[j].People {
+			return list[i].People > list[j].People
+		}
+		return list[i].Code < list[j].Code
+	})
+	if len(list) > whereMax {
+		for _, p := range list[whereMax:] {
+			more += p.People
+		}
+		list = list[:whereMax]
+	}
+	return list, more
 }

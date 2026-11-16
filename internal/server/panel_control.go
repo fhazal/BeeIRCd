@@ -356,6 +356,12 @@ func (s *Server) panelControl(req control.Request, setDeadline func(time.Duratio
 				resp.Error = "They have left."
 			}
 		}), true
+	case control.CmdWhere:
+		return run('h', func(*control.PanelOper) {
+			if resp.Where = s.panelWhere(); resp.Where == nil {
+				resp.Error = "GeoIP is off on this server."
+			}
+		}), true
 	case control.CmdNotice:
 		return run(0, func(po *control.PanelOper) { resp = s.panelNotice(po, req.IP, req.UID, req.Value) }), true
 	case control.CmdKill:

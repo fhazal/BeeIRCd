@@ -427,14 +427,18 @@ then open <http://127.0.0.1:8787>. `beeircd install` sets it up as the
   happened, Server actions (flag `a` or owner: Check, Rehash, Back up
   now), **Server details** (ports with TLS and the link port, the system
   it runs on, the names on the certificate, when it started, channel
-  history), **Health** (quiet in one line; otherwise how many were slowed
-  down, Z-lined or stopped by a blocklist today), Services and Linked
-  servers. Recent bans, Top channels and Opers online can be switched on
+  history), **Where people connect from** (flag `h`, when GeoIP is on:
+  people per country or per network, the top 7, the rest and "not known";
+  click a row to see them on People), **Health** (quiet in one line;
+  otherwise how many were slowed down, Z-lined or stopped by a blocklist
+  today), Services and Linked servers. Recent bans, Top channels and Opers online can be switched on
   with Arrange (below).
 - **People** lists everyone online on every server: search, filters
   (logged in, guests, opers), 50 at a time. Click a person for their
   details and to send them a notice. Real hosts and addresses show only
-  for opers with flag `h` (and only they can search by them). Disconnect
+  for opers with flag `h` (and only they can search by them). With GeoIP
+  on, flag `h` also shows each person's country code and network (AS
+  number and owner), and the search takes `MY`, `Malaysia` or `AS4788`. Disconnect
   and Ban need flag `k`, like /KILL and OperServ AKILL; Ban adds an
   AKILL on the person's address (1 hour to until removed) and asks first.
 - **Channels**: every channel on the network (secret ones too), biggest

@@ -50,6 +50,9 @@ flood_burst = 10000
 flood_rate = 10000
 session_limit = 100
 
+[geoip]
+enabled = false
+
 [services]
 database = "services.db"
 admin = "Boss"

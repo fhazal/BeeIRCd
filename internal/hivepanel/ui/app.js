@@ -574,6 +574,7 @@
     { id: 'stats', label: 'Numbers', wide: true },
     { id: 'room', label: 'This server', wide: true },
     { id: 'map', label: 'Network map', wide: true, need: 'c' },
+    { id: 'where', label: 'Where people connect from', col: 'l', need: 'h' },
     { id: 'events', label: 'What happened', col: 'l' },
     { id: 'actions', label: 'Server actions', col: 'l', can: () => has('a') || me.owner },
     { id: 'details', label: 'Server details', col: 'l' },
@@ -1033,6 +1034,62 @@
           show() { setTimeout(load, 0); clearInterval(timer); timer = setInterval(() => { if (!document.hidden) bg(load); }, 30000); },
           leave() { clearInterval(timer); } };
       },
+      where() {
+        // People by country or network (GeoIP); hidden when GeoIP is off.
+        const c = ovCard('globe', 'Where people connect from', 'Country and network of everyone online');
+        let kind = 'countries', last = null, timer = 0;
+        const segs = [['countries', 'Countries'], ['networks', 'Networks']].map(([v, label]) =>
+          h('button', { type: 'button', 'aria-pressed': v === kind ? 'true' : 'false', text: label }));
+        const rows = h('div', { class: 'wh-bars' }), credit = h('div', { class: 'wh-credit lbl' });
+        c.card.append(h('div', { class: 'seg wh-seg', role: 'group', 'aria-label': 'Count by' }, segs), rows, credit);
+        segs.forEach((b, i) => b.addEventListener('click', () => {
+          kind = i ? 'networks' : 'countries';
+          segs.forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+          draw();
+        }));
+        const TOP = 7;
+        function bar(code, name, n, max, total, cls, go) {
+          const pct = total ? Math.round(n / total * 100) : 0;
+          const fill = h('i', { class: cls || null });
+          fill.style.width = Math.max(1.5, n / max * 100) + '%';
+          const label = plural(n, 'person', 'people') + ' · ' + pct + '%' + (go ? ' · open in People' : '');
+          const row = h(go ? 'button' : 'div', { class: 'wh-row' + (go ? '' : ' still'), title: label, 'aria-label': name + ': ' + label, type: go ? 'button' : null },
+            kind === 'countries' ? ccChip(code) : h('span', { class: 'asn' + (code ? '' : ' none'), text: code || '—' }),
+            h('span', { class: 'wh-name', text: name }), h('span', { class: 'wh-track' }, fill), h('b', { text: fmt(n) }));
+          if (go) row.addEventListener('click', () => { location.hash = '#/people?q=' + encodeURIComponent(go); });
+          return row;
+        }
+        function draw() {
+          const d = last;
+          if (!d) return;
+          const list = kind === 'countries' ? d.countries : d.networks;
+          const top = list.slice(0, TOP), rest = list.slice(TOP);
+          const restN = rest.reduce((a, p) => a + p.people, 0) + (kind === 'countries' ? d.more_countries || 0 : d.more_networks || 0);
+          const none = kind === 'countries' ? d.no_country : d.no_network;
+          const max = Math.max(1, ...top.map(p => p.people), restN, none);
+          const out = top.map(p => bar(p.code, p.name || p.code, p.people, max, d.total, null, p.code));
+          if (restN) out.push(bar(kind === 'countries' ? '+' + rest.length : '+' + rest.length, rest.length + (rest.length === 1 ? (kind === 'countries' ? ' other country' : ' other network') : (kind === 'countries' ? ' other countries' : ' other networks')) + ((kind === 'countries' ? d.more_countries : d.more_networks) ? ' and more' : ''), restN, max, d.total, 'o'));
+          if (none) out.push(bar('', 'Not known', none, max, d.total, 'u'));
+          put(rows, out.length ? out : h('p', { class: 'empty', text: 'Nobody is online.' }));
+          const when = d.built ? new Date(d.built).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+          credit.textContent = (/^DBIP/i.test(d.source) ? 'IP data by DB-IP' : 'From ' + (d.source || 'GeoIP')) + (when ? ' · updated ' + when : '');
+        }
+        async function load() {
+          if (!c.card.isConnected) return;
+          const blk = c.card.closest('.blk');
+          try {
+            last = (await api('GET', '/api/where')).where;
+            if (blk) blk.hidden = false;
+            draw();
+          } catch (e) {
+            if (/GeoIP is off/.test(e.message)) { if (blk) blk.hidden = true; return; }
+            put(rows, h('p', { class: 'empty', text: e.message }));
+          }
+        }
+        return { el: c.card, tail: c.tail,
+          show() { setTimeout(load, 0); clearInterval(timer); timer = setInterval(() => { if (!document.hidden) bg(load); }, 30000); },
+          leave() { clearInterval(timer); } };
+      },
       opers() {
         const c = ovCard('opers', 'Opers online', 'Opers on every server of the network');
         const rows = h('div');
@@ -1392,16 +1449,37 @@
   }
 
   // ---------- People ----------
+  // ccChip is a country code in a small box; a dashed empty one when GeoIP
+  // doesn't know the address.
+  function ccChip(cc) {
+    return cc ? h('span', { class: 'cc', text: cc }) : h('span', { class: 'cc none', 'aria-label': 'not known', text: '—' });
+  }
+  function asnCell(asn, org) {
+    if (!asn) return h('span', { class: 'asn none', text: '—' });
+    return h('span', { class: 'asn', title: org || '' }, 'AS' + asn, org ? h('small', { text: org }) : null);
+  }
   function peoplePage() {
     const PAGE = 50;
     let q = '', filter = 'all', offset = 0, openUID = null, data = null, typing = 0;
     const tile = label => { const n = h('span', { class: 'num', text: '…' }); return { n, el: h('section', { class: 'card tight' }, h('span', { class: 'lbl', text: label }), n) }; };
     const tOn = tile('Online'), tIn = tile('Logged in'), tGuests = tile('Guests'), tOpers = tile('Opers');
-    const search = h('input', { class: 'search', type: 'search', placeholder: has('h') ? 'Search nick, host, address or account' : 'Search nick, host or account', 'aria-label': 'Search people', autocomplete: 'off', spellcheck: 'false' });
+    const search = h('input', { class: 'search', type: 'search', placeholder: has('h') ? 'Search nick, host, address, account, country or network' : 'Search nick, host or account', 'aria-label': 'Search people', autocomplete: 'off', spellcheck: 'false' });
+    // #/people?q=MY (a row of the Overview's Where card): that search.
+    const asked = new URLSearchParams(location.hash.split('?')[1] || '').get('q');
+    if (asked) { q = asked; search.value = asked; }
     const segs = [['all', 'All'], ['in', 'Logged in'], ['guests', 'Guests'], ['opers', 'Opers']].map(([v, label]) =>
       h('button', { type: 'button', 'aria-pressed': v === filter ? 'true' : 'false', 'data-f': v, text: label }));
     const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Show' }, segs);
     const tbody = h('tbody');
+    const thead = h('thead');
+    let cols = 0; // columns of the table (country and network when GeoIP is on)
+    const heads = geo => {
+      const names = geo ? ['Nick', 'Host', 'Country', 'Network', 'Server', 'Channels', 'Online for'] : ['Nick', 'Host', 'Server', 'Channels', 'Online for'];
+      if (cols === names.length) return;
+      cols = names.length;
+      put(thead, h('tr', {}, names.map(t => h('th', { scope: 'col', text: t }))));
+    };
+    heads(false);
     const count = h('span', { class: 'lbl' });
     const back = h('button', { type: 'button', class: 'btn', text: 'Back' });
     const next = h('button', { type: 'button', class: 'btn', text: 'Next' });
@@ -1411,9 +1489,7 @@
       h('div', { class: 'tiles4' }, tOn.el, tIn.el, tGuests.el, tOpers.el),
       h('section', { class: 'card list-card' },
         h('div', { class: 'tools' }, search, seg),
-        h('div', { class: 'wrap' }, h('table', {},
-          h('thead', {}, h('tr', {}, ['Nick', 'Host', 'Server', 'Channels', 'Online for'].map(t => h('th', { scope: 'col', text: t })))),
-          tbody)),
+        h('div', { class: 'wrap' }, h('table', {}, thead, tbody)),
         h('div', { class: 'pager' }, count, h('div', { class: 'row-btns' }, back, next))));
 
     async function load() {
@@ -1422,20 +1498,23 @@
         data = d.people;
         draw();
       } catch (e) {
-        put(tbody, h('tr', {}, h('td', { colspan: 5, class: 'empty', text: e.message })));
+        put(tbody, h('tr', {}, h('td', { colspan: cols, class: 'empty', text: e.message })));
       }
     }
     function draw() {
       const p = data;
+      heads(!!p.geo);
       tOn.n.textContent = fmt(p.online); tIn.n.textContent = fmt(p.logged_in); tGuests.n.textContent = fmt(p.guests); tOpers.n.textContent = fmt(p.opers);
       const rows = [];
-      if (!p.rows.length) rows.push(h('tr', {}, h('td', { colspan: 5, class: 'empty', text: q || filter !== 'all' ? 'Nobody matches.' : 'Nobody is online.' })));
+      if (!p.rows.length) rows.push(h('tr', {}, h('td', { colspan: cols, class: 'empty', text: q || filter !== 'all' ? 'Nobody matches.' : 'Nobody is online.' })));
       for (const r of p.rows) {
         const open = r.uid === openUID;
         const nickBtn = h('button', { type: 'button', class: 'rowbtn', 'aria-expanded': open ? 'true' : 'false' }, r.nick);
         const tr = h('tr', { class: 'person' + (open ? ' open' : '') },
           h('td', {}, nickBtn, r.oper ? [' ', h('span', { class: 'tag', text: 'oper' })] : null),
           h('td', { class: 'mono', text: r.host }),
+          p.geo ? h('td', {}, ccChip(r.country)) : null,
+          p.geo ? h('td', {}, asnCell(r.asn, r.as_org)) : null,
           h('td', { class: 'lbl', text: r.server }),
           h('td', { text: String(r.channels) }),
           h('td', { class: 'lbl', text: since(r.signon) }));
@@ -1457,7 +1536,7 @@
     // The open person: their details and what can be done.
     function detailRow(r) {
       const box = h('div', {}, h('p', { class: 'empty', text: 'Loading…' }));
-      const tr = h('tr', { class: 'detail' }, h('td', { colspan: 5 }, box));
+      const tr = h('tr', { class: 'detail' }, h('td', { colspan: cols }, box));
       api('GET', '/api/person?uid=' + encodeURIComponent(r.uid)).then(d => fill(box, d.person))
         .catch(e => put(box, h('p', { class: 'empty', text: e.message })));
       return tr;
@@ -1477,6 +1556,10 @@
       items.push(item('Modes', p.modes, 'mono'));
       if (p.away) items.push(item('Away', p.away, null, true));
       if (p.oper_as) items.push(item('Oper', p.oper_as));
+      if (data && data.geo) {
+        items.push(item('Country', p.country ? (p.country_name || p.country) + ' (' + p.country + ')' : 'not known'));
+        items.push(item('Network', p.asn ? 'AS' + p.asn + (p.as_org ? ' · ' + p.as_org : '') : 'not known', null, true));
+      }
 
       // notice
       const note = h('input', { class: 'in', id: 'note-' + p.uid, type: 'text', maxlength: '400', placeholder: 'Type a message', autocomplete: 'off' });
