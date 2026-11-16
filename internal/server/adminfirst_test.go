@@ -11,7 +11,7 @@ import (
 // their first /oper and take the admin oper over.
 func TestFirstOperNeedsAdminHosts(t *testing.T) {
 	s, path, _ := fileServer(t, "") // fileConf: admin = "Boss", no admin_password
-	s.cfg.Services.AdminHosts = nil
+	s.onLoop(func() { s.cfg.Services.AdminHosts = nil })
 	x := registered(t, s, "Boss") // a stranger got the admin nick first
 	x.send("OPER Boss attacker-pass-2026")
 	x.expect(" 491 Boss ")

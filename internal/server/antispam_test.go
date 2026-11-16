@@ -91,8 +91,8 @@ func TestTargetFlood(t *testing.T) {
 	}
 	// Three messages from two people fill the channel's allowance.
 	ember.send("PRIVMSG #x :one")
-	nova.send("PRIVMSG #x :two")
 	bee.expect("PRIVMSG #x :one")
+	nova.send("PRIVMSG #x :two")
 	bee.expect("PRIVMSG #x :two")
 	ember.send("PRIVMSG #x :three")
 	bee.expect("PRIVMSG #x :three")
@@ -102,6 +102,7 @@ func TestTargetFlood(t *testing.T) {
 	bee.expect("NOTICE #x :a notice has its own count")
 
 	ember.send("PRIVMSG Bee :1")
+	bee.expect("PRIVMSG Bee :1")
 	nova.send("PRIVMSG Bee :2")
 	bee.expect("PRIVMSG Bee :2")
 	ember.send("PRIVMSG Bee :3")

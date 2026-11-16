@@ -96,7 +96,15 @@ func TestLinkRedact(t *testing.T) {
 	bee.expect(" 366 Bee #x ")
 	bob.send("JOIN #x")
 	bob.expect(" 366 bob #x ")
-	waitLink(t, "bob in #x on the hub", func() bool { ch := hub.s.net.Channel("#x"); return ch != nil && len(ch.Members) == 2 })
+	waitLink(t, "bob in #x on the hub", func() bool {
+		n := 0
+		hub.s.onLoop(func() {
+			if ch := hub.s.net.Channel("#x"); ch != nil {
+				n = len(ch.Members)
+			}
+		})
+		return n == 2
+	})
 	bob.send("PRIVMSG #x :from the leaf")
 	id := msgidOf(t, bee.expect("PRIVMSG #x :from the leaf"))
 	bee.send("REDACT #x " + id + " :off topic")
