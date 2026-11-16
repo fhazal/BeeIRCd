@@ -263,3 +263,25 @@ func TestPanelMembersOffRightPasswordNotCounted(t *testing.T) {
 		t.Errorf("member, members off: %+v", r)
 	}
 }
+
+// An oper locked out by wrong /oper tries is told so in the panel, not
+// "wrong nick or password", when the password isn't their NickServ one.
+func TestPanelOperLockIsSaid(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	e := registered(t, s, "ember")
+	b.send("AS OPER ember ADD CLASS globop HOST *@127.0.0.0/8 PASSWORD " + emberPW)
+	b.expect("ember is an oper now")
+	for i := 0; i < 5; i++ {
+		e.send("OPER ember not-the-password")
+		e.expect(" 464 ember ")
+	}
+	r := panelAsk(t, s, control.Request{Cmd: control.CmdPanelLogin, Nick: "ember", Password: emberPW, IP: "127.0.0.1"})
+	if r.Oper != nil || !strings.HasPrefix(r.Error, "Too many wrong passwords for this oper.") {
+		t.Fatalf("locked oper, right oper password: %+v", r)
+	}
+	// Their NickServ password still gets its own answer.
+	if r := panelAsk(t, s, control.Request{Cmd: control.CmdPanelLogin, Nick: "ember", Password: pw, IP: "127.0.0.1"}); !strings.HasPrefix(r.Error, "Member sign-in is off") {
+		t.Fatalf("locked oper, NickServ password: %+v", r)
+	}
+}

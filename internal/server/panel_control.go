@@ -148,11 +148,19 @@ func (s *Server) panelLogin(req control.Request, done func(control.Response)) {
 			s.snotice("Hive Panel: %s signed in from %s: %s", po.Account, ip, po.Flags)
 			done(control.Response{Oper: po})
 		case services.PwLocked:
+			locked := control.Response{Error: "Too many wrong passwords for this oper. Try again in " + services.RoundUp(s.lockedFor(key, ip)) + ".", Denied: "signin"}
 			if members { // the NickServ password has its own lock
-				s.memberLogin(a, nick, pw, ip, done)
+				s.memberLogin(a, nick, pw, ip, func(r control.Response) {
+					if r.Oper == nil && r.Error == wrong.Error {
+						// Not their NickServ password either: the oper lock is
+						// what keeps a right oper password out, so say that.
+						r = locked
+					}
+					done(r)
+				})
 				return
 			}
-			done(control.Response{Error: "Too many wrong passwords for this oper. Try again in " + services.RoundUp(s.lockedFor(key, ip)) + ".", Denied: "signin"})
+			done(locked)
 		case services.PwDown:
 			s.panelEvent(nick, ip, "could not sign in: the login server can't be reached")
 			done(control.Response{Error: "The login server can't be reached right now. Try again in a moment.", Denied: "signin"})

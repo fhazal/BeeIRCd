@@ -343,7 +343,11 @@ func (s *Server) rpcLogin(name, pass string, ip net.IP) (rc *rpcConn, why string
 	if !u.From(ip) {
 		// Not a wrong password: it isn't even looked at, and doesn't
 		// count towards the lock.
-		s.post(func() { s.snotice("RPC: '%s' may not call from %s (see ips in its [[rpc.user]] block)", u.Name, key) })
+		// Told once a minute per name: these tries are not counted, so
+		// an outside address could repeat them without end.
+		s.post(func() {
+			s.snoticeEvery("rpc-address:"+u.Name, time.Minute, "RPC: '%s' may not call from %s (see ips in its [[rpc.user]] block)", u.Name, key)
+		})
 		return nil, "Wrong name or password, or this address may not use that name."
 	}
 	sum := sha256.Sum256([]byte(pass))
