@@ -251,3 +251,38 @@ func (s *Server) mlRouteUser(src string, t *state.User, verb, text string, tags 
 	}
 }
 
+// mlRead follows a client's multiline batches as its lines are read, so
+// flood control counts a batch once: the BATCH + line pays, the lines in
+// it (up to the batch limit) don't.
+type mlRead struct {
+	id   string
+	left int
+}
+
+// free reports whether line is a line of the open batch that costs
+// nothing.
+func (b *mlRead) free(line string) bool {
+	if !strings.HasPrefix(line, "@") && !strings.HasPrefix(line, "BATCH ") && !strings.HasPrefix(line, "batch ") {
+		return false
+	}
+	m, err := irc.Parse(line)
+	if err != nil {
+		return false
+	}
+	if strings.EqualFold(m.Command, "BATCH") && len(m.Params) > 0 {
+		ref := m.Params[0]
+		switch {
+		case strings.HasPrefix(ref, "+") && len(m.Params) > 1 && m.Params[1] == multilineCap:
+			b.id, b.left = ref[1:], mlMaxLines
+		case strings.HasPrefix(ref, "-") && ref[1:] == b.id && b.id != "":
+			b.id = ""
+			return true
+		}
+		return false
+	}
+	if b.id == "" || b.left <= 0 || m.Tags["batch"] != b.id {
+		return false
+	}
+	b.left--
+	return true
+}

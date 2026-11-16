@@ -1,8 +1,12 @@
 package server
 
 import (
+	"strconv"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/fhazal/beeircd/internal/config"
 )
 
 func TestMultiline(t *testing.T) {
@@ -159,3 +163,24 @@ func TestMultilineSpamfilter(t *testing.T) {
 	a.quiet("qaspam")
 }
 
+// A batch counts once for flood control: 20 lines arrive at once even
+// with a slow flood rate.
+func TestMultilineFloodOnce(t *testing.T) {
+	s := testServer(t, func(c *config.Config) {
+		draftsOn(c)
+		c.Limits.FloodBurst, c.Limits.FloodRate = 5, 2
+	})
+	v := capLogin(t, s, "Vic", "batch", multilineCap)
+	a := login(t, s, "Ann")
+	joinAll("#ch", v, a)
+	start := time.Now()
+	v.send("BATCH +a " + multilineCap + " #ch")
+	for i := 0; i < 20; i++ {
+		v.send("@batch=a PRIVMSG #ch :line " + strconv.Itoa(i))
+	}
+	v.send("BATCH -a")
+	a.expect("PRIVMSG #ch :line 19")
+	if d := time.Since(start); d > 2*time.Second {
+		t.Errorf("batch took %v", d)
+	}
+}

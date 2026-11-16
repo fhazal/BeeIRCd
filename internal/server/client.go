@@ -319,6 +319,7 @@ func (c *Client) readLoop() {
 	gap := time.Second / time.Duration(c.floodRate)
 	allow := time.Duration(c.floodBurst) * gap
 	var clock time.Time
+	var batch mlRead
 	for {
 		line, err := readLine(r)
 		var lines []string
@@ -333,7 +334,16 @@ func (c *Client) readLoop() {
 			if clock.Before(now) {
 				clock = now
 			}
-			clock = clock.Add(gap * time.Duration(max(1, len(lines))))
+			cost := 0
+			for _, l := range lines {
+				if !batch.free(l) {
+					cost++
+				}
+			}
+			if len(lines) == 0 {
+				cost = 1
+			}
+			clock = clock.Add(gap * time.Duration(cost))
 			if c.noLag.Load() {
 				clock = now // opers aren't slowed down (UnrealIRCd, InspIRCd)
 			} else if ahead := clock.Sub(now); ahead > allow {
