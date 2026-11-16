@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/fhazal/beeircd/internal/irc"
+	"github.com/fhazal/beeircd/internal/link"
 	"github.com/fhazal/beeircd/internal/services"
 	"github.com/fhazal/beeircd/internal/state"
 )
@@ -122,6 +123,18 @@ func (s *Server) relayOper(c *Client, m irc.Message, beeOnly bool) bool {
 		s.reply(c, irc.ErrNoSuchNick, m.Params[idx], "No such nick/channel")
 	case o.bridge != nil && !bridgeCarries[m.Command] || beeOnly && !o.peer.Bee:
 		s.notice(c, "*** "+m.Command+" can't reach "+t.Nick+": "+t.Server+" is behind a link that doesn't carry it")
+	case m.Command == "SANICK" && o.bridge == nil && !o.peer.Bee:
+		// UnrealIRCd has no SANICK: its own server renames them when
+		// services ask (SVSNICK), and this server speaks as services.
+		nick := m.Param(1)
+		switch {
+		case !irc.ValidNick(nick, s.cfg.Limits.NickLen) || services.IsReserved(nick):
+			s.stdReply(c, "FAIL", "SANICK", "INVALID_NICK", "Invalid nickname: '"+nick+"'", "", nick)
+		case !irc.EqualFold(nick, t.Nick) && s.net.NickInUse(nick):
+			s.reply(c, irc.ErrNicknameInUse, nick, "Nickname is already in use")
+		case s.sendRemote(t.UID, &link.ForceNick{Source: s.svcSource(), UID: t.UID, Nick: nick, TS: time.Now().Unix()}):
+			s.snotice("%s used SANICK to change %s (on %s) to %s", c.user.Nick, t.Nick, t.Server, nick)
+		}
 	case o.bridge != nil && m.Command != "SANICK":
 		// InspIRCd takes one channel in each SAJOIN or SAPART.
 		for _, name := range strings.Split(m.Params[1], ",") {

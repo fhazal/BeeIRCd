@@ -197,7 +197,11 @@ keeps quiet leaves without their part message.
 On links, UnrealIRCd servers get UnrealIRCd's names and InspIRCd servers
 InspIRCd's. Extbans the other server doesn't have (InspIRCd has no
 `~j`, `~p`, `~T`, `~m:type`, `~F` or `~i`) stay on the BeeIRCd side, and
-InspIRCd's inverted bans (`!R:account`) aren't taken. An InspIRCd server
+InspIRCd's inverted bans (`!R:account`) aren't taken. UnrealIRCd keeps
+an extban it doesn't know when another server sets it, so the ones only
+InspIRCd and BeeIRCd have (`~unauthed`, `~server`, `~noctcp`...) show on
+its ban lists and can be removed there, but only BeeIRCd acts on them.
+An InspIRCd server
 says which extbans its loaded modules give it, and only those are sent to
 it. A forward ban goes to InspIRCd as its `redirect:` extban when it has
 that one, and as `mask#channel` (its banredirect module) when not; both
@@ -323,7 +327,9 @@ people connected to another server: the command travels to their server,
 which carries it out. NICKLOCK and SAQUIT need that server to be BeeIRCd
 (on other software SAQUIT becomes a KILL). SAJOIN, SAPART and SANICK work
 both ways with InspIRCd servers that have those modules loaded, and
-ALLTIME asks them for their clock too.
+ALLTIME asks them for their clock too. UnrealIRCd has no SANICK: someone
+on an UnrealIRCd server is renamed the way services do it, which works
+when this server is in that server's `ulines`.
 
 **Moving people before maintenance.** `/JUMPSERVER irc2.example.org NEW
 back in an hour` sends everyone who connects from then on to
