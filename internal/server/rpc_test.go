@@ -391,3 +391,32 @@ func TestRPCConfig(t *testing.T) {
 		t.Error("From is wrong")
 	}
 }
+
+// A refused address and an unknown name get the same answer and the same
+// count, so a caller can't find out which names exist.
+func TestRPCRefusalsLookAlike(t *testing.T) {
+	s := testServer(t, func(c *config.Config) {
+		c.RPC = config.RPC{Listen: "127.0.0.1:0", Users: []config.RPCUser{
+			{Name: "faraway", Password: rpcHash(), IPs: []string{"10.250.77.20"}},
+		}}
+	})
+	if rc, why := s.rpcLogin("faraway", rpcPass, net.ParseIP("10.250.77.20")); rc == nil {
+		t.Fatalf("the allowed address is refused: %s", why)
+	}
+	known, unknown := net.ParseIP("10.250.77.30"), net.ParseIP("10.250.77.31")
+	for i := 0; i < rpcFailMax; i++ {
+		_, a := s.rpcLogin("faraway", rpcPass, known)
+		_, b := s.rpcLogin("nobody", rpcPass, unknown)
+		if a != b || a != "Wrong name or password." {
+			t.Fatalf("try %d: %q and %q", i+1, a, b)
+		}
+	}
+	_, a := s.rpcLogin("faraway", rpcPass, known)
+	_, b := s.rpcLogin("nobody", rpcPass, unknown)
+	if a != b || !strings.Contains(a, "Too many") {
+		t.Fatalf("after the lock: %q and %q", a, b)
+	}
+	if rc, why := s.rpcLogin("faraway", rpcPass, net.ParseIP("10.250.77.20")); rc == nil {
+		t.Fatalf("the allowed address is locked with the stranger: %s", why)
+	}
+}

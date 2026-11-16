@@ -316,16 +316,19 @@ func (s *Server) rpcLogin(name, pass string, ip net.IP) (rc *rpcConn, why string
 	if locked {
 		return nil, "Too many wrong passwords. Try again in a minute."
 	}
-	fail := func() (*rpcConn, string) {
+	// One answer and one count for every refusal, so a caller can't tell
+	// which names exist; only the opers are told the reason.
+	fail := func(note func()) (*rpcConn, string) {
 		r.mu.Lock()
 		if len(r.fails) > 10000 {
 			clear(r.fails)
 		}
 		r.fails[key] = append(r.fails[key], now)
 		r.mu.Unlock()
-		s.post(func() { s.snotice("RPC: wrong name or password for '%s' from %s", name, key) })
+		s.post(note)
 		return nil, wrong
 	}
+	wrongPass := func() { s.snotice("RPC: wrong name or password for '%s' from %s", name, key) }
 	var u config.RPCUser
 	found := false
 	if !s.onLoop(func() {
@@ -338,17 +341,12 @@ func (s *Server) rpcLogin(name, pass string, ip net.IP) (rc *rpcConn, why string
 		return nil, "The server is stopping."
 	}
 	if !found || ip == nil {
-		return fail()
+		return fail(wrongPass)
 	}
 	if !u.From(ip) {
-		// Not a wrong password: it isn't even looked at, and doesn't
-		// count towards the lock.
-		// Told once a minute per name: these tries are not counted, so
-		// an outside address could repeat them without end.
-		s.post(func() {
+		return fail(func() {
 			s.snoticeEvery("rpc-address:"+u.Name, time.Minute, "RPC: '%s' may not call from %s (see ips in its [[rpc.user]] block)", u.Name, key)
 		})
-		return nil, "Wrong name or password, or this address may not use that name."
 	}
 	sum := sha256.Sum256([]byte(pass))
 	cacheKey := u.Name + "\x00" + u.Password
@@ -357,7 +355,7 @@ func (s *Server) rpcLogin(name, pass string, ip net.IP) (rc *rpcConn, why string
 	r.mu.Unlock()
 	if have {
 		if subtle.ConstantTimeCompare(known[:], sum[:]) != 1 {
-			return fail()
+			return fail(wrongPass)
 		}
 		return &rpcConn{name: u.Name, user: u}, ""
 	}
@@ -370,7 +368,7 @@ func (s *Server) rpcLogin(name, pass string, ip net.IP) (rc *rpcConn, why string
 	ok := passwd.Check(pass, u.Password)
 	<-r.hashes
 	if !ok {
-		return fail()
+		return fail(wrongPass)
 	}
 	r.mu.Lock()
 	if len(r.okPass) > 100 {
