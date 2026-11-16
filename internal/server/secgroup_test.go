@@ -131,6 +131,8 @@ func TestSecurityGroupBan(t *testing.T) {
 	op.expect(" 366 ")
 	op.send("MODE #quiet +b ~security-group:unknown-users")
 	op.expect("MODE #quiet +b ~G:unknown-users")
+	op.send("MODE #quiet +b ~q:~G:nosuchgroup")
+	op.expect(" 696 op #quiet b ~q:~G:nosuchgroup :There is no security group nosuchgroup on this server")
 	x := login(t, s, "x")
 	x.send("JOIN #quiet")
 	x.expect(" 474 x #quiet ")

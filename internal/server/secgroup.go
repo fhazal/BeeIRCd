@@ -341,3 +341,13 @@ func (s *Server) restrictedCreate(c *Client) string {
 	}
 	return "Creation of new channels has been restricted by the network administrator."
 }
+
+// groupOfMask is the group a ~G: entry (maybe inside ~q: or ~t:) names,
+// "" when there is none.
+func groupOfMask(mask string) string {
+	i := strings.LastIndex(mask, "~G:")
+	if i < 0 {
+		return ""
+	}
+	return mask[i+3:]
+}

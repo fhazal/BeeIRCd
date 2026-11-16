@@ -244,6 +244,10 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 				s.reply(c, irc.ErrInvalidModeParam, ch.Name, string(mc), arg, "This extban can't be used in +"+string(mc)+" (/HELP EXTBANS)")
 				continue
 			}
+			if g := groupOfMask(mask); add && g != "" && !s.cfg.GroupKnown(g) {
+				s.reply(c, irc.ErrInvalidModeParam, ch.Name, string(mc), arg, "There is no security group "+g+" on this server")
+				continue
+			}
 			if add {
 				if len(ch.Lists[mc])+adds[mc] >= maxListEntries {
 					s.reply(c, irc.ErrBanListFull, ch.Name, mask, "Channel list is full")
