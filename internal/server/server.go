@@ -194,6 +194,13 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	svc.OnSecretDone(s.releaseHeld)
 	svc.OnBanChange(s.linkBanChanged)
 	svc.OnSpamChange(s.linkSpamChanged)
+	svc.SetGeoLookup(func(ip string) (string, uint32) {
+		if !s.cfg.GeoIP.On() {
+			return "", 0
+		}
+		in := s.geo.set.Lookup(ip)
+		return in.Country, in.ASN
+	})
 	svc.OnOperData(func() { s.syncQlines(); s.syncExcepts() })
 	s.sinks = append(s.sinks, svc.Event)
 	svc.OnServerHelp(s.helpLines)

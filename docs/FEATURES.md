@@ -105,7 +105,7 @@ Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few 
 | `/KILL`, `/WALLOPS`, server notices | ✅ | |
 | One network ban list: AKILL / G-line, ZLINE, Q-line, R-line (realname), SHUN, ELINE exemptions, all with expiry | ✅ | matches the real host and IP, never the cloak |
 | Channel extbans: every extban of UnrealIRCd 6 and InspIRCd 4, with country and ASN (security groups to come) | ✅ | Either server's names work; links translate them (`/HELP EXTBANS`) |
-| GeoIP: each user's country and network (ASN), in WHOIS for opers and in `~C:` / `~A:` bans | ✅ | DB-IP Lite downloaded monthly, or MaxMind files; lookups stay on the server |
+| GeoIP: each user's country and network (ASN), in WHOIS for opers, in `~C:` / `~A:` channel bans and network bans (AKILL, SHUN, ELINE), the `unrealircd.org/geoip` tag for opers, and the Hive Panel | ✅ | DB-IP Lite downloaded monthly, or MaxMind files; lookups stay on the server |
 | Channel mode `+O` (opers only) | ✅ | |
 | Spam filter (`/SPAMFILTER`, `STATS F`, UnrealIRCd syntax) | ✅ | shared with BeeIRCd and UnrealIRCd links; page in the Hive Panel |
 

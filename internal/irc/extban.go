@@ -433,3 +433,46 @@ func FromInspBan(m string) (string, bool) {
 	}
 	return NormalizeBan("~" + e.Name + ":" + arg)
 }
+
+// serverExtbans are the extbans a network ban (AKILL, SHUN, ELINE) can
+// be: what is known when someone connects, from their address alone.
+const serverExtbans = "CA"
+
+// ServerExtban reads m as an extended network ban (UnrealIRCd's GLINE
+// ~country:NL), in its short form ("~C:NL"); ok is false for anything
+// else, plain masks included.
+func ServerExtban(m string) (string, bool) {
+	if !strings.HasPrefix(m, "~") {
+		return "", false
+	}
+	n, ok := NormalizeBan(m)
+	if !ok || len(n) < 4 || n[2] != ':' || strings.IndexByte(serverExtbans, n[1]) < 0 {
+		return "", false
+	}
+	return n, true
+}
+
+// SplitServerExtban splits an extended network ban for the TKL line:
+// "~C:" and "NL", or UnrealIRCd's "~country:" and "NL".
+func SplitServerExtban(m string, unreal bool) (user, host string) {
+	if unreal {
+		m = UnrealBan(m)
+	}
+	i := strings.IndexByte(m, ':')
+	if i < 0 {
+		return "*", m
+	}
+	return m[:i+1], m[i+1:]
+}
+
+// IsPlaceMask reports whether a network ban mask is a ban by place
+// (~C:NL), not a user@host one like ~bot@*.example.net.
+func IsPlaceMask(m string) bool {
+	return strings.HasPrefix(m, "~") && !strings.Contains(m, "@")
+}
+
+// IsPlaceUser reports whether the user field of a TKL line starts an
+// extended server ban (~country:, ~C:), not an ident like ~bot.
+func IsPlaceUser(u string) bool {
+	return strings.HasPrefix(u, "~") && strings.HasSuffix(u, ":")
+}

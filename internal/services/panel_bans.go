@@ -158,9 +158,13 @@ func (s *Services) PanelBanDel(by, kind, mask string) (removed string, problem s
 		return "", "That isn't a kind of ban."
 	}
 	m := strings.TrimSpace(mask)
-	switch kind {
-	case store.BanSNLine: // stored as typed: a realname mask or /regex/
-	case store.BanZline:
+	if x, ok := irc.ServerExtban(m); ok {
+		m = x
+	}
+	switch {
+	case irc.IsPlaceMask(m): // a ban by place, stored in its short form
+	case kind == store.BanSNLine: // stored as typed: a realname mask or /regex/
+	case kind == store.BanZline:
 		m = strings.ToLower(m)
 	default:
 		m = strings.ToLower(m)

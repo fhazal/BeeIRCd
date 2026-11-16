@@ -775,8 +775,8 @@ func (b *inspBridge) outTKL(src string, p []string) []string {
 		return nil
 	}
 	typ := banTypes[p[1][0]]
-	if typ == "" {
-		return nil
+	if typ == "" || irc.IsPlaceUser(p[2]) {
+		return nil // InspIRCd has no X-line by country or network
 	}
 	mask := p[2] + "@" + p[3]
 	switch p[1][0] {

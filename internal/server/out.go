@@ -23,15 +23,16 @@ type outMsg struct {
 	tags      map[string]string // client-only tags, sent with message-tags
 	msgid     string
 	account   string
-	bot       bool // from a +B user: IRCv3 bot tag
+	bot       bool   // from a +B user: IRCv3 bot tag
+	country   string // the sender's country (GeoIP): unrealircd.org/geoip, for opers
 	at        time.Time
 	needCap   string   // only clients with this capability get it
 	multi     []mlPart // the lines of a draft/multiline message
 
 	// Built lines by capability set (see capKey): a channel message is
 	// built once per kind of client, not once per member.
-	lines [16]string
-	built uint16
+	lines [32]string
+	built uint32
 }
 
 // capKey is which of the capabilities that change a message's text c has.
@@ -48,6 +49,9 @@ func (c *Client) capKey() uint8 {
 	}
 	if c.caps["message-tags"] {
 		k |= 8
+		if c.isOper() {
+			k |= 16 // gets the geoip tag
+		}
 	}
 	return k
 }
@@ -58,6 +62,7 @@ func (s *Server) out(u *state.User, cmd string, params ...string) *outMsg {
 		msg:     irc.Message{Source: u.Prefix(), Command: cmd, Params: params},
 		account: u.Account,
 		bot:     u.HasMode('B'),
+		country: u.Country,
 		at:      time.Now(),
 	}
 }
@@ -109,6 +114,9 @@ func (c *Client) build(o *outMsg) string {
 		}
 		if o.bot {
 			add("bot", "")
+		}
+		if o.country != "" && c.isOper() {
+			add("unrealircd.org/geoip", o.country) // as UnrealIRCd: opers only
 		}
 		for k, v := range o.tags {
 			add(k, v)

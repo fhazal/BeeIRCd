@@ -51,6 +51,9 @@ func (s *Services) liveAkills() []store.NetBan { return s.liveBans(store.BanAkil
 // banMatches reports whether b covers someone with this ident, real host,
 // IP and realname.
 func (s *Services) banMatches(b *store.NetBan, ident, host, ip, realname string) bool {
+	if irc.IsPlaceMask(b.Mask) {
+		return s.geoBanMatches(b.Mask, ip)
+	}
 	switch b.Kind {
 	case store.BanZline:
 		return ip != "" && irc.MatchHost(b.Mask, ip)
@@ -62,6 +65,21 @@ func (s *Services) banMatches(b *store.NetBan, ident, host, ip, realname string)
 	}
 	return irc.MatchUserHost(b.Mask, ident, host, ip)
 }
+
+// geoBanMatches reports whether the extended ban m (~C:NL, ~A:64500)
+// covers someone connecting from ip.
+func (s *Services) geoBanMatches(m, ip string) bool {
+	if s.geoLookup == nil || ip == "" {
+		return false
+	}
+	u := &state.User{}
+	u.Country, u.ASN = s.geoLookup(ip)
+	return state.MatchUser(m, u)
+}
+
+// SetGeoLookup sets how to find the country and network of an IP, for
+// network bans by place (the server's GeoIP; nil = none).
+func (s *Services) SetGeoLookup(f func(ip string) (country string, asn uint32)) { s.geoLookup = f }
 
 // banRegexp is the compiled /regex/ of an SNLINE mask, or nil for a glob.
 func (s *Services) banRegexp(mask string) *regexp.Regexp {
@@ -97,6 +115,12 @@ func (s *Services) exempt(ident, host, ip string) bool {
 	now := time.Now()
 	for _, b := range s.netbans {
 		if b.Kind != store.BanEline || !b.Live(now) {
+			continue
+		}
+		if irc.IsPlaceMask(b.Mask) {
+			if s.geoBanMatches(b.Mask, ip) {
+				return true
+			}
 			continue
 		}
 		if ident == "" {
@@ -174,6 +198,16 @@ func (s *Services) netbanMask(kind, arg string) (string, string) {
 			}
 		}
 		return arg, ""
+	}
+	if irc.IsPlaceMask(arg) {
+		m, ok := irc.ServerExtban(arg)
+		switch {
+		case !ok:
+			return "", "A network ban by place is ~C:country or ~A:network, like ~C:NL or ~A:64500."
+		case matchesEveryone(kind, m):
+			return "", "That mask matches everyone. Give a narrower one."
+		}
+		return m, ""
 	}
 	m, problem := s.akillMask(arg)
 	if problem == "" {
@@ -339,9 +373,13 @@ func (s *Services) netBanCommand(c *Client, k banKind, args []string) {
 			}
 		} else {
 			m := arg
-			switch k.kind {
-			case store.BanSNLine:
-			case store.BanZline:
+			if x, ok := irc.ServerExtban(m); ok {
+				m = x
+			}
+			switch {
+			case irc.IsPlaceMask(m):
+			case k.kind == store.BanSNLine:
+			case k.kind == store.BanZline:
 				m = strings.ToLower(m)
 			default:
 				m = strings.ToLower(m)

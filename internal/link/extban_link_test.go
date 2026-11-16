@@ -57,6 +57,30 @@ func TestInspExtbans(t *testing.T) {
 	if got := run(":1IN LMODE #hive 1700000000 b nonick:*!*@x setter 1700000000"); !has(got, "&~n:*!*@x") {
 		t.Errorf("LMODE from InspIRCd: %q", got)
 	}
+	// G-lines by place: InspIRCd has none, so it gets nothing
+	if got := b.Out(":0BE TKL + G ~C: NL Boss 0 1700000000 :no"); len(got) != 0 {
+		t.Errorf("place ban sent to InspIRCd: %q", got)
+	}
+	if got := b.Out(":0BE TKL + G * 192.0.2.1 Boss 0 1700000000 :no"); !has(got, "ADDLINE G *@192.0.2.1") {
+		t.Errorf("plain G-line: %q", got)
+	}
+}
+
+// Network bans by place: UnrealIRCd's ~country: NL, BeeIRCd's ~C: NL.
+func TestPlaceBansOnLinks(t *testing.T) {
+	ban := &Ban{Source: "0BE", Add: true, Type: BanGline, User: "~C:", Host: "NL", SetBy: "Boss", SetAt: 1700000000, Reason: "no"}
+	unreal := &unrealCodec{unreal: true}
+	if got := unreal.encodeBan(ban); got != ":0BE TKL + G ~country: NL Boss 0 1700000000 :no" {
+		t.Errorf("to UnrealIRCd: %q", got)
+	}
+	bee := &unrealCodec{bee: true}
+	if got := bee.encodeBan(ban); got != ":0BE TKL + G ~C: NL Boss 0 1700000000 :no" {
+		t.Errorf("to BeeIRCd: %q", got)
+	}
+	in, _ := unreal.decodeBan("001", []string{"+", "G", "~asn:", "64500", "admin", "0", "1700000000", "no"}).(*Ban)
+	if in == nil || in.User != "~asn:" || in.Host != "64500" {
+		t.Errorf("from UnrealIRCd: %+v", in)
+	}
 }
 
 func parse(t *testing.T, l string) irc.Message {

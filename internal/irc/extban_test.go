@@ -159,3 +159,26 @@ func TestExtbanUnrealAndInsp(t *testing.T) {
 		}
 	}
 }
+
+func TestServerExtban(t *testing.T) {
+	for in, want := range map[string]string{"~C:nl": "~C:NL", "~country:MY": "~C:MY", "~asn:AS4788": "~A:4788", "~A:64500": "~A:64500"} {
+		if got, ok := ServerExtban(in); !ok || got != want {
+			t.Errorf("ServerExtban(%q) = %q, %v", in, got, ok)
+		}
+	}
+	for _, bad := range []string{"*@host", "~a:Bee", "~q:~C:NL", "~c:#x", "~C:", "~A:x"} {
+		if got, ok := ServerExtban(bad); ok {
+			t.Errorf("ServerExtban(%q) = %q", bad, got)
+		}
+	}
+	if u, h := SplitServerExtban("~C:NL", true); u != "~country:" || h != "NL" {
+		t.Errorf("unreal split %q %q", u, h)
+	}
+	if u, h := SplitServerExtban("~A:4788", false); u != "~A:" || h != "4788" {
+		t.Errorf("bee split %q %q", u, h)
+	}
+	// ~bot@host is an ident ban, never a place
+	if IsPlaceMask("~bot@*.example.net") || !IsPlaceMask("~C:NL") || IsPlaceUser("~bot") || !IsPlaceUser("~country:") {
+		t.Error("IsPlaceMask / IsPlaceUser")
+	}
+}

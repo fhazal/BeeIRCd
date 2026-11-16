@@ -40,10 +40,12 @@ func (s *Server) banItem(b store.NetBan, add bool) *link.Ban {
 	if !b.Expires.IsZero() {
 		it.Expires = b.Expires.Unix()
 	}
-	switch b.Kind {
-	case store.BanZline:
+	switch {
+	case irc.IsPlaceMask(b.Mask): // ~C:NL travels as ~C: NL
+		it.User, it.Host = irc.SplitServerExtban(b.Mask, false)
+	case b.Kind == store.BanZline:
 		it.User, it.Host = "*", b.Mask
-	case store.BanSNLine:
+	case b.Kind == store.BanSNLine:
 		it.User, it.Host = "*", base64.RawURLEncoding.EncodeToString([]byte(b.Mask))
 	default:
 		it.User, it.Host, _ = strings.Cut(b.Mask, "@")
@@ -106,6 +108,15 @@ func (s *Server) remoteBan(l *linkConn, raw irc.Message, b *link.Ban) {
 		}
 	}
 	kind := banKind(b.Type)
+	ext := ""
+	if irc.IsPlaceUser(b.User) {
+		// UnrealIRCd's extended server ban: ~country: NL. The ones we
+		// don't know pass on like the kinds we don't keep.
+		var ok bool
+		if ext, ok = irc.ServerExtban(b.User + b.Host); !ok {
+			b.Unsupported = true
+		}
+	}
 	if b.Unsupported || kind == "" {
 		// Nick bans, spamfilters ...: not ours to keep, but the servers
 		// further on may be UnrealIRCd.
@@ -118,7 +129,11 @@ func (s *Server) remoteBan(l *linkConn, raw irc.Message, b *link.Ban) {
 	if kind != store.BanZline && kind != store.BanSNLine {
 		mask = orStr(b.User, "*") + "@" + b.Host
 	}
-	nb := store.NetBan{Kind: kind, Mask: strings.ToLower(mask), Reason: irc.Truncate(b.Reason, 200), SetBy: b.SetBy, SetAt: time.Unix(b.SetAt, 0)}
+	mask = strings.ToLower(mask)
+	if ext != "" {
+		mask = ext
+	}
+	nb := store.NetBan{Kind: kind, Mask: mask, Reason: irc.Truncate(b.Reason, 200), SetBy: b.SetBy, SetAt: time.Unix(b.SetAt, 0)}
 	if b.SetAt == 0 {
 		nb.SetAt = time.Now()
 	}

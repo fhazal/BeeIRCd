@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/store"
 )
 
@@ -68,6 +69,10 @@ func matchesEveryone(kind, mask string) bool {
 	case store.BanSNLine:
 		return strings.Trim(mask, "*?") == ""
 	}
+	if irc.IsPlaceMask(mask) {
+		_, v, _ := strings.Cut(mask[1:], ":")
+		return strings.Trim(v, "*?") == ""
+	}
 	user, host, ok := strings.Cut(mask, "@")
 	if !ok {
 		return strings.Trim(mask, "*?.:") == ""
@@ -79,7 +84,14 @@ func (s *Services) RemoteBan(b store.NetBan, add bool) bool {
 	if !linked(b.Kind) {
 		return false
 	}
-	b.Mask = strings.ToLower(b.Mask)
+	if m, ok := irc.ServerExtban(b.Mask); ok {
+		if b.Kind == store.BanZline || b.Kind == store.BanSNLine {
+			return false
+		}
+		b.Mask = m
+	} else {
+		b.Mask = strings.ToLower(b.Mask)
+	}
 	if add {
 		if !b.Live(time.Now()) {
 			return false

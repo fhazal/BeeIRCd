@@ -165,7 +165,11 @@ func (c *unrealCodec) encodeBan(b *Ban) string {
 	if b.Add {
 		sign = "+"
 	}
-	head := fmt.Sprintf(":%s TKL %s %c %s %s %s %d %d", b.Source, sign, b.Type, orStar(b.User), b.Host, b.SetBy, b.Expires, b.SetAt)
+	user, host := orStar(b.User), b.Host
+	if c.unreal && irc.IsPlaceUser(user) {
+		user, host = irc.SplitServerExtban(user+host, true) // ~country: NL
+	}
+	head := fmt.Sprintf(":%s TKL %s %c %s %s %s %d %d", b.Source, sign, b.Type, user, host, b.SetBy, b.Expires, b.SetAt)
 	if b.Type == BanException {
 		return head + " " + orStar(b.Exempt) + " :" + b.Reason
 	}

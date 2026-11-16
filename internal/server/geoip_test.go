@@ -192,3 +192,87 @@ func TestTopPlaces(t *testing.T) {
 		t.Errorf("top: %d more %d first %v %v", len(list), more, list[0], list[1])
 	}
 }
+
+// Network bans by place (UnrealIRCd's GLINE ~country:NL) and the
+// unrealircd.org/geoip tag opers get. People come in through a WEBIRC
+// gateway with other addresses.
+func TestGeoIPNetworkBansAndTag(t *testing.T) {
+	country, _ := geoip.Parse(geoiptest.Build(24, 6, []geoiptest.Net{
+		{P: "127.0.0.0/8", Data: geoiptest.Country("MY", "Malaysia")},
+		{P: "192.0.2.0/24", Data: geoiptest.Country("NL", "Netherlands")},
+		{P: "198.51.100.0/24", Data: geoiptest.Country("SG", "Singapore")},
+	}))
+	asn, _ := geoip.Parse(geoiptest.Build(24, 6, []geoiptest.Net{
+		{P: "192.0.2.0/24", Data: map[string]any{"autonomous_system_number": uint32(64500)}},
+	}))
+	s, _, _ := fileServerWith(t, "\n[[webirc]]\nname = \"beeroom\"\npassword = \""+webircPW+"\"\nhosts = [\"127.0.0.1\"]\n", func(s *Server) {
+		on := true
+		s.cfg.GeoIP.Enabled = &on
+		s.geo.set = geoip.Set{Country: country, ASN: asn}
+	})
+	b := boss(t, s)
+	b.send("CAP REQ :message-tags")
+	b.expect("ACK :message-tags")
+
+	b.send("OS AKILL ADD ~country:my everyone here")
+	b.expect("~C:MY matches you")
+	b.send("OS ZLINE ADD ~C:NL no")
+	b.expect("A ZLINE is an IP")
+	b.send("OS AKILL ADD ~country:nl no Dutch")
+	b.expect("AKILL added: ~C:NL for 30 days (no Dutch). 0 people removed.")
+	b.send("OS AKILL ADD ~A:x nope")
+	b.expect("~C:country or ~A:network")
+
+	nl := viaGateway(t, s, "Dutchy", "192.0.2.5")
+	nl.expect("no Dutch")
+	sg := viaGateway(t, s, "Lion", "198.51.100.5")
+	sg.expect(" 001 Lion ")
+
+	// an exception by network lets the Dutch network 64500 in again
+	b.send("OS EXCEPTION BAN ADD ~asn:AS64500 our friends")
+	b.expect("ELINE added: ~A:64500")
+	nl2 := viaGateway(t, s, "Dutch2", "192.0.2.6")
+	nl2.expect(" 001 Dutch2 ")
+	b.send("OS AKILL DEL ~country:NL")
+	b.expect("AKILL on ~C:NL removed.")
+	nl3 := viaGateway(t, s, "Dutch3", "192.0.2.77")
+	nl3.expect(" 001 Dutch3 ")
+
+	// the geoip tag: opers with message-tags only
+	x := login(t, s, "x")
+	x.send("CAP REQ :message-tags")
+	x.expect("ACK :message-tags")
+	sg.send("PRIVMSG Boss :hello")
+	if line := b.expect("PRIVMSG Boss :hello"); !strings.Contains(line, "unrealircd.org/geoip=SG") {
+		t.Errorf("oper line: %s", line)
+	}
+	sg.send("PRIVMSG x :hello")
+	if line := x.expect("PRIVMSG x :hello"); strings.Contains(line, "geoip") {
+		t.Errorf("non-oper got the tag: %s", line)
+	}
+}
+
+// A place ban from a link: UnrealIRCd's spelling is kept in the short
+// form; one we don't know, or one that matches everyone, isn't kept.
+func TestPlaceBanFromLink(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	for _, l := range []string{
+		" TKL + G ~asn: AS64500 admin 0 1700000000 :no",
+		" TKL + G ~country: nl admin 0 1700000000 :no",
+		" TKL + G ~security-group: unknown-users admin 0 1700000000 :not ours",
+		" TKL + G ~country: * admin 0 1700000000 :everyone",
+		" TKL + Z ~country: SG admin 0 1700000000 :no such thing",
+	} {
+		hub.fromLink(t, ":"+leaf.sid+l)
+	}
+	time.Sleep(100 * time.Millisecond)
+	var masks []string
+	hub.s.onLoop(func() {
+		for _, b := range hub.s.svc.LinkedBans() {
+			masks = append(masks, b.Kind+" "+b.Mask)
+		}
+	})
+	if strings.Join(masks, ",") != "akill ~A:64500,akill ~C:NL" {
+		t.Errorf("kept %q", masks)
+	}
+}

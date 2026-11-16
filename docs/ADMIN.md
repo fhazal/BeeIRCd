@@ -218,6 +218,17 @@ To use MaxMind GeoLite2 instead, put its `GeoLite2-Country.mmdb` and
 `GeoLite2-ASN.mmdb` files where you like and set them in `[geoip]` with
 `download = false`. `enabled = false` turns GeoIP off.
 
+Network bans can be by place too, as on UnrealIRCd (`GLINE ~country:NL`):
+`/os akill add ~C:NL reason` or `~A:64500` keeps a whole country or
+network out, SHUN silences it, and `/os exception ban add ~A:64500`
+lets a network back in past the other bans. UnrealIRCd's spellings
+(`~country:`, `~asn:`) work too, and UnrealIRCd links get them in
+theirs; InspIRCd has no such bans, so its links don't get them. A ZLINE
+stays an IP only.
+
+Opers whose client has `message-tags` also see the sender's country on
+every message, in UnrealIRCd's `unrealircd.org/geoip` tag.
+
 ## Spam filter
 
 Rules that catch spam as it is sent, like UnrealIRCd's spamfilter. Opers

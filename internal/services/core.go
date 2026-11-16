@@ -138,11 +138,12 @@ type Services struct {
 
 	// Oper data, kept in memory.
 	netbans        []store.NetBan
-	bansLoaded     bool                           // the first load is no change
-	banHook        func(b store.NetBan, add bool) // see OnBanChange
-	spam           spamState                      // spam filter rules (spamfilter.go)
-	operHook       func()                         // see OnOperData
-	banRegexps     map[string]*regexp.Regexp      // compiled SNLINE /regex/ masks
+	bansLoaded     bool                             // the first load is no change
+	banHook        func(b store.NetBan, add bool)   // see OnBanChange
+	geoLookup      func(ip string) (string, uint32) // see SetGeoLookup
+	spam           spamState                        // spam filter rules (spamfilter.go)
+	operHook       func()                           // see OnOperData
+	banRegexps     map[string]*regexp.Regexp        // compiled SNLINE /regex/ masks
 	news           []store.News
 	sessionExcepts []store.SessionExcept
 	linkedExcepts  []store.SessionExcept     // from the services server, on a server whose services are off
