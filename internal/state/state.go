@@ -54,7 +54,10 @@ type User struct {
 	ASOrg   string
 	// Cloak is the host +x shows, for users on other servers: their
 	// server made it. Ours are made on the spot (cloakFor).
-	Cloak    string
+	Cloak string
+	// Groups are the security groups this server puts the user in (~G:
+	// bans), kept up to date by the server.
+	Groups   []string
 	SignOn   time.Time
 	NickTS   int64
 	Modes    map[byte]bool

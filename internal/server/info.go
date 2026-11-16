@@ -96,6 +96,8 @@ var helpTopics = map[string][]string{
 	"MAP":          {"MAP", "Shows the server tree and how many people are on each server."},
 	"CONNECT":      {"CONNECT <server>", "Connects to a server in the link blocks now (opers, flag c)."},
 	"SQUIT":        {"SQUIT <server> [reason]", "Ends a server link (opers, flag c)."},
+	"REPUTATION":   {"REPUTATION [nick|ip|#channel|<N] [score]", "Reputation scores of IPs (opers, flag h; flag g to change one)."},
+	"THROTTLE":     {"THROTTLE [STATUS|ON|OFF|RESET]", "The new-user connect throttle (opers, flag h; flag g to change it)."},
 	"STATS":        {"STATS <l|c|k|f|u> [server]", "l links, c link blocks, k K-lines (opers); f spam filter rules (opers, flag k); u uptime."},
 	"GLINE":        {"GLINE [-]<user@host> [duration reason]", "Bans someone from the whole network (= /os akill; opers, flag k).", "Duration like 1d or 2h30m, 0 = until removed; none = OperServ's default. -mask removes it, GLINE alone lists them."},
 	"ZLINE":        {"ZLINE [-]<ip> [duration reason]", "Bans an IP or range network-wide, before the connection says anything (= /os zline; opers, flag k).", "Same durations as GLINE. -ip removes it, ZLINE alone lists them."},

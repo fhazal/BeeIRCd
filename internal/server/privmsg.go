@@ -78,6 +78,10 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 				fail(irc.ErrCannotSendToChan, ch.Name, why)
 				continue
 			}
+			if why := s.restrictedMessage(c, verb, true); why != "" && !tagOnly {
+				fail(irc.ErrCannotSendToChan, ch.Name, why)
+				continue
+			}
 			if mem := ch.Member(u); mem != nil && mem.Hidden {
 				if tagOnly {
 					continue // typing in a +D channel would show you're there
@@ -124,6 +128,10 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 		t := s.net.UserByNick(name)
 		if t == nil {
 			fail(irc.ErrNoSuchNick, name, "No such nick/channel")
+			continue
+		}
+		if why := s.restrictedMessage(c, verb, false); why != "" && !tagOnly && !t.Service {
+			fail(irc.ErrCantSendToUser, t.Nick, why)
 			continue
 		}
 		if why := s.refusesMessage(c, t, verb, text); why != "" {

@@ -124,6 +124,10 @@ type Server struct {
 	// panelGone keeps the password hash of oper entries the Hive Panel
 	// removed, so its Undo brings the password back too.
 	panelGone map[int64]string
+
+	rep        repState        // reputation scores (reputation.go)
+	nut        newUserThrottle // [connthrottle] counts (secgroup.go)
+	lastGroups time.Time       // when everyone's security groups were last worked out
 }
 
 type listener struct {
@@ -182,6 +186,7 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	}
 	s.store = db
 	s.loadReadMarkers()
+	s.loadReputation(time.Now())
 	for _, n := range db.Notes() {
 		logger.Printf("services database: %s", n)
 	}
@@ -355,6 +360,8 @@ func (s *Server) Serve(ctx context.Context) error {
 			s.floodTick(now)
 			s.historyTick(now)
 			s.throttleTick(now)
+			s.repTick(now)
+			s.groupTick(now)
 			s.certTick(now)
 			s.svc.Tick(now)
 			s.reap()
@@ -480,6 +487,7 @@ func (s *Server) shutdown(reason string) {
 	}
 	s.saveHistorySnapshot(snap)
 	s.svc.SaveSeen()
+	s.saveReputation(time.Now())
 	if err := s.store.Close(); err != nil {
 		s.log.Printf("closing services database: %v", err)
 	}

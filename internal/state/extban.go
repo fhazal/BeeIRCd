@@ -99,6 +99,13 @@ func MatchUser(who string, u *User) bool {
 		return u.Country != "" && irc.Match(arg, u.Country)
 	case "asn":
 		return u.ASN != 0 && arg == strconv.FormatUint(uint64(u.ASN), 10)
+	case "security-group":
+		for _, g := range u.Groups {
+			if strings.EqualFold(g, arg) {
+				return true
+			}
+		}
+		return false
 	case "bot":
 		return u.HasMode('B') && MatchUser(arg, u)
 	case "gateway":

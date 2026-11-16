@@ -44,6 +44,7 @@ var Extbans = []*Extban{
 	{Letter: 'S', Name: "certfp", Unreal: true, Insp: "fingerprint", InspLetter: 'z', Kind: ExtMatch, Lists: "beI"},
 	{Letter: 'C', Name: "country", Unreal: true, Insp: "country", InspLetter: 'G', Kind: ExtMatch, Lists: "beI"},
 	{Letter: 'A', Name: "asn", Unreal: true, Kind: ExtMatch, Lists: "beI"},
+	{Letter: 'G', Name: "security-group", Unreal: true, Kind: ExtMatch, Lists: "beI"},
 	{Name: "unauthed", Insp: "unauthed", InspLetter: 'U', Kind: ExtMatch, Lists: "beI"},
 	{Name: "bot", Insp: "bot", InspLetter: 'B', Kind: ExtMatch, Lists: "beI"},
 	{Name: "gateway", Insp: "gateway", InspLetter: 'w', Kind: ExtMatch, Lists: "beI"},
@@ -250,6 +251,12 @@ func normArg(e *Extban, arg string, depth int) (string, bool) {
 		return arg, true
 	case "operclass", "realname", "oper", "server", "gateway", "realmask":
 		return word(arg)
+	case "security-group":
+		arg = strings.ToLower(arg)
+		if arg == "" || len(arg) > 30 || strings.Trim(arg, "abcdefghijklmnopqrstuvwxyz0123456789_-") != "" {
+			return "", false
+		}
+		return arg, true
 	case "country":
 		arg = strings.ToUpper(arg)
 		if arg == "" || len(arg) > 3 || strings.Trim(arg, "ABCDEFGHIJKLMNOPQRSTUVWXYZ*?") != "" {

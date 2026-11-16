@@ -21,7 +21,8 @@ const spamNoticeEvery = 10 * time.Second
 
 // spamSkip reports whether c is never filtered.
 func (s *Server) spamSkip(c *Client) bool {
-	return c.isOper() || c.user == nil || c.user.Service || s.svc.SpamExempt(c.user)
+	return c.isOper() || c.user == nil || c.user.Service || s.svc.SpamExempt(c.user) ||
+		s.inAnyGroup(c.user, s.cfg.SpamFilter.ExceptGroups, time.Now())
 }
 
 // spamCheck runs the rules on m from c. It returns false when the command

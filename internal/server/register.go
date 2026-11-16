@@ -351,6 +351,12 @@ func (s *Server) tryRegister(c *Client) {
 	if !s.spamUser(c, c.nick) {
 		return
 	}
+	u.Groups = s.groupsOf(u, now)
+	if why := s.throttleNew(u, now); why != "" {
+		s.quit(c, why)
+		return
+	}
+	s.repAnnounce(c.ip)
 	if err := s.emit(&state.UserAdd{User: u}); err != nil {
 		s.reply(c, irc.ErrNicknameInUse, c.nick, "Nickname is already in use")
 		c.nick = ""

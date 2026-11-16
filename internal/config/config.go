@@ -67,6 +67,12 @@ type Config struct {
 	// Censor is [censor], the words +G hides (censor.go).
 	Censor Censor `toml:"censor"`
 	GeoIP  GeoIP  `toml:"geoip"`
+	// Reputation, SecurityGroups, ConnThrottle and Restricts sort known
+	// people from new ones (security.go).
+	Reputation     Reputation      `toml:"reputation"`
+	SecurityGroups []SecurityGroup `toml:"security_group"`
+	ConnThrottle   ConnThrottle    `toml:"connthrottle"`
+	Restricts      []Restrict      `toml:"restrict"`
 	// OperClasses are the [[operclass]] blocks (see Classes).
 	OperClasses []OperClass `toml:"operclass"`
 
@@ -650,6 +656,15 @@ func (c *Config) Check() error {
 		return err
 	}
 	if err := c.checkSpamFilter(); err != nil {
+		return err
+	}
+	if err := c.checkGroups(); err != nil {
+		return err
+	}
+	if err := c.checkConnThrottle(); err != nil {
+		return err
+	}
+	if err := c.checkRestrict(); err != nil {
 		return err
 	}
 	if err := c.checkWebIRC(); err != nil {

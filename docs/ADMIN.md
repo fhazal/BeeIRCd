@@ -184,7 +184,7 @@ lists them all.
 
 | Kind | Extbans |
 |---|---|
-| Who | `~a:account` (`~a:0` = not logged in), `~c:[@]#chan`, `~r:realname`, `~S:fingerprint`, `~O:operclass`, `~oper:name`, `~unauthed:mask`, `~bot:mask`, `~gateway:name`, `~server:name`, `~realmask:nick!user@host+realname`, `~C:country` (`~C:NL`), `~A:network` (`~A:64500`) |
+| Who | `~a:account` (`~a:0` = not logged in), `~c:[@]#chan`, `~r:realname`, `~S:fingerprint`, `~O:operclass`, `~oper:name`, `~unauthed:mask`, `~bot:mask`, `~gateway:name`, `~server:name`, `~realmask:nick!user@host+realname`, `~C:country` (`~C:NL`), `~A:network` (`~A:64500`), `~G:group` (a [security group](#known-and-new-people), like `~G:unknown-users`) |
 | What they may not do | `~q:` / `~m:` talk, `~j:` join, `~n:` change nick, `~p:` part message, `~noctcp:`, `~nonotice:`, `~blockcolor:`, `~stripcolor:`, `~nokick:`, `~blockinvite:` |
 | Special | `~t:minutes:ban` lifts itself, `~f:#chan:mask` sends them elsewhere, `~T:block:text` / `~T:censor:word`, `+e ~m:type:mask` (skip `external`, `censor`, `moderated`, `color` or `notice`), `+e ~F:mask` (skip `+f`), `~i:#chan` (use that channel's bans or invite exceptions) |
 
@@ -228,6 +228,71 @@ stays an IP only.
 
 Opers whose client has `message-tags` also see the sender's country on
 every message, in UnrealIRCd's `unrealircd.org/geoip` tag.
+
+### Known and new people
+
+Bots that flood a network are new: nobody from their IP has chatted
+there before. BeeIRCd tells them apart the way UnrealIRCd does.
+
+**Reputation.** Every five minutes each IP with someone in a channel of
+three or more people gets a point (two when one of them is logged in),
+up to 10000. Scores are saved in the services database and shared with
+linked BeeIRCd and UnrealIRCd servers (each keeps the higher one), so a
+score earned on one server counts on all. IPs nobody has used for a
+while are forgotten: a score of 2 or less after an hour, 6 or less after
+a week, 12 or less after a month, any after three months.
+
+Opers with flag `h` see the score in WHOIS (`is using an IP with a
+reputation score of 30`) and with `/REPUTATION`: `/REPUTATION nick` or an
+IP for one record, `#channel` for its people, `<10` for everyone below
+10. Flag `g` sets one: `/REPUTATION nick 50`, on every server.
+
+**Security groups.** A group is a named set of people. These are always
+there:
+
+| Group | Who |
+| --- | --- |
+| `known-users` | Logged in, or a reputation score of 25 or more |
+| `unknown-users` | Everyone not in `known-users` |
+| `tls-users` | Connected with TLS |
+| `webirc-users` | Came through a `[[webirc]]` gateway |
+| `websocket-users` | Connected on a WebSocket port |
+
+Add your own with `[[security_group]]` (or replace a built-in one by its
+name). Opers see someone's groups in WHOIS (`is in security-groups:
+known-users,tls-users`). Groups are used by:
+
+- `~G:group` channel bans and exceptions: `+b ~G:unknown-users` keeps new
+  people out, `+e ~G:trusted` lets a group in.
+- `[connthrottle]`: when more than 20 new people a minute connect to a
+  server (30 on the network), people not in `known-users` are refused
+  until it calms down; known people still get in. It waits 3 minutes
+  after a start, and a week after reputation began, so known people are
+  known first. Opers: `/THROTTLE` (flag `h`) shows it, `/THROTTLE OFF`,
+  `ON` and `RESET` (flag `g`) change it until the next start.
+- `[[restrict]]`: commands new people may not use yet, like `/LIST` or
+  private messages in their first minute. Opers are never restricted, and
+  services can always be messaged.
+- `[spamfilter] except_groups`: people never filtered.
+
+```toml
+# People from the Netherlands, unless they came through a web gateway
+[[security_group]]
+name = "dutch"
+mask = ["~C:NL"]
+[security_group.exclude]
+webirc = true
+
+# New people wait a minute before private messages and /LIST
+[[restrict]]
+command = "private-message"
+connect_time = "60s"
+except = ["known-users"]
+
+[[restrict]]
+command = "list"
+connect_time = "60s"
+```
 
 ## Spam filter
 
@@ -880,6 +945,7 @@ The rules themselves are in the services database (see [Spam filter](#spam-filte
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `except` | none | Channels whose messages, notices, parts and topics are never filtered, like `["#help"]` |
+| `except_groups` | none | [Security groups](#known-and-new-people) whose people are never filtered, like `["known-users"]` |
 
 ### [censor]
 
@@ -962,6 +1028,53 @@ that class.
 | `download` | `true` | Fetch DB-IP Lite when a file is missing or over 35 days old |
 | `country_db` | `geoip/country.mmdb` next to the database | Country file (MaxMind DB format) |
 | `asn_db` | `geoip/asn.mmdb` next to the database | Network (ASN) file |
+
+### [reputation]
+
+See [Known and new people](#known-and-new-people).
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `true` | Keep a reputation score per IP |
+| `channel_members` | `3` | Only people in a channel with at least this many members earn points (`0` = everyone) |
+
+### [[security_group]]
+
+Anyone matching one item is in the group, unless they match an item
+under `[security_group.exclude]` (the same items).
+
+| Setting | Meaning |
+| --- | --- |
+| `name` | Up to 30 letters, digits, `_` or `-`; a built-in name replaces that group (`unknown-users` can't be changed) |
+| `identified` | `true`: logged in to an account |
+| `webirc`, `websocket`, `tls` | `true`: came through a web gateway, on a WebSocket port, with TLS |
+| `reputation_score`, `reputation_below` | A score of at least, or less than, this (1 to 10000) |
+| `connect_time`, `connect_below` | Connected at least, or less than, this long, like `"1h"` |
+| `mask` | Masks or extbans, like `["*@*.example.net", "~C:NL", "~a:*"]` |
+| `ip` | Addresses or ranges, like `["192.0.2.0/24"]` |
+| `server_port` | The port of this server they connected to |
+| `security_group` | In one of these other groups |
+| `exclude` | The block of items that keep people out |
+
+### [connthrottle]
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `true` | Slow down floods of new people |
+| `local` | `20:60` | New people (not in `except`) per seconds on this server; `off` for none |
+| `global` | `30:60` | The same for the whole network; `off` for none |
+| `except` | `["known-users"]` | Groups never throttled |
+| `start_delay` | `3m` | Off for this long after the server starts |
+| `gathering` | `7d` | Off until reputation has been gathered this long |
+| `reason` | UnrealIRCd's text | What a refused person is told |
+
+### [[restrict]]
+
+| Setting | Meaning |
+| --- | --- |
+| `command` | A command, like `"list"`, `"invite"`, `"knock"`, or `private-message`, `private-notice`, `channel-message`, `channel-notice`, `channel-create`, `join` |
+| `connect_time` | Allowed once connected this long (up to `24h`); none: only the `except` groups may use it |
+| `except` | Groups that may always use it, like `["known-users"]` |
 
 ### [update]
 

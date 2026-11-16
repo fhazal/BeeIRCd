@@ -288,7 +288,7 @@ func (b *inspBridge) out(m irc.Message) []string {
 		return []string{line(nil, src, "SERVER", true, p[0], p[2], last())}
 	case "EOS":
 		return []string{line(nil, src, "ENDBURST", false)}
-	case "NETINFO", "PROTOCTL", "PASS", "BEESESS", "BEEOPER", "BEEOPERR", "BEEADMIN", "BEEPLACE",
+	case "NETINFO", "PROTOCTL", "PASS", "BEESESS", "BEEOPER", "BEEOPERR", "BEEADMIN", "BEEPLACE", "REPUTATION",
 		"SVSNOOP", "WHOIS", "MOTD", "VERSION", "ADMIN", "TIME", "STATS", "BATCH", "SMOD", "SINFO", "SWHOIS":
 		return nil
 	case "UID":

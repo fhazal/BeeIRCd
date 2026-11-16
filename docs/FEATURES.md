@@ -105,6 +105,11 @@ Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few 
 | `/KILL`, `/WALLOPS`, server notices | ✅ | |
 | One network ban list: AKILL / G-line, ZLINE, Q-line, R-line (realname), SHUN, ELINE exemptions, all with expiry | ✅ | matches the real host and IP, never the cloak |
 | Channel extbans: every extban of UnrealIRCd 6 and InspIRCd 4, with country and ASN (security groups to come) | ✅ | Either server's names work; links translate them (`/HELP EXTBANS`) |
+| Reputation: a score per IP for chatting, saved, shared with BeeIRCd and UnrealIRCd links, in WHOIS for opers, `/REPUTATION` | ✅ | UnrealIRCd's rules: 5-minute rounds, channels of 3, expiry by score |
+| Security groups (`known-users`, `unknown-users`, `tls-users`, `webirc-users`, `websocket-users` and your own) with include and exclude items, `~G:` bans, in WHOIS for opers | ✅ | UnrealIRCd's security-group |
+| New-user connect throttle (`[connthrottle]`, `/THROTTLE`) | ✅ | Known people still get in |
+| Restricted commands for new people (`[[restrict]]`) | ✅ | UnrealIRCd's restrict-commands |
+| Spam filter exceptions by security group (so by country too) | ✅ | |
 | GeoIP: each user's country and network (ASN), in WHOIS for opers, in `~C:` / `~A:` channel bans and network bans (AKILL, SHUN, ELINE), the `unrealircd.org/geoip` tag for opers, and the Hive Panel | ✅ | DB-IP Lite downloaded monthly, or MaxMind files; lookups stay on the server |
 | Channel mode `+O` (opers only) | ✅ | |
 | Spam filter (`/SPAMFILTER`, `STATS F`, UnrealIRCd syntax) | ✅ | shared with BeeIRCd and UnrealIRCd links; page in the Hive Panel |

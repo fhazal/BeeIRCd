@@ -663,7 +663,9 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		s.remotePlace(l, m.Source, m.Params)
 	case "BEESESS":
 		s.remoteExcepts(l, m)
-	case "SINFO", "SMOD", "GLOBOPS", "SENDUMODE", "SENDSNO", "SLOG", "SWHOIS", "BOTMOTD", "REPUTATION":
+	case "REPUTATION":
+		s.remoteReputation(l, m)
+	case "SINFO", "SMOD", "GLOBOPS", "SENDUMODE", "SENDSNO", "SLOG", "SWHOIS", "BOTMOTD":
 		// Server info, module lists and notices for opers: nothing to do,
 		// and nothing worth a log line.
 	default:

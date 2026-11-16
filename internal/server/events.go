@@ -23,6 +23,7 @@ func (s *Server) emit(ev state.Event) error {
 	if err := s.net.Apply(ev); err != nil {
 		return err
 	}
+	s.groupsAfter(ev)
 	if deliver != nil {
 		deliver()
 	}

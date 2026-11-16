@@ -87,7 +87,7 @@ func TestExtbanLists(t *testing.T) {
 			t.Errorf("ExtbanAllowed(%c, %q) = %v", c.list, c.mask, got)
 		}
 	}
-	if ExtbanLetters != "ACFOSTacfijmnpqrt" {
+	if ExtbanLetters != "ACFGOSTacfijmnpqrt" {
 		t.Errorf("ExtbanLetters = %q", ExtbanLetters)
 	}
 }

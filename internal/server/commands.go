@@ -53,6 +53,8 @@ func init() {
 		"CONNECT":      {1, false, (*Server).cmdConnect},
 		"SQUIT":        {1, false, (*Server).cmdSquit},
 		"STATS":        {0, false, (*Server).cmdStats},
+		"REPUTATION":   {0, false, (*Server).cmdReputation},
+		"THROTTLE":     {0, false, (*Server).cmdThrottle},
 		"ADMIN":        {0, false, (*Server).cmdAdmin},
 		"KLINE":        {1, false, (*Server).cmdKline},
 		"UNKLINE":      {1, false, (*Server).cmdUnkline},
@@ -203,6 +205,8 @@ func (s *Server) runCommand(c *Client, m irc.Message) {
 		s.reply(c, irc.ErrNeedMoreParams, m.Command, "Not enough parameters")
 	case c.registered && !shunAllowed[m.Command] && (c.tempShun || s.svc.Shunned(c.user)):
 		// Shunned: dropped without a word (UnrealIRCd).
+	case c.registered && s.restrictedCommand(c, m.Command):
+		// [[restrict]]: not yet for new people.
 	default:
 		if c.registered && m.Command == "PART" && len(m.Params) > 1 && (c.tempShun || s.svc.Shunned(c.user)) {
 			m.Params = m.Params[:1] // no part message either

@@ -44,6 +44,8 @@ type Client struct {
 	dnsblBusy             bool         // a DNSBL lookup is running
 	dnsblListed           *dnsblResult // a DNSBL hit, acted on once NICK and USER are in
 	lookupGen             int          // bumped by WEBIRC: DNS/DNSBL answers for the old IP are dropped
+	websocket             bool         // came in on a WebSocket port
+	port                  int          // the port of ours they connected to
 	webirc                string       // the [[webirc]] gateway this person came through, "" = none
 	webircBusy            bool         // a hashed WEBIRC password is being checked
 	tempShun              bool         // a spam filter shunned this connection (until it reconnects)
@@ -98,7 +100,14 @@ type Client struct {
 func (s *Server) newClient(conn net.Conn, isTLS bool) {
 	now := time.Now()
 	ip := remoteIP(conn)
+	_, ws := conn.(*wsConn)
+	port := 0
+	if a, ok := conn.LocalAddr().(*net.TCPAddr); ok {
+		port = a.Port
+	}
 	c := &Client{
+		websocket:   ws,
+		port:        port,
 		s:           s,
 		conn:        conn,
 		uid:         s.net.NextUID(),
