@@ -137,15 +137,15 @@ func (s *Server) inAnyGroup(u *state.User, names []string, now time.Time) bool {
 }
 
 // whoisSecurity adds the reputation and security group lines opers see.
-func (s *Server) whoisSecurity(u *state.User, reply func(code string, p ...string)) {
-	if u.Service {
-		return
-	}
-	if s.repOn() && u.IP != "" {
-		reply(irc.RplWhoisSpecial, u.Nick, "is using an IP with a reputation score of "+strconv.Itoa(s.repScore(u.IP)))
-	}
+func (s *Server) whoisGroups(u *state.User, reply func(code string, p ...string)) {
 	if gs := s.groupsOf(u, time.Now()); len(gs) > 0 {
 		reply(irc.RplWhoisSpecial, u.Nick, "is in security-groups: "+strings.Join(gs, ","))
+	}
+}
+
+func (s *Server) whoisReputation(u *state.User, reply func(code string, p ...string)) {
+	if s.repOn() && u.IP != "" {
+		reply(irc.RplWhoisSpecial, u.Nick, "is using an IP with a reputation score of "+strconv.Itoa(s.repScore(u.IP)))
 	}
 }
 

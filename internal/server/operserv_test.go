@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"github.com/fhazal/beeircd/internal/passwd"
 	"github.com/fhazal/beeircd/internal/store"
 	"io"
 	"log"
@@ -169,6 +170,95 @@ func TestAdminKeepsOwnWhoisLines(t *testing.T) {
 	c.expect(" 318 ann Boss ")
 }
 
+// The whole WHOIS of an oper, in order: one rank line with the network's
+// tag, the oper's own lines right under it, and what only opers see about
+// the connection after the secure line.
+func TestWhoisOrderAndRank(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	s.onLoop(func() { s.cfg.Server.OperTag = "(IRCop)" })
+	b := registered(t, s, "Boss")
+	s.onLoop(func() {
+		a, _ := s.store.AccountByNick("Boss")
+		// The first line only repeats the rank, and is left out.
+		s.store.SaveOper(&store.Oper{AccountID: a.ID, Account: a.Name, Class: "netadmin",
+			Swhois: []string{"is a Network Administrator", "looks very helpful"}, AddedBy: "test"})
+	})
+	b.send("OPER Boss " + operPW)
+	b.expect(" 381 Boss ")
+	setRep(s, "127.0.0.1", 30)
+
+	// What a normal user sees.
+	c := login(t, s, "ann")
+	c.send("WHOIS Boss")
+	var got []string
+	for {
+		l := c.expect(" Boss ")
+		f := strings.Fields(l)
+		got = append(got, f[1])
+		if f[1] == "313" && !strings.HasSuffix(l, ":is a Network Administrator (IRCop)") {
+			t.Fatalf("rank line: %q", l)
+		}
+		if f[1] == "320" && !strings.HasSuffix(l, ":looks very helpful") {
+			t.Fatalf("a line that should not be there: %q", l)
+		}
+		if f[1] == "318" {
+			break
+		}
+	}
+	if want := "311 312 313 320 330 317 318"; strings.Join(got, " ") != want {
+		t.Fatalf("a normal user got %v, want %s", got, want)
+	}
+
+	// What an oper sees of a normal person.
+	b.send("WHOIS ann")
+	got = got[:0]
+	var texts []string
+	for {
+		l := b.expect(" ann ")
+		f := strings.Fields(l)
+		if len(f) < 2 || len(f[1]) != 3 {
+			continue
+		}
+		got = append(got, f[1])
+		texts = append(texts, l)
+		if f[1] == "318" {
+			break
+		}
+	}
+	all := strings.Join(texts, "\n")
+	at := func(want string) int {
+		i := strings.Index(all, want)
+		if i < 0 {
+			t.Fatalf("no %q in\n%s", want, all)
+		}
+		return i
+	}
+	order := []string{" 311 ", "is using modes +", "is connecting from *@127.0.0.1", " 312 ", "is in security-groups:", "reputation score of 30", " 317 ", " 318 "}
+	for i := 1; i < len(order); i++ {
+		if at(order[i-1]) > at(order[i]) {
+			t.Fatalf("%q comes after %q in\n%s", order[i-1], order[i], all)
+		}
+	}
+
+	// An oper with no rank of their own whose line reads like one: that
+	// line is the rank, and there is no "is an IRC Operator" line.
+	g := registered(t, s, "Guard")
+	h, _ := passwd.Hash(operPW)
+	s.onLoop(func() {
+		a, _ := s.store.AccountByNick("Guard")
+		s.store.SaveOper(&store.Oper{AccountID: a.ID, Account: a.Name, Flags: "k", Hosts: []string{"*@*"}, PassHash: h,
+			Swhois: []string{"is the Network Overwatch"}, AddedBy: "test"})
+	})
+	g.send("OPER Guard " + operPW)
+	g.expect(" 381 Guard ")
+	c.send("WHOIS Guard")
+	c.expect(" 313 ann Guard :is the Network Overwatch (IRCop)")
+	if l := c.expect(" Guard "); strings.Contains(l, " 320 ") || strings.Contains(l, "IRC Operator") {
+		t.Fatalf("a second oper line: %q", l)
+	}
+	c.expect(" 318 ann Guard ")
+}
+
 func TestOperUpAndWhois(t *testing.T) {
 	s, path, _ := fileServer(t, "")
 	b := boss(t, s)
@@ -201,8 +291,8 @@ func TestOperUpAndWhois(t *testing.T) {
 	ember.send("MODE #secret +s")
 	ember.sync()
 	b.send("WHOIS ember")
-	b.expect(" 319 Boss ember :@#secret")
 	b.expect(" 378 Boss ember :is connecting from *@127.0.0.1 127.0.0.1")
+	b.expect(" 319 Boss ember :@#secret")
 	b.send("LIST")
 	b.expect(" 322 Boss #secret 1 ")
 

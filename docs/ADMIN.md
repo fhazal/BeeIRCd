@@ -1056,6 +1056,7 @@ Unknown settings are refused, so a typo shows up in `beeircd check`.
 | `oper_join` | – | Channels an oper joins at `/oper`, like `["#opers"]` |
 | `ping_cookie` | `false` | Every new connection must answer a PING with a random word before it is let in; this stops programs that send without reading |
 | `web_redirect` | – | A web address, like `"https://chat.example.org/"`: browsers that open an IRC port by mistake are sent there |
+| `oper_tag` | – | A short text after every oper's rank in WHOIS, like `"(IRCop)"`: "is a Network Administrator (IRCop)" |
 | `ircv3_drafts` | `false` | Offer the IRCv3 drafts that aren't final yet to clients that ask: `draft/read-marker` (read position shared by all your devices), `draft/pre-away` (bouncers and phones set AWAY while connecting), `draft/extended-isupport` (the 005 list before sign-in with `ISUPPORT`), `draft/multiline` (a pasted block of up to 24 lines or 4096 bytes is one message, checked once by the spam filter and flood rules; clients without it and other servers get the lines one by one), `draft/message-redaction` (`REDACT` takes a message back: the sender for 15 minutes, channel ops and IRC operators at any time; clients with it hide the message, +H history forgets it, other BeeIRCd servers pass it on; clients without it still show the message), `draft/account-registration` (`REGISTER <nick|*> <email|*> <password>` and `VERIFY <nick> <code>` from a client's sign-up screen, with NickServ's rules: `force_email`, `registration`, `reg_delay`; offered on the server that runs services, once the connection is complete). Clients that don't ask see no change. AdminServ `SET ircv3-drafts` switches it live (clients with cap-notify hear CAP NEW / DEL) |
 
 ### [[listen]]
@@ -1309,6 +1310,18 @@ that class.
 | `title` | WHOIS line, like "is a Network Administrator" |
 | `vhost` | Host shown after `/oper` |
 | `swhois` | Up to 5 extra WHOIS lines |
+
+In WHOIS an oper has one rank line: their own title, else their class's
+title, else "is an IRC Operator". Their extra lines come right under it.
+An oper with no title whose first extra line reads like one ("is the
+Network Overwatch") has that line as their rank, and an extra line that
+only repeats the rank is left out. `[server] oper_tag = "(IRCop)"` puts
+that text after every rank: "is a Network Administrator (IRCop)". Every
+BeeIRCd server on the network shows the same lines.
+
+What only opers see about someone's connection (their modes and real
+address near the top; security groups, country, network and reputation
+after the secure-connection line) follows UnrealIRCd's order.
 
 ### [control]
 

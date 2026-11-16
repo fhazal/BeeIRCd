@@ -357,6 +357,7 @@ func restartOnly(ch config.Change) bool {
 var serverLive = map[string]bool{
 	"description": true, "resolve_hosts": true, "hide_servers": true, "connect_modes": true,
 	"oper_modes": true, "oper_join": true, "ping_cookie": true, "web_redirect": true,
+	"oper_tag": true,
 }
 
 // keepRestartOnly copies the settings that need a restart from old into
@@ -369,6 +370,7 @@ func keepRestartOnly(fresh, old *config.Config) {
 	fresh.Server.HideServers, fresh.Server.ConnectModes = live.HideServers, live.ConnectModes
 	fresh.Server.OperModes, fresh.Server.OperJoin = live.OperModes, live.OperJoin
 	fresh.Server.PingCookie, fresh.Server.WebRedirect = live.PingCookie, live.WebRedirect
+	fresh.Server.OperTag = live.OperTag
 	fresh.Cloak, fresh.TLS, fresh.Control = old.Cloak, old.TLS, old.Control
 	fresh.RPC.Listen, fresh.RPC.Socket = old.RPC.Listen, old.RPC.Socket
 	servers := fresh.Link.Servers

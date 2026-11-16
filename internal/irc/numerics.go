@@ -55,6 +55,7 @@ const (
 	RplHostHidden    = "396"
 	RplWhoisSpecial  = "320"
 	RplWhoisHost     = "378"
+	RplWhoisModes    = "379"
 	RplWhoisSecure   = "671"
 	RplWhoisCertFP   = "276"
 	RplWhoisCountry  = "344"

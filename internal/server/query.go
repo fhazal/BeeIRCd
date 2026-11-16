@@ -178,21 +178,23 @@ func (s *Server) cmdWhois(c *Client, m irc.Message) {
 // whoisOne answers a WHOIS on u for c (ours, or a stand-in for someone on
 // another server) through reply.
 func (s *Server) whoisOne(c *Client, u *state.User, reply func(code string, p ...string)) {
+	// The order is UnrealIRCd's (who and where, the rank, then what only
+	// opers see about the connection, account, idle), with the oper's own
+	// lines right under their rank.
+	self, staff := u == c.user, c.can('h')
+	tc := s.clientOf(u)
 	reply(irc.RplWhoisUser, u.Nick, u.Ident, u.Host, "*", u.Realname)
-	if chans := s.whoisChannels(c, u); chans != "" {
-		reply(irc.RplWhoisChannels, u.Nick, chans)
+	if (self || c.isOper()) && !u.Service {
+		reply(irc.RplWhoisModes, u.Nick, "is using modes "+u.ModeString())
 	}
-	if (u == c.user || c.can('h')) && !u.Service && (u.Host != u.RealHost || u != c.user) {
+	if (self || staff) && !u.Service && (u.Host != u.RealHost || !self) {
 		reply(irc.RplWhoisHost, u.Nick, "is connecting from *@"+u.RealHost+" "+u.IP)
 	}
-	if (u == c.user || c.can('h')) && !u.Service {
-		s.whoisGeo(u, reply)
-	}
-	if c.can('h') && !u.Service {
-		s.whoisSecurity(u, reply)
-	}
-	if tc := s.clientOf(u); tc != nil && tc.webirc != "" && (u == c.user || c.can('h')) {
+	if tc != nil && tc.webirc != "" && (self || staff) {
 		reply(irc.RplWhoisSpecial, u.Nick, "is connecting through WEBIRC gateway "+tc.webirc)
+	}
+	if chans := s.whoisChannels(c, u); chans != "" {
+		reply(irc.RplWhoisChannels, u.Nick, chans)
 	}
 	reply(irc.RplWhoisServer, u.Nick, u.Server, s.serverDescription(u.Server))
 	if u.Away != "" {
@@ -201,40 +203,50 @@ func (s *Server) whoisOne(c *Client, u *state.User, reply func(code string, p ..
 	if u.HasMode('B') {
 		reply(irc.RplWhoisBot, u.Nick, "is a Bot on "+s.cfg.Server.Network)
 	}
-	tc := s.clientOf(u)
+	var own []string // the oper's own lines, right under the rank
 	switch {
 	case u.Service:
 		reply(irc.RplWhoisOperator, u.Nick, "is a Network Service")
-	case tc != nil && tc.isOper() && (!u.HasMode('H') || u == c.user || c.isOper()):
-		reply(irc.RplWhoisOperator, u.Nick, whoisOperText(tc.operTitle))
-		for _, line := range tc.operSwhois {
-			reply(irc.RplWhoisSpecial, u.Nick, line)
-		}
+	case tc != nil && tc.isOper() && (!u.HasMode('H') || self || c.isOper()):
+		var rank string
+		rank, own = s.operRank(tc.operTitle, tc.operSwhois)
+		reply(irc.RplWhoisOperator, u.Nick, rank)
 	case tc == nil && u.Modes['o'] && (!u.HasMode('H') || c.isOper()):
 		// On another server: what that server said about them.
-		reply(irc.RplWhoisOperator, u.Nick, whoisOperText(u.OperTitle))
-		for _, line := range u.OperSwhois {
-			reply(irc.RplWhoisSpecial, u.Nick, line)
-		}
+		var rank string
+		rank, own = s.operRank(u.OperTitle, u.OperSwhois)
+		reply(irc.RplWhoisOperator, u.Nick, rank)
+	}
+	for _, line := range own {
+		reply(irc.RplWhoisSpecial, u.Nick, line)
 	}
 	if u.HasMode('h') && !u.Service {
 		reply(irc.RplWhoisHelpOp, u.Nick, "is available for help")
 	}
-	if u.Account != "" {
-		reply(irc.RplWhoisAccount, u.Nick, u.Account, "is logged in as")
-	}
 	if u.TLS {
 		reply(irc.RplWhoisSecure, u.Nick, "is using a secure connection")
 	}
-	if u.CertFP != "" && (u == c.user || c.isOper()) {
+	if u.CertFP != "" && (self || c.isOper()) {
 		reply(irc.RplWhoisCertFP, u.Nick, "has client certificate fingerprint "+u.CertFP)
+	}
+	if staff && !u.Service {
+		s.whoisGroups(u, reply)
+	}
+	if (self || staff) && !u.Service {
+		s.whoisGeo(u, reply)
+	}
+	if staff && !u.Service {
+		s.whoisReputation(u, reply)
+	}
+	if u.Account != "" {
+		reply(irc.RplWhoisAccount, u.Nick, u.Account, "is logged in as")
 	}
 	if tc != nil {
 		idle := int64(time.Since(tc.lastMsg).Seconds())
 		reply(irc.RplWhoisIdle, u.Nick, strconv.FormatInt(idle, 10), strconv.FormatInt(u.SignOn.Unix(), 10), "seconds idle, signon time")
 	}
 	reply(irc.RplEndOfWhois, u.Nick, "End of /WHOIS list.")
-	if u.HasMode('W') && u != c.user && tc != nil { // +W: opers see who looks them up
+	if u.HasMode('W') && !self && tc != nil { // +W: opers see who looks them up
 		me := c.user
 		s.notice(tc, "*** "+me.Nick+" ("+me.TrueIdent()+"@"+me.RealHost+") did a /whois on you.")
 	}

@@ -82,6 +82,27 @@ func whoisOperText(title string) string {
 	return "is an IRC Operator (" + title + ")"
 }
 
+// operRank is an oper's one rank line in WHOIS and the lines of their own
+// that follow it. An oper without a title whose first own line
+// reads like one ("is the Network Overwatch") has that as their rank, and
+// a line that only repeats the rank is left out. [server] oper_tag, like
+// "(IRCop)", comes after the rank.
+func (s *Server) operRank(title string, swhois []string) (rank string, own []string) {
+	if title == "" && len(swhois) > 0 && strings.HasPrefix(strings.ToLower(swhois[0]), "is ") {
+		title, swhois = swhois[0], swhois[1:]
+	}
+	rank = whoisOperText(title)
+	for _, l := range swhois {
+		if !strings.EqualFold(strings.TrimSpace(l), rank) {
+			own = append(own, l)
+		}
+	}
+	if tag := s.cfg.Server.OperTag; tag != "" {
+		rank += " " + tag
+	}
+	return rank, own
+}
+
 // showOperVhost puts the oper vhost on c, or takes an old one off.
 func (s *Server) showOperVhost(c *Client, vhost string) {
 	u := c.user

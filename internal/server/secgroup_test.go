@@ -81,8 +81,8 @@ func TestReputationCommandAndWhois(t *testing.T) {
 	b.send("REPUTATION")
 	b.expect("Current number of records (IP's): 1")
 	b.send("WHOIS x")
-	b.expect(" 320 Boss x :is using an IP with a reputation score of 30")
 	b.expect(" 320 Boss x :is in security-groups: known-users")
+	b.expect(" 320 Boss x :is using an IP with a reputation score of 30")
 	x.send("WHOIS x")
 	x.quiet("reputation score")
 }

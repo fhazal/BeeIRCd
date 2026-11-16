@@ -195,6 +195,8 @@ type Server struct {
 	// WebRedirect is a web address browsers are sent to when they open
 	// an IRC port by mistake.
 	WebRedirect string `toml:"web_redirect"`
+	// OperTag follows every oper's rank in WHOIS, like "(IRCop)".
+	OperTag string `toml:"oper_tag"`
 }
 
 // FullPrefixes reports whether owner, admin and halfop exist.

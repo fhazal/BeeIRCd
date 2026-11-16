@@ -99,6 +99,9 @@ func (c *Config) checkSmall() error {
 	if w := c.Server.WebRedirect; w != "" && !strings.HasPrefix(w, "https://") && !strings.HasPrefix(w, "http://") {
 		return fmt.Errorf("[server] web_redirect %q: write a web address that starts with https://", w)
 	}
+	if t := c.Server.OperTag; len(t) > 30 || strings.ContainsAny(t, "\r\n\x00") || strings.TrimSpace(t) != t {
+		return fmt.Errorf("[server] oper_tag %q: a short text of at most 30 characters, like \"(IRCop)\"", t)
+	}
 	seen := map[string]bool{}
 	for _, f := range c.ShowFiles {
 		name := strings.ToUpper(f.Command)
