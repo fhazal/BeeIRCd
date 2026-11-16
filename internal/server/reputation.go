@@ -288,6 +288,10 @@ func (s *Server) cmdReputation(c *Client, m irc.Message) {
 	var ip string
 	switch {
 	case strings.ContainsAny(arg, ".:"):
+		if net.ParseIP(arg) == nil {
+			note("REPUTATION: %s is not an IP address", arg)
+			return
+		}
 		ip = arg
 	case irc.IsChannel(arg):
 		ch := s.net.Channel(arg)
@@ -331,15 +335,16 @@ func (s *Server) cmdReputation(c *Client, m irc.Message) {
 		}
 		ip = u.IP
 	}
+	setting := len(m.Params) > 1 && m.Params[1] != ""
+	if setting && !s.needFlag(c, nil, 'g') {
+		return
+	}
 	e := s.rep.scores[ip]
 	if e == nil {
 		note("No reputation record found for IP %s", ip)
 		return
 	}
-	if len(m.Params) > 1 && m.Params[1] != "" {
-		if !s.needFlag(c, nil, 'g') {
-			return
-		}
+	if setting {
 		v, err := strconv.Atoi(m.Params[1])
 		if err != nil {
 			note("REPUTATION: the new score must be a number from 0 to %d", repCap)

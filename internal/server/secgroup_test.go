@@ -69,6 +69,8 @@ func TestReputationCommandAndWhois(t *testing.T) {
 	x.expect(" 481 x :Permission denied")
 	b.send("REPUTATION x")
 	b.expect("No reputation record found for IP 127.0.0.1")
+	b.send("REPUTATION 999.1.1.1")
+	b.expect("REPUTATION: 999.1.1.1 is not an IP address")
 	setRep(s, "127.0.0.1", 3)
 	b.send("REPUTATION x")
 	b.expect("    Score: 3")
