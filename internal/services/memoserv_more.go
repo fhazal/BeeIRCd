@@ -2,6 +2,7 @@ package services
 
 import (
 	crand "crypto/rand"
+	"fmt"
 	"math"
 	"math/big"
 	"strconv"
@@ -329,13 +330,15 @@ func msInfo(s *Services, c *Client, args []string) {
 			unread++
 		}
 	}
-	who, has := "You", "You currently have"
+	who, has := "You", s.tr(c, "You currently have")
 	if !own {
-		who, has = name, name+" currently has"
+		who, has = name, fmt.Sprintf(s.tr(c, "%s currently has"), name)
 	}
 	switch n := len(memos); {
+	case n == 0 && own:
+		s.ms(c, "You currently have no memos.") // Anope's wording
 	case n == 0:
-		s.ms(c, "%s no memos.", has)
+		s.ms(c, "%s currently has no memos.", name)
 	case n == 1 && unread == 1:
 		s.ms(c, "%s 1 memo, and it has not yet been read.", has)
 	case n == 1:

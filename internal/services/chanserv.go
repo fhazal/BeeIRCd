@@ -297,7 +297,7 @@ func csInfo(s *Services, c *Client, args []string) {
 		s.cs(c, "%s is private.", reg.Name)
 		return
 	}
-	s.cs(c, "%s · registered %s (%s)", reg.Name, showTime(reg.Registered), ago(reg.Registered))
+	s.cs(c, "%s · registered %s (%s)", reg.Name, showTime(reg.Registered), s.agoFor(c, reg.Registered))
 	s.cs(c, "  Founder       %s", reg.Founder)
 	if reg.Successor != "" {
 		s.cs(c, "  Successor     %s", reg.Successor)
@@ -309,7 +309,7 @@ func csInfo(s *Services, c *Client, args []string) {
 	if s.channelInUse(reg) {
 		s.cs(c, "  Last used     in use now")
 	} else {
-		s.cs(c, "  Last used     %s (%s)", showTime(reg.LastUsed), ago(reg.LastUsed))
+		s.cs(c, "  Last used     %s (%s)", showTime(reg.LastUsed), s.agoFor(c, reg.LastUsed))
 	}
 	if reg.Suspended(time.Now()) {
 		until := "until UNSUSPEND"
@@ -323,19 +323,47 @@ func csInfo(s *Services, c *Client, args []string) {
 	}
 	s.cs(c, "  Mode lock     %s", mlockString(reg))
 	var opts []string
-	for _, o := range []struct {
-		on   bool
-		name string
-	}{{reg.KeepTopic, "keep topic"}, {reg.TopicLock, "topic lock"}, {reg.KeepModes, "keep modes"}, {reg.Peace, "peace"},
-		{reg.Restricted, "restricted"}, {reg.Secure, "security"}, {reg.SecureOps, "secure ops"}, {reg.SecureFounder, "secure founder"},
-		{reg.SignKick, "sign kick"}, {!reg.AutoOp, "no auto-op"}, {reg.Persist, "persist"}, {reg.Private, "private"},
-		{reg.NoExpire, "no expire"}} {
-		if o.on {
-			opts = append(opts, o.name)
-		}
+	if reg.KeepTopic {
+		opts = append(opts, s.tr(c, "keep topic"))
+	}
+	if reg.TopicLock {
+		opts = append(opts, s.tr(c, "topic lock"))
+	}
+	if reg.KeepModes {
+		opts = append(opts, s.tr(c, "keep modes"))
+	}
+	if reg.Peace {
+		opts = append(opts, s.tr(c, "peace"))
+	}
+	if reg.Restricted {
+		opts = append(opts, s.tr(c, "restricted"))
+	}
+	if reg.Secure {
+		opts = append(opts, s.tr(c, "security"))
+	}
+	if reg.SecureOps {
+		opts = append(opts, s.tr(c, "secure ops"))
+	}
+	if reg.SecureFounder {
+		opts = append(opts, s.tr(c, "secure founder"))
+	}
+	if reg.SignKick {
+		opts = append(opts, s.tr(c, "sign kick"))
+	}
+	if !reg.AutoOp {
+		opts = append(opts, s.tr(c, "no auto-op"))
+	}
+	if reg.Persist {
+		opts = append(opts, s.tr(c, "persist"))
+	}
+	if reg.Private {
+		opts = append(opts, s.tr(c, "private"))
+	}
+	if reg.NoExpire {
+		opts = append(opts, s.tr(c, "no expire"))
 	}
 	if len(opts) == 0 {
-		opts = []string{"none"}
+		opts = []string{s.tr(c, "none")}
 	}
 	s.cs(c, "  Options       %s", strings.Join(opts, ", "))
 	s.cs(c, "  Ban type      %d (%s)", reg.BanType, banTypes[reg.BanType])

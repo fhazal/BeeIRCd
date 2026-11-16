@@ -55,14 +55,36 @@ type memoBox struct {
 	acct  *store.Account
 	reg   *store.Channel // set for a channel box
 	memos []store.Memo
+	s     *Services
+	c     *Client // the reader, for their language
 }
 
-// owner is how replies name the box: "You have" or "#bchat has".
-func (b *memoBox) has() string {
+// none, noneNew and count are whole sentences about the box, so each
+// language can word them its own way.
+func (b *memoBox) none() string {
 	if b.reg != nil {
-		return b.reg.Name + " has"
+		return fmt.Sprintf(b.s.tr(b.c, "%s has no memos."), b.reg.Name)
 	}
-	return "You have"
+	return b.s.tr(b.c, "You have no memos.")
+}
+
+func (b *memoBox) noneNew() string {
+	if b.reg != nil {
+		return fmt.Sprintf(b.s.tr(b.c, "%s has no new memos."), b.reg.Name)
+	}
+	return b.s.tr(b.c, "You have no new memos.")
+}
+
+func (b *memoBox) count(n int) string {
+	switch {
+	case b.reg != nil && n == 1:
+		return fmt.Sprintf(b.s.tr(b.c, "%s has 1 memo."), b.reg.Name)
+	case b.reg != nil:
+		return fmt.Sprintf(b.s.tr(b.c, "%s has %d memos."), b.reg.Name, n)
+	case n == 1:
+		return b.s.tr(b.c, "You have 1 memo.")
+	}
+	return fmt.Sprintf(b.s.tr(b.c, "You have %d memos."), n)
 }
 
 // cmd is what commands about the box start with: "/ms read" or
@@ -87,7 +109,7 @@ func (s *Services) msBox(c *Client, args []string) (*memoBox, []string, bool) {
 			s.dbErr(c, s.memoServ, err)
 			return nil, nil, false
 		}
-		return &memoBox{acct: a, memos: memos}, args, true
+		return &memoBox{acct: a, memos: memos, s: s, c: c}, args, true
 	}
 	reg, err := s.store.ChannelByName(args[0])
 	if err != nil {
@@ -102,7 +124,7 @@ func (s *Services) msBox(c *Client, args []string) (*memoBox, []string, bool) {
 		s.ms(c, "You need the MEMO privilege on %s for its memo box (%s there).", reg.Name, s.needWords(s.privLevel(reg, "MEMO")))
 		return nil, nil, false
 	}
-	return &memoBox{acct: a, reg: reg, memos: s.store.ChanMemos(reg)}, args[1:], true
+	return &memoBox{acct: a, reg: reg, memos: s.store.ChanMemos(reg), s: s, c: c}, args[1:], true
 }
 
 func (s *Services) boxMarkRead(b *memoBox, m store.Memo) error {
@@ -339,7 +361,7 @@ func msList(s *Services, c *Client, args []string) {
 	}
 	memos := b.memos
 	if len(memos) == 0 {
-		s.ms(c, "%s no memos.", b.has())
+		s.ms(c, "%s", b.none())
 		return
 	}
 	show := make([]int, len(memos))
@@ -393,7 +415,7 @@ func memoPick(b *memoBox, arg string) (picks []int, problem string) {
 		return nil, "syntax"
 	}
 	if len(memos) == 0 {
-		return nil, b.has() + " no memos."
+		return nil, b.none()
 	}
 	switch strings.ToUpper(arg) {
 	case "LAST":
@@ -411,7 +433,7 @@ func memoPick(b *memoBox, arg string) (picks []int, problem string) {
 			}
 		}
 		if len(picks) == 0 && !wantRead {
-			return nil, b.has() + " no new memos."
+			return nil, b.noneNew()
 		}
 		return picks, ""
 	}
@@ -420,7 +442,7 @@ func memoPick(b *memoBox, arg string) (picks []int, problem string) {
 		return nil, "syntax"
 	}
 	if len(nums) == 0 {
-		return nil, fmt.Sprintf("There is no memo %s. %s %s.", arg, b.has(), plural(len(memos), "memo"))
+		return nil, fmt.Sprintf(b.s.tr(b.c, "There is no memo %s."), arg) + " " + b.count(len(memos))
 	}
 	for _, n := range nums {
 		picks = append(picks, n-1)

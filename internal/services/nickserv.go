@@ -229,7 +229,9 @@ func nsIdentify(s *Services, c *Client, args []string) {
 			return
 		}
 		s.nsLogCmd(c, "and identified for account %s", fresh.Name) // before login: Anope's line shows the account the user had when asking
+		c.langAccount = fresh.ID                                   // in the language of the account they are logging in to
 		s.ns(c, "Password accepted - you are now recognized.")     // Anope 2.0.20 ns_identify
+		c.langAccount = 0
 		s.login(c, fresh)
 	})
 }
@@ -808,7 +810,7 @@ func nsInfo(s *Services, c *Client, args []string) {
 		}
 	}
 	insider := c.accountID == a.ID || c.user.HasMode('o')
-	s.ns(c, "%s · registered %s (%s)", shown, showTime(a.Registered), ago(a.Registered))
+	s.ns(c, "%s · registered %s (%s)", shown, showTime(a.Registered), s.agoFor(c, a.Registered))
 	if !irc.EqualFold(shown, a.Name) {
 		s.ns(c, "  Account       %s", a.Name)
 	}
@@ -832,7 +834,7 @@ func nsInfo(s *Services, c *Client, args []string) {
 	if online {
 		s.ns(c, "  Last seen     online now")
 	} else {
-		s.ns(c, "  Last seen     %s (%s)", showTime(a.LastSeen), ago(a.LastSeen))
+		s.ns(c, "  Last seen     %s (%s)", showTime(a.LastSeen), s.agoFor(c, a.LastSeen))
 	}
 	if a.LastHost != "" && (!a.HideHost || insider) {
 		s.ns(c, "  Last host     %s", a.LastHost)
@@ -874,41 +876,45 @@ func nsInfo(s *Services, c *Client, args []string) {
 	if a.Enforce {
 		switch s.killMode(a) {
 		case store.KillQuick:
-			opts = append(opts, "quick kill")
+			opts = append(opts, s.tr(c, "quick kill"))
 		case store.KillImmed:
-			opts = append(opts, "immediate kill")
+			opts = append(opts, s.tr(c, "immediate kill"))
 		default:
-			opts = append(opts, "kill protection")
+			opts = append(opts, s.tr(c, "kill protection"))
 		}
 	}
 	if a.Secure {
-		opts = append(opts, "security")
+		opts = append(opts, s.tr(c, "security"))
 	}
 	if a.Private {
-		opts = append(opts, "private")
+		opts = append(opts, s.tr(c, "private"))
 	}
 	if a.Unconfirmed {
-		opts = append(opts, "unconfirmed")
+		opts = append(opts, s.tr(c, "unconfirmed"))
 	}
 	if a.AutoOp {
-		opts = append(opts, "auto-op")
+		opts = append(opts, s.tr(c, "auto-op"))
 	}
 	if a.KeepModes {
-		opts = append(opts, "keep modes")
+		opts = append(opts, s.tr(c, "keep modes"))
 	}
 	if a.NoExpire && insider {
-		opts = append(opts, "no expire")
+		opts = append(opts, s.tr(c, "no expire"))
 	}
-	for _, h := range []struct {
-		on   bool
-		name string
-	}{{a.HideEmail, "email"}, {a.HideHost, "usermask"}, {a.HideStatus, "status"}, {a.HideQuit, "quit"}} {
-		if h.on {
-			opts = append(opts, h.name+" hidden")
-		}
+	if a.HideEmail {
+		opts = append(opts, s.tr(c, "email hidden"))
+	}
+	if a.HideHost {
+		opts = append(opts, s.tr(c, "usermask hidden"))
+	}
+	if a.HideStatus {
+		opts = append(opts, s.tr(c, "status hidden"))
+	}
+	if a.HideQuit {
+		opts = append(opts, s.tr(c, "quit hidden"))
 	}
 	if len(opts) == 0 {
-		opts = []string{"none"}
+		opts = []string{s.tr(c, "none")}
 	}
 	s.ns(c, "  Options       %s", strings.Join(opts, ", "))
 	s.showOperInfo(c, s.nickServ, false, a.ID)

@@ -169,6 +169,7 @@ type Client struct {
 	ip           string
 	closed       bool         // gone from the network
 	accountID    int64        // NickServ account, 0 when not identified
+	langAccount  int64        // while set: replies use this account's language (it is logging in)
 	enforceAt    time.Time    // rename to Guest at this time, unless identified
 	enforceNick  string       // the nick enforceAt is about
 	pwBusy       bool         // a password check is running

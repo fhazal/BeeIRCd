@@ -54,3 +54,33 @@ func TestSetLanguage(t *testing.T) {
 		t.Errorf("Bee chose English: %q", got)
 	}
 }
+
+// Whole sentences in Malay: the IDENTIFY answer (in the language of the
+// account being logged in to), an empty memo box, INFO's options and times.
+func TestLanguageWholeSentences(t *testing.T) {
+	svc, h := newServices(t)
+	ns, ms := h.net.UserByNick("NickServ"), h.net.UserByNick("MemoServ")
+	bee := helpUser(t, h, "1LFAAAAAA", "Bee")
+	svc.Message(bee.UID, ns, "REGISTER honeypot42")
+	h.waitFor("Bee", "registered")
+	svc.Message(bee.UID, ns, "SET LANGUAGE ms")
+	noticeTo(h, "Bee")
+	svc.Message(bee.UID, ns, "LOGOUT")
+	noticeTo(h, "Bee")
+	svc.Message(bee.UID, ns, "IDENTIFY honeypot42")
+	h.waitFor("Bee", "Kata laluan diterima - anda kini dikenali.")
+	noticeTo(h, "Bee")
+	svc.Message(bee.UID, ms, "LIST")
+	if got := noticeTo(h, "Bee"); got != "Anda tiada memo." {
+		t.Errorf("MS LIST: %q", got)
+	}
+	svc.Message(bee.UID, ms, "INFO")
+	if got := noticeTo(h, "Bee"); !strings.Contains(got, "Anda kini tiada memo.") {
+		t.Errorf("MS INFO: %q", got)
+	}
+	svc.Message(bee.UID, ns, "INFO Bee")
+	got := noticeTo(h, "Bee")
+	if !strings.Contains(got, "(baru sahaja)") || !strings.Contains(got, "keselamatan") || strings.Contains(got, "just now") {
+		t.Errorf("NS INFO: %q", got)
+	}
+}

@@ -725,17 +725,24 @@ func (s *Services) expireAccounts(now time.Time) {
 
 func showTime(t time.Time) string { return t.UTC().Format("2 Jan 2006 15:04 UTC") }
 
-func ago(t time.Time) string {
+// agoFor is how long ago t was, in c's language.
+func (s *Services) agoFor(c *Client, t time.Time) string {
 	d := time.Since(t)
-	switch {
+	switch n := 0; {
 	case d < time.Minute:
-		return "just now"
+		return s.tr(c, "just now")
 	case d < time.Hour:
-		return plural(int(d.Minutes()), "minute") + " ago"
+		if n = int(d.Minutes()); n == 1 {
+			return s.tr(c, "1 minute ago")
+		}
+		return fmt.Sprintf(s.tr(c, "%d minutes ago"), n)
 	case d < 48*time.Hour:
-		return plural(int(d.Hours()), "hour") + " ago"
+		if n = int(d.Hours()); n == 1 {
+			return s.tr(c, "1 hour ago")
+		}
+		return fmt.Sprintf(s.tr(c, "%d hours ago"), n)
 	default:
-		return plural(int(d.Hours()/24), "day") + " ago"
+		return fmt.Sprintf(s.tr(c, "%d days ago"), int(d.Hours()/24))
 	}
 }
 

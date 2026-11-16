@@ -134,8 +134,12 @@ func (s *Services) defaultLanguage() *language {
 
 // langOf is the language c gets: their account's, else the default.
 func (s *Services) langOf(c *Client) *language {
-	if c != nil && c.accountID != 0 {
-		if a, _ := s.store.AccountByID(c.accountID); a != nil && a.Language != "" {
+	if c != nil && (c.accountID != 0 || c.langAccount != 0) {
+		id := c.accountID
+		if c.langAccount != 0 {
+			id = c.langAccount
+		}
+		if a, _ := s.store.AccountByID(id); a != nil && a.Language != "" {
 			if l := languages[a.Language]; l != nil {
 				return l
 			}
