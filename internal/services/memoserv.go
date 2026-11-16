@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/store"
@@ -378,19 +379,20 @@ func msList(s *Services, c *Client, args []string) {
 			return
 		}
 	}
-	width := 4
+	from, sent := s.tr(c, "From"), s.tr(c, "Sent")
+	width := max(4, utf8.RuneCountInString(from))
 	for _, m := range memos {
 		width = max(width, len(m.From))
 	}
 	if b.reg != nil {
 		s.ms(c, "Memo box of %s:", b.reg.Name)
 	}
-	s.ms(c, "  %-3s %-*s  %-12s  %s", "#", width, "From", "Sent", "")
+	s.ms(c, "  %-3s %-*s  %-12s  %s", "#", width, from, sent, "")
 	for _, i := range show {
 		m := memos[i]
-		state := "read"
+		state := s.tr(c, "read")
 		if !m.Read {
-			state = "new"
+			state = s.tr(c, "new")
 		}
 		s.ms(c, "  %-3d %-*s  %-12s  %s", i+1, width, m.From, m.Sent.UTC().Format("2 Jan 15:04"), state)
 	}

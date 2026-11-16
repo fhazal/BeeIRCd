@@ -904,3 +904,7 @@
 "persist" = "kekal"
 "You currently have no memos." = "Anda kini tiada memo."
 "%s currently has no memos." = "%s kini tiada memo."
+"From" = "Daripada"
+"Sent" = "Dihantar"
+"read" = "dibaca"
+"new" = "baharu"
