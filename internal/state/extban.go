@@ -113,6 +113,9 @@ func MatchUser(who string, u *User) bool {
 	case "server":
 		return irc.Match(arg, u.Server)
 	case "realmask":
+		if !strings.Contains(arg, "+") {
+			arg += "+*" // an entry kept from before: any realname
+		}
 		for _, m := range u.Masks() {
 			if irc.Match(arg, m+"+"+u.Realname) {
 				return true

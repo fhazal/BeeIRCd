@@ -268,7 +268,12 @@ func normArg(e *Extban, arg string, depth int) (string, bool) {
 			return "", false
 		}
 		return arg, true
-	case "operclass", "realname", "oper", "server", "gateway", "realmask":
+	case "operclass", "realname", "oper", "server", "gateway":
+		return word(arg)
+	case "realmask":
+		if !strings.Contains(arg, "+") {
+			arg += "+*" // no realname part: any realname
+		}
 		return word(arg)
 	case "security-group":
 		arg = strings.ToLower(arg)
