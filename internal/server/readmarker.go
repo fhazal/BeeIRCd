@@ -96,6 +96,9 @@ func (s *Server) cmdMarkread(c *Client, m irc.Message) {
 		return
 	}
 	at = at.UTC().Truncate(time.Millisecond)
+	if now := time.Now().UTC().Truncate(time.Millisecond); at.After(now) {
+		at = now // a marker in the future would never move again
+	}
 	acc := c.user.Account
 	if acc == "" {
 		if c.marks == nil {

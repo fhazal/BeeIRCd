@@ -1,6 +1,7 @@
 package server
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -23,16 +24,16 @@ func TestReadMarker(t *testing.T) {
 	pc.expect("MARKREAD #hive *")
 	pc.expect(" 366 Bee #hive ")
 
-	phone.send("MARKREAD #hive timestamp=2026-11-16T01:02:03.456Z")
-	phone.expect(":irc.test.local MARKREAD #hive timestamp=2026-11-16T01:02:03.456Z")
-	pc.expect(":irc.test.local MARKREAD #hive timestamp=2026-11-16T01:02:03.456Z") // the other device follows
+	phone.send("MARKREAD #hive timestamp=2026-01-16T01:02:03.456Z")
+	phone.expect(":irc.test.local MARKREAD #hive timestamp=2026-01-16T01:02:03.456Z")
+	pc.expect(":irc.test.local MARKREAD #hive timestamp=2026-01-16T01:02:03.456Z") // the other device follows
 
-	phone.send("MARKREAD #hive timestamp=2026-11-15T00:00:00.000Z") // older: the stored one comes back
-	phone.expect("MARKREAD #hive timestamp=2026-11-16T01:02:03.456Z")
+	phone.send("MARKREAD #hive timestamp=2026-01-15T00:00:00.000Z") // older: the stored one comes back
+	phone.expect("MARKREAD #hive timestamp=2026-01-16T01:02:03.456Z")
 	pc.send("MARKREAD #hive")
-	pc.expect("MARKREAD #hive timestamp=2026-11-16T01:02:03.456Z")
+	pc.expect("MARKREAD #hive timestamp=2026-01-16T01:02:03.456Z")
 	phone.send("JOIN #hive")
-	phone.expect("MARKREAD #hive timestamp=2026-11-16T01:02:03.456Z")
+	phone.expect("MARKREAD #hive timestamp=2026-01-16T01:02:03.456Z")
 
 	pc.send("MARKREAD")
 	pc.expect("FAIL MARKREAD NEED_MORE_PARAMS :Missing parameters")
@@ -41,8 +42,8 @@ func TestReadMarker(t *testing.T) {
 
 	// Without an account the marker stays with the connection.
 	guest := capLogin(t, s, "guest", readMarkerCap)
-	guest.send("MARKREAD nova timestamp=2026-11-16T05:00:00Z")
-	guest.expect("MARKREAD nova timestamp=2026-11-16T05:00:00.000Z")
+	guest.send("MARKREAD nova timestamp=2026-01-16T05:00:00Z")
+	guest.expect("MARKREAD nova timestamp=2026-01-16T05:00:00.000Z")
 
 	// Kept in the database for the next start.
 	var ms []store.ReadMarker
@@ -98,9 +99,20 @@ func TestLinkReadMarker(t *testing.T) {
 	phone.expect(" 900 Bee_ ")
 	waitLink(t, "Bee_ identified on the leaf", func() bool { u := leaf.user("Bee_"); return u != nil && u.Account == "Bee" })
 
-	phone.send("MARKREAD Nova timestamp=2026-11-16T07:00:00.000Z")
-	phone.expect("MARKREAD Nova timestamp=2026-11-16T07:00:00.000Z")
-	pc.expect("MARKREAD Nova timestamp=2026-11-16T07:00:00.000Z")
-	pc.send("MARKREAD Nova timestamp=2026-11-16T08:00:00.000Z")
-	phone.expect("MARKREAD Nova timestamp=2026-11-16T08:00:00.000Z")
+	phone.send("MARKREAD Nova timestamp=2026-01-16T07:00:00.000Z")
+	phone.expect("MARKREAD Nova timestamp=2026-01-16T07:00:00.000Z")
+	pc.expect("MARKREAD Nova timestamp=2026-01-16T07:00:00.000Z")
+	pc.send("MARKREAD Nova timestamp=2026-01-16T08:00:00.000Z")
+	phone.expect("MARKREAD Nova timestamp=2026-01-16T08:00:00.000Z")
+}
+
+// A marker in the future is taken as now, so it can still move on.
+func TestReadMarkerFuture(t *testing.T) {
+	s := testServer(t, draftsOn)
+	c := capLogin(t, s, "Bee", readMarkerCap)
+	c.send("MARKREAD #hive timestamp=2999-01-01T00:00:00.000Z")
+	line := c.expect("MARKREAD #hive timestamp=")
+	if strings.Contains(line, "2999") {
+		t.Errorf("future marker kept: %s", line)
+	}
 }
