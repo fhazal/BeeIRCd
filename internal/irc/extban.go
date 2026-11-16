@@ -271,10 +271,13 @@ func normArg(e *Extban, arg string, depth int) (string, bool) {
 	case "operclass", "realname", "oper", "server", "gateway":
 		return word(arg)
 	case "realmask":
-		if !strings.Contains(arg, "+") {
-			arg += "+*" // no realname part: any realname
+		out, ok := word(arg)
+		if ok && !strings.Contains(out, "+") {
+			// No realname part: any realname. Added after the cut, so
+			// a long mask reads back the same.
+			out = Truncate(out, 98) + "+*"
 		}
-		return word(arg)
+		return out, ok
 	case "security-group":
 		arg = strings.ToLower(arg)
 		if arg == "" || len(arg) > 30 || strings.Trim(arg, "abcdefghijklmnopqrstuvwxyz0123456789_-") != "" {
