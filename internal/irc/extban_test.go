@@ -182,3 +182,28 @@ func TestServerExtban(t *testing.T) {
 		t.Error("IsPlaceMask / IsPlaceUser")
 	}
 }
+
+// InspIRCd's own form, without "~", is read with InspIRCd's names and
+// letters; plain masks (IPv6 too) stay masks.
+func TestInspNativeExtbans(t *testing.T) {
+	for in, want := range map[string]string{
+		"mute:victim!*@*":  "~q:victim!*@*",
+		"account:bob":      "~a:bob",
+		"R:bob":            "~a:bob",
+		"j:#foo":           "~c:#foo",
+		"nonick:*!*@x":     "~n:*!*@x",
+		"realname:*bot*":   "~r:*bot*",
+		"channel:#foo":     "~c:#foo",
+		"noctcp:*!*@*":     "~noctcp:*!*@*",
+		"blockcolor:*!*@*": "~blockcolor:*!*@*",
+		"c:*!*@*":          "~blockcolor:*!*@*",
+		"*!*@2001:db8::1":  "*!*@2001:db8::1",
+		"2001:db8::1":      "*!*@2001:db8::1",
+		"bob!*@host":       "bob!*@host",
+	} {
+		got, ok := NormalizeBan(in)
+		if !ok || got != want {
+			t.Errorf("%s: got %q %v, want %q", in, got, ok, want)
+		}
+	}
+}

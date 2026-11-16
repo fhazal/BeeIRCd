@@ -179,8 +179,9 @@ one open question per person. `/he` is short for `/msg HelpServ`.
 `+b`, `+e` and `+I` take plain masks (`nick!user@host`) and extbans.
 BeeIRCd has the extbans of UnrealIRCd 6 and InspIRCd 4, once each:
 people can type either server's name for one (`~quiet:`, `~mute:`,
-`~nonick:`...) and BeeIRCd keeps it in its short form. `/HELP EXTBANS`
-lists them all.
+`~nonick:`...) and BeeIRCd keeps it in its short form. InspIRCd's own
+way, without the `~` (`mute:nick!*@*`, `R:account`, with InspIRCd's
+letters), works too. `/HELP EXTBANS` lists them all.
 
 | Kind | Extbans |
 |---|---|

@@ -163,9 +163,28 @@ func NormalizeBan(m string) (string, bool) {
 		return "", false // a mask with a space would break list replies (367)
 	}
 	if !strings.HasPrefix(m, "~") {
+		if e := inspNative(m); e != nil {
+			_, arg, _ := strings.Cut(m, ":")
+			return normExt(e.Name+":"+arg, 0)
+		}
 		return NormalizeMask(m), true
 	}
 	return normExt(m[1:], 0)
+}
+
+// inspNative is the extban of an InspIRCd-style entry written without
+// "~" (mute:nick!*@*, R:account), nil when m is a plain mask. InspIRCd's
+// letters are its own (R account, c blockcolor), so they are read with
+// InspIRCd's table.
+func inspNative(m string) *Extban {
+	name, _, ok := strings.Cut(m, ":")
+	if !ok || name == "" || strings.ContainsAny(name, "!@*?.") {
+		return nil
+	}
+	if len(name) > 1 {
+		name = strings.ToLower(name)
+	}
+	return extByInsp[name]
 }
 
 // normExt normalises "x:arg" or "name:arg" (the part after ~). depth
