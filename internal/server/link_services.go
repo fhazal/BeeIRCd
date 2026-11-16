@@ -4,6 +4,7 @@ package server
 // (link_sasl.go): SVSJOIN/SVSPART both ways.
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -84,12 +85,56 @@ func (s *Server) remoteSvsPart(l *linkConn, m irc.Message, p *link.SvsPart) {
 
 // operMD writes uid's oper class (UnrealIRCd MD operclass) and, for
 // BeeIRCd, the flags; empty values clear them.
-func operMD(o *linkConn, src, uid, class, flags string) []string {
+func operMD(o *linkConn, src, uid, class, flags, look string) []string {
 	out := []string{mdLine(src, uid, "operclass", class)}
 	if o.peer.Bee {
-		out = append(out, mdLine(src, uid, "bee-operflags", flags))
+		out = append(out, mdLine(src, uid, "bee-operflags", flags), mdLine(src, uid, "bee-operlook", look))
 	}
 	return out
+}
+
+// operLook packs an oper's WHOIS title and extra lines for MD
+// bee-operlook, so every BeeIRCd server shows them the same; "" = none.
+func operLook(title string, swhois []string) string {
+	if title == "" && len(swhois) == 0 {
+		return ""
+	}
+	for {
+		b, _ := json.Marshal(operLookData{Title: title, Lines: swhois})
+		if len(b) <= 380 || len(swhois) == 0 {
+			return string(b)
+		}
+		swhois = swhois[:len(swhois)-1] // one line must fit a link line
+	}
+}
+
+type operLookData struct {
+	Title string   `json:"t,omitempty"`
+	Lines []string `json:"s,omitempty"`
+}
+
+// readOperLook is operLook read back from another server, kept short and
+// free of control bytes.
+func readOperLook(value string) (title string, lines []string) {
+	var d operLookData
+	if value == "" || json.Unmarshal([]byte(value), &d) != nil {
+		return "", nil
+	}
+	clean := func(t string) string {
+		t = strings.Map(func(r rune) rune {
+			if r < ' ' || r == 0x7f {
+				return -1
+			}
+			return r
+		}, t)
+		return irc.Truncate(strings.TrimSpace(t), 150)
+	}
+	for _, l := range d.Lines {
+		if l = clean(l); l != "" && len(lines) < 5 {
+			lines = append(lines, l)
+		}
+	}
+	return clean(d.Title), lines
 }
 
 func mdLine(src, uid, key, value string) string {
@@ -100,10 +145,10 @@ func mdLine(src, uid, key, value string) string {
 }
 
 // linkOperInfo tells every link but except about uid's oper status.
-func (s *Server) linkOperInfo(except *linkConn, uid, class, flags string) {
+func (s *Server) linkOperInfo(except *linkConn, uid, class, flags, look string) {
 	for o := range s.links.conns {
 		if o != except && o.up && !o.closed {
-			for _, line := range operMD(o, s.cfg.Server.SID, uid, class, flags) {
+			for _, line := range operMD(o, s.cfg.Server.SID, uid, class, flags, look) {
 				o.send(line)
 			}
 		}
@@ -115,12 +160,12 @@ func (s *Server) operBurst(l *linkConn) []string {
 	var out []string
 	for c := range s.opers {
 		if c.user != nil {
-			out = append(out, operMD(l, s.cfg.Server.SID, c.uid, c.operClass, c.operFlags)...)
+			out = append(out, operMD(l, s.cfg.Server.SID, c.uid, c.operClass, c.operFlags, operLook(c.operTitle, c.operSwhois))...)
 		}
 	}
 	for _, u := range s.net.Users() {
 		if u.OperClass+u.OperFlags != "" && !s.ours(u.UID) && !s.behind(l, uidServer(u.UID)) {
-			out = append(out, operMD(l, s.cfg.Server.SID, u.UID, u.OperClass, u.OperFlags)...)
+			out = append(out, operMD(l, s.cfg.Server.SID, u.UID, u.OperClass, u.OperFlags, operLook(u.OperTitle, u.OperSwhois))...)
 		}
 	}
 	return out
@@ -147,6 +192,8 @@ func (s *Server) remoteOperMD(l *linkConn, m irc.Message) {
 		}
 	case "bee-operflags":
 		u.OperFlags, _ = cleanFlags(value)
+	case "bee-operlook":
+		u.OperTitle, u.OperSwhois = readOperLook(value)
 	}
 	for o := range s.links.conns {
 		if o != l && o.up && !o.closed && (key == "operclass" || o.peer.Bee) {

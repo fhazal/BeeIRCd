@@ -58,7 +58,7 @@ func (s *Server) linkMD(l *linkConn, m irc.Message) {
 		return
 	}
 	switch m.Params[2] {
-	case "operclass", "bee-operflags":
+	case "operclass", "bee-operflags", "bee-operlook":
 		s.remoteOperMD(l, m)
 		return
 	case "saslmechlist":

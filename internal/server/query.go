@@ -211,7 +211,11 @@ func (s *Server) whoisOne(c *Client, u *state.User, reply func(code string, p ..
 			reply(irc.RplWhoisSpecial, u.Nick, line)
 		}
 	case tc == nil && u.Modes['o'] && (!u.HasMode('H') || c.isOper()):
-		reply(irc.RplWhoisOperator, u.Nick, whoisOperText(""))
+		// On another server: what that server said about them.
+		reply(irc.RplWhoisOperator, u.Nick, whoisOperText(u.OperTitle))
+		for _, line := range u.OperSwhois {
+			reply(irc.RplWhoisSpecial, u.Nick, line)
+		}
 	}
 	if u.HasMode('h') && !u.Service {
 		reply(irc.RplWhoisHelpOp, u.Nick, "is available for help")

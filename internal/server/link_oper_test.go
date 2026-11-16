@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -53,7 +54,7 @@ func operEntryOn(t *testing.T, n *linkNode, nick, flags string, hosts []string) 
 			err = errNoAccount
 			return
 		}
-		err = n.s.store.SaveOper(&store.Oper{AccountID: a.ID, Account: a.Name, Flags: flags, Title: "Test oper",
+		err = n.s.store.SaveOper(&store.Oper{AccountID: a.ID, Account: a.Name, Flags: flags, Title: "Test oper", Swhois: []string{"looks very helpful"},
 			Hosts: hosts, PassHash: h, AddedBy: "test", AddedAt: time.Now()})
 	})
 	if err != nil {
@@ -86,6 +87,17 @@ func TestLeafOperRelay(t *testing.T) {
 	leaf.s.onLoop(func() { flags = leaf.s.clients[leaf.s.net.UserByNick("opal").UID].operFlags })
 	if flags != "gk" {
 		t.Errorf("flags on the leaf %q", flags)
+	}
+	// WHOIS shows the title and the extra lines from either server.
+	for who, n := range map[string]*linkNode{"hugo": hub, "lena": leaf} {
+		c := login(t, n.s, who)
+		if n == hub {
+			waitLink(t, "the hub knows opal's title", func() bool { u := hub.user("opal"); return u != nil && u.OperTitle != "" })
+		}
+		c.send("WHOIS opal")
+		c.expect(" 313 " + who + " opal :is an IRC Operator (Test oper)")
+		c.expect(" 320 " + who + " opal :looks very helpful")
+		c.expect(" 318 " + who + " opal ")
 	}
 
 	pearl.send("OPER pearl " + operPW) // entry, but not from this host
@@ -212,4 +224,29 @@ func TestLeafOperByCertificate(t *testing.T) {
 	hub.seen(t, "gardenbot")
 	c.send("OPER gardener x")
 	c.expect(" 381 gardenbot :You are now an IRC operator")
+}
+
+// What another server says about an oper's looks is kept short and clean.
+func TestOperLook(t *testing.T) {
+	if got := operLook("", nil); got != "" {
+		t.Errorf("nothing to say gives %q", got)
+	}
+	title, lines := readOperLook(operLook("is the Founder", []string{"looks very helpful", "second"}))
+	if title != "is the Founder" || len(lines) != 2 || lines[1] != "second" {
+		t.Errorf("round trip: %q %q", title, lines)
+	}
+	long := make([]string, 20)
+	for i := range long {
+		long[i] = strings.Repeat("x", 60)
+	}
+	if got := operLook("t", long); len(got) > 380 {
+		t.Errorf("too long for a link line: %d", len(got))
+	}
+	title, lines = readOperLook(`{"t":"bad\r\ntitle","s":["a","b","c","d","e","f","\u0001"]}`)
+	if title != "badtitle" || len(lines) != 5 {
+		t.Errorf("unclean: %q %q", title, lines)
+	}
+	if title, lines = readOperLook("not json"); title != "" || lines != nil {
+		t.Errorf("junk: %q %q", title, lines)
+	}
 }

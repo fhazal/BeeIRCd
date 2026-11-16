@@ -105,12 +105,13 @@ func (s *Server) operUpView(c *Client, o *store.Oper, v operView) {
 	if u.Modes['o'] {
 		if was != v.flags {
 			s.notice(c, "*** Your oper flags are now "+describeFlags(v.flags))
-			s.linkOperInfo(nil, u.UID, v.class, v.flags)
 		}
+		// Also when only the title or the WHOIS lines changed.
+		s.linkOperInfo(nil, u.UID, v.class, v.flags, operLook(v.title, v.swhois))
 		return
 	}
 	s.emit(&state.UserMode{UID: u.UID, Changes: umodes(true, "os")})
-	s.linkOperInfo(nil, u.UID, v.class, v.flags)
+	s.linkOperInfo(nil, u.UID, v.class, v.flags, operLook(v.title, v.swhois))
 	s.reply(c, irc.RplYoureOper, "You are now an IRC operator")
 	if v.class != "" {
 		s.notice(c, "*** Oper class "+v.class+": "+describeFlags(v.flags))
@@ -145,7 +146,7 @@ func (s *Server) deoper(c *Client, why string) {
 		}
 	}
 	s.emit(&state.UserMode{UID: u.UID, Changes: umodes(false, gone)})
-	s.linkOperInfo(nil, u.UID, "", "")
+	s.linkOperInfo(nil, u.UID, "", "", "")
 	if why != "" {
 		s.notice(c, "*** "+why)
 	}

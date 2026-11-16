@@ -41,6 +41,10 @@ type User struct {
 	// their oper status (users on other servers; ours keep it on the
 	// client), so services here know what they may do.
 	OperClass, OperFlags string
+	// OperTitle and OperSwhois are how an oper on another BeeIRCd server
+	// looks in WHOIS: their title and extra lines.
+	OperTitle  string
+	OperSwhois []string
 	// OperName is the oper block an oper of this server logged in with
 	// (~oper: bans).
 	OperName string
