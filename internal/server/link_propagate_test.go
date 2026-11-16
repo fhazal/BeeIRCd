@@ -37,6 +37,13 @@ func TestLinkLive(t *testing.T) {
 
 	alice.send("JOIN #x")
 	alice.expect("366")
+	// The leaf must know the channel first, or bob makes it there too
+	// and is an op already.
+	waitLink(t, "the leaf knows #x", func() bool {
+		known := false
+		leaf.s.onLoop(func() { known = leaf.s.net.Channel("#x") != nil })
+		return known
+	})
 	bob.send("JOIN #x")
 	bob.expect("366")
 	alice.expect(":bob!~bob@")
