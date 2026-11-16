@@ -280,7 +280,14 @@ func (s *Server) cmdPing(c *Client, m irc.Message) {
 	c.send(irc.Message{Source: s.cfg.Server.Name, Command: "PONG", Params: []string{s.cfg.Server.Name, m.Params[0]}, Trailing: true}.String())
 }
 
-func (s *Server) cmdPong(c *Client, m irc.Message) {} // handleLine already reset the ping timer
+// cmdPong: handleLine already reset the ping timer. Before registration
+// it may be the answer to the first PING ([server] ping_cookie).
+func (s *Server) cmdPong(c *Client, m irc.Message) {
+	if !c.registered && c.cookie != "" && !c.cookieOK && len(m.Params) > 0 && m.Params[len(m.Params)-1] == c.cookie {
+		c.cookieOK = true
+		s.tryRegister(c)
+	}
+}
 
 func (s *Server) cmdQuit(c *Client, m irc.Message) {
 	reason := "Quit"
@@ -295,6 +302,9 @@ func (s *Server) cmdQuit(c *Client, m irc.Message) {
 func (s *Server) tryRegister(c *Client) {
 	if c.registered || c.closed || c.nick == "" || c.ident == "" || !c.hostDone || c.dnsblBusy || c.capBusy || c.saslBusy || c.webircBusy || c.identBusy {
 		return
+	}
+	if s.pingCookie(c) {
+		return // the rest waits for their PONG
 	}
 	if c.identAnswer != "" {
 		c.ident = c.identAnswer // their ident server answered: no ~
@@ -449,7 +459,7 @@ func (s *Server) setHost(c *Client, host string) {
 	s.reply(c, irc.RplHostHidden, host, "is now your displayed host")
 }
 
-const userModes = "BDHRTWZdghiopqrswxz"
+const userModes = "BDGHRTWZdghiopqrswxz"
 
 // operOnlyModes go when someone stops being an oper.
 const operOnlyModes = "HWq"
@@ -545,6 +555,9 @@ func (s *Server) isupport() []string {
 	}
 	if l.UTF8Only {
 		out = append(out, "UTF8ONLY")
+	}
+	if s.cfg.ExtJWT.On() {
+		out = append(out, "EXTJWT=1")
 	}
 	return out
 }

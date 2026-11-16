@@ -98,6 +98,8 @@ type Client struct {
 	lastRecv    time.Time
 	lastMsg     time.Time // last PRIVMSG/NOTICE, for WHOIS idle
 	pingSent    time.Time
+	cookie      string // the word of the first PING ([server] ping_cookie)
+	cookieOK    bool   // they answered it
 
 	// The send queue is shared with the writer goroutine.
 	mu      sync.Mutex

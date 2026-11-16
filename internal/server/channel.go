@@ -227,7 +227,7 @@ func (s *Server) sendNames(c *Client, ch *state.Channel) {
 		}
 	}
 	for _, mem := range ch.Members { // unsorted, like InspIRCd: sorting cost a lot on every JOIN
-		if (!inside && mem.User.HasMode('i')) || !visibleTo(mem, c.user) {
+		if (!inside && mem.User.HasMode('i')) || !ch.Sees(c.user, mem) {
 			continue
 		}
 		n := memberPrefix(c, mem) + mem.User.Nick

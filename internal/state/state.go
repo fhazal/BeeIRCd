@@ -527,17 +527,35 @@ func (n *Network) Neighbours(u *User) []*User {
 	seen := map[string]bool{u.UID: true}
 	var out []*User
 	for _, ch := range u.Channels {
-		if me := ch.Members[u.UID]; me != nil && me.Hidden {
+		me := ch.Members[u.UID]
+		if me == nil || me.Hidden {
 			continue // nobody there knows u is in
 		}
 		for uid, m := range ch.Members {
-			if !seen[uid] {
+			if !seen[uid] && ch.Sees(m.User, me) {
 				seen[uid] = true
 				out = append(out, m.User)
 			}
 		}
 	}
 	return out
+}
+
+// Sees reports whether viewer may see member m of ch. A +D member who has
+// not talked yet is seen by nobody else; in a +u (auditorium) channel
+// only the ops are seen by everyone, and only the ops see everyone.
+func (ch *Channel) Sees(viewer *User, m *Member) bool {
+	if m.User == viewer {
+		return true
+	}
+	if m.Hidden {
+		return false
+	}
+	if !ch.Modes['u'] || m.AtLeast(RankOp) {
+		return true
+	}
+	v := ch.Members[viewer.UID]
+	return v != nil && v.AtLeast(RankOp)
 }
 
 // SharesChannel reports whether a and b are in a common channel.

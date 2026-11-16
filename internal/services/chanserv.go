@@ -16,7 +16,7 @@ const (
 	maxAkicks         = 100
 	maxChannelsPerAcc = 20
 	maxEntryMsgs      = 5
-	mlockFlags        = "CDGKMNQRSTUVcimnpstz"
+	mlockFlags        = "CDGKMNQRSTUVcimnpstuz"
 )
 
 // chanServAliases are old or other names HELP doesn't show.

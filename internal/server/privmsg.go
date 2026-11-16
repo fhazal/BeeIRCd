@@ -149,6 +149,10 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 			fail(irc.ErrCantSendToUser, t.Nick, why)
 			continue
 		}
+		if s.cfg.Limits.RestrictMsg && !tagOnly && t != u && !c.isOper() && !t.HasMode('o') && !t.Service && !s.svc.IsBot(t) {
+			fail(irc.ErrCantSendToUser, t.Nick, "You can only send private messages to IRC operators on this network")
+			continue
+		}
 		if why := s.refusesMessage(c, t, verb, text); why != "" {
 			if !tagOnly {
 				fail(irc.ErrCantSendToUser, t.Nick, why)
@@ -173,6 +177,9 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 		}
 		if u.HasMode('g') && t != u && !t.Service && !tagOnly {
 			s.acceptAdd(c, t) // +g: whoever you write to may answer
+		}
+		if t.HasMode('G') && t != u && !tagOnly {
+			text = censor(text, s.cfg.Censor.Words, s.cfg.CensorReplace()) // +G: they don't want to read those words
 		}
 		o := build(t.Nick)
 		if !tagOnly {

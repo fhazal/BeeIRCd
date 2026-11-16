@@ -14,6 +14,9 @@ type Channels struct {
 	// Create is who may make a new channel: "everyone" (the default),
 	// "registered" (logged in to NickServ) or "opers".
 	Create string `toml:"create"`
+	// HideBans lets only ops (and opers) read a channel's ban list. The
+	// exception and invite lists are for ops only either way.
+	HideBans bool `toml:"hide_bans"`
 }
 
 // FloodProfiles are the +F profiles, as UnrealIRCd 6.2 ships them. The p

@@ -181,6 +181,7 @@ var umodesHelp = []string{
 	"                                            identified users",
 	" T no CTCPs          p hide my channels in WHOIS",
 	" g caller ID: private messages only from people on my /ACCEPT list",
+	" G hide the words in [censor] of beeircd.conf in private messages to me",
 	" Z private messages only with TLS users",
 	"Opers:",
 	" H hide that I'm an oper                  W see who WHOISes me",

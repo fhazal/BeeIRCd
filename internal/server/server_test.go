@@ -227,7 +227,7 @@ func TestRegistration(t *testing.T) {
 	c.expect(" 002 Bee :Your host is irc.test.local, running BeeIRCd")
 	c.expect(" 004 Bee irc.test.local BeeIRCd-")
 	l := c.expect(" 005 Bee ") + c.expect(" 005 Bee ")
-	for _, tok := range []string{"CASEMAPPING=ascii", "PREFIX=(ov)@+", "CHANMODES=beI,k,BEFHJLWfl,CDGKMNOPQRSTUVZcimnprstz", "NETWORK=BeeNet", "STATUSMSG=@+"} {
+	for _, tok := range []string{"CASEMAPPING=ascii", "PREFIX=(ov)@+", "CHANMODES=beI,k,BEFHJLWfl,CDGKMNOPQRSTUVZcimnprstuz", "NETWORK=BeeNet", "STATUSMSG=@+"} {
 		if !strings.Contains(l, tok) {
 			t.Errorf("005 lacks %s: %s", tok, l)
 		}

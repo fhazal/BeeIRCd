@@ -194,6 +194,23 @@ func (s *Server) runCommand(c *Client, m irc.Message) {
 		}
 	}
 	cmd, ok := commands[m.Command]
+	if !ok && c.registered {
+		if f := s.showFile(m.Command); f != nil {
+			s.runShowFile(c, f)
+			return
+		}
+		full, done := s.abbreviated(c, m.Command)
+		if done {
+			return
+		}
+		if full != "" {
+			m.Command = full
+			cmd, ok = commands[full]
+		}
+	}
+	if !ok && !c.registered && s.webRedirect(c, m) {
+		return
+	}
 	switch {
 	case !ok && !c.registered:
 		s.reply(c, irc.ErrNotRegistered, "You have not registered")

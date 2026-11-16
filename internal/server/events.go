@@ -74,15 +74,17 @@ func (s *Server) prepare(ev state.Event) func() {
 			u, ch := s.net.UserByUID(e.UID), s.net.Channel(e.Channel)
 			join := s.out(u, "JOIN", ch.Name)
 			join.extParams = []string{ch.Name, accountOrStar(u), u.Realname}
-			if mem := ch.Member(u); mem != nil && mem.Hidden {
-				s.deliverTo(u, join) // +D: only they see it, until they talk
-				return
-			}
-			s.broadcast(ch, join, nil)
+			// +D: only they see it, until they talk; +u: only the ops do.
+			to := seers(ch, u)
+			s.deliverAll(to, join)
 			if u.Away != "" {
 				away := s.out(u, "AWAY", u.Away).text()
 				away.needCap = "away-notify"
-				s.broadcast(ch, away, u)
+				for _, o := range to {
+					if o != u {
+						s.deliverTo(o, away)
+					}
+				}
 			}
 		}
 	case *state.Part:
@@ -96,10 +98,7 @@ func (s *Server) prepare(ev state.Event) func() {
 		}
 		o := s.out(u, "PART", params...)
 		o.msg.Trailing = e.Reason != ""
-		to := members(ch)
-		if mem := ch.Member(u); mem != nil && mem.Hidden {
-			to = []*state.User{u}
-		}
+		to := seers(ch, u)
 		return func() { s.deliverAll(to, o) }
 	case *state.Kick:
 		t, ch := s.net.UserByUID(e.UID), s.net.Channel(e.Channel)
@@ -107,12 +106,9 @@ func (s *Server) prepare(ev state.Event) func() {
 			return nil
 		}
 		o := s.outFrom(e.Source, "KICK", ch.Name, t.Nick, e.Reason).text()
-		to := members(ch)
-		if mem := ch.Member(t); mem != nil && mem.Hidden {
-			to = []*state.User{t}
-			if src := s.net.UserByUID(e.Source); src != nil && src != t {
-				to = append(to, src)
-			}
+		to := seers(ch, t)
+		if src := s.net.UserByUID(e.Source); src != nil && src != t && ch.Member(t) != nil && !ch.Sees(src, ch.Member(t)) {
+			to = append(to, src)
 		}
 		return func() { s.deliverAll(to, o) }
 	case *state.Reveal:
@@ -123,11 +119,16 @@ func (s *Server) prepare(ev state.Event) func() {
 			}
 			join := s.out(u, "JOIN", ch.Name)
 			join.extParams = []string{ch.Name, accountOrStar(u), u.Realname}
-			s.broadcast(ch, join, u)
-			if u.Away != "" {
-				away := s.out(u, "AWAY", u.Away).text()
-				away.needCap = "away-notify"
-				s.broadcast(ch, away, u)
+			for _, o := range seers(ch, u) {
+				if o == u {
+					continue
+				}
+				s.deliverTo(o, join)
+				if u.Away != "" {
+					away := s.out(u, "AWAY", u.Away).text()
+					away.needCap = "away-notify"
+					s.deliverTo(o, away)
+				}
 			}
 		}
 	case *state.Topic:

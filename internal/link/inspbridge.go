@@ -93,7 +93,7 @@ var (
 	inspChanNames = map[byte]string{
 		'b': "ban", 'e': "banexception", 'I': "invex", 'k': "key", 'l': "limit",
 		'L': "redirect", 'J': "kicknorejoin", 'H': "history", 'W': "delaymsg",
-		'U': "opmoderated",
+		'U': "opmoderated", 'u': "auditorium",
 		'i': "inviteonly", 'm': "moderated", 'n': "noextmsg", 't': "topiclock",
 		'p': "private", 's': "secret", 'R': "reginvite", 'M': "regmoderated",
 		'c': "blockcolor", 'S': "stripcolor", 'C': "noctcp", 'T': "nonotice",
@@ -105,7 +105,7 @@ var (
 		'i': "invisible", 'o': "oper", 'w': "wallops", 's': "snomask", 'x': "cloak",
 		'r': "u_registered", 'B': "bot", 'd': "deaf", 'D': "privdeaf", 'R': "regdeaf",
 		'T': "u_noctcp", 'H': "hideoper", 'W': "showwhois", 'Z': "sslqueryonly",
-		'p': "hidechans", 'g': "callerid",
+		'p': "hidechans", 'g': "callerid", 'G': "u_censor",
 	}
 	// inspRankNames are the usual names; ranks map by prefix character.
 	inspRankNames = map[byte]string{'q': "founder", 'a': "admin", 'o': "op", 'h': "halfop", 'v': "voice"}

@@ -18,7 +18,7 @@ import (
 // r for ChanServ, Z for the server itself.
 const (
 	halfopFlagModes = "imnt"
-	opFlagModes     = "psRMcCSTNKVQzDGU"
+	opFlagModes     = "psRMcCSTNKVQzDGUu"
 )
 
 // Channel mode letters for 004 and 005, without the rank letters.
@@ -26,7 +26,7 @@ const (
 	chanModesList  = "beI"
 	chanModesKey   = "k"
 	chanModesParam = "BEFHJLWfl"
-	chanModesFlags = "CDGKMNOPQRSTUVZcimnprstz"
+	chanModesFlags = "CDGKMNOPQRSTUVZcimnprstuz"
 )
 
 // maxLinkHops is how many +L channels one JOIN may be sent through.
@@ -339,8 +339,89 @@ func (s *Server) reveal(u *state.User, ch *state.Channel) {
 	}
 }
 
-// visibleTo reports whether viewer may see member m of a channel.
-func visibleTo(m *state.Member, viewer *state.User) bool { return !m.Hidden || m.User == viewer }
+// seers are the members of ch who may see u there: everyone, unless +D or
+// +u (auditorium) hides u.
+func seers(ch *state.Channel, u *state.User) []*state.User {
+	mem := ch.Member(u)
+	if mem == nil {
+		return members(ch)
+	}
+	out := make([]*state.User, 0, len(ch.Members))
+	for _, m := range ch.Members {
+		if ch.Sees(m.User, mem) {
+			out = append(out, m.User)
+		}
+	}
+	return out
+}
+
+// ---- auditorium (+u) ----
+
+// auditoriumBefore runs before a mode change: someone about to be opped
+// in a +u channel joins, as far as the audience can tell.
+func (s *Server) auditoriumBefore(e *state.ChannelMode) {
+	ch := s.net.Channel(e.Channel)
+	if ch == nil || !ch.HasMode('u') {
+		return
+	}
+	for _, m := range e.Changes {
+		mem := ch.Members[m.UID]
+		if !m.Add || m.Mode != 'o' || mem == nil || mem.Hidden || mem.AtLeast(state.RankOp) {
+			continue
+		}
+		join := s.out(mem.User, "JOIN", ch.Name)
+		join.extParams = []string{ch.Name, accountOrStar(mem.User), mem.User.Realname}
+		for _, other := range ch.Members {
+			if other != mem && !other.AtLeast(state.RankOp) {
+				s.deliverTo(other.User, join)
+			}
+		}
+	}
+}
+
+// auditoriumAfter runs after a mode change. Whoever became or stopped
+// being an op gets the list of names again, because what they may see
+// changed; an op who stepped down leaves, as far as the audience can
+// tell. Setting or taking +u gives everyone a new list.
+func (s *Server) auditoriumAfter(e *state.ChannelMode) {
+	ch := s.net.Channel(e.Channel)
+	if ch == nil {
+		return
+	}
+	names := func(u *state.User) {
+		if c := s.clients[u.UID]; c != nil {
+			s.sendNames(c, ch)
+		}
+	}
+	for _, m := range e.Changes {
+		if m.Mode == 'u' {
+			for _, mem := range ch.Members {
+				if !mem.AtLeast(state.RankOp) {
+					names(mem.User)
+				}
+			}
+			return
+		}
+	}
+	if !ch.HasMode('u') {
+		return
+	}
+	for _, m := range e.Changes {
+		mem := ch.Members[m.UID]
+		if m.Mode != 'o' || mem == nil || mem.Hidden {
+			continue
+		}
+		if !m.Add && !mem.AtLeast(state.RankOp) {
+			part := s.out(mem.User, "PART", ch.Name)
+			for _, other := range ch.Members {
+				if other != mem && !other.AtLeast(state.RankOp) {
+					s.deliverTo(other.User, part)
+				}
+			}
+		}
+		names(mem.User)
+	}
+}
 
 // ---- secure channel (+Z) ----
 
@@ -733,6 +814,7 @@ func (s *Server) beforeModeEvent(ev state.Event) (secure []string) {
 	switch e := ev.(type) {
 	case *state.ChannelMode:
 		s.revealForModes(e)
+		s.auditoriumBefore(e)
 		for _, m := range e.Changes {
 			if m.Mode == 'z' {
 				return []string{e.Channel}
@@ -765,6 +847,7 @@ func (s *Server) afterModeEvent(ev state.Event, secure []string) {
 				s.revealAll(e.Channel)
 			}
 		}
+		s.auditoriumAfter(e)
 	case *state.Kick:
 		if ch := s.net.Channel(e.Channel); ch != nil {
 			if n, err := strconv.Atoi(ch.Param('J')); err == nil && n > 0 {
@@ -813,6 +896,7 @@ var chmodesHelp = []string{
 	" Q no KICK         z TLS only         D delay join (hidden until they talk)",
 	" G hide the words in [censor] of beeircd.conf (they become <censored>)",
 	" U what +m or a ban stops is shown to the ops instead of refused",
+	" u auditorium: only the ops are seen in the list of names, and only the ops see who joins and leaves",
 	"Set by others:",
 	" O opers only, P permanent (opers)    r registered (ChanServ)",
 	" Z everyone is on TLS (the server, with +z)",

@@ -104,7 +104,7 @@ func (s *Server) setUserModes(c *Client, srcUID, modeStr string) bool {
 					flip('h', false) // an oper's +h goes with oper, a listed helper's stays
 				}
 			}
-		case 'B', 'd', 'D', 'R', 'T', 'p', 'Z', 'g':
+		case 'B', 'd', 'D', 'R', 'T', 'p', 'Z', 'g', 'G':
 			if cur[mc] != add {
 				flip(mc, add)
 			}
@@ -224,7 +224,7 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 		case mc == 'b' || mc == 'e' || mc == 'I':
 			arg, ok := next()
 			if !ok {
-				if mc == 'b' || srcRank >= state.RankHalfop {
+				if (mc == 'b' && !(s.cfg.Channels.HideBans && !c.isOper())) || srcRank >= state.RankHalfop {
 					s.sendList(c, ch, mc)
 				} else {
 					denied = true

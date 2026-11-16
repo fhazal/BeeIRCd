@@ -77,6 +77,10 @@ type Config struct {
 	RPC RPC `toml:"rpc"`
 	// Auth is [auth], passwords kept in LDAP or SQL (auth.go).
 	Auth Auth `toml:"auth"`
+	// ShowFiles are commands of your own that show a text, like FAQ.
+	ShowFiles []ShowFile `toml:"showfile"`
+	// ExtJWT hands out signed tokens for other services (EXTJWT).
+	ExtJWT ExtJWT `toml:"extjwt"`
 	// More spam protection, each off by default (antispam.go).
 	AntiRandom    AntiRandom    `toml:"antirandom"`
 	AntiMixedUTF8 AntiMixedUTF8 `toml:"antimixedutf8"`
@@ -184,6 +188,13 @@ type Server struct {
 	OperModes string `toml:"oper_modes"`
 	// OperJoin are channels an oper joins at /oper.
 	OperJoin []string `toml:"oper_join"`
+	// PingCookie makes every new connection answer a PING with a random
+	// word before it is let in: it proves the other side really reads
+	// what the server sends.
+	PingCookie bool `toml:"ping_cookie"`
+	// WebRedirect is a web address browsers are sent to when they open
+	// an IRC port by mistake.
+	WebRedirect string `toml:"web_redirect"`
 }
 
 // FullPrefixes reports whether owner, admin and halfop exist.
@@ -307,6 +318,12 @@ type Limits struct {
 	// DisabledCommands are commands switched off for everyone but opers,
 	// like ["KNOCK", "WHOWAS"].
 	DisabledCommands []string `toml:"disabled_commands"`
+	// RestrictMsg lets people send private messages to opers and
+	// services only; opers can write to anyone.
+	RestrictMsg bool `toml:"restrict_msg"`
+	// Abbreviations lets people shorten a command by ending it with a
+	// full stop, like "WHOW." for WHOWAS.
+	Abbreviations bool `toml:"abbreviations"`
 }
 
 // ConnectLimit reads connect_rate: n connections per period; ok false

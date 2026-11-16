@@ -14,6 +14,11 @@ How to set each one up is in [ADMIN.md](ADMIN.md); installing is in [INSTALL.md]
 | WHO, WHOIS, WHOWAS, ISON, USERHOST, AWAY | ✅ | `WHO exactnick` shows +i users; `WHO *` also lists the services; WHOWAS is kept across restarts (a week) |
 | MOTD, LUSERS, VERSION, TIME, INFO, HELP, HELPOP | ✅ | HELP covers every command and the channel modes |
 | RULES, OPERMOTD, BOTMOTD, a random quote on connect | ✅ | `[motd]` |
+| Commands of your own that show a text, like `/FAQ` | ✅ | `[[showfile]]` |
+| User mode `+G`: the words in `[censor]` are hidden in private messages to you | ✅ | |
+| Private messages to opers only, a ban list only ops can read, shortened commands (`WHOW.`) | ✅ | `[limits] restrict_msg`, `abbreviations`; `[channels] hide_bans` |
+| A PING new connections must answer, and a redirect for browsers that open an IRC port | ✅ | `[server] ping_cookie`, `web_redirect` |
+| EXTJWT: signed tokens for other services | ✅ | `[extjwt]` |
 | Hidden server list, modes and channels at `/oper`, modes on connect, switched-off commands, who may make channels | ✅ | `[server] hide_servers`, `oper_modes`, `oper_join`, `connect_modes`; `[limits] disabled_commands`; `[channels] create` |
 | Input limits | ✅ | lines over 510 bytes or tags over 4096 bytes get 417 and are dropped, not cut |
 | User modes `i w o s r x` | ✅ | |
@@ -25,6 +30,7 @@ How to set each one up is in [ADMIN.md](ADMIN.md); installing is in [INSTALL.md]
 | Flood guard `+f [10j#R10,40m#M10]:15` and `+F` profiles | ✅ | UnrealIRCd syntax; a server-wide default profile |
 | `+L` link channel, `+E` repeat, `+B` caps, `+J` rejoin delay | ✅ | |
 | `+W seconds` newcomers wait before they can talk, `+U` what `+m` or a ban stops goes to the ops | ✅ | InspIRCd's delaymsg and opmoderated |
+| `+u` auditorium: only the ops are seen in the list of names, and only the ops see who joins and leaves | ✅ | InspIRCd's auditorium |
 | Channel history `+H lines:time`, playback on join, CHATHISTORY | ✅ | kept encrypted on disk (AES-256-GCM), so a restart keeps it |
 | KNOCK, SILENCE, SETNAME, CHGNAME | ✅ | |
 | CYCLE, REMOVE / FPART, UNINVITE | ✅ | REMOVE is a kick that shows as a PART, so clients don't rejoin by themselves |
