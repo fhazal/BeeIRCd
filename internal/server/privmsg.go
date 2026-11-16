@@ -82,6 +82,10 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 				fail(irc.ErrCannotSendToChan, ch.Name, why)
 				continue
 			}
+			if why := s.antiSpam(c, ch, nil, verb, text); why != "" {
+				fail(irc.ErrCannotSendToChan, ch.Name, why)
+				continue
+			}
 			if mem := ch.Member(u); mem != nil && mem.Hidden {
 				if tagOnly {
 					continue // typing in a +D channel would show you're there
@@ -147,6 +151,10 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 			continue
 		}
 		if s.callerBlocked(t, u, verb == "PRIVMSG") {
+			continue
+		}
+		if why := s.antiSpam(c, nil, t, verb, text); why != "" {
+			fail(irc.ErrCantSendToUser, t.Nick, why)
 			continue
 		}
 		if file, ok := dccFile(text); ok && !tagOnly && !c.isOper() && !t.Service {

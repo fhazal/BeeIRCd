@@ -45,7 +45,7 @@ func TestEverySettingIsDocumented(t *testing.T) {
 // "### [section]" heading, the setting names in its tables' first column.
 func docSettings(md string) map[string]map[string]bool {
 	out := map[string]map[string]bool{}
-	head := regexp.MustCompile("^### `?\\[\\[?([a-z_.]+)\\]\\]?`?\\s*$")
+	head := regexp.MustCompile("^### `?\\[\\[?([a-z0-9_.]+)\\]\\]?`?\\s*$")
 	key := regexp.MustCompile("`([a-z0-9_]+)`")
 	in, sec := false, ""
 	for _, l := range strings.Split(strings.ReplaceAll(md, "\r\n", "\n"), "\n") {

@@ -368,6 +368,41 @@ channels. `[[allow_dcc]]` makes exceptions, and opers are never blocked.
 The rules look at the file name in the DCC SEND request; the file itself
 travels between the two people, not through the server.
 
+### More spam protection
+
+Four more guards, each off until you switch it on. Opers are never
+stopped by them, and messages to services always get through.
+
+- `[antirandom]` looks at the nick, username and real name of someone
+  connecting. Long runs of consonants, vowels or digits and letter pairs
+  that don't occur in real names (like `qx`) add to a score; at 7 the
+  connection is refused and opers with `+s` see why. People in
+  `known-users` and web chat visitors are not checked. Try it with
+  `action = "warn"` first: nobody is refused, opers only see who would
+  have been.
+- `[antimixedutf8]` stops messages that switch alphabet inside words,
+  like Latin text with look-alike Cyrillic letters to slip past the spam
+  filter. Someone writing in two languages is fine: only many switches
+  inside words reach the score.
+- `[targetfloodprot]` caps how many messages one channel or one person
+  can get in a few seconds from everyone together (45 messages in 5
+  seconds for a channel). What goes over it is not delivered and the
+  sender is told. It protects against a flood from many connections at
+  once, which `+f` (per person) doesn't catch. On a network with a busy
+  relay bot, raise `channel_privmsg` before switching it on.
+- `[blockamsg]` stops `/amsg` and `/ame`: the same text to several
+  channels within 200 ms only reaches the first channel.
+
+```toml
+[antirandom]
+enabled = true
+action = "warn"
+
+[targetfloodprot]
+enabled = true
+channel_privmsg = "60:5"
+```
+
 ## Spam filter
 
 Rules that catch spam as it is sent, like UnrealIRCd's spamfilter. Opers
@@ -1150,6 +1185,44 @@ under `[security_group.exclude]` (the same items).
 | `command` | A command, like `"list"`, `"invite"`, `"knock"`, or `private-message`, `private-notice`, `channel-message`, `channel-notice`, `channel-create`, `join` |
 | `connect_time` | Allowed once connected this long (up to `24h`); none: only the `except` groups may use it |
 | `except` | Groups that may always use it, like `["known-users"]` |
+
+### [antirandom]
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | Refuse people whose nick, username and real name look like random letters |
+| `threshold` | `7` | The score from which someone is refused; lower catches more and makes more mistakes |
+| `action` | `"kill"` | `"kill"` refuses the connection, `"warn"` only tells the opers |
+| `reason` | UnrealIRCd's text | What a refused person is told |
+| `except` | `["known-users", "webirc-users"]` | Groups never checked |
+
+### [antimixedutf8]
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | Refuse messages that mix alphabets inside words |
+| `score` | `10` | Refused from this score: each change of alphabet counts 1, and 1 more inside a word |
+| `reason` | `Possible mixed character spam` | What the sender is told |
+| `except` | none | Groups never checked |
+
+### [targetfloodprot]
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | Cap the messages one channel or person can be sent, by everyone together |
+| `channel_privmsg` | `45:5` | Messages per seconds to one channel |
+| `channel_notice` | `15:5` | Notices to one channel |
+| `channel_tagmsg` | `15:5` | Tag-only messages (like typing notes) to one channel |
+| `private_privmsg` | `30:5` | Private messages to one person |
+| `private_notice` | `10:5` | Notices to one person |
+| `private_tagmsg` | `10:5` | Tag-only messages to one person |
+
+### [blockamsg]
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | The same text sent to several channels at once only reaches the first |
+| `delay` | `200ms` | The same text to another channel within this time counts as one /amsg (up to `10s`) |
 
 ### [[deny_dcc]]
 

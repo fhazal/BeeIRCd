@@ -42,8 +42,10 @@ type Server struct {
 	whowas      []whowasEntry
 	whowasDirty bool // entries not saved yet (whowasdb.go)
 	whowasSaved time.Time
-	jump        *jumpServer // JUMPSERVER: where people are sent, nil = off
-	identPort   int         // where ident servers listen (113; tests change it)
+	jump        *jumpServer              // JUMPSERVER: where people are sent, nil = off
+	targetFlood map[string]*[3]targetWin // [targetfloodprot]: messages to each channel and person
+	targetSwept time.Time
+	identPort   int // where ident servers listen (113; tests change it)
 	maxLocal    int
 	maxGlobal   int // most people on the network at once (LUSERS)
 	// Hive Panel Spotlight (spotlight.go): when each person last talked
@@ -367,6 +369,7 @@ func (s *Server) Serve(ctx context.Context) error {
 			s.throttleTick(now)
 			s.repTick(now)
 			s.whowasTick(now)
+			s.antiSpamTick(now)
 			s.groupTick(now)
 			s.certTick(now)
 			s.svc.Tick(now)

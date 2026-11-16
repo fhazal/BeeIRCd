@@ -363,6 +363,10 @@ func (s *Server) tryRegister(c *Client) {
 		return
 	}
 	u.Groups = s.groupsOf(u, now)
+	if why := s.antiRandom(u, now); why != "" {
+		s.quit(c, why)
+		return
+	}
 	if why := s.throttleNew(u, now); why != "" {
 		s.quit(c, why)
 		return

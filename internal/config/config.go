@@ -73,6 +73,11 @@ type Config struct {
 	SecurityGroups []SecurityGroup `toml:"security_group"`
 	ConnThrottle   ConnThrottle    `toml:"connthrottle"`
 	Restricts      []Restrict      `toml:"restrict"`
+	// More spam protection, each off by default (antispam.go).
+	AntiRandom    AntiRandom    `toml:"antirandom"`
+	AntiMixedUTF8 AntiMixedUTF8 `toml:"antimixedutf8"`
+	TargetFlood   TargetFlood   `toml:"targetfloodprot"`
+	BlockAmsg     BlockAmsg     `toml:"blockamsg"`
 	// DenyDCC and AllowDCC say which files may be sent with DCC SEND.
 	DenyDCC  []DenyDCC  `toml:"deny_dcc"`
 	AllowDCC []AllowDCC `toml:"allow_dcc"`
@@ -675,6 +680,9 @@ func (c *Config) Check() error {
 		return err
 	}
 	if err := c.checkRestrict(); err != nil {
+		return err
+	}
+	if err := c.checkAntiSpam(); err != nil {
 		return err
 	}
 	if err := c.checkWebIRC(); err != nil {

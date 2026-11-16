@@ -75,12 +75,15 @@ type Client struct {
 	calleridAt  map[string]time.Time
 	dccAllow    map[string]bool // DCCALLOW list: UIDs (dcc.go)
 	dccWarned   bool            // told once what DCCALLOW is for
-	nickLocked  bool            // NICKLOCK: may not change nick
-	identBusy   bool            // an ident lookup is running (ident.go)
-	identAnswer string          // the username their identd gave
-	silence     []string        // SILENCE masks (nick!ident@host)
-	knocks      []time.Time     // recent KNOCKs, for the knock flood limit
-	operFlags   string          // oper flags like "abcghks", "" when not an oper
+	amsgText    string          // [blockamsg]: the last channel text, where it went and when
+	amsgTarget  string
+	amsgAt      time.Time
+	nickLocked  bool        // NICKLOCK: may not change nick
+	identBusy   bool        // an ident lookup is running (ident.go)
+	identAnswer string      // the username their identd gave
+	silence     []string    // SILENCE masks (nick!ident@host)
+	knocks      []time.Time // recent KNOCKs, for the knock flood limit
+	operFlags   string      // oper flags like "abcghks", "" when not an oper
 	operTitle   string
 	operClass   string    // oper class in use ("" = flags only)
 	operSwhois  []string  // extra WHOIS lines (320) while opered
