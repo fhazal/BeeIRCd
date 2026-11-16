@@ -11,6 +11,9 @@ type Channels struct {
 	// uses, like UnrealIRCd's anti-flood::channel::default-profile.
 	// "off" switches the default off. Default "normal".
 	FloodProfile string `toml:"flood_profile"`
+	// Create is who may make a new channel: "everyone" (the default),
+	// "registered" (logged in to NickServ) or "opers".
+	Create string `toml:"create"`
 }
 
 // FloodProfiles are the +F profiles, as UnrealIRCd 6.2 ships them. The p

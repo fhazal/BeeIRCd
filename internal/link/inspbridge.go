@@ -92,7 +92,8 @@ func (t modeTable) rankByPrefix(p byte) byte {
 var (
 	inspChanNames = map[byte]string{
 		'b': "ban", 'e': "banexception", 'I': "invex", 'k': "key", 'l': "limit",
-		'L': "redirect", 'J': "kicknorejoin", 'H': "history",
+		'L': "redirect", 'J': "kicknorejoin", 'H': "history", 'W': "delaymsg",
+		'U': "opmoderated",
 		'i': "inviteonly", 'm': "moderated", 'n': "noextmsg", 't': "topiclock",
 		'p': "private", 's': "secret", 'R': "reginvite", 'M': "regmoderated",
 		'c': "blockcolor", 'S': "stripcolor", 'C': "noctcp", 'T': "nonotice",

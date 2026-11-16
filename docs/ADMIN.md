@@ -1037,6 +1037,10 @@ Unknown settings are refused, so a typo shows up in `beeircd check`.
 | `prefixes` | `"@+"` | `"@+"` or `"~&@%+"` (owner, admin, op, halfop, voice) (restart) |
 | `casemapping` | `"ascii"` | How nicks and channels ignore case: `"ascii"` (only A-Z: `Belon` = `belon`, but `[` and `{` differ, like UnrealIRCd 6 and InspIRCd) or `"rfc1459"` (also `[]\~` = `{}|^`). Every linked server needs the same; UnrealIRCd links need ascii. Changing it moves the stored nicks and channels to the new rule at the next start; going to rfc1459 is refused when two stored names would become one (restart) |
 | `ident_lookup` | `false` | Ask the ident server (port 113) of every connecting computer for the username; with an answer the username shows without the leading `~`. Off by default: almost nobody runs an ident server any more, and each login waits up to 3 seconds for the answer. Not asked on WebSocket or `proxy` ports |
+| `hide_servers` | `false` | Keep the server list from people who are not opers: LINKS and MAP only show the server they are on |
+| `connect_modes` | – | User modes everyone gets when they connect, like `"+R"` (on top of `+i`, and `+x` with cloaking) |
+| `oper_modes` | – | User modes set at `/oper`, like `"+WH"` |
+| `oper_join` | – | Channels an oper joins at `/oper`, like `["#opers"]` |
 | `ircv3_drafts` | `false` | Offer the IRCv3 drafts that aren't final yet to clients that ask: `draft/read-marker` (read position shared by all your devices), `draft/pre-away` (bouncers and phones set AWAY while connecting), `draft/extended-isupport` (the 005 list before sign-in with `ISUPPORT`), `draft/multiline` (a pasted block of up to 24 lines or 4096 bytes is one message, checked once by the spam filter and flood rules; clients without it and other servers get the lines one by one), `draft/message-redaction` (`REDACT` takes a message back: the sender for 15 minutes, channel ops and IRC operators at any time; clients with it hide the message, +H history forgets it, other BeeIRCd servers pass it on; clients without it still show the message), `draft/account-registration` (`REGISTER <nick|*> <email|*> <password>` and `VERIFY <nick> <code>` from a client's sign-up screen, with NickServ's rules: `force_email`, `registration`, `reg_delay`; offered on the server that runs services, once the connection is complete). Clients that don't ask see no change. AdminServ `SET ircv3-drafts` switches it live (clients with cap-notify hear CAP NEW / DEL) |
 
 ### [[listen]]
@@ -1072,6 +1076,13 @@ One block per port.
 | --- | --- | --- |
 | `file` | – | The message of the day |
 | `text` | – | Used when there is no file |
+| `oper_file` | – | A message for opers: shown after `/oper` and by `OPERMOTD` |
+| `oper_text` | – | Used when there is no `oper_file` |
+| `bot_file` | – | A message for bots, shown by `BOTMOTD` |
+| `bot_text` | – | Used when there is no `bot_file` |
+| `rules_file` | – | The network's rules, shown by `RULES` |
+| `rules_text` | – | Used when there is no `rules_file` |
+| `quotes_file` | – | A file with one quote per line; everyone gets a random one when they connect |
 
 ### [cloak]
 
@@ -1138,12 +1149,14 @@ difference is a warning to opers, not a refusal.
 | `register_timeout` | `60s` | Time to finish logging in |
 | `sendq` | `1048576` | Bytes queued to one client before it is dropped |
 | `utf8_only` | `false` | Refuse text that isn't UTF-8 (`FAIL ... INVALID_UTF8`) and tell clients `UTF8ONLY`. Leave off if people use old clients that send Latin-1 |
+| `disabled_commands` | – | Commands switched off for everyone but opers, like `["KNOCK", "WHOWAS"]`; the ones needed to connect can't be listed |
 
 ### [channels]
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `flood_profile` | `"normal"` | The +F profile for channels without their own: `very-strict`, `strict`, `normal`, `relaxed`, `very-relaxed`, `off` |
+| `create` | `"everyone"` | Who may make a new channel: `"everyone"`, `"registered"` (logged in to NickServ) or `"opers"` |
 
 ### [history]
 

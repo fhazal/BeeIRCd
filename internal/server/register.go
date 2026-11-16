@@ -416,9 +416,13 @@ func (s *Server) welcome(c *Client) {
 	s.sendISupport(c)
 	s.lusers(c)
 	s.motd(c)
+	s.randomQuote(c)
 	c.send(irc.Message{Source: u.Nick, Command: "MODE", Params: []string{u.Nick, u.ModeString()}}.String())
 	if u.Host != u.RealHost {
 		s.reply(c, irc.RplHostHidden, u.Host, "is now your displayed host")
+	}
+	if m := s.cfg.Server.ConnectModes; m != "" {
+		s.setUserModes(c, c.uid, m)
 	}
 }
 

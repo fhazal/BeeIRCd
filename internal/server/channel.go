@@ -80,6 +80,10 @@ func (s *Server) joinVia(c *Client, name, key string, hops int) {
 			s.reply(c, irc.ErrCannotDoCommand, "JOIN", why)
 			return
 		}
+		if why := s.createRefused(c); why != "" {
+			s.reply(c, irc.ErrCannotDoCommand, "JOIN", why)
+			return
+		}
 	}
 	ev := &state.Join{UID: u.UID, Channel: name, TS: time.Now().Unix()}
 	if s.emit(ev) != nil {

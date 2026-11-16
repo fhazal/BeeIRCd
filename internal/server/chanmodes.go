@@ -18,15 +18,15 @@ import (
 // r for ChanServ, Z for the server itself.
 const (
 	halfopFlagModes = "imnt"
-	opFlagModes     = "psRMcCSTNKVQzDG"
+	opFlagModes     = "psRMcCSTNKVQzDGU"
 )
 
 // Channel mode letters for 004 and 005, without the rank letters.
 const (
 	chanModesList  = "beI"
 	chanModesKey   = "k"
-	chanModesParam = "BEFHJLfl"
-	chanModesFlags = "CDGKMNOPQRSTVZcimnprstz"
+	chanModesParam = "BEFHJLWfl"
+	chanModesFlags = "CDGKMNOPQRSTUVZcimnprstz"
 )
 
 // maxLinkHops is how many +L channels one JOIN may be sent through.
@@ -78,6 +78,12 @@ func (s *Server) checkParamMode(name string, m byte, arg string) (string, string
 		n, err := strconv.Atoi(arg)
 		if err != nil || n < 1 || n > 3600 {
 			return "", "Use +J <seconds> (1-3600)"
+		}
+		return strconv.Itoa(n), ""
+	case 'W':
+		n, err := strconv.Atoi(arg)
+		if err != nil || n < 1 || n > 3600 {
+			return "", "Use +W <seconds> (1-3600)"
 		}
 		return strconv.Itoa(n), ""
 	}
@@ -796,6 +802,7 @@ var chmodesHelp = []string{
 	" E <n>:<s>  block the same line sent n times in s seconds",
 	" B <len>:<pct> block lines of len+ letters with pct% capitals",
 	" J <s>      no rejoin for s seconds after a kick",
+	" W <s>      newcomers wait s seconds before they can talk",
 	" H <n>:<t>  keep history: the last n lines, up to t old (+H 50:1d)",
 	"On or off (ops; i m n t for halfops too):",
 	" i invite only     m moderated        n no outside messages",
@@ -805,6 +812,7 @@ var chmodesHelp = []string{
 	" N no nick changes K no KNOCK         V no INVITE",
 	" Q no KICK         z TLS only         D delay join (hidden until they talk)",
 	" G hide the words in [censor] of beeircd.conf (they become <censored>)",
+	" U what +m or a ban stops is shown to the ops instead of refused",
 	"Set by others:",
 	" O opers only, P permanent (opers)    r registered (ChanServ)",
 	" Z everyone is on TLS (the server, with +z)",

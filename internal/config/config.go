@@ -174,6 +174,16 @@ type Server struct {
 	// computer for the username. Off by default: almost nobody runs one
 	// any more and waiting for an answer slows every login down.
 	IdentLookup bool `toml:"ident_lookup"`
+	// HideServers keeps the server list from people who are not opers:
+	// LINKS and MAP only show the server they are on.
+	HideServers bool `toml:"hide_servers"`
+	// ConnectModes are user modes everyone gets when they connect, like
+	// "+R" (on top of +i, and +x with cloaking).
+	ConnectModes string `toml:"connect_modes"`
+	// OperModes are user modes set at /oper, like "+WH".
+	OperModes string `toml:"oper_modes"`
+	// OperJoin are channels an oper joins at /oper.
+	OperJoin []string `toml:"oper_join"`
 }
 
 // FullPrefixes reports whether owner, admin and halfop exist.
@@ -248,6 +258,18 @@ func (c *Config) STSOn() bool {
 type MOTD struct {
 	File string `toml:"file"`
 	Text string `toml:"text"`
+	// OperFile / OperText is shown to opers after /oper and by OPERMOTD.
+	OperFile string `toml:"oper_file"`
+	OperText string `toml:"oper_text"`
+	// BotFile / BotText is shown to bots (user mode +B) and by BOTMOTD.
+	BotFile string `toml:"bot_file"`
+	BotText string `toml:"bot_text"`
+	// RulesFile / RulesText is what RULES shows.
+	RulesFile string `toml:"rules_file"`
+	RulesText string `toml:"rules_text"`
+	// QuotesFile holds one quote per line; everyone gets a random one
+	// when they connect.
+	QuotesFile string `toml:"quotes_file"`
 }
 
 // Limits holds timeouts and sizes. Zero means the default.
@@ -282,6 +304,9 @@ type Limits struct {
 	// to clients (IRCv3). Off by default: old clients sending Latin-1
 	// keep working.
 	UTF8Only bool `toml:"utf8_only"`
+	// DisabledCommands are commands switched off for everyone but opers,
+	// like ["KNOCK", "WHOWAS"].
+	DisabledCommands []string `toml:"disabled_commands"`
 }
 
 // ConnectLimit reads connect_rate: n connections per period; ok false
@@ -602,6 +627,9 @@ func (c *Config) Check() error {
 	if err := c.Auth.check(); err != nil {
 		return err
 	}
+	if err := c.checkSmall(); err != nil {
+		return err
+	}
 	if err := c.checkDCC(); err != nil {
 		return err
 	}
@@ -726,10 +754,13 @@ func (c *Config) Check() error {
 }
 
 // MOTDLines returns the message of the day, read fresh from the file.
-func (c *Config) MOTDLines() []string {
-	text := c.MOTD.Text
-	if c.MOTD.File != "" {
-		if b, err := os.ReadFile(c.MOTD.File); err == nil {
+func (c *Config) MOTDLines() []string { return TextLines(c.MOTD.File, c.MOTD.Text) }
+
+// TextLines is the lines of file, or of text when there is no file (or
+// it can't be read).
+func TextLines(file, text string) []string {
+	if file != "" {
+		if b, err := os.ReadFile(file); err == nil {
 			text = string(b)
 		}
 	}

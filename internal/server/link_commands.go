@@ -77,7 +77,7 @@ func (s *Server) cmdLinks(c *Client, m irc.Message) {
 		mask = m.Params[len(m.Params)-1]
 	}
 	for _, n := range s.netServers() {
-		if !irc.Match(mask, n.name) {
+		if !irc.Match(mask, n.name) || (s.hideServers(c) && n.sid != s.cfg.Server.SID) {
 			continue
 		}
 		up := n.name
@@ -91,6 +91,17 @@ func (s *Server) cmdLinks(c *Client, m irc.Message) {
 
 // cmdMap is MAP: the server tree with people on each.
 func (s *Server) cmdMap(c *Client, m irc.Message) {
+	if s.hideServers(c) {
+		n := 0
+		for _, u := range s.net.Users() {
+			if !u.Service {
+				n++
+			}
+		}
+		s.reply(c, rplMap, fmt.Sprintf("%s %d", s.cfg.Server.Name, n))
+		s.reply(c, rplMapEnd, "End of /MAP")
+		return
+	}
 	count := map[string]int{}
 	for _, u := range s.net.Users() {
 		if !u.Service {

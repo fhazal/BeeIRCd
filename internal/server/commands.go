@@ -207,6 +207,8 @@ func (s *Server) runCommand(c *Client, m irc.Message) {
 		// Shunned: dropped without a word (UnrealIRCd).
 	case c.registered && s.restrictedCommand(c, m.Command):
 		// [[restrict]]: not yet for new people.
+	case c.registered && !c.isOper() && s.commandOff(m.Command):
+		s.reply(c, irc.ErrUnknownCommand, m.Command, "This command is switched off on this network")
 	default:
 		if c.registered && m.Command == "PART" && len(m.Params) > 1 && (c.tempShun || s.svc.Shunned(c.user)) {
 			m.Params = m.Params[:1] // no part message either

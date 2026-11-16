@@ -114,6 +114,7 @@ func (s *Server) operUpView(c *Client, o *store.Oper, v operView) {
 		s.snotice("%s (%s@%s) is now an operator as %s: %s", u.Nick, u.TrueIdent(), u.RealHost, o.Account, v.flags)
 	}
 	s.svc.SendOperNews(c.uid)
+	s.operExtras(c)
 }
 
 // deoper takes oper status away. why "" means quietly.

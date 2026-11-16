@@ -1,6 +1,7 @@
 package server
 
 import (
+	"strconv"
 	"strings"
 	"time"
 
@@ -74,9 +75,13 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 				fail(irc.ErrNoSuchNick, name, "No such nick/channel")
 				continue
 			}
-			if why := cannotSend(ch, u); why != "" {
-				fail(irc.ErrCannotSendToChan, ch.Name, why)
-				continue
+			if why, soft := cannotSendWhy(ch, u); why != "" {
+				if !soft || !ch.HasMode('U') || tagOnly {
+					fail(irc.ErrCannotSendToChan, ch.Name, why)
+					continue
+				}
+				// +U: what +m or a ban stops goes to the ops only.
+				status = "@"
 			}
 			if why := s.restrictedMessage(c, verb, true); why != "" && !tagOnly {
 				fail(irc.ErrCannotSendToChan, ch.Name, why)
@@ -209,19 +214,33 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 
 // cannotSend returns why u may not talk in ch, or "" when it may.
 func cannotSend(ch *state.Channel, u *state.User) string {
+	why, _ := cannotSendWhy(ch, u)
+	return why
+}
+
+// cannotSendWhy is cannotSend; soft reports a stop that +U turns into a
+// message for the ops (+m and bans).
+func cannotSendWhy(ch *state.Channel, u *state.User) (why string, soft bool) {
 	mem := ch.Member(u)
 	if mem != nil && mem.AtLeast(state.RankVoice) {
-		return ""
+		return "", false
 	}
 	switch {
 	case mem == nil && ch.HasMode('n') && !ch.Bypasses(u, "external"):
-		return "Cannot send to channel (no external messages)"
+		return "Cannot send to channel (no external messages)", false
 	case ch.HasMode('m') && !ch.Bypasses(u, "moderated"):
-		return "Cannot send to channel (+m)"
+		return "Cannot send to channel (+m)", true
 	case ch.HasMode('M') && u.Account == "":
-		return "You need to identify to a registered nick to talk in that channel"
+		return "You need to identify to a registered nick to talk in that channel", false
 	case ch.IsMuted(u):
-		return "Cannot send to channel (you're banned)"
+		return "Cannot send to channel (you're banned)", true
 	}
-	return ""
+	if p := ch.Param('W'); p != "" && mem != nil && !u.Service && !u.Modes['o'] {
+		if n, err := strconv.Atoi(p); err == nil {
+			if left := time.Duration(n)*time.Second - time.Since(mem.Joined); left > 0 {
+				return "You must wait " + strconv.Itoa(int(left/time.Second)+1) + " more seconds before you can talk in this channel (+W)", false
+			}
+		}
+	}
+	return "", false
 }

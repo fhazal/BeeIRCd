@@ -13,6 +13,8 @@ How to set each one up is in [ADMIN.md](ADMIN.md); installing is in [INSTALL.md]
 | PRIVMSG, NOTICE, TAGMSG, STATUSMSG (`@#`, `+#`) | ✅ | |
 | WHO, WHOIS, WHOWAS, ISON, USERHOST, AWAY | ✅ | `WHO exactnick` shows +i users; `WHO *` also lists the services; WHOWAS is kept across restarts (a week) |
 | MOTD, LUSERS, VERSION, TIME, INFO, HELP, HELPOP | ✅ | HELP covers every command and the channel modes |
+| RULES, OPERMOTD, BOTMOTD, a random quote on connect | ✅ | `[motd]` |
+| Hidden server list, modes and channels at `/oper`, modes on connect, switched-off commands, who may make channels | ✅ | `[server] hide_servers`, `oper_modes`, `oper_join`, `connect_modes`; `[limits] disabled_commands`; `[channels] create` |
 | Input limits | ✅ | lines over 510 bytes or tags over 4096 bytes get 417 and are dropped, not cut |
 | User modes `i w o s r x` | ✅ | |
 | User modes `B d D R T p Z H W q z` | ✅ | UnrealIRCd letters and rules: bot, deaf, private-message filters, hidden channels, hidden oper, WHOIS notice, unkickable, TLS |
@@ -22,6 +24,7 @@ How to set each one up is in [ADMIN.md](ADMIN.md); installing is in [INSTALL.md]
 | Channel modes `c S C T N K V Q z Z D P O` | ✅ | UnrealIRCd letters and rules |
 | Flood guard `+f [10j#R10,40m#M10]:15` and `+F` profiles | ✅ | UnrealIRCd syntax; a server-wide default profile |
 | `+L` link channel, `+E` repeat, `+B` caps, `+J` rejoin delay | ✅ | |
+| `+W seconds` newcomers wait before they can talk, `+U` what `+m` or a ban stops goes to the ops | ✅ | InspIRCd's delaymsg and opmoderated |
 | Channel history `+H lines:time`, playback on join, CHATHISTORY | ✅ | kept encrypted on disk (AES-256-GCM), so a restart keeps it |
 | KNOCK, SILENCE, SETNAME, CHGNAME | ✅ | |
 | CYCLE, REMOVE / FPART, UNINVITE | ✅ | REMOVE is a kick that shows as a PART, so clients don't rejoin by themselves |

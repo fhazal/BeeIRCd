@@ -533,7 +533,7 @@ func (n *Network) Clone() *Network {
 		}
 		for uid, m := range ch.Members {
 			u := c.users[uid]
-			cc.Members[uid] = &Member{User: u, Ranks: m.Ranks, Hidden: m.Hidden}
+			cc.Members[uid] = &Member{User: u, Ranks: m.Ranks, Hidden: m.Hidden, Joined: m.Joined}
 			u.Channels[key] = cc
 		}
 		c.channels[key] = cc

@@ -164,6 +164,8 @@ type Member struct {
 	// Hidden is a +D (delay join) member nobody else sees yet: they show
 	// up when they first talk, get a status or the channel loses +D.
 	Hidden bool
+	// Joined is when they came in, as this server saw it.
+	Joined time.Time
 }
 
 // Has reports whether the member holds rank r.
@@ -236,7 +238,7 @@ type Channel struct {
 
 // ParamModes are the channel modes that take an argument when set and none
 // when unset (besides k and l).
-const ParamModes = "BEFHJLf"
+const ParamModes = "BEFHJLWf"
 
 // IsParamMode reports whether m is one of ParamModes.
 func IsParamMode(m byte) bool { return strings.IndexByte(ParamModes, m) >= 0 }
@@ -493,7 +495,7 @@ func (n *Network) join(u *User, name string, ts int64, ranks Rank, burst bool) (
 	if m = ch.Members[u.UID]; m != nil {
 		return ch, m, false
 	}
-	m = &Member{User: u, Ranks: ranks}
+	m = &Member{User: u, Ranks: ranks, Joined: time.Now()}
 	if created && ranks == 0 && !burst {
 		m.Ranks = RankOp
 	}
