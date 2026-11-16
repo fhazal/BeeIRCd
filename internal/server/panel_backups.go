@@ -46,12 +46,12 @@ func (s *Server) panelBackupGet(req control.Request, done func(control.Response)
 		return
 	}
 	_, a, o, problem := s.panelOper(po.Account, req.IP)
-	if a == nil || o == nil || o.PassHash == "" {
+	if a == nil || o == nil || (o.PassHash == "" && !s.outsideOpers()) {
 		done(control.Response{Error: problem, Denied: "signin"})
 		return
 	}
 	key := operLockKey(a.ID)
-	s.svc.CheckSecret(new(bool), func() bool { return false }, key, req.IP, o.PassHash, req.Password, func(res services.PwResult) {
+	s.svc.CheckOper(new(bool), func() bool { return false }, key, req.IP, a.Name, o.PassHash, req.Password, func(res services.PwResult) {
 		switch res {
 		case services.PwOK:
 			s.panelEvent(po.Account, req.IP, "downloaded backup "+name)

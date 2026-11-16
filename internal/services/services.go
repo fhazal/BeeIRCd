@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"math/rand/v2"
 	"sort"
@@ -8,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fhazal/beeircd/internal/extauth"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/passwd"
 	"github.com/fhazal/beeircd/internal/state"
@@ -256,6 +258,7 @@ const (
 	PwWrong
 	PwLocked
 	PwBusy
+	PwDown // the outside login source can't be reached
 )
 
 const (
@@ -263,6 +266,7 @@ const (
 	pwWrong  = PwWrong
 	pwLocked = PwLocked
 	pwBusy   = PwBusy
+	pwDown   = PwDown
 )
 
 // lockKey is one account (or oper entry) tried from one source IP. Wrong
@@ -304,12 +308,7 @@ func (s *Services) lockedFor(id int64, src string) time.Duration {
 
 // checkPassword checks pw against a's hash and calls result on the loop.
 func (s *Services) checkPassword(c *Client, a *store.Account, pw string, result func(pwResult)) {
-	s.checkSecret(c, a.ID, a.PassHash, pw, result)
-}
-
-// checkSecret checks pw against hash off the loop for c.
-func (s *Services) checkSecret(c *Client, key int64, hash, pw string, result func(pwResult)) {
-	s.CheckSecret(&c.pwBusy, func() bool { return c.closed }, key, c.src(), hash, pw, result)
+	s.CheckLogin(&c.pwBusy, func() bool { return c.closed }, a, c.src(), pw, result)
 }
 
 // src is where c's password tries come from, for the wrong-password lock.
@@ -336,29 +335,60 @@ func (s *Services) clearLockouts(id int64) {
 // ones lock that key for that src for 10 minutes. Others, the owner too,
 // are not locked by them.
 func (s *Services) CheckSecret(busy *bool, gone func() bool, key int64, src, hash, pw string, result func(PwResult)) {
+	s.check(busy, gone, key, src, "", false, hash, pw, func(r PwResult, _ string) { result(r) })
+}
+
+// check is CheckSecret; with a name it asks the outside login source
+// ([auth]) first. result also gets the email the outside source gave.
+func (s *Services) check(busy *bool, gone func() bool, key int64, src, name string, oper bool, hash, pw string, result func(PwResult, string)) {
 	if s.lockedFor(key, src) > 0 {
-		result(pwLocked)
+		result(pwLocked, "")
 		return
 	}
 	if *busy {
-		result(pwBusy)
+		result(pwBusy, "")
 		return
 	}
 	*busy = true
 	id := lockKey{key, src}
+	ask := name != "" && s.cfg.Auth.On()
+	var ext extauth.Source
+	if ask {
+		ext = s.outside()
+	}
+	local := hash != "" && hash != NoPassword && (!ask || s.cfg.Auth.LocalToo())
+	timeout := s.cfg.Auth.TimeoutOr()
 	go func() {
-		s.hashSem <- struct{}{}
-		ok := passwd.Check(pw, hash)
-		upgraded := ""
-		if ok && key > 0 && passwd.IsAnope(hash) {
-			// An account brought over from Anope: from now on it gets
-			// BeeIRCd's own hash.
-			upgraded, _ = passwd.Hash(pw)
+		ok, down, email := false, false, ""
+		var extErr error
+		if ask && ext == nil {
+			down = true
+		} else if ask {
+			s.extSem <- struct{}{}
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			ans := ext.Check(ctx, extauth.Query{Name: name, Password: pw, IP: src, Oper: oper})
+			cancel()
+			<-s.extSem
+			ok, down, email, extErr = ans.Result == extauth.OK, ans.Result == extauth.Down, ans.Email, ans.Err
 		}
-		<-s.hashSem
+		upgraded := ""
+		if !ok && local {
+			s.hashSem <- struct{}{}
+			ok = passwd.Check(pw, hash)
+			if ok && key > 0 && passwd.IsAnope(hash) {
+				// An account brought over from Anope: from now on it gets
+				// BeeIRCd's own hash.
+				upgraded, _ = passwd.Hash(pw)
+			}
+			<-s.hashSem
+		}
 		s.post(func() {
 			*busy = false
 			defer s.afterSecret()
+			if extErr != nil && time.Since(s.extLogged) > time.Minute {
+				s.extLogged = time.Now()
+				s.log.Printf("outside logins ([auth] source = %q): %v", s.cfg.Auth.Source, extErr)
+			}
 			if upgraded != "" {
 				if a, _ := s.store.AccountByID(key); a != nil && a.PassHash == hash {
 					a.PassHash = upgraded
@@ -372,7 +402,13 @@ func (s *Services) CheckSecret(busy *bool, gone func() bool, key int64, src, has
 			}
 			if ok {
 				delete(s.lockouts, id)
-				result(pwOK)
+				result(pwOK, email)
+				return
+			}
+			if down && !local {
+				// Nobody could say whether the password was right: not a
+				// wrong try.
+				result(pwDown, "")
 				return
 			}
 			l := s.lockouts[id]
@@ -388,7 +424,11 @@ func (s *Services) CheckSecret(busy *bool, gone func() bool, key int64, src, has
 				l.fails = 0
 				l.until = time.Now().Add(lockoutFor)
 			}
-			result(pwWrong)
+			if down {
+				result(pwDown, "")
+				return
+			}
+			result(pwWrong, "")
 		})
 	}()
 }
@@ -412,6 +452,10 @@ func (s *Services) afterSecret() {
 
 // hashPassword hashes pw off the loop for c and calls done with the hash.
 func (s *Services) hashPassword(c *Client, pw string, done func(hash string)) {
+	if !s.LocalPasswords() {
+		s.ns(c, "Passwords on this network are kept somewhere else and can't be set here.")
+		return
+	}
 	if c.pwBusy {
 		s.ns(c, "Still busy with your last password. Try again in a moment.")
 		return
@@ -452,6 +496,8 @@ func (s *Services) pwProblem(c *Client, a *store.Account, r pwResult) {
 		s.ns(c, "Too many wrong passwords for %s. Try again in %s.", a.Name, roundUp(s.lockedFor(a.ID, c.src())))
 	case pwBusy:
 		s.ns(c, "Still checking your last password. Try again in a moment.")
+	case pwDown:
+		s.ns(c, "The login server can't be reached right now. Try again in a moment.")
 	}
 }
 

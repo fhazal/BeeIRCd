@@ -141,7 +141,7 @@ func (s *Server) remoteOper(l *linkConn, m irc.Message) {
 	case len(o.CertFPs) > 0 && o.PassHash == "":
 		grant() // the certificate alone
 		return
-	case o.PassHash == "":
+	case o.PassHash == "" && !s.outsideOpers():
 		fail(irc.ErrNoOperHost, "No oper password is set for "+o.Account+" yet (/oper once on "+s.cfg.Server.Name+")", "no oper password yet")
 		return
 	}
@@ -154,7 +154,7 @@ func (s *Server) remoteOper(l *linkConn, m irc.Message) {
 		s.links.operBusy[uid] = busy
 	}
 	gone := func() bool { return s.net.UserByUID(uid) == nil }
-	s.svc.CheckSecret(busy, gone, operLockKey(a.ID), u.IP, o.PassHash, pw, func(res services.PwResult) {
+	s.svc.CheckOper(busy, gone, operLockKey(a.ID), u.IP, a.Name, o.PassHash, pw, func(res services.PwResult) {
 		if !*busy {
 			delete(s.links.operBusy, uid)
 		}

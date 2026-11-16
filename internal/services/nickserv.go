@@ -197,6 +197,27 @@ func nsIdentify(s *Services, c *Client, args []string) {
 		s.dbErr(c, s.nickServ, err)
 		return
 	}
+	if a == nil && s.OutsideCreates(nick) {
+		// Nobody of that name here yet: the outside login source may
+		// know them, and then the account is made now.
+		cmd := c.cmdName
+		s.OutsideLogin(&c.pwBusy, func() bool { return c.closed }, nick, c.src(), pw, func(made *store.Account, r pwResult) {
+			c.cmdName = cmd
+			if r != pwOK {
+				s.pwProblem(c, &store.Account{ID: outsideKey(nick), Name: nick}, r)
+				if r == pwWrong {
+					s.nsLogCmd(c, "and failed to identify to nonexistent account %s", nick)
+				}
+				return
+			}
+			s.nsLogCmd(c, "and identified for account %s", made.Name)
+			c.langAccount = made.ID
+			s.ns(c, "Password accepted - you are now recognized.")
+			c.langAccount = 0
+			s.login(c, made)
+		})
+		return
+	}
 	if a == nil {
 		s.ns(c, "%s isn't registered. Register it: /ns register <password> [email]", nick)
 		s.nsLogCmd(c, "and failed to identify to nonexistent account %s", nick)

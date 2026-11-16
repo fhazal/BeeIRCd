@@ -329,11 +329,24 @@ func (s *Server) saslServe(l *linkConn, from, uid, mode, data string, extra []st
 		return
 	}
 	a, err := s.store.AccountByNick(authc)
+	if err == nil && a == nil && s.svc.OutsideCreates(authc) {
+		s.svc.OutsideLogin(&ss.busy, func() bool { return ss.gone || l.closed }, authc, ss.ip, pw, func(made *store.Account, r services.PwResult) {
+			if ss.gone || l.closed {
+				return
+			}
+			if r == services.PwOK {
+				login(made)
+				return
+			}
+			done(false)
+		})
+		return
+	}
 	if err != nil || a == nil || a.Suspended(time.Now()) {
 		done(false)
 		return
 	}
-	s.svc.CheckSecret(&ss.busy, func() bool { return ss.gone || l.closed }, a.ID, ss.ip, a.PassHash, pw, func(r services.PwResult) {
+	s.svc.CheckLogin(&ss.busy, func() bool { return ss.gone || l.closed }, a, ss.ip, pw, func(r services.PwResult) {
 		if ss.gone || l.closed {
 			return
 		}

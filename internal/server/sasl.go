@@ -85,6 +85,23 @@ func (s *Server) cmdAuthenticate(c *Client, m irc.Message) {
 		return
 	}
 	a, err := s.store.AccountByNick(authc)
+	if err == nil && a == nil && s.svc.OutsideCreates(authc) {
+		// Not known here yet: the outside login source may know them.
+		c.saslBusy = true
+		s.svc.OutsideLogin(&c.pwBusy, func() bool { return c.closed }, authc, c.ip, pw, func(made *store.Account, r services.PwResult) {
+			c.saslBusy = false
+			switch r {
+			case services.PwOK:
+				s.saslDone(c, made)
+			case services.PwLocked:
+				s.reply(c, irc.ErrSaslFail, "SASL authentication failed: too many wrong passwords, try again later")
+			default:
+				s.reply(c, irc.ErrSaslFail, "SASL authentication failed")
+			}
+			s.tryRegister(c)
+		})
+		return
+	}
 	if err != nil || a == nil {
 		s.reply(c, irc.ErrSaslFail, "SASL authentication failed")
 		return
@@ -95,7 +112,7 @@ func (s *Server) cmdAuthenticate(c *Client, m irc.Message) {
 		return
 	}
 	c.saslBusy = true
-	s.checkSecret(c, a.ID, a.PassHash, pw, func(r services.PwResult) {
+	s.svc.CheckLogin(&c.pwBusy, func() bool { return c.closed }, a, c.ip, pw, func(r services.PwResult) {
 		c.saslBusy = false
 		switch r {
 		case services.PwOK:

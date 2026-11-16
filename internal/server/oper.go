@@ -267,11 +267,11 @@ func (s *Server) cmdOper(c *Client, m irc.Message) {
 			return
 		}
 	}
-	if o.PassHash == "" {
+	if o.PassHash == "" && !s.outsideOpers() {
 		s.firstOperPassword(c, a, o, pw)
 		return
 	}
-	s.checkSecret(c, operLockKey(a.ID), o.PassHash, pw, func(r services.PwResult) {
+	s.svc.CheckOper(&c.pwBusy, func() bool { return c.closed }, operLockKey(a.ID), c.ip, a.Name, o.PassHash, pw, func(r services.PwResult) {
 		switch r {
 		case services.PwOK:
 			s.operUp(c, o)
@@ -412,10 +412,9 @@ func (s *Server) cmdWallops(c *Client, m irc.Message) {
 // sessions counts the connections from ip.
 func (s *Server) sessions(ip string) int { return s.perIP[ip] }
 
-// checkSecret checks an oper or SASL password off the loop for c.
-func (s *Server) checkSecret(c *Client, key int64, hash, pw string, result func(services.PwResult)) {
-	s.svc.CheckSecret(&c.pwBusy, func() bool { return c.closed }, key, c.ip, hash, pw, result)
-}
+// outsideOpers reports whether oper passwords are asked from the outside
+// login source ([auth] opers).
+func (s *Server) outsideOpers() bool { return s.cfg.Auth.On() && s.cfg.Auth.Opers }
 
 // hashPassword hashes pw off the loop for c and calls done with the hash.
 func (s *Server) hashPassword(c *Client, pw string, done func(hash string)) {

@@ -41,6 +41,9 @@ func (s *Services) RegisterAccount(uid, account, email, pw string, done func(Reg
 	}
 	fail := func(code, text string) { done(RegResult{Code: code, Account: account, Text: text}) }
 	switch {
+	case !s.LocalPasswords():
+		fail("TEMPORARILY_UNAVAILABLE", "Accounts on this network are made somewhere else")
+		return
 	case s.DefconLevel() <= 4:
 		fail("TEMPORARILY_UNAVAILABLE", "New registrations are paused on this network")
 		return

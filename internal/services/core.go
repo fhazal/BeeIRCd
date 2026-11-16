@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/fhazal/beeircd/internal/config"
+	"github.com/fhazal/beeircd/internal/extauth"
 	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
 )
@@ -133,6 +134,10 @@ type Services struct {
 	clients     map[string]*Client   // by UID: every person on the network
 	lockouts    map[lockKey]*lockout // wrong passwords per account and source IP
 	hashSem     chan struct{}        // limits password hashing running at once
+	ext         extauth.Source       // the outside login source ([auth]), nil when off
+	extCfg      config.Auth          // what ext was opened with
+	extSem      chan struct{}        // limits questions to it running at once
+	extLogged   time.Time            // when its last error went to the log
 	pending     []state.Event        // events not handled yet (see Event)
 	handling    bool
 
@@ -201,6 +206,7 @@ func New(host Host, cfg *config.Config, logger *log.Logger, net *state.Network, 
 		lockouts: make(map[lockKey]*lockout),
 		resets:   make(map[int64]resetInfo),
 		hashSem:  make(chan struct{}, 2),
+		extSem:   make(chan struct{}, 8),
 
 		banRegexps: make(map[string]*regexp.Regexp),
 		seen:       make(map[string]*store.Seen),

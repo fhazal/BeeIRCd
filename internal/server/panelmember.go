@@ -53,7 +53,7 @@ func (s *Server) memberLogin(a *store.Account, nick, pw, ip string, done func(co
 		done(control.Response{Error: a.Name + " is suspended.", Denied: "signin"})
 		return
 	}
-	s.svc.CheckSecret(new(bool), func() bool { return false }, a.ID, ip, a.PassHash, pw, func(res services.PwResult) {
+	s.svc.CheckLogin(new(bool), func() bool { return false }, a, ip, pw, func(res services.PwResult) {
 		switch res {
 		case services.PwOK:
 			if !s.cfg.Web.Members {

@@ -75,6 +75,8 @@ type Config struct {
 	Restricts      []Restrict      `toml:"restrict"`
 	// RPC is [rpc], the JSON-RPC admin API (rpc.go).
 	RPC RPC `toml:"rpc"`
+	// Auth is [auth], passwords kept in LDAP or SQL (auth.go).
+	Auth Auth `toml:"auth"`
 	// More spam protection, each off by default (antispam.go).
 	AntiRandom    AntiRandom    `toml:"antirandom"`
 	AntiMixedUTF8 AntiMixedUTF8 `toml:"antimixedutf8"`
@@ -595,6 +597,9 @@ func (c *Config) Check() error {
 		return fmt.Errorf("[services] registration %q: use \"none\", \"mail\" or \"admin\"", c.Services.Registration)
 	}
 	if err := c.Web.check(); err != nil {
+		return err
+	}
+	if err := c.Auth.check(); err != nil {
 		return err
 	}
 	if err := c.checkDCC(); err != nil {

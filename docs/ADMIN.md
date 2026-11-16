@@ -789,6 +789,95 @@ by its **Drag** handle, or focus the handle and use the arrow keys (up/down
 moves, left/right changes column). **Reset** puts it back. The layout is
 kept per oper account in that browser; nothing is saved on the server.
 
+## Logins from LDAP or a database
+
+When your people already have a password somewhere else (a company
+directory, a forum, a game's website), BeeIRCd can check their NickServ
+password there. It is off until you add an `[auth]` section.
+
+How it works:
+
+- Someone logs in the usual way: `/msg NickServ IDENTIFY <password>`, SASL
+  in their client, or the Hive Panel's member sign-in. BeeIRCd asks the
+  outside source whether the password is right for that name.
+- The first time a name the outside source knows logs in on IRC, its
+  NickServ account is made (with the email address the source gave).
+  `create = false` keeps it to accounts that exist already.
+- A password set in BeeIRCd keeps working next to the outside one, so
+  accounts registered before stay as they are. With `local_passwords =
+  false` only the outside password counts, and `REGISTER` and `SET
+  PASSWORD` are switched off.
+- When the outside source can't be reached, passwords set in BeeIRCd still
+  work; everyone else is told to try again in a moment. Those tries are
+  not counted as wrong passwords.
+- Wrong passwords are counted and locked as always (5 from one address
+  lock the name for 10 minutes), so the outside source is not hammered.
+- With `opers = true` an oper's `/oper` password (and their Hive Panel
+  sign-in) is asked from the outside source too, under their account
+  name. Who is an oper is still decided in BeeIRCd.
+
+**LDAP** (OpenLDAP, Active Directory, FreeIPA, Authentik, ...):
+
+```toml
+[auth]
+source = "ldap"
+
+[auth.ldap]
+url = "ldaps://ldap.example.org"
+bind_dn = "cn=irc,ou=services,dc=example,dc=org"
+bind_password = "..."
+base_dn = "ou=people,dc=example,dc=org"
+filter = "(uid=%s)"
+```
+
+BeeIRCd signs in as `bind_dn`, looks for the one entry that matches
+`filter` under `base_dn`, and then tries the person's password on that
+entry. Put more rules in the filter to let in only some people, like
+`"(&(uid=%s)(memberOf=cn=irc,ou=groups,dc=example,dc=org))"`. For Active
+Directory use `"(sAMAccountName=%s)"`. When every entry sits at a known
+place you can skip the search with `user_dn = "uid=%s,ou=people,dc=example,dc=org"`.
+Use `ldaps://`, or `ldap://` with `starttls = true`: over plain `ldap://`
+passwords cross the network unprotected.
+
+**SQL** (MySQL / MariaDB, PostgreSQL, SQLite):
+
+```toml
+[auth]
+source = "sql"
+
+[auth.sql]
+driver = "mysql"
+dsn = "irc:secret@tcp(127.0.0.1:3306)/forum"
+query = "SELECT password, email FROM users WHERE name = $name"
+```
+
+`query` gives the stored password as its first column and, if you like,
+the email address as the second. `$name` is filled in safely by the
+database driver, never pasted into the text. bcrypt (`$2y$...`, what PHP
+and most forums write) and argon2id hashes are recognised by themselves.
+For older tables set `hash` to `sha256`, `sha512`, `md5` (unsalted, as
+hex) or `plain`. When the database must compare the password itself, set
+`hash = "query"` and use `$password`: a row back means the password is
+right.
+
+```toml
+# PostgreSQL
+driver = "postgres"
+dsn = "postgres://irc:secret@127.0.0.1/forum?sslmode=require"
+
+# keep a line for every login try
+log_query = "INSERT INTO irc_logins (at, name, ip, result) VALUES ($time, $name, $ip, $result)"
+```
+
+`log_query` runs after every try with `$time` (Unix seconds), `$name`,
+`$ip` and `$result` (`ok`, `wrong` or `unknown`). The password is never
+given to it.
+
+Good to know: the name is the nick people log in with, so names in the
+outside source should be usable as nicks. The outside source's own
+account lock-outs still apply. `[auth]` belongs on the server that runs
+services; a rehash applies changes.
+
 ## Admin API (JSON-RPC)
 
 Tools and scripts can read and manage the network through a JSON-RPC 2.0
@@ -1296,6 +1385,45 @@ under `[security_group.exclude]` (the same items).
 | --- | --- | --- |
 | `enabled` | `false` | The same text sent to several channels at once only reaches the first |
 | `delay` | `200ms` | The same text to another channel within this time counts as one /amsg (up to `10s`) |
+
+### [auth]
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `source` | off | Where NickServ passwords are also checked: `"ldap"` or `"sql"` (see "Logins from LDAP or a database") |
+| `local_passwords` | `true` | Passwords set in BeeIRCd keep working next to the outside ones; `false` = only the outside source counts, and REGISTER and SET PASSWORD are off |
+| `create` | `true` | Make the NickServ account the first time someone the outside source knows logs in |
+| `opers` | `false` | Ask the outside source for oper passwords too (`/oper` and the Hive Panel), under the oper's account name |
+| `timeout` | `5s` | How long one question to the outside source may take |
+| `ldap` | – | The `[auth.ldap]` block: the directory, see the next table |
+| `sql` | – | The `[auth.sql]` block: the database, see the last table |
+
+In `[auth.ldap]`:
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `url` | – | The directory: `"ldaps://host"` (port 636) or `"ldap://host"` (port 389) |
+| `starttls` | `false` | Switch an `ldap://` connection to TLS before anything is sent |
+| `verify` | `true` | Check the directory's certificate |
+| `ca_file` | – | The directory's own CA certificate (PEM), when it is not a public one |
+| `bind_dn` | – | The account BeeIRCd searches with; empty = search without signing in |
+| `bind_password` | – | Its password |
+| `base_dn` | – | Where people are, like `"ou=people,dc=example,dc=org"` |
+| `filter` | `(uid=%s)` | How to find someone; `%s` is the name |
+| `user_dn` | – | Instead of a search: where an entry is, like `"uid=%s,ou=people,dc=example,dc=org"` |
+| `email_attr` | `mail` | The attribute with the email address for new accounts |
+| `oper_filter` | – | With `opers`: the filter for oper logins, to let only a group oper |
+
+In `[auth.sql]`:
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `driver` | – | `"mysql"` (also MariaDB), `"postgres"` or `"sqlite"` |
+| `dsn` | – | How to reach the database, in the driver's own form (for SQLite: the file) |
+| `query` | – | Gives the stored password and, as a second column, the email; `$name` is the name |
+| `hash` | `auto` | How passwords are stored: `auto` (bcrypt and argon2id), `bcrypt`, `argon2`, `sha256`, `sha512`, `md5`, `plain`, or `query` (the query compares `$password` itself) |
+| `oper_query` | – | With `opers`: the query for oper logins |
+| `log_query` | – | Run after every login try with `$time`, `$name`, `$ip`, `$result` |
 
 ### [rpc]
 

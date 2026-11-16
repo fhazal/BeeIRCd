@@ -135,13 +135,13 @@ func (s *Server) panelLogin(req control.Request, done func(control.Response)) {
 		s.memberLogin(a, nick, pw, ip, done)
 		return
 	}
-	if o.PassHash == "" {
+	if o.PassHash == "" && !s.outsideOpers() {
 		s.panelEvent(nick, ip, "could not sign in: no oper password set yet")
 		done(control.Response{Error: "No oper password is set for " + o.Account + " yet. /oper once on IRC first.", Denied: "signin"})
 		return
 	}
 	key := operLockKey(a.ID)
-	s.svc.CheckSecret(new(bool), func() bool { return false }, key, ip, o.PassHash, pw, func(res services.PwResult) {
+	s.svc.CheckOper(new(bool), func() bool { return false }, key, ip, a.Name, o.PassHash, pw, func(res services.PwResult) {
 		switch res {
 		case services.PwOK:
 			s.panelEvent(po.Account, ip, "signed in")
