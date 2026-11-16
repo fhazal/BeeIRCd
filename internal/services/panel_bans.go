@@ -83,6 +83,12 @@ func (s *Services) PanelAkill(by, arg, reason string, life time.Duration) (mask 
 // how many it hit, or problem (in words for the oper) when nothing was
 // added.
 func (s *Services) PanelBan(by, kind, arg, reason string, life time.Duration) (mask string, hit int, problem string) {
+	return s.BanVia(by, "Hive Panel", kind, arg, reason, life)
+}
+
+// BanVia is PanelBan for any way in: via ("Hive Panel", "RPC") is named
+// in the notice to opers.
+func (s *Services) BanVia(by, via, kind, arg, reason string, life time.Duration) (mask string, hit int, problem string) {
 	if !panelKind(kind) {
 		return "", 0, "That isn't a kind of ban."
 	}
@@ -139,7 +145,7 @@ func (s *Services) PanelBan(by, kind, arg, reason string, life time.Duration) (m
 	if life > 0 {
 		how = "for " + durWords(life)
 	}
-	s.snotice("%s (Hive Panel) added a%s %s on %s %s (%s): %d %s", by, an(PanelKindName(kind)), PanelKindName(kind), mask, how, reason, hit, k.hit)
+	s.snotice("%s (%s) added a%s %s on %s %s (%s): %d %s", by, via, an(PanelKindName(kind)), PanelKindName(kind), mask, how, reason, hit, k.hit)
 	s.Flush()
 	return mask, hit, ""
 }
@@ -154,6 +160,11 @@ func an(word string) string {
 
 // PanelBanDel removes the ban of kind on mask. problem says why not.
 func (s *Services) PanelBanDel(by, kind, mask string) (removed string, problem string) {
+	return s.BanDelVia(by, "Hive Panel", kind, mask)
+}
+
+// BanDelVia is PanelBanDel for any way in (see BanVia).
+func (s *Services) BanDelVia(by, via, kind, mask string) (removed string, problem string) {
 	if !panelKind(kind) {
 		return "", "That isn't a kind of ban."
 	}
@@ -181,7 +192,7 @@ func (s *Services) PanelBanDel(by, kind, mask string) (removed string, problem s
 		return "", "There is no " + PanelKindName(kind) + " on " + m + " (any more)."
 	}
 	s.reloadOperData()
-	s.snotice("%s (Hive Panel) removed the %s on %s", by, PanelKindName(kind), m)
+	s.snotice("%s (%s) removed the %s on %s", by, via, PanelKindName(kind), m)
 	s.Flush()
 	return m, ""
 }

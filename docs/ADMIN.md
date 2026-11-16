@@ -789,6 +789,79 @@ by its **Drag** handle, or focus the handle and use the arrow keys (up/down
 moves, left/right changes column). **Reset** puts it back. The layout is
 kept per oper account in that browser; nothing is saved on the server.
 
+## Admin API (JSON-RPC)
+
+Tools and scripts can read and manage the network through a JSON-RPC 2.0
+API. It uses UnrealIRCd's method names, parameters and answers, so tools
+written for UnrealIRCd's API (like its web panel) can talk to BeeIRCd.
+It is off until you add an `[rpc]` section:
+
+```toml
+[rpc]
+listen = "127.0.0.1:8600"
+
+[[rpc.user]]
+name = "statsbot"
+password = "$argon2id$..."        # from: beeircd mkpasswd
+allow = ["user.list", "channel.*", "stats.*"]
+
+[[rpc.user]]
+name = "panel"
+password = "$argon2id$..."
+ips = ["192.0.2.10"]              # may call from this address too
+```
+
+**Three ways in**
+
+- **HTTPS**: `POST https://server:8600/api` with HTTP Basic auth (the
+  name and password of an `[[rpc.user]]` block), one call per request. It
+  uses the server's certificate from `[tls]`.
+- **WebSocket** on the same address and path, with the same sign-in: many
+  calls on one connection, and the live log.
+- **A socket file** (`socket = "/run/beeircd/rpc.sock"`): one JSON object
+  per line. No password: whoever may open the file (the beeircd user and
+  its group) may call everything.
+
+```sh
+curl -sk -u statsbot:password https://127.0.0.1:8600/api \
+  -d '{"jsonrpc":"2.0","id":1,"method":"user.list"}'
+```
+
+**Who may do what.** `allow` lists the methods a user may call: `"*"`
+(the default when left out), a whole group like `"user.*"`, or single
+methods. Without `ips` a user may only call from the server's own
+machine. Five wrong passwords from one address lock it out for a minute,
+and opers with `+s` see each wrong one. Every call that changes something
+is shown to opers with `+s` with the name of the caller. A tool that acts
+for several people says who is behind a call with `rpc.set_issuer`, and
+that name is used in bans and notices. `[[rpc.user]]` blocks apply on a
+rehash; `listen` and `socket` need a restart.
+
+**Methods**
+
+| Group | Methods |
+| --- | --- |
+| `rpc` | `info` (the method list), `set_issuer` |
+| `stats` | `get`: people, opers, channels, servers and bans in numbers |
+| `user` | `list`, `get`, `set_nick`, `set_username`, `set_realname`, `set_vhost`, `set_mode`, `join`, `part`, `kill`, `quit` |
+| `channel` | `list`, `get`, `set_mode`, `set_topic`, `kick` |
+| `server` | `list`, `get`, `rehash`, `module_list` (always empty: everything is built in) |
+| `server_ban` | `list`, `get`, `add`, `del` for the types `gline` (AKILL), `kline`, `gzline` / `zline`, `shun` |
+| `server_ban_exception` | `list`, `get`, `add`, `del` (ELINE) |
+| `spamfilter` | `list`, `get`, `add`, `del` |
+| `whowas` | `get` |
+| `log` | `subscribe`, `unsubscribe` (the live log, on a WebSocket or the socket file), `list` (the last 500 lines) |
+
+Not there (yet): `user.set_oper`, `user.set_snomask`, `name_ban.*`,
+`server.connect`, `server.disconnect`, `message.*`. A spam filter rule
+that would also catch normal chat is refused, as the Hive Panel warns
+about. The live log carries the server notices opers see, with the
+subsystems `connect`, `oper`, `link`, `rpc` and `server`.
+
+Changing someone on another server (`user.set_nick`, `user.join`, ...)
+works when the API is called on the server that runs services, because
+those changes travel as services commands.
+
 ## Linking servers
 
 Servers on one network share users, channels, bans and one set of
@@ -1223,6 +1296,17 @@ under `[security_group.exclude]` (the same items).
 | --- | --- | --- |
 | `enabled` | `false` | The same text sent to several channels at once only reaches the first |
 | `delay` | `200ms` | The same text to another channel within this time counts as one /amsg (up to `10s`) |
+
+### [rpc]
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `listen` | off | Where the JSON-RPC admin API answers over HTTPS and WebSocket, like `"127.0.0.1:8600"`; needs at least one `[[rpc.user]]` block (restart) |
+| `socket` | off | A socket file for the API without a password, like `"/run/beeircd/rpc.sock"`: whoever may open it may call everything (restart) |
+| `name` | – | In a `[[rpc.user]]` block: the name a tool signs in with (letters, digits, `_`, `.`, `-`) |
+| `password` | – | In a `[[rpc.user]]` block: its password as a hash from `beeircd mkpasswd` |
+| `allow` | every method | In a `[[rpc.user]]` block: the methods it may call, like `["user.*", "server_ban.list"]` |
+| `ips` | this machine only | In a `[[rpc.user]]` block: addresses or ranges it may call from |
 
 ### [[deny_dcc]]
 

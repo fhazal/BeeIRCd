@@ -73,6 +73,8 @@ type Config struct {
 	SecurityGroups []SecurityGroup `toml:"security_group"`
 	ConnThrottle   ConnThrottle    `toml:"connthrottle"`
 	Restricts      []Restrict      `toml:"restrict"`
+	// RPC is [rpc], the JSON-RPC admin API (rpc.go).
+	RPC RPC `toml:"rpc"`
 	// More spam protection, each off by default (antispam.go).
 	AntiRandom    AntiRandom    `toml:"antirandom"`
 	AntiMixedUTF8 AntiMixedUTF8 `toml:"antimixedutf8"`
@@ -315,6 +317,9 @@ func (c *Config) FindPlaceByIP() bool {
 
 // NeedsTLS reports whether any port uses TLS.
 func (c *Config) NeedsTLS() bool {
+	if c.RPC.Listen != "" {
+		return true // the API is HTTPS only
+	}
 	for _, l := range c.Listen {
 		if l.TLS {
 			return true
@@ -683,6 +688,9 @@ func (c *Config) Check() error {
 		return err
 	}
 	if err := c.checkAntiSpam(); err != nil {
+		return err
+	}
+	if err := c.CheckRPC(); err != nil {
 		return err
 	}
 	if err := c.checkWebIRC(); err != nil {

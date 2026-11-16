@@ -178,6 +178,7 @@ func (s *Server) snotice(format string, a ...any) {
 // snoticeOnly sends a server notice without logging it (for things the
 // log already has).
 func (s *Server) snoticeOnly(text string) {
+	s.rpcLog(text)
 	for c := range s.opers {
 		if c.user != nil && c.isOper() && c.user.Modes['s'] {
 			s.notice(c, "*** Notice -- "+text)

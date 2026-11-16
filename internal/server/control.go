@@ -339,6 +339,8 @@ func restartOnly(ch config.Change) bool {
 		return ch.Key != "description" && ch.Key != "resolve_hosts"
 	case "cloak", "tls", "control":
 		return true
+	case "rpc":
+		return ch.Key != "user" // [[rpc.user]] blocks apply live
 	case "link":
 		return ch.Key != "server" // [[link.server]] blocks apply live
 	case "services":
@@ -357,6 +359,7 @@ func keepRestartOnly(fresh, old *config.Config) {
 	fresh.Server = old.Server
 	fresh.Server.Description, fresh.Server.ResolveHosts = desc, resolve
 	fresh.Cloak, fresh.TLS, fresh.Control = old.Cloak, old.TLS, old.Control
+	fresh.RPC.Listen, fresh.RPC.Socket = old.RPC.Listen, old.RPC.Socket
 	servers := fresh.Link.Servers
 	fresh.Link = old.Link
 	fresh.Link.Servers = servers

@@ -42,6 +42,7 @@ type Server struct {
 	whowas      []whowasEntry
 	whowasDirty bool // entries not saved yet (whowasdb.go)
 	whowasSaved time.Time
+	rpc         rpcState                 // the JSON-RPC admin API (rpc.go)
 	jump        *jumpServer              // JUMPSERVER: where people are sent, nil = off
 	targetFlood map[string]*[3]targetWin // [targetfloodprot]: messages to each channel and person
 	targetSwept time.Time
@@ -267,6 +268,13 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 	if err := s.openControl(); err != nil {
 		logger.Printf("warning: %v; beeircd status, backup and rehash won't reach this server", err)
 	}
+	if err := s.openRPC(); err != nil {
+		s.closeRPC()
+		s.closeControl()
+		s.closeListeners()
+		db.Close()
+		return nil, err
+	}
 	return s, nil
 }
 
@@ -297,6 +305,7 @@ func (s *Server) Serve(ctx context.Context) error {
 		s.wg.Add(1)
 		go s.controlLoop()
 	}
+	s.startRPC()
 	if s.cfg.TLS.ACME && s.certs != nil {
 		s.wg.Add(1)
 		go s.acmeLoop(s.acmeConfig())
@@ -484,6 +493,7 @@ func (s *Server) shutdown(reason string) {
 	s.closeListeners()
 	s.closeLinks(reason)
 	s.closeControl()
+	s.closeRPC()
 	for _, c := range s.clients {
 		s.quit(c, reason)
 	}
