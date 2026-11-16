@@ -27,6 +27,12 @@ func TestExtbanSpellings(t *testing.T) {
 		"~inherit:#main":        "~i:#main",
 		"~t:10:~j:x":            "~t:10:~j:x!*@*",
 		"~f:#jail:~a:x":         "~f:#jail:~a:x",
+		"~C:nl":                 "~C:NL",
+		"~country:MY":           "~C:MY",
+		"~C:N*":                 "~C:N*",
+		"~A:64500":              "~A:64500",
+		"~asn:AS64500":          "~A:64500",
+		"~q:~C:XX":              "~q:~C:XX",
 		// InspIRCd names
 		"~mute:bee":           "~m:bee!*@*",
 		"~nonick:bee":         "~n:bee!*@*",
@@ -54,6 +60,7 @@ func TestExtbanSpellings(t *testing.T) {
 	for _, bad := range []string{
 		"~c:bees", "~c:@@#bees", "~S:xyz", "~T:hide:x", "~T:block:", "~m:moderated:~q:x",
 		"~msgbypass:loud:x", "~i:main", "~q:~j:x", "~F:~T:block:x", "~noctcp:~q:x", "~bot:~a:x",
+		"~C:Netherlands", "~C:", "~A:bee", "~A:AS", "~A:12x",
 	} {
 		if got, ok := NormalizeBan(bad); ok {
 			t.Errorf("NormalizeBan(%q) = %q, want refused", bad, got)
@@ -80,7 +87,7 @@ func TestExtbanLists(t *testing.T) {
 			t.Errorf("ExtbanAllowed(%c, %q) = %v", c.list, c.mask, got)
 		}
 	}
-	if ExtbanLetters != "FOSTacfijmnpqrt" {
+	if ExtbanLetters != "ACFOSTacfijmnpqrt" {
 		t.Errorf("ExtbanLetters = %q", ExtbanLetters)
 	}
 }
@@ -97,6 +104,8 @@ func TestExtbanUnrealAndInsp(t *testing.T) {
 		"~T:block:*x*":     "~text:block:*x*",
 		"~noctcp:x!*@*":    "~noctcp:x!*@*",
 		"~c:@#bees":        "~channel:@#bees",
+		"~C:NL":            "~country:NL",
+		"~A:64500":         "~asn:64500",
 	} {
 		if got := UnrealBan(in); got != want {
 			t.Errorf("UnrealBan(%q) = %q, want %q", in, got, want)
@@ -116,12 +125,13 @@ func TestExtbanUnrealAndInsp(t *testing.T) {
 		"~f:#jail:x!*@*":   "redirect:#jail:x!*@*",
 		"~S:abcd":          "fingerprint:abcd",
 		"~noctcp:~c:#bees": "noctcp:channel:#bees",
+		"~C:NL":            "country:NL",
 	} {
 		if got, ok := InspBan(in); !ok || got != want {
 			t.Errorf("InspBan(%q) = %q, %v; want %q", in, got, ok, want)
 		}
 	}
-	for _, unreal := range []string{"~j:x!*@*", "~p:x!*@*", "~T:block:*x*", "~m:notice:x!*@*", "~F:x!*@*", "~i:#main"} {
+	for _, unreal := range []string{"~j:x!*@*", "~p:x!*@*", "~T:block:*x*", "~m:notice:x!*@*", "~F:x!*@*", "~i:#main", "~A:64500"} {
 		if got, ok := InspBan(unreal); ok {
 			t.Errorf("InspBan(%q) = %q, want none", unreal, got)
 		}

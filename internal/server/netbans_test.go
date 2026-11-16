@@ -184,7 +184,7 @@ func TestExtbansAndTimedBans(t *testing.T) {
 	bee.send("MODE #bchat +b ~z:what")
 	bee.expect(" 696 Bee #bchat b ~z:what :Invalid ban mask")
 	bee.send("VERSION")
-	bee.expect("EXTBAN=~,FOSTacfijmnpqrt")
+	bee.expect("EXTBAN=~,ACFOSTacfijmnpqrt")
 
 	// Timed bans lift themselves.
 	bee.send("MODE #bchat +b ~t:1:gone!*@*")

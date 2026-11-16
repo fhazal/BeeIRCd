@@ -42,6 +42,8 @@ var Extbans = []*Extban{
 	{Letter: 'O', Name: "operclass", Unreal: true, Insp: "opertype", InspLetter: 'O', Kind: ExtMatch, Lists: "beI"},
 	{Letter: 'r', Name: "realname", Unreal: true, Insp: "realname", InspLetter: 'r', Kind: ExtMatch, Lists: "beI"},
 	{Letter: 'S', Name: "certfp", Unreal: true, Insp: "fingerprint", InspLetter: 'z', Kind: ExtMatch, Lists: "beI"},
+	{Letter: 'C', Name: "country", Unreal: true, Insp: "country", InspLetter: 'G', Kind: ExtMatch, Lists: "beI"},
+	{Letter: 'A', Name: "asn", Unreal: true, Kind: ExtMatch, Lists: "beI"},
 	{Name: "unauthed", Insp: "unauthed", InspLetter: 'U', Kind: ExtMatch, Lists: "beI"},
 	{Name: "bot", Insp: "bot", InspLetter: 'B', Kind: ExtMatch, Lists: "beI"},
 	{Name: "gateway", Insp: "gateway", InspLetter: 'w', Kind: ExtMatch, Lists: "beI"},
@@ -70,7 +72,16 @@ var Extbans = []*Extban{
 
 // Mute is BeeIRCd's own ~m:mask: the same as ~q:mask (InspIRCd's m:).
 // ~m with a bypass type (~m:moderated:mask) is UnrealIRCd's msgbypass.
-var Mute = Extbans[11]
+var Mute = extByName0("quiet")
+
+func extByName0(name string) *Extban {
+	for _, e := range Extbans {
+		if e.Name == name {
+			return e
+		}
+	}
+	panic("no extban " + name)
+}
 
 // BypassTypes are what an UnrealIRCd msgbypass (+e ~m:type:mask) lets
 // someone skip.
@@ -239,6 +250,18 @@ func normArg(e *Extban, arg string, depth int) (string, bool) {
 		return arg, true
 	case "operclass", "realname", "oper", "server", "gateway", "realmask":
 		return word(arg)
+	case "country":
+		arg = strings.ToUpper(arg)
+		if arg == "" || len(arg) > 3 || strings.Trim(arg, "ABCDEFGHIJKLMNOPQRSTUVWXYZ*?") != "" {
+			return "", false
+		}
+		return arg, true
+	case "asn":
+		n, err := strconv.ParseUint(strings.TrimPrefix(strings.ToUpper(arg), "AS"), 10, 32)
+		if err != nil || n == 0 {
+			return "", false
+		}
+		return strconv.FormatUint(n, 10), true
 	case "certfp":
 		arg = strings.ToLower(strings.ReplaceAll(arg, ":", ""))
 		if arg == "" || len(arg) > 128 || strings.Trim(arg, "0123456789abcdef*?") != "" {

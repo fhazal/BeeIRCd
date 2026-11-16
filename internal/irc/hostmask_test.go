@@ -51,7 +51,7 @@ func TestNormalizeBan(t *testing.T) {
 			t.Errorf("NormalizeBan(%q) = %q, %v; want %q", in, got, ok, want)
 		}
 	}
-	for _, bad := range []string{"~", "~a", "~a:", "~z:x", "~t:0:x", "~t:x:y", "~t:999999:x", "~t:5:~t:5:x", "~m:~m:x", "~ab:c", "~f:jail:x", "~f:#jail", "~A:bee", "~country:NL"} {
+	for _, bad := range []string{"~", "~a", "~a:", "~z:x", "~t:0:x", "~t:x:y", "~t:999999:x", "~t:5:~t:5:x", "~m:~m:x", "~ab:c", "~f:jail:x", "~f:#jail", "~A:bee", "~country:Holland"} {
 		if got, ok := NormalizeBan(bad); ok {
 			t.Errorf("NormalizeBan(%q) = %q, want refused", bad, got)
 		}

@@ -1,6 +1,7 @@
 package state
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/fhazal/beeircd/internal/irc"
@@ -94,6 +95,10 @@ func MatchUser(who string, u *User) bool {
 		return u.HasMode('o') && u.OperName != "" && irc.Match(arg, u.OperName)
 	case "certfp":
 		return u.CertFP != "" && irc.Match(arg, u.CertFP)
+	case "country":
+		return u.Country != "" && irc.Match(arg, u.Country)
+	case "asn":
+		return u.ASN != 0 && arg == strconv.FormatUint(uint64(u.ASN), 10)
 	case "bot":
 		return u.HasMode('B') && MatchUser(arg, u)
 	case "gateway":

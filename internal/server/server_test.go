@@ -54,6 +54,7 @@ func testServerWith(t *testing.T, tweak func(*config.Config), setup func(*Server
 		Limits:   config.Limits{FloodBurst: 10000, FloodRate: 10000, SessionLimit: 1000},
 		Services: config.Services{Database: filepath.Join(dir, "services.db"), RegDelay: &config.Duration{}, ForceEmail: &off, MemoSendDelay: &config.Duration{}},
 		Update:   config.Update{Check: &off},
+		GeoIP:    config.GeoIP{Enabled: &off},
 	}
 	if tweak != nil {
 		tweak(cfg)
@@ -623,6 +624,7 @@ func TestShutdownTellsEveryone(t *testing.T) {
 		Listen:   []config.Listen{{Address: "127.0.0.1:0"}},
 		Cloak:    config.Cloak{Enabled: &off},
 		Services: config.Services{Database: filepath.Join(t.TempDir(), "services.db")},
+		GeoIP:    config.GeoIP{Enabled: &off},
 	}
 	cfg.SetDefaults()
 	s, err := New(cfg, log.New(io.Discard, "", 0))

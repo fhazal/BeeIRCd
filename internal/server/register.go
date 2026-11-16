@@ -324,6 +324,7 @@ func (s *Server) tryRegister(c *Client) {
 		NickTS:   now.Unix(),
 		Modes:    map[byte]bool{'i': true},
 	}
+	s.geoFill(u)
 	if s.cfg.CloakEnabled() {
 		u.Modes['x'] = true
 		u.Host = s.cloakFor(u)

@@ -57,6 +57,8 @@ const (
 	RplWhoisHost     = "378"
 	RplWhoisSecure   = "671"
 	RplWhoisCertFP   = "276"
+	RplWhoisCountry  = "344"
+	RplWhoisASN      = "569"
 	RplMonOnline     = "730"
 	RplMonOffline    = "731"
 	RplMonList       = "732"

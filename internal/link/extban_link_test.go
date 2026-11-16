@@ -20,7 +20,7 @@ func TestUnrealExtbans(t *testing.T) {
 		t.Fatalf("SJOIN to UnrealIRCd: %q", lines)
 	}
 	m, _ := c.Decode(parse(t, ":001AAAAAA MODE #hive +bb ~quiet:x!*@* ~country:NL")).(*Mode)
-	if m == nil || m.Items[0].Arg != "~q:x!*@*" || m.Items[1].Arg != "~country:NL" {
+	if m == nil || m.Items[0].Arg != "~q:x!*@*" || m.Items[1].Arg != "~C:NL" {
 		t.Fatalf("from UnrealIRCd: %+v", m)
 	}
 	ch, _ := c.Decode(parse(t, ":001 SJOIN 1 #hive :&~nickchange:x!*@* \"~msgbypass:external:~account:Bee")).(*Channel)

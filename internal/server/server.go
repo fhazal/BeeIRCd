@@ -90,6 +90,7 @@ type Server struct {
 	safe        safetyState
 	acme        acmeState                   // 7c Let's Encrypt renewal
 	upd         updState                    // 7e daily release check
+	geo         geoState                    // country and ASN lookups
 	quitReason  string                      // set by `beeircd update` before it restarts the server
 	chatKeys    map[string]chatKey          // one-time SASL keys for the Hive Panel's Chat tab (chatkey.go)
 	watchers    map[string]map[*Client]bool // MONITOR: folded nick -> clients watching it
@@ -282,6 +283,7 @@ func (s *Server) Serve(ctx context.Context) error {
 		go s.acmeLoop(s.acmeConfig())
 	}
 	s.startUpdateCheck()
+	s.startGeoIP()
 	s.startPlaceLookup()
 	s.log.Printf("%s ready on %d port(s)", s.cfg.Server.Name, len(s.listeners))
 	tick := time.NewTicker(s.tickEvery())

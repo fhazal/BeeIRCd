@@ -42,7 +42,7 @@ func TestMatchBan(t *testing.T) {
 
 func TestMatchUserExtbans(t *testing.T) {
 	bees := &Channel{Name: "#bees", Members: map[string]*Member{}}
-	oper := &User{UID: "1", Nick: "Op", Ident: "op", Host: "h", Server: "hub.example", Account: "Op", CertFP: "abcd", OperClass: "netadmin", OperName: "Fhazal",
+	oper := &User{UID: "1", Nick: "Op", Ident: "op", Host: "h", Server: "hub.example", Account: "Op", CertFP: "abcd", OperClass: "netadmin", OperName: "Fhazal", Country: "NL", ASN: 64500,
 		Modes: map[byte]bool{'o': true}, Channels: map[string]*Channel{"#bees": bees}}
 	bees.Members["1"] = &Member{User: oper, Ranks: RankOp}
 	bot := &User{UID: "2", Nick: "Bot", Ident: "bot", Host: "b", Realname: "a bot", Server: "leaf.example", Gateway: "beeroom",
@@ -62,6 +62,8 @@ func TestMatchUserExtbans(t *testing.T) {
 		{"~gateway:bee*", bot, true}, {"~gateway:*", oper, false},
 		{"~server:leaf.*", bot, true}, {"~server:leaf.*", oper, false},
 		{"~realmask:Bot!*@*+a bot", bot, true}, {"~realmask:*+x*", bot, false},
+		{"~C:NL", oper, true}, {"~C:N*", oper, true}, {"~C:NL", bot, false}, {"~C:*", bot, false},
+		{"~A:64500", oper, true}, {"~A:64501", oper, false}, {"~A:64500", bot, false},
 	} {
 		if got := MatchUser(c.who, c.u); got != c.want {
 			t.Errorf("MatchUser(%q, %s) = %v", c.who, c.u.Nick, got)

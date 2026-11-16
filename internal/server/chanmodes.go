@@ -824,6 +824,7 @@ var extbansHelp = []string{
 	" ~unauthed:<mask> not logged in   ~bot:<mask>  bot (+B)",
 	" ~gateway:<name> web gateway  ~server:<name>   their server",
 	" ~realmask:<nick!user@host+realname>",
+	" ~C:<country>   country, like NL   ~A:<number>  network (ASN)",
 	"What they may not do (in +b; in +e only that is allowed again):",
 	" ~q:<mask> or ~m:<mask> talk         ~j:<mask> join (+b only)",
 	" ~n:<mask> change nick               ~p:<mask> show a part message",

@@ -47,6 +47,11 @@ type User struct {
 	// Gateway is the [[webirc]] gateway a user of this server came
 	// through, "" = none (~gateway: bans).
 	Gateway string
+	// Country (ISO code, "NL"), ASN and ASOrg come from GeoIP on this
+	// server ("" / 0 = unknown).
+	Country string
+	ASN     uint32
+	ASOrg   string
 	// Cloak is the host +x shows, for users on other servers: their
 	// server made it. Ours are made on the spot (cloakFor).
 	Cloak    string

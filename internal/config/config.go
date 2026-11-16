@@ -66,6 +66,7 @@ type Config struct {
 	SpamFilter SpamFilter `toml:"spamfilter"`
 	// Censor is [censor], the words +G hides (censor.go).
 	Censor Censor `toml:"censor"`
+	GeoIP  GeoIP  `toml:"geoip"`
 	// OperClasses are the [[operclass]] blocks (see Classes).
 	OperClasses []OperClass `toml:"operclass"`
 

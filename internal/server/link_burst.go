@@ -257,6 +257,7 @@ func (s *Server) remoteUser(l *linkConn, source string, in *link.User) {
 		SignOn: time.Unix(in.NickTS, 0), NickTS: in.NickTS, Modes: modes, TLS: modes['z'], Cloak: in.Cloak,
 		Channels: map[string]*state.Channel{}, Service: strings.IndexByte(in.Modes, 'S') >= 0,
 	}
+	s.geoFill(u) // every server looks them up itself: nothing extra on the link
 	if err := s.emitFrom(l, source, &state.UserAdd{User: u}); err != nil {
 		s.dropLink(l, fmt.Sprintf("could not add %s (%s): %v", in.Nick, in.UID, err))
 	}

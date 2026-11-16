@@ -185,6 +185,9 @@ func (s *Server) whoisOne(c *Client, u *state.User, reply func(code string, p ..
 	if (u == c.user || c.can('h')) && !u.Service && (u.Host != u.RealHost || u != c.user) {
 		reply(irc.RplWhoisHost, u.Nick, "is connecting from *@"+u.RealHost+" "+u.IP)
 	}
+	if (u == c.user || c.can('h')) && !u.Service {
+		s.whoisGeo(u, reply)
+	}
 	if tc := s.clientOf(u); tc != nil && tc.webirc != "" && (u == c.user || c.can('h')) {
 		reply(irc.RplWhoisSpecial, u.Nick, "is connecting through WEBIRC gateway "+tc.webirc)
 	}

@@ -184,7 +184,7 @@ lists them all.
 
 | Kind | Extbans |
 |---|---|
-| Who | `~a:account` (`~a:0` = not logged in), `~c:[@]#chan`, `~r:realname`, `~S:fingerprint`, `~O:operclass`, `~oper:name`, `~unauthed:mask`, `~bot:mask`, `~gateway:name`, `~server:name`, `~realmask:nick!user@host+realname` |
+| Who | `~a:account` (`~a:0` = not logged in), `~c:[@]#chan`, `~r:realname`, `~S:fingerprint`, `~O:operclass`, `~oper:name`, `~unauthed:mask`, `~bot:mask`, `~gateway:name`, `~server:name`, `~realmask:nick!user@host+realname`, `~C:country` (`~C:NL`), `~A:network` (`~A:64500`) |
 | What they may not do | `~q:` / `~m:` talk, `~j:` join, `~n:` change nick, `~p:` part message, `~noctcp:`, `~nonotice:`, `~blockcolor:`, `~stripcolor:`, `~nokick:`, `~blockinvite:` |
 | Special | `~t:minutes:ban` lifts itself, `~f:#chan:mask` sends them elsewhere, `~T:block:text` / `~T:censor:word`, `+e ~m:type:mask` (skip `external`, `censor`, `moderated`, `color` or `notice`), `+e ~F:mask` (skip `+f`), `~i:#chan` (use that channel's bans or invite exceptions) |
 
@@ -197,6 +197,26 @@ On links, UnrealIRCd servers get UnrealIRCd's names and InspIRCd servers
 InspIRCd's. Extbans the other server doesn't have (InspIRCd has no
 `~j`, `~p`, `~T`, `~m:type`, `~F` or `~i`) stay on the BeeIRCd side, and
 InspIRCd's inverted bans (`!R:account`) aren't taken.
+
+### Country and network (GeoIP)
+
+`~C:` and `~A:` need to know where each user connects from. BeeIRCd
+looks that up on the server itself in two small database files: the
+free DB-IP Lite country and ASN files, which it downloads on its own
+when they are missing and again once a month (IP data by
+[DB-IP](https://db-ip.com), CC BY 4.0). Nothing about your users leaves
+the server; the download is the only thing that goes out.
+
+Opers (and the user themselves) see the result in WHOIS:
+
+```
+Bee is connecting from Netherlands
+Bee is connecting from AS64500 [Example Net]
+```
+
+To use MaxMind GeoLite2 instead, put its `GeoLite2-Country.mmdb` and
+`GeoLite2-ASN.mmdb` files where you like and set them in `[geoip]` with
+`download = false`. `enabled = false` turns GeoIP off.
 
 ## Spam filter
 
@@ -918,6 +938,15 @@ that class.
 | --- | --- | --- |
 | `dir` | `backups` next to the database | |
 | `keep` | `7` | Dated backups kept |
+
+### [geoip]
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `true` | Look up each user's country and network |
+| `download` | `true` | Fetch DB-IP Lite when a file is missing or over 35 days old |
+| `country_db` | `geoip/country.mmdb` next to the database | Country file (MaxMind DB format) |
+| `asn_db` | `geoip/asn.mmdb` next to the database | Network (ASN) file |
 
 ### [update]
 
