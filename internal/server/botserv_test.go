@@ -357,6 +357,7 @@ func TestBotServFantasy(t *testing.T) {
 	bee.expect(":Bzz!bot@bot.host MODE #hive -b ~m:")
 	bee.send("CS BAN #hive Ann") // plain BAN still kicks
 	ann.expect(" KICK #hive Ann :")
+	bee.sync() // the !unban above answered with the same line: don't take that one for this UNBAN's
 	bee.send("CS UNBAN #hive Ann")
 	bee.expect("1 ban removed in #hive.")
 	ann.send("JOIN #hive")
