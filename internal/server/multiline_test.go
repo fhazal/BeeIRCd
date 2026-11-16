@@ -131,3 +131,31 @@ func TestMultilineLabel(t *testing.T) {
 		t.Errorf("fail without label: %s", l)
 	}
 }
+
+// The spam filter checks a multiline message as a whole: one bad line,
+// or a bad word split over concat lines, stops the batch.
+func TestMultilineSpamfilter(t *testing.T) {
+	s, _, _ := fileServerWith(t, "", func(s *Server) { s.cfg.Server.IRCv3Drafts = true })
+	b := boss(t, s)
+	spamRule(t, b, "c block - No_spam *qaspamword*")
+	v := capLogin(t, s, "Vic", "batch", multilineCap)
+	a := login(t, s, "Ann")
+	joinAll("#ch", v, a)
+	v.send("BATCH +a " + multilineCap + " #ch")
+	v.send("@batch=a PRIVMSG #ch :hello")
+	v.send("@batch=a PRIVMSG #ch :buy qaspamword now")
+	v.send("BATCH -a")
+	v.expect("*** Your message to #ch was blocked: No spam")
+	v.send("BATCH +b " + multilineCap + " #ch")
+	v.send("@batch=b PRIVMSG #ch :buy qaspam")
+	v.send("@batch=b;" + concatTag + " PRIVMSG #ch :word now")
+	v.send("BATCH -b")
+	v.expect("*** Your message to #ch was blocked: No spam")
+	v.send("BATCH +c " + multilineCap + " #ch")
+	v.send("@batch=c PRIVMSG #ch :all fine")
+	v.send("@batch=c PRIVMSG #ch :really")
+	v.send("BATCH -c")
+	a.expect("PRIVMSG #ch :all fine")
+	a.quiet("qaspam")
+}
+

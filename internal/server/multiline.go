@@ -165,6 +165,12 @@ func (s *Server) multilineDone(c *Client, in *mlIn) {
 		return
 	}
 	combined := joinParts(in.parts)
+	// The spam filter sees the whole message once, lines joined by a
+	// space (concat lines without one), as if it had come in one line.
+	check := irc.Message{Command: in.verb, Params: []string{in.target, strings.ReplaceAll(combined, "\n", " ")}}
+	if !s.spamCheck(c, &check) {
+		return
+	}
 	s.ml = &mlOut{parts: in.parts, combined: combined}
 	defer func() { s.ml = nil }()
 	s.message(c, irc.Message{Command: in.verb, Params: []string{in.target, combined}, Tags: in.tags}, in.verb)
@@ -244,3 +250,4 @@ func (s *Server) mlRouteUser(src string, t *state.User, verb, text string, tags 
 		s.routeUser(src, t, verb, line, linkTags(tags, id))
 	}
 }
+
