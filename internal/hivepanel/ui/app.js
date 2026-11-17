@@ -1497,6 +1497,177 @@
     };
   }
 
+  // Login prompt ([authprompt]) and spam report places ([[spamreport]]).
+  // A DroneBL key is written here but never shown again, only "key set".
+  function loginSpamCard() {
+    const AP = [
+      { name: 'auth-prompt-text', label: 'First notice', hint: 'then: Turn on SASL in your client, or type now: /AUTH nick:password' },
+      { name: 'auth-prompt-fail', label: 'After a wrong password', hint: 'they may try again' },
+      { name: 'auth-prompt-time', label: 'Time to log in', hint: '10s to 10m, then the ban message' },
+    ];
+    const onBox = h('input', { type: 'checkbox', id: 'ap-on' });
+    const apFields = h('div');
+    const count = h('span');
+    const undoBtn = h('button', { type: 'button', class: 'btn ghost', text: 'Undo' });
+    const saveBtn = h('button', { type: 'button', class: 'btn main', text: 'Save' });
+    const bar = h('div', { class: 'unsaved', hidden: true }, count, h('div', { class: 'row-btns' }, undoBtn, ' ', saveBtn));
+    const places = h('div', { class: 'sr-places' });
+    const el = h('section', { class: 'card', hidden: true }, h('h2', { text: 'Login prompt & spam reports' }),
+      h('p', { class: 'note', text: 'A soft AKILL or K-line (Logged-in people may pass, or % before the mask) and a DNS blocklist with soft-reject hold people who are not logged in and ask them to log in.' }),
+      h('div', { class: 'my-row' }, h('label', { class: 'ck', for: 'ap-on' }, onBox, 'Ask them to log in'),
+        h('span', { class: 'hint', text: 'Off: they are refused at once with "log in with SASL to connect".' })),
+      apFields, bar,
+      h('h3', { class: 'sr-head', text: 'Spam reports' }),
+      h('p', { class: 'note', text: '/SPAMREPORT nick and Report spam on People send the address to these places. Local network addresses, opers and exceptions are never sent.' }),
+      places);
+    let set = {}, fields = [], load = async () => {};
+
+    function check(f) {
+      const v = f.input.value.trim();
+      f.ok = f.s.name === 'auth-prompt-time' ? /^(\d+[smh]?|(\d+m)?(\d+s)?)$/.test(v) && v !== '' : v.length <= 300;
+      f.dirty = v !== f.s.value;
+      f.row.classList.toggle('changed', f.ok && f.dirty);
+      f.input.classList.toggle('wrong', !f.ok);
+      f.hint.classList.toggle('wrong', !f.ok);
+      f.hint.textContent = !f.ok ? (f.s.name === 'auth-prompt-time' ? 'Use a time like 60s or 2m.' : 'At most 300 characters.') : f.dirty ? 'was ' + f.s.value : f.def.hint;
+      const n = fields.filter(x => x.dirty).length;
+      bar.hidden = n === 0;
+      count.textContent = n === 1 ? '1 unsaved change' : n + ' unsaved changes';
+      saveBtn.disabled = fields.some(x => x.dirty && !x.ok);
+    }
+    function build() {
+      fields = AP.filter(d => set[d.name]).map(d => {
+        const id = 'set-' + d.name;
+        const input = h('input', { class: 'in', id, type: 'text', autocomplete: 'off', maxlength: '300', value: set[d.name].value, 'aria-describedby': id + '-hint' });
+        const hint = h('span', { class: 'hint', id: id + '-hint' });
+        const row = h('label', { class: 'f ap-row', for: id }, d.label, input, hint);
+        const f = { s: set[d.name], def: d, input, hint, row };
+        input.addEventListener('input', () => check(f));
+        input.addEventListener('keydown', e => { if (e.key === 'Enter' && !saveBtn.disabled) saveBtn.click(); });
+        return f;
+      });
+      put(apFields, ...fields.map(f => f.row));
+      fields.forEach(check);
+      if (!fields.length) bar.hidden = true;
+    }
+    undoBtn.addEventListener('click', build);
+    saveBtn.addEventListener('click', () => busy(saveBtn, async () => {
+      const done = [];
+      for (const f of fields.filter(x => x.dirty && x.ok)) {
+        try {
+          const d = await api('POST', '/api/set', { name: f.s.name, value: f.input.value.trim() || 'default' });
+          done.push(d.changed);
+          set[f.s.name].value = d.changed.new;
+        } catch (e) { toastErr(f.def.label + ' was not saved: ' + e.message); }
+      }
+      build();
+      if (!done.length) return;
+      toast(['Login prompt saved and applied'], async () => {
+        for (const c of done.slice().reverse()) if (c.id) await api('POST', '/api/undo', { id: c.id });
+        await load();
+        toast(['Put back as it was']);
+      });
+    }));
+    onBox.addEventListener('change', async () => {
+      onBox.disabled = true;
+      try {
+        const d = await api('POST', '/api/set', { name: 'auth-prompt', value: onBox.checked ? 'on' : 'off' });
+        toast([d.changed.new === 'on' ? 'People held by a soft ban are asked to log in' : 'Login prompt off: soft bans refuse at once'], async () => {
+          await api('POST', '/api/undo', { id: d.changed.id });
+          onBox.checked = d.changed.old === 'on';
+          toast(['Put back as it was']);
+        });
+      } catch (e) { onBox.checked = !onBox.checked; toastErr(e.message); }
+      onBox.disabled = false;
+    });
+
+    // One row per place; with none yet, a row that adds "dronebl" with a key.
+    function placeRow(pl) {
+      const name = pl.name || 'dronebl';
+      const id = 'sr-key-' + name;
+      const key = h('input', { class: 'in mono', id, type: 'password', autocomplete: 'off', spellcheck: 'false',
+        placeholder: pl.keySet ? 'Key set · paste a new one to replace it' : 'Paste your DroneBL rpckey' });
+      const saveKey = h('button', { type: 'button', class: 'btn main', text: pl.name ? 'Save key' : 'Add DroneBL' });
+      const err = h('span', { class: 'hint' });
+      saveKey.addEventListener('click', () => busy(saveKey, async () => {
+        err.classList.remove('wrong'); err.textContent = '';
+        if (!key.value.trim()) { key.classList.add('wrong'); key.focus(); return; }
+        try {
+          const d = await api('POST', '/api/spam-report-key', { name, value: key.value.trim() });
+          key.value = '';
+          toast([d.done.text]);
+          drawPlaces(d.spamReports.places);
+        } catch (e) { err.classList.add('wrong'); err.textContent = e.message; }
+      }));
+      key.addEventListener('input', () => key.classList.remove('wrong'));
+      key.addEventListener('keydown', e => { if (e.key === 'Enter') saveKey.click(); });
+      const kids = [];
+      if (!pl.name) {
+        kids.push(h('div', { class: 'act-text' }, h('b', { text: 'DroneBL' }),
+          h('span', { class: 'lbl' }, 'No place yet. Get your own key at ', h('a', { href: 'https://dronebl.org/rpckey_signup', target: '_blank', rel: 'noopener', text: 'dronebl.org/rpckey_signup' }), ', then paste it here.')));
+      } else {
+        kids.push(h('div', { class: 'act-text' }, h('b', { text: pl.name }), h('span', { class: 'lbl', text: pl.line })));
+      }
+      if (pl.type === 'http') return h('div', { class: 'act sr-place' }, kids);
+      const keyRow = h('div', { class: 'sr-key' }, h('label', { class: 'sr', for: id, text: 'DroneBL key for ' + name }), key, saveKey);
+      kids.push(keyRow);
+      if (pl.keySet) {
+        const rm = h('button', { type: 'button', class: 'btn ghost', text: 'Remove key' });
+        rm.addEventListener('click', () => {
+          const yes = h('button', { type: 'button', class: 'btn bad', text: 'Remove' });
+          const no = h('button', { type: 'button', class: 'btn ghost', text: 'Keep' });
+          const box = h('span', { class: 'rm' }, yes, no);
+          rm.replaceWith(box);
+          no.addEventListener('click', () => box.replaceWith(rm));
+          yes.addEventListener('click', () => busy(yes, async () => {
+            try {
+              const d = await api('POST', '/api/spam-report-key', { name, value: '' });
+              toast([d.done.text]);
+              drawPlaces(d.spamReports.places);
+            } catch (e) { toastErr(e.message); box.replaceWith(rm); }
+          }));
+          yes.focus();
+        });
+        keyRow.append(rm);
+      }
+      if (pl.name) {
+        const sid = 'sr-stage-' + pl.name;
+        const stage = h('input', { type: 'checkbox', id: sid });
+        stage.checked = !!pl.staging;
+        stage.addEventListener('change', async () => {
+          stage.disabled = true;
+          try {
+            const d = await api('POST', '/api/spam-report-staging', { name, value: stage.checked ? 'on' : 'off' });
+            toast([d.done.text]);
+            drawPlaces(d.spamReports.places);
+          } catch (e) { stage.checked = !stage.checked; toastErr(e.message); stage.disabled = false; }
+        });
+        kids.push(h('label', { class: 'ck', for: sid }, stage, 'Test list (staging): nothing is really listed'));
+      }
+      kids.push(err);
+      return h('div', { class: 'act sr-place' }, kids);
+    }
+    function drawPlaces(list) {
+      put(places, ...(list.length ? list.map(placeRow) : [placeRow({ name: '', type: 'dronebl' })]));
+    }
+    return {
+      el,
+      async fill(byName, reload) {
+        load = reload;
+        set = {};
+        for (const d of AP) if (byName[d.name]) set[d.name] = Object.assign({}, byName[d.name]);
+        el.hidden = !byName['auth-prompt'];
+        if (el.hidden) return;
+        onBox.checked = byName['auth-prompt'].value === 'on';
+        build();
+        try {
+          const d = await api('GET', '/api/spam-reports');
+          drawPlaces(d.spamReports.places);
+        } catch (e) { put(places, h('p', { class: 'empty', text: e.message })); }
+      },
+    };
+  }
+
   function settingsPage() {
     const aj = autoJoinCard();
     const grid = h('div', { class: 'grid2' }, h('p', { class: 'empty', text: 'Loading…' }));
@@ -1527,6 +1698,7 @@
         const byName = Object.fromEntries((d.settings || []).map(s => [s.name, s]));
         if (byName.members) { membersCard.hidden = false; membersBox.checked = byName.members.value === 'on'; }
         aj.fill(byName, load);
+        ls.fill(byName, load);
         fields.length = 0;
         put(grid, ...LIMITS.filter(l => byName[l.name]).map(l => {
           const s = byName[l.name];
@@ -1596,6 +1768,7 @@
     actions.append(updateRow);
     const backups = me.owner ? backupsCard() : null;
     const mailBox = me.owner ? mailCard() : null;
+    const ls = loginSpamCard();
 
     // Member sign-in: people with a registered nick get their own pages
     // (Home, Chat, My nick, My channels, Memos), never the admin ones.
@@ -1624,6 +1797,7 @@
         h('section', { class: 'card' }, h('h2', { text: 'Limits' }), grid, bar),
         h('section', { class: 'card' }, h('h2', { text: 'Server actions' }), actions)),
       aj.el,
+      ls.el,
       membersCard,
       mailBox && mailBox.el,
       backups && backups.el);
@@ -1946,6 +2120,21 @@
       // disconnect / ban, each asks first
       const ends = [];
       const confirmBox = h('div', { class: 'confirm', hidden: true });
+      function askReport() {
+        const go = h('button', { type: 'button', class: 'btn bad', text: 'Report spam' });
+        const cancel = h('button', { type: 'button', class: 'btn ghost', text: 'Cancel' });
+        cancel.addEventListener('click', () => { confirmBox.hidden = true; });
+        go.addEventListener('click', () => busy(go, async () => {
+          try {
+            const d = await api('POST', '/api/spam-report', { uid: p.uid });
+            toast([d.done.text]);
+            confirmBox.hidden = true;
+          } catch (e) { toastErr(e.message); }
+        }));
+        put(confirmBox, h('span', { class: 'f' }, 'Report ' + (p.ip ? p.ip + ' (' + p.nick + ')' : p.nick) + ' to the spam blocklists? Other networks will block this address too.'), go, cancel);
+        confirmBox.hidden = false;
+        go.focus();
+      }
       function ask(kind) {
         const reason = h('input', { class: 'in', type: 'text', maxlength: '200', autocomplete: 'off',
           placeholder: 'Reason (they see it)', 'aria-label': 'Reason' });
@@ -1975,6 +2164,11 @@
         const bb = h('button', { type: 'button', class: 'btn bad', text: 'Ban ' + p.nick });
         bb.addEventListener('click', () => ask('ban'));
         ends.push(kb, bb);
+        if (!p.oper_as) {
+          const rb = h('button', { type: 'button', class: 'btn ghost', text: 'Report spam' });
+          rb.addEventListener('click', askReport);
+          ends.push(rb);
+        }
       }
       put(box, 
         h('div', { class: 'dl' }, items),
@@ -2055,7 +2249,12 @@
     const life = h('select', { class: 'in', id: 'ban-life' },
       [['1h', 'in 1 hour'], ['1d', 'in 1 day'], ['7d', 'in 7 days'], ['30d', 'in 30 days'], ['0', 'never (until removed)']].map(([v, t]) => h('option', { value: v, text: t })));
     const add = h('button', { type: 'button', class: 'btn main full', text: 'Add ban' });
+    // A soft AKILL (% before the mask) lets people logged in to an account pass.
+    const soft = h('input', { type: 'checkbox', id: 'ban-soft' });
+    const softRow = h('label', { class: 'ck', for: 'ban-soft' }, soft, 'Logged-in people may pass');
+    const banMask = () => { const v = mask.value.trim(); return v && type.value === 'akill' && soft.checked && !v.startsWith('%') ? '%' + v : v; };
     function typeChanged() {
+      softRow.hidden = type.value !== 'akill';
       const k = kindOf(type.value);
       mask.placeholder = k.ph;
       maskLabel.textContent = k.field || 'Mask';
@@ -2068,7 +2267,7 @@
     }
     function checkMask() {
       clearTimeout(matchTimer);
-      const v = mask.value.trim();
+      const v = banMask();
       mask.classList.remove('wrong');
       if (!v) { hit.className = 'hit'; hit.textContent = ''; return; }
       const seq = ++matchSeq;
@@ -2090,15 +2289,16 @@
       }, 300);
     }
     mask.addEventListener('input', checkMask);
+    soft.addEventListener('change', checkMask);
     type.addEventListener('change', typeChanged);
     add.addEventListener('click', () => busy(add, async () => {
       if (!mask.value.trim()) { mask.classList.add('wrong'); mask.focus(); return; }
       try {
-        const d = await api('POST', '/api/ban-add', { kind: type.value, mask: mask.value.trim(), reason: reason.value, life: life.value });
+        const d = await api('POST', '/api/ban-add', { kind: type.value, mask: banMask(), reason: reason.value, life: life.value });
         toast([d.done.text]);
         freshMask = (d.done.text.match(/ on (\S+) /) || [])[1] || null;
         if (type.value !== kind) { kind = type.value; tiles.forEach(t => t.b.setAttribute('aria-pressed', t.k.kind === kind ? 'true' : 'false')); }
-        mask.value = ''; reason.value = ''; checkMask();
+        mask.value = ''; reason.value = ''; soft.checked = false; checkMask();
         load();
       } catch (e) {
         hit.className = 'hit bad'; hit.textContent = e.message; mask.classList.add('wrong');
@@ -2144,7 +2344,7 @@
         });
         return h('tr', { class: b.mask === freshMask ? 'fresh' : null },
           h('td', {}, h('span', { class: 'ty ' + b.kind, text: kindOf(b.kind).name })),
-          h('td', { class: 'mono', text: b.mask }),
+          h('td', { class: 'mono' }, b.mask.startsWith('%') ? [b.mask.slice(1), ' ', h('span', { class: 'tag', text: 'soft', title: 'Logged-in people may pass' })] : b.mask),
           h('td', { text: b.reason }),
           h('td', { text: b.set_by }),
           h('td', { class: 'lbl', text: ends(b.expires), title: b.expires ? new Date(b.expires).toLocaleString('en-GB') : 'until removed' }),
@@ -2168,6 +2368,7 @@
         h('section', { class: 'card' }, h('h2', { text: SHOWN.every(x => x.kind === 'forbid') ? 'Add a forbid' : 'Add a ban' }),
           h('label', { class: 'f', for: 'ban-type' }, 'Type', type),
           h('label', { class: 'f', for: 'ban-mask' }, maskLabel, mask, maskHint),
+          softRow,
           hit,
           h('label', { class: 'f', for: 'ban-reason' }, 'Reason', reason),
           h('label', { class: 'f', for: 'ban-life' }, 'Ends', life),

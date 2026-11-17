@@ -165,7 +165,7 @@ func (s *Server) enforceBan(b store.NetBan) {
 			continue
 		}
 		u := c.user
-		if k := s.svc.ConnectBan(u.TrueIdent(), u.RealHost, u.IP, u.Realname); k != nil {
+		if k := s.svc.ConnectBan(u.TrueIdent(), u.RealHost, u.IP, u.Realname, u.Account != ""); k != nil {
 			hit = append(hit, c)
 		}
 	}

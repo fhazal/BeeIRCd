@@ -142,6 +142,10 @@ func (s *Server) spamDo(c *Client, r *spamfilter.Rule, t byte, to, text string) 
 		r.ID, who, where, actionName(r.Filter), irc.Truncate(text, 120))
 	reason := r.Reason
 	switch r.Action {
+	case spamfilter.Kill, spamfilter.TempShun, spamfilter.Shun, spamfilter.Gline, spamfilter.Kline, spamfilter.Gzline, spamfilter.Zline:
+		s.autoSpamReport(c, reason)
+	}
+	switch r.Action {
 	case spamfilter.Warn:
 		return spamPass
 	case spamfilter.Block:

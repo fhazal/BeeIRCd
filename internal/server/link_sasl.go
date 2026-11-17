@@ -179,6 +179,9 @@ func (s *Server) saslAnswer(uid, mode, data string) {
 	if c == nil || c.closed || c.saslMech == "" {
 		return
 	}
+	if s.authRelayAnswer(c, mode, data) {
+		return
+	}
 	switch mode {
 	case "C":
 		c.send("AUTHENTICATE " + data)

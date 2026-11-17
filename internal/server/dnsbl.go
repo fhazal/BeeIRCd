@@ -213,6 +213,9 @@ func (s *Server) dnsblHit(c *Client, r dnsblResult) bool {
 	s.svc.LogDNSBL(mask, c.ip, d.Name)
 	s.snotice("DNSBL %s lists %s (reply %d): %s", d.Name, c.ip, r.reply, d.Action)
 	switch d.Action {
+	case "soft-reject":
+		c.softReason = reason // in only once logged in (tryRegister)
+		return false
 	case "zline":
 		s.svc.DnsblBan(store.BanZline, c.ip, reason, d.BanTime.Duration)
 	case "akill":

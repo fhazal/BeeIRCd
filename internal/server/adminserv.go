@@ -43,7 +43,9 @@ func adminCommands() map[string]adminCmd {
 		"UNDO": {"UNDO <number>", "put a change back",
 			"Puts back how things were before change <number> (from HISTORY): settings,\nthe MOTD, classes and oper entries. Ports are changed back with PORT ADD/DEL,\npasswords with a new one. The undo is itself a change in the history.", asUndo},
 		"DNSBL": {"DNSBL LIST | CHECK <ip> | ENABLE|DISABLE <name>", "the DNS blocklists",
-			"DNSBL LIST              the [[dnsbl]] lists of beeircd.conf, with their hits\nDNSBL CHECK <ip>        look an IP up in every list now, with its answers\nDNSBL DISABLE <name>    stop using a list until the server restarts\nDNSBL ENABLE <name>     use it again\nNew connections are looked up when they connect; LAN IPs, ELINEs and session\nexceptions are skipped. Each list says what a hit does: reject (refuse the\nconnection), or a zline, akill or shun for its ban_time.", asDnsbl},
+			"DNSBL LIST              the [[dnsbl]] lists of beeircd.conf, with their hits\nDNSBL CHECK <ip>        look an IP up in every list now, with its answers\nDNSBL DISABLE <name>    stop using a list until the server restarts\nDNSBL ENABLE <name>     use it again\nNew connections are looked up when they connect; LAN IPs, ELINEs and session\nexceptions are skipped. Each list says what a hit does: reject (refuse the\nconnection), soft-reject (let in only people who log in, with the login\nprompt), or a zline, akill or shun for its ban_time.", asDnsbl},
+		"SPAMREPORT": {"SPAMREPORT LIST | KEY <name> <rpckey|OFF> | STAGING <name> ON|OFF", "where /SPAMREPORT sends spammers",
+			"SPAMREPORT LIST                the [[spamreport]] places of beeircd.conf\nSPAMREPORT KEY <name> <rpckey>  save a DroneBL RPC key (adds a dronebl place\n                               called <name> when there is none). OFF removes it.\nSPAMREPORT STAGING <name> ON    send to DroneBL's test list instead of the real one\nGet a DroneBL key at https://dronebl.org/rpckey_signup. Keys are never shown.", asSpamReport},
 		"SERVER": {"SERVER LIST|ADD|SET|DEL|LINK|UNLINK ... | SERVER <name> STATUS|<command>", "linked servers",
 			serverHelp + "\nSERVER <name> STATUS       version, uptime, users and links of that server\nSERVER <name> <command>    run an AdminServ command there (SET, MOTD, OPER,\n                           CLASS, SHOW, HISTORY, DIFF, UNDO, DNSBL); it must\n                           allow it with [link] remote_admin = true", asServer},
 		"RESTART": {"RESTART [reason]", "restart the server",
@@ -130,7 +132,35 @@ func servicesApply(dst, src *config.Config) { dst.Services = src.Services }
 var guestRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]{0,9}$`)
 
 func settings() []setting {
-	return append(baseSettings(), joinSettings()...)
+	return append(append(baseSettings(), joinSettings()...), authSettings()...)
+}
+
+// authSettings are the [authprompt] settings: the login prompt people a
+// soft ban stops get. DEFAULT puts a text back to the built-in one.
+func authSettings() []setting {
+	ap := func(d, s *config.Config) { d.AuthPrompt = s.AuthPrompt }
+	text := func(name string) func(*config.Config, string) (string, string) {
+		return func(_ *config.Config, v string) (string, string) {
+			v = strings.TrimSpace(v)
+			switch {
+			case strings.EqualFold(v, "default"):
+				return `""`, ""
+			case v == "" || len(v) > 300:
+				return "", name + " takes text of up to 300 characters (DEFAULT for the built-in one)."
+			}
+			return config.Quote(v), ""
+		}
+	}
+	return []setting{
+		{name: "auth-prompt", table: "authprompt", key: "enabled", help: "ask people a soft ban stops to log in (OFF refuses them)", kind: 'b', apply: ap,
+			get: func(c *config.Config) string { return map[bool]string{true: "on", false: "off"}[c.AuthPrompt.On()] }},
+		{name: "auth-prompt-text", table: "authprompt", key: "message", help: "the first notice of the login prompt (DEFAULT for the built-in one)", kind: 't', hi: 300, apply: ap,
+			get: func(c *config.Config) string { return c.AuthPrompt.Text() }, enc: text("auth-prompt-text")},
+		{name: "auth-prompt-fail", table: "authprompt", key: "fail_message", help: "the notice after a wrong password (DEFAULT for the built-in one)", kind: 't', hi: 300, apply: ap,
+			get: func(c *config.Config) string { return c.AuthPrompt.Fail() }, enc: text("auth-prompt-fail")},
+		{name: "auth-prompt-time", table: "authprompt", key: "timeout", help: "how long they have to log in", kind: 'd', lo: 10, hi: 600, apply: ap,
+			get: func(c *config.Config) string { return config.FormatDuration(c.AuthPrompt.Wait()) }},
+	}
 }
 
 // joinSettings are the auto-join settings. Lists are written like

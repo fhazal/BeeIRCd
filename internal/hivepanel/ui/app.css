@@ -864,3 +864,12 @@ select.aj-in{width:auto}
 .aj-more[hidden]{display:none}
 .aj-flag{width:auto;min-height:34px}
 @media (max-width:640px){.aj-row{grid-template-columns:minmax(0,1fr);gap:8px}.aj-in{width:130px}}
+
+/* Login prompt & spam reports card (Settings) */
+.ap-row{padding:8px 12px;margin:0;border-left:3px solid transparent;border-radius:0}
+.ap-row:focus-within,.ap-row.changed{border-left-color:var(--honey);background:var(--honey-tint)}
+.card .sr-head{margin:18px 0 4px;font-size:15px}
+.sr-place{grid-template-columns:minmax(0,1fr)}
+.sr-key{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sr-key .in{flex:1 1 220px;min-width:0}
+td .tag{margin-left:4px;vertical-align:1px}

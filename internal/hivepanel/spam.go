@@ -95,3 +95,25 @@ func (p *Panel) mailReg(w http.ResponseWriter, r *http.Request, oc operCtx) {
 func (p *Panel) mailDNS(w http.ResponseWriter, r *http.Request, oc operCtx) {
 	p.send(w, oc, control.Request{Cmd: control.CmdMailDNS}, 35*time.Second)
 }
+
+// spamReportSet is spam-report-key or spam-report-staging: {"name", "value"}.
+func (p *Panel) spamReportSet(cmd string) func(http.ResponseWriter, *http.Request, operCtx) {
+	return func(w http.ResponseWriter, r *http.Request, oc operCtx) {
+		var in struct{ Name, Value string }
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&in) != nil || in.Name == "" {
+			writeErr(w, http.StatusBadRequest, "Bad request.")
+			return
+		}
+		p.send(w, oc, control.Request{Cmd: cmd, Name: in.Name, Value: in.Value}, 10*time.Second)
+	}
+}
+
+// spamReport is "Report spam" on People: {"uid"}.
+func (p *Panel) spamReport(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	var in struct{ UID string }
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&in) != nil || in.UID == "" {
+		writeErr(w, http.StatusBadRequest, "Bad request.")
+		return
+	}
+	p.send(w, oc, control.Request{Cmd: control.CmdSpamReport, UID: in.UID}, 40*time.Second)
+}

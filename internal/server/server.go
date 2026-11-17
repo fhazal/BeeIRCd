@@ -45,6 +45,7 @@ type Server struct {
 	rpc         rpcState                 // the JSON-RPC admin API (rpc.go)
 	jump        *jumpServer              // JUMPSERVER: where people are sent, nil = off
 	targetFlood map[string]*[3]targetWin // [targetfloodprot]: messages to each channel and person
+	spamRep     spamReports              // [[spamreport]]: recent reports (spamreport.go)
 	targetSwept time.Time
 	identPort   int // where ident servers listen (113; tests change it)
 	maxLocal    int
@@ -534,6 +535,12 @@ func (s *Server) checkTimeouts(now time.Time) {
 			continue
 		}
 		if !c.registered {
+			if c.authHeld {
+				if now.After(c.authUntil) {
+					s.authExpired(c)
+				}
+				continue
+			}
 			if now.Sub(c.connectedAt) > lim.RegisterTimeout.Duration {
 				s.quit(c, "Registration timed out")
 			}

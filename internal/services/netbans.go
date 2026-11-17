@@ -54,6 +54,9 @@ func (s *Services) banMatches(b *store.NetBan, ident, host, ip, realname string)
 	if irc.IsPlaceMask(b.Mask) {
 		return s.geoBanMatches(b.Mask, ip)
 	}
+	if b.Soft() {
+		return irc.MatchUserHost(b.Mask[1:], ident, host, ip)
+	}
 	switch b.Kind {
 	case store.BanZline:
 		return ip != "" && irc.MatchHost(b.Mask, ip)
@@ -99,10 +102,16 @@ func (s *Services) banRegexp(mask string) *regexp.Regexp {
 
 // firstBan returns the first live ban of kind matching, or nil.
 func (s *Services) firstBan(kind, ident, host, ip, realname string) *store.NetBan {
+	return s.firstBanSoft(kind, ident, host, ip, realname, true)
+}
+
+// firstBanSoft is firstBan; soft bans (a % mask, which logged-in people
+// pass) count only when soft is true.
+func (s *Services) firstBanSoft(kind, ident, host, ip, realname string, soft bool) *store.NetBan {
 	now := time.Now()
 	for i := range s.netbans {
 		b := &s.netbans[i]
-		if b.Kind == kind && b.Live(now) && s.banMatches(b, ident, host, ip, realname) {
+		if b.Kind == kind && (soft || !b.Soft()) && b.Live(now) && s.banMatches(b, ident, host, ip, realname) {
 			return b
 		}
 	}
@@ -137,12 +146,23 @@ func (s *Services) exempt(ident, host, ip string) bool {
 	return false
 }
 
-// connectBan is the ban that refuses someone registering, or nil.
-func (s *Services) connectBan(ident, host, ip, realname string) *store.NetBan {
+// connectBan is the ban that refuses someone registering, or nil. A soft
+// ban (% mask) counts only for people not logged in, and a hard ban
+// comes first: a soft one is what may still be passed by logging in.
+func (s *Services) connectBan(ident, host, ip, realname string, loggedIn bool) *store.NetBan {
 	if s.exempt(ident, host, ip) {
 		return nil
 	}
-	for _, kind := range []string{store.BanZline, store.BanAkill, store.BanSNLine, store.BanKline} {
+	kinds := []string{store.BanZline, store.BanAkill, store.BanSNLine, store.BanKline}
+	for _, kind := range kinds {
+		if b := s.firstBanSoft(kind, ident, host, ip, realname, false); b != nil {
+			return b
+		}
+	}
+	if loggedIn {
+		return nil
+	}
+	for _, kind := range kinds {
 		if b := s.firstBan(kind, ident, host, ip, realname); b != nil {
 			return b
 		}
@@ -158,6 +178,23 @@ func (s *Services) shunned(u *state.User) bool {
 // banMask turns what an oper typed into the stored mask for kind, or says
 // what was wrong.
 func (s *Services) netbanMask(kind, arg string) (string, string) {
+	if rest, ok := strings.CutPrefix(arg, "%"); ok {
+		// A soft ban: people logged in to an account pass it (UnrealIRCd).
+		if kind != store.BanAkill && kind != store.BanKline {
+			return "", "Only an AKILL or a K-line can be soft (%)."
+		}
+		if strings.HasPrefix(rest, "%") {
+			return "", "Give one % before the mask."
+		}
+		if irc.IsPlaceMask(rest) {
+			return "", "A ban by place can't be soft. Give a user@host mask after the %."
+		}
+		m, problem := s.netbanMask(kind, rest)
+		if problem != "" {
+			return "", problem
+		}
+		return "%" + m, ""
+	}
 	u := s.net.UserByNick(arg)
 	if u != nil && u.Service {
 		u = nil
@@ -247,6 +284,9 @@ func (s *Services) banHits(b *store.NetBan) []*Client {
 			continue
 		}
 		u := oc.user
+		if b.Soft() && u.Account != "" {
+			continue // logged in: a soft ban lets them stay
+		}
 		if s.banMatches(b, u.TrueIdent(), u.RealHost, u.IP, u.Realname) {
 			hits = append(hits, oc)
 		}
@@ -316,7 +356,9 @@ func (s *Services) netBanCommand(c *Client, k banKind, args []string) {
 			b.Expires = now.Add(life)
 		}
 		u := c.user
-		if k.kind != store.BanEline && s.banMatches(&b, u.TrueIdent(), u.RealHost, u.IP, u.Realname) {
+		// A soft ban never stops someone logged in, so it can't lock out
+		// the oper setting it.
+		if k.kind != store.BanEline && !(b.Soft() && u.Account != "") && s.banMatches(&b, u.TrueIdent(), u.RealHost, u.IP, u.Realname) {
 			s.os(c, "%s matches you. Give a narrower one.", mask)
 			return
 		}

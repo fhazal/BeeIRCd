@@ -397,6 +397,9 @@ func (s *Server) cmdKline(c *Client, m irc.Message) {
 		return
 	}
 	mask := args[0]
+	// A % before the mask makes a soft K-line: logged-in people pass.
+	soft := strings.HasPrefix(mask, "%")
+	mask = strings.TrimPrefix(mask, "%")
 	if !strings.Contains(mask, "@") {
 		u := s.net.UserByNick(mask)
 		if u == nil {
@@ -405,11 +408,15 @@ func (s *Server) cmdKline(c *Client, m irc.Message) {
 		}
 		mask = "*@" + u.RealHost
 	}
-	if user, host, _ := strings.Cut(mask, "@"); user == "" || host == "" || strings.Trim(host, "*?.") == "" {
+	if user, host, _ := strings.Cut(mask, "@"); user == "" || user == "%" || host == "" || strings.Trim(host, "*?.") == "" {
 		s.stdReply(c, "FAIL", "KLINE", "MASK_TOO_WIDE", "That mask would ban everyone; give a user@host with a real host part.", "", mask)
 		return
 	}
 	reason := orStr(strings.Join(args[1:], " "), "No reason")
+	match := mask
+	if soft {
+		mask = "%" + mask
+	}
 	if err := s.svc.AddKline(mask, reason, c.user.Nick, life); err != nil {
 		s.log.Printf("services database: %v", err)
 		s.stdReply(c, "FAIL", "KLINE", "INTERNAL_ERROR", "The K-line couldn't be saved.", "")
@@ -417,11 +424,11 @@ func (s *Server) cmdKline(c *Client, m irc.Message) {
 	}
 	hit := 0
 	for _, o := range s.clients {
-		if o.user == nil || o.closed || o.user.Service || o.isOper() {
+		if o.user == nil || o.closed || o.user.Service || o.isOper() || soft && o.user.Account != "" {
 			continue
 		}
 		u := o.user
-		if irc.MatchUserHost(strings.ToLower(mask), u.TrueIdent(), u.RealHost, u.IP) {
+		if irc.MatchUserHost(strings.ToLower(match), u.TrueIdent(), u.RealHost, u.IP) {
 			s.reply(o, irc.ErrYoureBannedCreep, "You are banned from this server: "+reason)
 			s.quit(o, "K-Lined: "+reason)
 			hit++

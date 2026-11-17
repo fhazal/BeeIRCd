@@ -62,12 +62,20 @@ type Client struct {
 	saslMech    string   // SASL mechanism in progress
 	saslBuf     strings.Builder
 	saslBusy    bool
-	saslSeq     int               // counts relayed logins, so an old timeout is ignored
-	adminFrom   string            // stand-in running AdminServ for an admin on that server
-	operRelay   *operRelay        // a /oper sent to the services server, waiting (link_oper.go)
-	operVia     *linkConn         // opered by the services server behind this link (its changes apply)
-	operLookVia *linkConn         // leaf admin: asked this link for their WHOIS look
-	saslAccount *store.Account    // SASL done before registration finished
+	saslSeq     int            // counts relayed logins, so an old timeout is ignored
+	adminFrom   string         // stand-in running AdminServ for an admin on that server
+	operRelay   *operRelay     // a /oper sent to the services server, waiting (link_oper.go)
+	operVia     *linkConn      // opered by the services server behind this link (its changes apply)
+	operLookVia *linkConn      // leaf admin: asked this link for their WHOIS look
+	saslAccount *store.Account // SASL done before registration finished
+
+	// Soft bans and the login prompt (authprompt.go).
+	authHeld    bool              // held at connect until /AUTH (or SASL) logs them in
+	authUntil   time.Time         // when the hold runs out
+	authReason  string            // the soft ban's reason, shown when it runs out
+	authRelay   string            // leaf: the /AUTH login waiting for the services server
+	authCmd     bool              // the login running is /AUTH (no SASL 903 for it)
+	softReason  string            // a soft-reject DNSBL hit: only logged-in people pass
 	certfp      string            // SHA-256 of the TLS client certificate, "" = none
 	sessionLate bool              // over its IP's session limit at connect: check again with the hostname
 	monitor     map[string]string // MONITOR list: folded nick -> nick as given

@@ -421,6 +421,15 @@ func (s *Server) panelControl(req control.Request, setDeadline func(time.Duratio
 		return s.panelMailDNS(run), true
 	case control.CmdSpamTest:
 		return run('k', func(*control.PanelOper) { resp = *s.panelSpamTest(req) }), true
+	case control.CmdSpamReports:
+		return run('a', func(*control.PanelOper) { resp.SpamReports = s.panelSpamReports() }), true
+	case control.CmdSpamReportKey:
+		return run('a', func(po *control.PanelOper) { resp = s.panelSpamReportKey(po, req.IP, req) }), true
+	case control.CmdSpamReportStaging:
+		return run('a', func(po *control.PanelOper) { resp = s.panelSpamReportStaging(po, req.IP, req) }), true
+	case control.CmdSpamReport:
+		setDeadline(spamReportTimeout + 15*time.Second)
+		return s.panelSpamReport(req, run), true
 	case control.CmdBans:
 		return run(banFlag(req.Kind), func(po *control.PanelOper) { resp = s.panelBans(po, req.Kind) }), true
 	case control.CmdBanAdd:

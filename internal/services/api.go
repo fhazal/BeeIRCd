@@ -174,9 +174,10 @@ func (s *Services) Forbidden(kind, name string) (store.Forbid, bool) { return s.
 
 // ConnectBan returns the network ban (ZLINE, AKILL or SNLINE) that
 // refuses someone registering with this ident, real host, IP and
-// realname, or nil. ELINEs exempt.
-func (s *Services) ConnectBan(ident, host, ip, realname string) *store.NetBan {
-	return s.connectBan(ident, host, ip, realname)
+// realname, or nil. ELINEs exempt. Soft bans (% masks) count only when
+// loggedIn is false.
+func (s *Services) ConnectBan(ident, host, ip, realname string, loggedIn bool) *store.NetBan {
+	return s.connectBan(ident, host, ip, realname, loggedIn)
 }
 
 // ZlineFor returns the ZLINE refusing a new connection from ip, or nil.
@@ -317,3 +318,6 @@ func (s *Services) BotNicks() []string {
 	sort.Strings(rest)
 	return append(out, rest...)
 }
+
+// Exempt reports whether an ELINE (EXCEPTION BAN) covers ident at host/ip.
+func (s *Services) Exempt(ident, host, ip string) bool { return s.exempt(ident, host, ip) }

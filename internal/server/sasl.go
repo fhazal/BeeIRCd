@@ -84,67 +84,69 @@ func (s *Server) cmdAuthenticate(c *Client, m irc.Message) {
 		s.reply(c, irc.ErrSaslFail, "SASL authentication failed")
 		return
 	}
+	s.plainLogin(c, authc, pw, func(fail string) {
+		if fail != "" {
+			s.reply(c, irc.ErrSaslFail, fail)
+		}
+		s.tryRegister(c)
+	})
+}
+
+// plainLogin checks authc's password for c (SASL PLAIN and /AUTH). On
+// success saslDone logs them in; done gets "" or the failure words.
+func (s *Server) plainLogin(c *Client, authc, pw string, done func(fail string)) {
+	const failed = "SASL authentication failed"
+	outcome := func(a *store.Account, r services.PwResult) string {
+		switch r {
+		case services.PwOK:
+			return s.saslDone(c, a)
+		case services.PwLocked:
+			return failed + ": too many wrong passwords, try again later"
+		}
+		return failed
+	}
 	a, err := s.store.AccountByNick(authc)
 	if err == nil && a == nil && s.svc.OutsideCreates(authc) {
 		// Not known here yet: the outside login source may know them.
 		c.saslBusy = true
 		s.svc.OutsideLogin(&c.pwBusy, func() bool { return c.closed }, authc, c.ip, pw, func(made *store.Account, r services.PwResult) {
 			c.saslBusy = false
-			switch r {
-			case services.PwOK:
-				s.saslDone(c, made)
-			case services.PwLocked:
-				s.reply(c, irc.ErrSaslFail, "SASL authentication failed: too many wrong passwords, try again later")
-			default:
-				s.reply(c, irc.ErrSaslFail, "SASL authentication failed")
-			}
-			s.tryRegister(c)
+			done(outcome(made, r))
 		})
 		return
 	}
 	if err != nil || a == nil {
-		s.reply(c, irc.ErrSaslFail, "SASL authentication failed")
+		done(failed)
 		return
 	}
 	if s.useChatKey(a, pw, time.Now()) { // the Hive Panel's Chat tab
-		s.saslDone(c, a)
-		s.tryRegister(c)
+		done(s.saslDone(c, a))
 		return
 	}
 	c.saslBusy = true
 	s.svc.CheckLogin(&c.pwBusy, func() bool { return c.closed }, a, c.ip, pw, func(r services.PwResult) {
 		c.saslBusy = false
-		switch r {
-		case services.PwOK:
-			s.saslDone(c, a)
-		case services.PwLocked:
-			s.reply(c, irc.ErrSaslFail, "SASL authentication failed: too many wrong passwords, try again later")
-		default:
-			s.reply(c, irc.ErrSaslFail, "SASL authentication failed")
-		}
-		s.tryRegister(c)
+		done(outcome(a, r))
 	})
 }
 
-func (s *Server) saslDone(c *Client, a *store.Account) {
+// saslDone logs c in to a, or returns why not.
+func (s *Server) saslDone(c *Client, a *store.Account) string {
 	fresh, err := s.store.AccountByID(a.ID)
 	if err != nil || fresh == nil {
-		s.reply(c, irc.ErrSaslFail, "SASL authentication failed")
-		return
+		return "SASL authentication failed"
 	}
 	// The same doors as NS IDENTIFY: a suspended account stays shut, and
 	// max_logins counts SASL logins too.
 	if fresh.Suspended(time.Now()) {
-		s.reply(c, irc.ErrSaslFail, "SASL authentication failed: account "+fresh.Name+" is suspended")
-		return
+		return "SASL authentication failed: account " + fresh.Name + " is suspended"
 	}
 	if s.accountID(c) != fresh.ID && s.svc.LoginsFull(fresh.ID) {
-		s.reply(c, irc.ErrSaslFail, "SASL authentication failed: account "+fresh.Name+" has reached the maximum number of simultaneous logins")
-		return
+		return "SASL authentication failed: account " + fresh.Name + " has reached the maximum number of simultaneous logins"
 	}
 	if c.registered {
 		s.svc.LoginSASL(c.uid, fresh) // sends 900 and 903
-		return
+		return ""
 	}
 	c.saslAccount = fresh
 	host := c.host
@@ -153,7 +155,11 @@ func (s *Server) saslDone(c *Client, a *store.Account) {
 	}
 	mask := c.target() + "!" + c.ident + "@" + host
 	s.reply(c, irc.RplLoggedIn, mask, fresh.Name, "You are now logged in as "+fresh.Name)
-	s.reply(c, irc.RplSaslSuccess, "SASL authentication successful")
+	c.authHeld = false // logged in: a soft ban lets them pass
+	if !c.authCmd {
+		s.reply(c, irc.RplSaslSuccess, "SASL authentication successful")
+	}
+	return ""
 }
 
 // saslExternal logs in with the TLS client certificate: the account whose
@@ -173,12 +179,16 @@ func (s *Server) saslExternal(c *Client, authz string, decodeErr error) {
 		s.reply(c, irc.ErrSaslFail, "SASL authentication failed")
 	default:
 		s.svc.LogSASLExternal(who, a.Name, c.certfp, true)
-		s.saslDone(c, a)
+		if fail := s.saslDone(c, a); fail != "" {
+			s.reply(c, irc.ErrSaslFail, fail)
+		}
 	}
 	s.tryRegister(c)
 }
 
 func (c *Client) resetSASL() {
 	c.saslMech = ""
+	c.authRelay = ""
+	c.authCmd = false
 	c.saslBuf.Reset()
 }

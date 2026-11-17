@@ -86,6 +86,10 @@ type Config struct {
 	AntiMixedUTF8 AntiMixedUTF8 `toml:"antimixedutf8"`
 	TargetFlood   TargetFlood   `toml:"targetfloodprot"`
 	BlockAmsg     BlockAmsg     `toml:"blockamsg"`
+	// AuthPrompt holds soft-banned people to log in (spamreport.go).
+	AuthPrompt AuthPrompt `toml:"authprompt"`
+	// SpamReports are where /SPAMREPORT sends spammers' IPs.
+	SpamReports []SpamReport `toml:"spamreport"`
 	// DenyDCC and AllowDCC say which files may be sent with DCC SEND.
 	DenyDCC  []DenyDCC  `toml:"deny_dcc"`
 	AllowDCC []AllowDCC `toml:"allow_dcc"`
@@ -103,7 +107,8 @@ type DNSBL struct {
 	Name string `toml:"name"`
 	// Replies are the answers (127.0.0.N) that count; empty = every answer.
 	Replies []int `toml:"replies"`
-	// Action: "reject" (refuse this connection, the default), "zline",
+	// Action: "reject" (refuse this connection, the default),
+	// "soft-reject" (refuse unless they log in, see [authprompt]), "zline",
 	// "akill" or "shun" (a network ban for ban_time).
 	Action string `toml:"action"`
 	// BanTime is how long a zline/akill/shun lasts (24h by default).
@@ -116,7 +121,7 @@ type DNSBL struct {
 }
 
 // DNSBLActions are the actions a [[dnsbl]] list may take.
-var DNSBLActions = []string{"reject", "zline", "akill", "shun"}
+var DNSBLActions = []string{"reject", "soft-reject", "zline", "akill", "shun"}
 
 // Cloak hides people's IPs and hostnames (user mode +x).
 type Cloak struct {
@@ -477,6 +482,7 @@ func (c *Config) SetDefaults() {
 	if sv.GuestPrefix == "" {
 		sv.GuestPrefix = "Guest"
 	}
+	c.setSpamReportDefaults()
 	for i := range c.DNSBL {
 		d := &c.DNSBL[i]
 		if d.Action == "" {
@@ -655,6 +661,9 @@ func (c *Config) Check() error {
 	if err := c.Auth.check(); err != nil {
 		return err
 	}
+	if err := c.checkSpamReport(); err != nil {
+		return err
+	}
 	if err := c.checkSmall(); err != nil {
 		return err
 	}
@@ -769,7 +778,7 @@ func (c *Config) Check() error {
 		case seen[name]:
 			return fmt.Errorf("[[dnsbl]] %s is in the file twice", name)
 		case !slices.Contains(DNSBLActions, d.Action):
-			return fmt.Errorf("[[dnsbl]] %s: action %q must be reject, zline, akill or shun", name, d.Action)
+			return fmt.Errorf("[[dnsbl]] %s: action %q must be reject, soft-reject, zline, akill or shun", name, d.Action)
 		}
 		for _, r := range d.Replies {
 			if r < 1 || r > 255 {

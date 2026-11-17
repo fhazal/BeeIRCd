@@ -79,6 +79,7 @@ can change things; every oper can look.
 | `CLASS LIST`, `CLASS <name> ADD\|SET\|DEL` | Oper classes |
 | `HISTORY`, `DIFF <n>`, `UNDO <n>` | The last 200 changes, one change before and after, and putting one back |
 | `DNSBL LIST\|CHECK <ip>\|ENABLE\|DISABLE <name>` | The DNS blocklists and their hits |
+| `SPAMREPORT LIST`, `SPAMREPORT KEY <name> <rpckey\|OFF>`, `SPAMREPORT STAGING <name> ON\|OFF` | The spam report places; save a DroneBL key (it is never shown again) |
 | `RESTART`, `DIE` | Restart or stop the server (you repeat it with a code first) |
 
 **Settings for `SET`:** `description`, `max-users`, `session-limit`,
@@ -89,7 +90,8 @@ can change things; every oper can look.
 `allow-kill-immed`, `ban-expiry`, `guest-prefix`, `log-channel`,
 `log-connects`, `flood-profile`, `find-place-by-ip`, `members`,
 `registration`, `unconfirmed-expire`, `default-language`, `ircv3-drafts`,
-`auto-join`, `auto-join-skip`, `oper-join`, `oper-join-flag`.
+`auto-join`, `auto-join-skip`, `oper-join`, `oper-join-flag`,
+`auth-prompt`, `auth-prompt-text`, `auth-prompt-fail`, `auth-prompt-time`.
 
 ### Opers
 
@@ -322,6 +324,7 @@ tools of UnrealIRCd and InspIRCd. `/HELP <command>` explains each one.
 | `TLINE <user@host>` | any | Counts who a ban mask would hit, without banning anyone |
 | `SETIDLE <time>` | any | Sets your own idle time (`90`, `30m`, `2h`) |
 | `TSCTL ALLTIME` or `ALLTIME` | any | The clock of every server, to spot one that is off |
+| `SPAMREPORT <nick\|ip>` | `k` | Reports a spammer's address to the `[[spamreport]]` places (DroneBL); see "Spam reports" |
 
 SAJOIN, SAPART, SANICK, SAQUIT, NICKLOCK and NICKUNLOCK also work on
 people connected to another server: the command travels to their server,
@@ -416,6 +419,58 @@ action = "warn"
 [targetfloodprot]
 channel_privmsg = "60:5"
 ```
+
+### Soft bans and the login prompt
+
+A soft ban stops only people who aren't logged in to an account, like
+UnrealIRCd's soft bans. Write a `%` before the mask: `/os akill add
+%*@203.0.113.0/24 spam from this range` or `/KLINE %*@*.example.net`. In
+the Hive Panel tick "Logged-in people may pass" when adding an AKILL; the
+list shows those with a "soft" tag. A DNS blocklist can do the same with
+`action = "soft-reject"`.
+
+Someone a soft ban stops is held at connect and gets two notices: the
+`[authprompt]` message, then "Turn on SASL in your client, or type now:
+/AUTH nick:password". `/AUTH` with the right password logs them in and
+lets them on; a wrong one tells them so and they may try again. After the
+timeout (60 seconds) they get the ban message. People who log in with
+SASL never see the prompt. With `[authprompt] enabled = false` they are
+refused at once with "(log in with SASL to connect)".
+
+Change the texts and the time with `/as set auth-prompt-text ...`,
+`auth-prompt-fail`, `auth-prompt-time 2m` (`default` puts a text back), or
+in the Hive Panel under Settings → Login prompt & spam reports.
+
+Soft AKILLs travel to UnrealIRCd servers with their `%`. InspIRCd has no
+soft bans, so a soft AKILL is not sent to InspIRCd servers.
+
+### Spam reports
+
+`/SPAMREPORT <nick|ip>` (flag `k`) sends a spammer's address to DroneBL,
+so other networks block it too, like UnrealIRCd's spamreport. The Hive
+Panel has a "Report spam" button on People that asks first. Local network
+addresses, opers and people covered by an EXCEPTION are never reported,
+and the same address is sent at most once an hour.
+
+You need your own DroneBL key: ask for one at
+https://dronebl.org/rpckey_signup, then save it with `/as spamreport key
+dronebl <key>` or in the Hive Panel (Settings → Login prompt & spam
+reports). The key is never shown again, not in `HISTORY` either. Try it
+first with `/as spamreport staging dronebl on`: reports then go to
+DroneBL's test list and nothing is really listed.
+
+```toml
+[[spamreport]]
+name = "dronebl"
+type = "dronebl"
+rpckey = ""                   # set it with /as spamreport key
+auto_report = ["spamfilter"]  # a spam filter rule that removes someone reports them too
+```
+
+With `auto_report = ["spamfilter"]`, a spam filter rule whose action
+disconnects or bans someone (`kill`, `tempshun`, `shun`, `gline`,
+`gzline`, `kline`, `zline`) reports them on its own; `warn` and `block`
+never do.
 
 ## Spam filter
 
@@ -1233,9 +1288,35 @@ One block per DNS blocklist.
 | --- | --- | --- |
 | `name` | – | The list's zone, like `"dnsbl.dronebl.org"` |
 | `replies` | every answer | Answers (`127.0.0.N`) that count |
-| `action` | `"reject"` | `reject`, `zline`, `akill` or `shun` |
+| `action` | `"reject"` | `reject`, `soft-reject` (only people not logged in are stopped, and asked to log in; see "Soft bans and the login prompt"), `zline`, `akill` or `shun` |
 | `ban_time` | `24h` | For zline, akill and shun |
 | `reason` | "Your IP %i is listed in %b (%r)" | `%i` IP, `%b` list, `%r` answer, `%n %u %h` nick, ident, host, `%N` network |
+| `enabled` | `true` | |
+
+### [authprompt]
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `true` | Hold people a soft ban stops and ask them to log in; `false` refuses them at once |
+| `message` | "This network asks people from your address to log in to a registered nick." | The first notice (at most 300 characters) |
+| `fail_message` | "Login failed. Check the nick and password and try /AUTH again." | The notice after a wrong password |
+| `timeout` | `60s` | How long they have to log in (10s to 10m) |
+
+### [[spamreport]]
+
+One block per place spammers are reported to.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `name` | – | A name, like `"dronebl"` |
+| `type` | `"dronebl"` | `dronebl` (DroneBL's RPC2) or `http` (calls `url`) |
+| `rpckey` | – | Your own DroneBL key; set it with `/as spamreport key` |
+| `class` | `6` | The DroneBL listing type (6 = spambot or drone) |
+| `staging` | `false` | Send to DroneBL's test list (nothing is really listed) |
+| `url` | – | For `http`: the address, with `$ip`, `$nick` and `$reason` filled in |
+| `method` | `"GET"` | For `http`: `GET` or `POST` |
+| `rate_limit` | `"10:1m"` | At most this many reports in this time |
+| `auto_report` | – | `["spamfilter"]`: a spam filter rule that removes or bans someone reports them |
 | `enabled` | `true` | |
 
 ### [[webirc]]

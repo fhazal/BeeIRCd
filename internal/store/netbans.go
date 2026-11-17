@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"strings"
 	"time"
 )
 
@@ -27,6 +28,10 @@ type NetBan struct {
 	SetAt   time.Time
 	Expires time.Time // zero = until removed
 }
+
+// Soft reports whether b is a soft ban (a % mask, as UnrealIRCd writes
+// it): people logged in to an account pass it.
+func (b NetBan) Soft() bool { return strings.HasPrefix(b.Mask, "%") }
 
 // Live reports whether b is still in force at now.
 func (b NetBan) Live(now time.Time) bool { return b.Expires.IsZero() || now.Before(b.Expires) }

@@ -300,7 +300,7 @@ func (s *Server) cmdQuit(c *Client, m irc.Message) {
 // tryRegister finishes registration once NICK, USER, CAP and the host
 // lookup are all done.
 func (s *Server) tryRegister(c *Client) {
-	if c.registered || c.closed || c.nick == "" || c.ident == "" || !c.hostDone || c.dnsblBusy || c.capBusy || c.saslBusy || c.webircBusy || c.identBusy {
+	if c.registered || c.closed || c.nick == "" || c.ident == "" || !c.hostDone || c.dnsblBusy || c.capBusy || c.saslBusy || c.webircBusy || c.identBusy || c.authHeld {
 		return
 	}
 	if s.pingCookie(c) {
@@ -363,7 +363,17 @@ func (s *Server) tryRegister(c *Client) {
 		s.jumpRedirect(c) // JUMPSERVER: go there instead
 		return
 	}
-	if k := s.svc.ConnectBan(c.ident, c.host, c.ip, c.realname); k != nil {
+	k := s.svc.ConnectBan(c.ident, c.host, c.ip, c.realname, a != nil)
+	switch {
+	case k != nil && k.Soft():
+		s.snotice("%s %s holds %s (%s@%s) for a login", strings.ToUpper(k.Kind), k.Mask, c.nick, c.ident, c.host)
+		s.authPrompt(c, k.Reason)
+		return
+	case k == nil && a == nil && c.softReason != "":
+		s.authPrompt(c, c.softReason)
+		return
+	}
+	if k != nil {
 		s.reply(c, irc.ErrYoureBannedCreep, "You are banned from this network: "+k.Reason)
 		s.snotice("%s %s stopped %s (%s@%s)", strings.ToUpper(k.Kind), k.Mask, c.nick, c.ident, c.host)
 		s.quit(c, "Banned: "+k.Reason)

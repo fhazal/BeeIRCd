@@ -371,7 +371,12 @@ func (c *unrealCodec) decodeBan(src string, p []string) any {
 	if len(p) < 5 {
 		return nil
 	}
-	b.User, b.Host, b.SetBy = strings.TrimPrefix(p[2], "%"), p[3], p[4]
+	// A % before the user is a soft ban (logged-in people pass); it stays
+	// on the mask.
+	b.User, b.Host, b.SetBy = p[2], p[3], p[4]
+	if b.User == "%" {
+		b.User = "%*"
+	}
 	if len(p) > 6 {
 		b.Expires, _ = strconv.ParseInt(p[5], 10, 64)
 		b.SetAt, _ = strconv.ParseInt(p[6], 10, 64)

@@ -449,6 +449,8 @@ func asUndo(s *Server, c *Client, args []string) {
 		s.as(c, "The oper entry of %s is back to how it was before #%d.", a.Name, ch.ID)
 	case "port":
 		s.as(c, "Port changes are undone with PORT ADD or PORT DEL (#%d: %s).", ch.ID, ch.Key)
+	case "spamreport":
+		s.as(c, "Spam report places are changed back with SPAMREPORT KEY or STAGING (#%d: %s).", ch.ID, ch.Key)
 	default:
 		s.as(c, "Change #%d can't be undone.", ch.ID)
 	}

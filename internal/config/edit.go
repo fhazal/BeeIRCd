@@ -345,3 +345,27 @@ func QuoteList(items []string) string {
 	}
 	return "[" + strings.Join(q, ", ") + "]"
 }
+
+// SetBlockKey writes key = value (TOML) into the [[name]] block whose
+// keyName equals keyValue, keeping its other lines; false when there is
+// no such block.
+func (d *Doc) SetBlockKey(name, keyName, keyValue, key, value string) bool {
+	start, end, ok := d.findBlock(name, keyName, keyValue)
+	if !ok {
+		return false
+	}
+	re := keyRe(key)
+	for i := start + 1; i < end; i++ {
+		if m := re.FindStringSubmatch(d.lines[i]); m != nil {
+			_, comment, _ := splitComment(d.lines[i])
+			line := m[1] + key + " = " + value
+			if comment != "" {
+				line += " " + comment
+			}
+			d.lines[i] = line
+			return true
+		}
+	}
+	d.insert(d.lastContent(start, end), key+" = "+value)
+	return true
+}
