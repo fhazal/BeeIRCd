@@ -179,8 +179,11 @@ func (s *Server) rpcUser(u *state.User, full bool) obj {
 	if u.Host != u.RealHost {
 		usr["vhost"] = u.Host
 	}
-	if u.Cloak != "" {
-		usr["cloakedhost"] = u.Cloak
+	// Always there, as on UnrealIRCd: unrealircd-webpanel's kickban bans
+	// *!*@cloakedhost, which without it would be *!*@* (everyone).
+	usr["cloakedhost"] = s.userCloak(u)
+	if usr["cloakedhost"] == "" {
+		usr["cloakedhost"] = u.Host
 	}
 	if u.Account != "" {
 		usr["account"] = u.Account
@@ -555,7 +558,10 @@ func rpcListEntries(list []state.ListEntry) []obj {
 	return out
 }
 
-func (s *Server) rpcChannel(ch *state.Channel, full bool) obj {
+// rpcChannel is ch as UnrealIRCd's API shows it: full adds the lists and
+// the members, and users (object_detail_level 4) makes each member a whole
+// user, as unrealircd-webpanel shows them.
+func (s *Server) rpcChannel(ch *state.Channel, full, users bool) obj {
 	modes, args := ch.ModeString(true)
 	o := obj{
 		"name":          ch.Name,
@@ -573,6 +579,9 @@ func (s *Server) rpcChannel(ch *state.Channel, full bool) obj {
 		members := make([]obj, 0, len(ch.Members))
 		for _, mem := range ch.Members {
 			m := obj{"name": mem.User.Nick, "id": mem.User.UID}
+			if users {
+				m = s.rpcUser(mem.User, false)
+			}
 			if l := rankLetters(mem.Ranks); l != "" {
 				m["level"] = l
 			}
@@ -589,7 +598,7 @@ func (s *Server) rpcChannelList(rc *rpcConn, _ json.RawMessage) (any, *rpcError)
 	sort.Slice(chans, func(i, k int) bool { return irc.Fold(chans[i].Name) < irc.Fold(chans[k].Name) })
 	list := make([]obj, 0, len(chans))
 	for _, ch := range chans {
-		list = append(list, s.rpcChannel(ch, false))
+		list = append(list, s.rpcChannel(ch, false, false))
 	}
 	return obj{"list": list}, nil
 }
@@ -607,6 +616,7 @@ func (s *Server) rpcFindChannel(name string) (*state.Channel, *rpcError) {
 func (s *Server) rpcChannelGet(rc *rpcConn, params json.RawMessage) (any, *rpcError) {
 	var p struct {
 		Channel string `json:"channel"`
+		Detail  *int   `json:"object_detail_level"`
 	}
 	if e := rpcParams(params, &p); e != nil {
 		return nil, e
@@ -615,7 +625,7 @@ func (s *Server) rpcChannelGet(rc *rpcConn, params json.RawMessage) (any, *rpcEr
 	if e != nil {
 		return nil, e
 	}
-	return obj{"channel": s.rpcChannel(ch, true)}, nil
+	return obj{"channel": s.rpcChannel(ch, true, p.Detail != nil && *p.Detail >= 4)}, nil
 }
 
 func (s *Server) rpcChannelSetMode(rc *rpcConn, params json.RawMessage) (any, *rpcError) {
@@ -715,9 +725,18 @@ func (s *Server) rpcServer(n netServer, people map[string]int) obj {
 	}
 	if n.sid == s.cfg.Server.SID {
 		srv["boot_time"] = rpcTime(s.created)
-		srv["features"] = obj{"software": version.String()}
+		// UnrealIRCd's features: unrealircd-webpanel builds its channel mode
+		// editor from chanmodes (the four CHANMODES groups).
+		srv["features"] = obj{
+			"software":  version.String(),
+			"protocol":  link.UnrealProtocol,
+			"usermodes": userModes,
+			"chanmodes": []string{chanModesList, chanModesKey, chanModesParam, chanModesFlags},
+		}
 	}
-	return obj{"name": n.name, "id": n.sid, "server": srv}
+	// "ip" is null as UnrealIRCd sends it for its own server (we do not
+	// keep link addresses); without the key unrealircd-webpanel warns.
+	return obj{"name": n.name, "id": n.sid, "ip": nil, "server": srv}
 }
 
 func (s *Server) rpcPeoplePerServer() map[string]int {
@@ -770,7 +789,9 @@ func (s *Server) rpcServerRehash(rc *rpcConn, params json.RawMessage) (any, *rpc
 }
 
 func (s *Server) rpcModuleList(rc *rpcConn, _ json.RawMessage) (any, *rpcError) {
-	return obj{"list": []obj{}}, nil // everything is built in
+	// Everything is built in, so the list is the server itself.
+	return obj{"list": []obj{{"name": "beeircd", "description": "BeeIRCd: every feature is built in, there are no loadable modules",
+		"author": "BajuBesi Labs", "version": version.String(), "third_party": false, "permanent": true}}}, nil
 }
 
 // ---- server_ban.* and server_ban_exception.* ----
@@ -789,6 +810,17 @@ func durShortWords(d time.Duration) string {
 		return "permanent"
 	}
 	return durShort(d)
+}
+
+// rpcStamps adds set_at_string and expire_at_string as UnrealIRCd writes
+// them (asctime in UTC, "Never" for no end): unrealircd-webpanel shows
+// these in its Set On and Expires columns.
+func rpcStamps(o obj, setAt, expires time.Time) {
+	o["set_at_string"] = setAt.UTC().Format(time.ANSIC)
+	o["expire_at_string"] = "Never"
+	if !expires.IsZero() {
+		o["expire_at_string"] = expires.UTC().Format(time.ANSIC)
+	}
 }
 
 func rpcBan(b store.NetBan) obj {
@@ -810,6 +842,7 @@ func rpcBan(b store.NetBan) obj {
 	if b.Kind == store.BanEline {
 		o["exception_types"] = "kGzZs"
 	}
+	rpcStamps(o, b.SetAt, b.Expires)
 	return o
 }
 
@@ -871,6 +904,14 @@ func (p rpcBanParams) life() (time.Duration, *rpcError) {
 	}
 	if n, err := strconv.Atoi(p.DurationString); err == nil && n > 0 {
 		return time.Duration(n) * time.Second, nil
+	}
+	// UnrealIRCd's form joins units: unrealircd-webpanel sends 0w1d0h, and
+	// 0w0d0h for until removed.
+	if d, err := parseShortDuration(p.DurationString); err == nil {
+		return d, nil
+	}
+	if strings.Trim(strings.ToLower(p.DurationString), "0wdhms") == "" && strings.Contains(p.DurationString, "0") {
+		return 0, nil
 	}
 	d, err := parseLife(p.DurationString)
 	if err != nil {
@@ -1030,6 +1071,7 @@ func (s *Server) rpcSpam(f spamfilter.Filter) obj {
 	if !f.Expires.IsZero() {
 		o["expire_at"] = rpcTime(f.Expires)
 	}
+	rpcStamps(o, f.SetAt, f.Expires)
 	return o
 }
 

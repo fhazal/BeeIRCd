@@ -919,8 +919,9 @@ ips = ["192.0.2.10"]              # may call from this address too
   name and password of an `[[rpc.user]]` block), one call per request
   (JSON-RPC batches, several calls in one list, are not taken; every call
   needs an `id`). It uses the server's certificate from `[tls]`.
-- **WebSocket** on the same address and path, with the same sign-in: many
-  calls on one connection, and the live log.
+- **WebSocket** on the same address (path `/api` or `/`), with the same
+  sign-in: many calls on one connection, and the live log. This is how
+  unrealircd-webpanel connects.
 - **A socket file** (`socket = "/run/beeircd/rpc.sock"`): one JSON object
   per line. No password: whoever may open the file (the beeircd user and
   its group) may call everything.
@@ -947,10 +948,10 @@ rehash; `listen` and `socket` need a restart.
 | `rpc` | `info` (the method list), `set_issuer` |
 | `stats` | `get`: people, opers, channels, servers and bans in numbers |
 | `user` | `list`, `get`, `set_nick`, `set_username`, `set_realname`, `set_vhost`, `set_mode`, `join`, `part`, `kill`, `quit` |
-| `channel` | `list`, `get`, `set_mode`, `set_topic`, `kick` |
-| `server` | `list`, `get`, `rehash`, `module_list` (always empty: everything is built in) |
+| `channel` | `list`, `get` (`object_detail_level` 4: each member as a whole user), `set_mode`, `set_topic`, `kick` |
+| `server` | `list`, `get`, `rehash`, `module_list` (one entry, `beeircd`: everything is built in) |
 | `server_ban` | `list`, `get`, `add`, `del` for the types `gline` (AKILL), `kline`, `gzline` / `zline`, `shun` |
-| `server_ban_exception` | `list`, `get`, `add`, `del` (ELINE) |
+| `server_ban_exception` | `list`, `get`, `add`, `del` (ELINE: it lifts every kind of ban, so `exception_types` is not used) |
 | `spamfilter` | `list`, `get`, `add`, `del` |
 | `whowas` | `get` |
 | `log` | `subscribe`, `unsubscribe` (the live log, on a WebSocket or the socket file), `list` (the last 500 lines) |

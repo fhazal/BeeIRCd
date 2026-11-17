@@ -226,7 +226,10 @@ func (s *Server) rpcHTTP(conn net.Conn) {
 			io.Copy(io.Discard, io.LimitReader(req.Body, rpcMaxBody))
 			rpcHTTPAnswer(conn, code, "text/plain", []byte(msg+"\n"), extra)
 		}
-		if req.URL.Path != "/api" {
+		// The WebSocket also opens at / : unrealircd-webpanel and the
+		// UnrealIRCd RPC libraries connect to wss://host:port.
+		upgrade := headerHas(req.Header, "Upgrade", "websocket")
+		if req.URL.Path != "/api" && !(upgrade && req.URL.Path == "/") {
 			text(http.StatusNotFound, "The API is at /api.", "Connection: close\r\n")
 			return
 		}
@@ -243,7 +246,7 @@ func (s *Server) rpcHTTP(conn net.Conn) {
 			text(code, why, "WWW-Authenticate: Basic realm=\"BeeIRCd RPC\"\r\nConnection: close\r\n")
 			return
 		}
-		if headerHas(req.Header, "Upgrade", "websocket") {
+		if upgrade {
 			key := req.Header.Get("Sec-WebSocket-Key")
 			if k, err := base64.StdEncoding.DecodeString(key); req.Method != http.MethodGet || err != nil || len(k) != 16 ||
 				req.Header.Get("Sec-WebSocket-Version") != "13" {
@@ -483,7 +486,7 @@ func (s *Server) rpcHandle(rc *rpcConn, body []byte) []byte {
 		resp.Method = ""
 		resp.Error = rpcErr(rpcInvalidRequest, "Not a JSON-RPC 2.0 request with a method and an id")
 		return answer()
-	case len(params) > 0 && !bytes.Equal(params, []byte("null")) && params[0] != '{':
+	case !rpcNoParams(params) && params[0] != '{':
 		resp.Error = rpcErr(rpcInvalidParams, "params must be an object")
 		return answer()
 	}
@@ -496,7 +499,7 @@ func (s *Server) rpcHandle(rc *rpcConn, body []byte) []byte {
 		resp.Error = rpcErr(rpcDenied, "API call denied: %s may not call %s", rc.name, req.Method)
 		return answer()
 	}
-	if len(params) == 0 || bytes.Equal(params, []byte("null")) {
+	if rpcNoParams(params) {
 		params = []byte("{}")
 	}
 	if !s.onLoop(func() {
@@ -511,6 +514,17 @@ func (s *Server) rpcHandle(rc *rpcConn, body []byte) []byte {
 		resp.Error = rpcErr(rpcInternal, "the server is stopping")
 	}
 	return answer()
+}
+
+// rpcNoParams tells if a call came without params: none, null, or an empty
+// array, which is what PHP's json_encode makes of an empty params list
+// (unrealircd-webpanel sends server_ban_exception.list that way).
+func rpcNoParams(params []byte) bool {
+	if len(params) == 0 || bytes.Equal(params, []byte("null")) {
+		return true
+	}
+	n := len(params)
+	return n >= 2 && params[0] == '[' && params[n-1] == ']' && len(bytes.TrimSpace(params[1:n-1])) == 0
 }
 
 // rpcParams reads the params object into v.

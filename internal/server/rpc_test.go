@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -141,6 +142,8 @@ func TestRPCAccess(t *testing.T) {
 	}
 	rpcFails(t, s, "no.such_method", "", rpcNoMethod)
 	rpcFails(t, s, "user.get", `["Bee"]`, rpcInvalidParams)
+	// An empty array is no params: PHP's json_encode writes an empty list so.
+	has(t, "empty array params", rpcOK(t, s, "server_ban_exception.list", `[ ]`), `"list":`)
 	rpcFails(t, s, "user.get", `{"nick":5}`, rpcInvalidParams)
 	if _, a := rpcPost(t, s, "POST", "/api", "tool", rpcPass, "{not json"); a.Error == nil || a.Error.Code != rpcParseError {
 		t.Errorf("bad JSON: %+v", a.Error)
@@ -184,7 +187,8 @@ func TestRPCUsersAndChannels(t *testing.T) {
 
 	has(t, "user.list", rpcOK(t, s, "user.list", ""), `"name":"Bee"`, `"name":"ember"`, `"hostname":"127.0.0.1"`)
 	has(t, "user.get", rpcOK(t, s, "user.get", `{"nick":"bee"}`), `"client":{`, `"details":"Bee!~bee@127.0.0.1"`,
-		`"channels":[{"level":"o","name":"#x"}]`, `"username":"~bee"`, `"servername":"irc.test.local"`, `"connected_since":"20`)
+		`"channels":[{"level":"o","name":"#x"}]`, `"username":"~bee"`, `"servername":"irc.test.local"`, `"connected_since":"20`,
+		`"cloakedhost":"127.0.0.1"`) // always there: the panel's kickban bans *!*@cloakedhost
 	rpcFails(t, s, "user.get", `{"nick":"nobody"}`, rpcNotFound)
 	rpcFails(t, s, "user.get", `{}`, rpcInvalidParams)
 
@@ -208,6 +212,12 @@ func TestRPCUsersAndChannels(t *testing.T) {
 	bee.expect(":amber!queen@hive.example.org JOIN #x")
 	has(t, "channel.list", rpcOK(t, s, "channel.list", ""), `"name":"#x"`, `"num_users":2`)
 	has(t, "channel.get", rpcOK(t, s, "channel.get", `{"channel":"#X"}`), `"channel":{`, `"modes":"nt"`, `"level":"o"`, `"name":"amber"`, `"bans":[]`)
+	if got := rpcOK(t, s, "channel.get", `{"channel":"#x"}`); strings.Contains(got, `"hostname"`) {
+		t.Errorf("channel.get at level 3 has the members' details: %s", got)
+	}
+	// Level 4, as unrealircd-webpanel asks: each member is a whole user.
+	has(t, "channel.get level 4", rpcOK(t, s, "channel.get", `{"channel":"#x","object_detail_level":4}`),
+		`"level":"o"`, `"hostname":"127.0.0.1"`, `"details":"amber!~ember@127.0.0.1"`, `"realname":"Amber of the Hive"`)
 	rpcFails(t, s, "channel.get", `{"channel":"#nowhere"}`, rpcNotFound)
 	rpcOK(t, s, "channel.set_mode", `{"channel":"#x","modes":"+ml","parameters":"25"}`)
 	bee.expect("MODE #x +ml 25")
@@ -227,9 +237,10 @@ func TestRPCUsersAndChannels(t *testing.T) {
 
 	has(t, "stats.get", rpcOK(t, s, "stats.get", ""), `"channel":{"total":1}`, `"server_ban":{`, `"oper":0`)
 	has(t, "server.list", rpcOK(t, s, "server.list", ""), `"name":"irc.test.local"`, `"id":"0BE"`, `"boot_time":"20`)
-	has(t, "server.get", rpcOK(t, s, "server.get", ""), `"server":{`, `"name":"irc.test.local"`)
+	has(t, "server.get", rpcOK(t, s, "server.get", ""), `"server":{`, `"name":"irc.test.local"`,
+		`"chanmodes":["beI","k","`, `"usermodes":"`, `"protocol":6100`) // the panel's mode editor and server page
 	rpcFails(t, s, "server.get", `{"server":"no.such.server"}`, rpcNotFound)
-	has(t, "server.module_list", rpcOK(t, s, "server.module_list", ""), `"list":[]`)
+	has(t, "server.module_list", rpcOK(t, s, "server.module_list", ""), `"name":"beeircd"`)
 
 	rpcOK(t, s, "user.quit", `{"nick":"amber","reason":"see you"}`)
 	ember.expect("ERROR :Closing Link: 127.0.0.1 (see you)")
@@ -250,7 +261,8 @@ func TestRPCBansAndSpamfilter(t *testing.T) {
 	rpcOK(t, s, "server_ban.add", `{"name":"192.0.2.77","type":"gzline","reason":"bad address","set_by":"Belon"}`)
 	rpcOK(t, s, "server_ban.add", `{"name":"pest@198.51.100.7","type":"kline","reason":"local only","duration_string":"600"}`)
 	list := rpcOK(t, s, "server_ban.list", "")
-	has(t, "server_ban.list", list, `"name":"*@192.0.2.9"`, `"type":"gzline"`, `"set_by":"Belon"`, `"type":"kline"`, `"duration_string":"permanent"`)
+	has(t, "server_ban.list", list, `"name":"*@192.0.2.9"`, `"type":"gzline"`, `"set_by":"Belon"`, `"type":"kline"`, `"duration_string":"permanent"`,
+		`"expire_at_string":"Never"`, `"set_at_string":"`+time.Now().UTC().Format("Mon Jan _2")) // asctime, as UnrealIRCd
 	has(t, "server_ban.get", rpcOK(t, s, "server_ban.get", `{"name":"*@192.0.2.9","type":"gline"}`), `"reason":"spam run"`)
 	has(t, "server_ban.del", rpcOK(t, s, "server_ban.del", `{"name":"*@192.0.2.9","type":"gline"}`), `"name":"*@192.0.2.9"`)
 	rpcFails(t, s, "server_ban.get", `{"name":"*@192.0.2.9","type":"gline"}`, rpcNotFound)
@@ -263,13 +275,18 @@ func TestRPCBansAndSpamfilter(t *testing.T) {
 	rpcOK(t, s, "server_ban_exception.get", `{"name":"*@192.0.2.50"}`)
 	rpcOK(t, s, "server_ban_exception.del", `{"name":"*@192.0.2.50"}`)
 	rpcFails(t, s, "server_ban_exception.del", `{"name":"*@192.0.2.50"}`, rpcNotFound)
+	// unrealircd-webpanel's durations: weeks, days and hours in one, 0w0d0h until removed.
+	has(t, "joined units", rpcOK(t, s, "server_ban_exception.add", `{"name":"*@192.0.2.51","reason":"a day","duration_string":"0w1d0h"}`),
+		`"expire_at_string":"`+time.Now().Add(24*time.Hour).UTC().Format("Mon Jan _2"))
+	has(t, "all zero", rpcOK(t, s, "server_ban_exception.add", `{"name":"*@192.0.2.52","reason":"always","duration_string":"0w0d0h"}`),
+		`"expire_at_string":"Never"`)
 
 	rule := `"name":"*buy cheap pills now*","match_type":"simple","spamfilter_targets":"cp","ban_action":"block"`
 	has(t, "spamfilter.add", rpcOK(t, s, "spamfilter.add", `{`+rule+`,"reason":"pill spam"}`),
 		`"type":"spamfilter"`, `"name":"*buy cheap pills now*"`, `"ban_action":"block"`, `"reason":"pill spam"`, `"hits":0`)
 	rpcFails(t, s, "spamfilter.add", `{`+rule+`,"reason":"again"}`, rpcExists)
 	rpcFails(t, s, "spamfilter.add", `{"name":"x","match_type":"simple","spamfilter_targets":"c","ban_action":"explode","reason":"r"}`, rpcInvalidParams)
-	has(t, "spamfilter.list", rpcOK(t, s, "spamfilter.list", ""), `"name":"*buy cheap pills now*"`)
+	has(t, "spamfilter.list", rpcOK(t, s, "spamfilter.list", ""), `"name":"*buy cheap pills now*"`, `"set_at_string":"`, `"expire_at_string":"Never"`)
 	has(t, "spamfilter.get", rpcOK(t, s, "spamfilter.get", `{`+rule+`}`), `"match_type":"simple"`)
 	bee, ember := login(t, s, "Bee"), login(t, s, "ember")
 	ember.send("PRIVMSG Bee :buy cheap pills now, friend")
@@ -329,39 +346,48 @@ func TestRPCSocketAndLog(t *testing.T) {
 	has(t, "bad line", ask(`nonsense`), `"code":-32700`)
 }
 
+// The upgrade works at /api and at / (where unrealircd-webpanel and the
+// UnrealIRCd RPC libraries open it: wss://host:port).
 func TestRPCWebSocket(t *testing.T) {
 	s := rpcServer(t)
-	raw, err := net.Dial("tcp", s.RPCAddr().String())
-	if err != nil {
-		t.Fatal(err)
-	}
-	conn := tls.Client(raw, &tls.Config{InsecureSkipVerify: true})
-	t.Cleanup(func() { conn.Close() })
-	conn.SetDeadline(time.Now().Add(5 * time.Second))
-	k := make([]byte, 16)
-	rand.Read(k)
-	auth := base64.StdEncoding.EncodeToString([]byte("tool:" + rpcPass))
-	io.WriteString(conn, "GET /api HTTP/1.1\r\nHost: irc.test.local\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\n"+
-		"Sec-WebSocket-Key: "+base64.StdEncoding.EncodeToString(k)+"\r\nAuthorization: Basic "+auth+"\r\n\r\n")
-	c := &wsc{t: t, conn: conn, r: bufio.NewReader(conn)}
-	resp, err := http.ReadResponse(c.r, nil)
-	if err != nil || resp.StatusCode != http.StatusSwitchingProtocols {
-		t.Fatalf("upgrade: %v %v", resp, err)
-	}
-	ask := func(line string) string {
-		t.Helper()
-		c.send(line)
-		op, data := c.next()
-		if op != 0x1 {
-			t.Fatalf("frame type %d", op)
+	for i, path := range []string{"/api", "/"} {
+		raw, err := net.Dial("tcp", s.RPCAddr().String())
+		if err != nil {
+			t.Fatal(err)
 		}
-		return string(bytes.TrimSpace(data))
+		conn := tls.Client(raw, &tls.Config{InsecureSkipVerify: true})
+		t.Cleanup(func() { conn.Close() })
+		conn.SetDeadline(time.Now().Add(5 * time.Second))
+		k := make([]byte, 16)
+		rand.Read(k)
+		auth := base64.StdEncoding.EncodeToString([]byte("tool:" + rpcPass))
+		io.WriteString(conn, "GET "+path+" HTTP/1.1\r\nHost: irc.test.local\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\n"+
+			"Sec-WebSocket-Key: "+base64.StdEncoding.EncodeToString(k)+"\r\nAuthorization: Basic "+auth+"\r\n\r\n")
+		c := &wsc{t: t, conn: conn, r: bufio.NewReader(conn)}
+		resp, err := http.ReadResponse(c.r, nil)
+		if err != nil || resp.StatusCode != http.StatusSwitchingProtocols {
+			t.Fatalf("upgrade at %s: %v %v", path, resp, err)
+		}
+		ask := func(line string) string {
+			t.Helper()
+			c.send(line)
+			op, data := c.next()
+			if op != 0x1 {
+				t.Fatalf("frame type %d", op)
+			}
+			return string(bytes.TrimSpace(data))
+		}
+		has(t, "stats.get", ask(`{"jsonrpc":"2.0","id":1,"method":"stats.get"}`), `"id":1`, `"user":{`)
+		has(t, "subscribe", ask(`{"jsonrpc":"2.0","id":2,"method":"log.subscribe","params":{"sources":["all"]}}`), `"result":true`)
+		nick := fmt.Sprintf("visitor%d", i)
+		login(t, s, nick)
+		for {
+			_, data := c.next()
+			if strings.Contains(string(data), "Connect: "+nick) {
+				break
+			}
+		}
 	}
-	has(t, "stats.get", ask(`{"jsonrpc":"2.0","id":1,"method":"stats.get"}`), `"id":1`, `"user":{`)
-	has(t, "subscribe", ask(`{"jsonrpc":"2.0","id":2,"method":"log.subscribe","params":{"sources":["all"]}}`), `"result":true`)
-	login(t, s, "visitor")
-	_, data := c.next()
-	has(t, "log event", string(data), `"method":"log.event"`, `Connect: visitor`)
 }
 
 func TestRPCConfig(t *testing.T) {
