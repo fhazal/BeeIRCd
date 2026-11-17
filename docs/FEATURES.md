@@ -128,7 +128,7 @@ Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few 
 | Restricted commands for new people (`[[restrict]]`) | ✅ | UnrealIRCd's restrict-commands |
 | Random-looking nicks refused at connect (`[antirandom]`) | ✅ | like UnrealIRCd's antirandom, with its own scoring; off by default |
 | Messages that mix alphabets inside words refused (`[antimixedutf8]`) | ✅ | UnrealIRCd's antimixedutf8; off by default |
-| A cap on messages to one channel or person (`[targetfloodprot]`) | ✅ | UnrealIRCd's targetfloodprot and its numbers; off by default |
+| A cap on messages to one channel or person (`[targetfloodprot]`) | ✅ | UnrealIRCd's targetfloodprot and its numbers; on by default, like UnrealIRCd |
 | The same text to many channels at once stopped (`[blockamsg]`) | ✅ | InspIRCd's blockamsg; off by default |
 | Spam filter exceptions by security group (so by country too) | ✅ | |
 | GeoIP: each user's country and network (ASN), in WHOIS for opers, in `~C:` / `~A:` channel bans and network bans (AKILL, SHUN, ELINE), the `unrealircd.org/geoip` tag for opers, and the Hive Panel | ✅ | DB-IP Lite downloaded monthly, or MaxMind files; lookups stay on the server |

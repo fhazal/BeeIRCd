@@ -82,10 +82,10 @@ func (a AntiMixedUTF8) Message() string {
 
 // TargetFlood is [targetfloodprot]: a cap on how many messages one
 // channel or person can be sent in a short time, by everyone together
-// (UnrealIRCd's targetfloodprot). What goes over it is not delivered. Off
-// by default. Each limit is "messages:seconds".
+// (UnrealIRCd's targetfloodprot). What goes over it is not delivered. On
+// by default, like UnrealIRCd. Each limit is "messages:seconds".
 type TargetFlood struct {
-	Enabled        bool   `toml:"enabled"`
+	Enabled        *bool  `toml:"enabled"` // nil = on
 	ChannelPrivmsg string `toml:"channel_privmsg"`
 	ChannelNotice  string `toml:"channel_notice"`
 	ChannelTagmsg  string `toml:"channel_tagmsg"`
@@ -93,6 +93,9 @@ type TargetFlood struct {
 	PrivateNotice  string `toml:"private_notice"`
 	PrivateTagmsg  string `toml:"private_tagmsg"`
 }
+
+// On reports whether the cap is used: unless enabled = false.
+func (t TargetFlood) On() bool { return t.Enabled == nil || *t.Enabled }
 
 // Limit is the cap for verb (PRIVMSG, NOTICE, TAGMSG) to a channel or a
 // person; UnrealIRCd's numbers when a setting is empty.

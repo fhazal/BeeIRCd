@@ -217,7 +217,7 @@ func (s *Server) antiSpam(c *Client, ch *state.Channel, t *state.User, verb, tex
 			return m.Message()
 		}
 	}
-	if s.cfg.TargetFlood.Enabled {
+	if s.cfg.TargetFlood.On() {
 		if ch != nil && s.targetFlooded(irc.Fold(ch.Name), true, verb, now) {
 			return "Channel is being flooded. Message not delivered."
 		}

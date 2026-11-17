@@ -82,7 +82,7 @@ func TestAntiMixedUTF8(t *testing.T) {
 
 func TestTargetFlood(t *testing.T) {
 	s := testServer(t, func(c *config.Config) {
-		c.TargetFlood = config.TargetFlood{Enabled: true, ChannelPrivmsg: "3:60", PrivatePrivmsg: "2:60"}
+		c.TargetFlood = config.TargetFlood{ChannelPrivmsg: "3:60", PrivatePrivmsg: "2:60"}
 	})
 	bee, ember, nova := login(t, s, "Bee"), login(t, s, "ember"), login(t, s, "nova")
 	for _, c := range []*tc{bee, ember, nova} {
@@ -118,6 +118,10 @@ func TestTargetFlood(t *testing.T) {
 	})
 	nova.send("PRIVMSG #x :five")
 	bee.expect("PRIVMSG #x :five")
+	off := false
+	if !(config.TargetFlood{}).On() || (config.TargetFlood{Enabled: &off}).On() {
+		t.Error("[targetfloodprot] should be on unless enabled = false")
+	}
 	if n, _ := (config.TargetFlood{}).Limit(true, "PRIVMSG"); n != 45 {
 		t.Errorf("default channel limit %d", n)
 	}

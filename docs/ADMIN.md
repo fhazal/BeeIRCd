@@ -401,8 +401,9 @@ stopped by them, and messages to services always get through.
   can get in a few seconds from everyone together (45 messages in 5
   seconds for a channel). What goes over it is not delivered and the
   sender is told. It protects against a flood from many connections at
-  once, which `+f` (per person) doesn't catch. On a network with a busy
-  relay bot, raise `channel_privmsg` before switching it on.
+  once, which `+f` (per person) doesn't catch. It is on by default, like
+  in UnrealIRCd; opers are never stopped. On a network with a busy relay
+  bot, raise `channel_privmsg`, or set `enabled = false`.
 - `[blockamsg]` stops `/amsg` and `/ame`: the same text to several
   channels within 200 ms only reaches the first channel.
 
@@ -412,7 +413,6 @@ enabled = true
 action = "warn"
 
 [targetfloodprot]
-enabled = true
 channel_privmsg = "60:5"
 ```
 
@@ -1423,7 +1423,7 @@ under `[security_group.exclude]` (the same items).
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `enabled` | `false` | Cap the messages one channel or person can be sent, by everyone on this server together (each server counts for itself) |
+| `enabled` | `true` | Cap the messages one channel or person can be sent, by everyone on this server together (each server counts for itself) |
 | `channel_privmsg` | `45:5` | Messages per seconds to one channel |
 | `channel_notice` | `15:5` | Notices to one channel |
 | `channel_tagmsg` | `15:5` | Tag-only messages (like typing notes) to one channel |
