@@ -368,7 +368,8 @@ func osForbid(s *Services, c *Client, args []string) {
 	}
 }
 
-func osForbidAdd(s *Services, c *Client, kind, name, reason string, life time.Duration) {
+// forbidProblem says why name can't be forbidden as kind, or "".
+func (s *Services) forbidProblem(kind, name string) string {
 	wild := strings.ContainsAny(name, "*?")
 	switch kind {
 	case store.ForbidNick, store.ForbidRegister:
@@ -376,30 +377,64 @@ func osForbidAdd(s *Services, c *Client, kind, name, reason string, life time.Du
 			break
 		}
 		if !wild && (!irc.ValidNick(name, s.cfg.Limits.NickLen) || isReserved(name)) {
-			s.os(c, "%s isn't a nick that can be used.", name)
-			return
+			return name + " isn't a nick that can be used."
 		}
 	case store.ForbidChan:
 		if !irc.IsChannel(name) || !wild && !irc.ValidChannel(name, s.cfg.Limits.ChannelLen) {
-			s.os(c, "%s isn't a valid channel name.", name)
-			return
+			return name + " isn't a valid channel name."
 		}
 	case store.ForbidEmail:
 		if !strings.Contains(name, "@") {
-			s.os(c, "An email forbid looks like *@spam.example or bee@example.org.")
-			return
+			return "An email forbid looks like *@spam.example or bee@example.org."
 		}
 	}
 	if !wild && (kind == store.ForbidNick || kind == store.ForbidChan) {
 		if irc.IsChannel(name) {
 			if reg, err := s.store.ChannelByName(name); err == nil && reg != nil {
-				s.os(c, "%s is registered. Drop it first: /cs drop %s", reg.Name, reg.Name)
-				return
+				return reg.Name + " is registered. Drop it first: /cs drop " + reg.Name
 			}
 		} else if a, err := s.store.AccountByNick(name); err == nil && a != nil {
-			s.os(c, "%s is registered. Drop it first: /ns drop %s", name, name)
-			return
+			return name + " is registered. Drop it first: /ns drop " + name
 		}
+	}
+	return ""
+}
+
+// enforceForbid acts on a new nick or channel forbid: people on a
+// forbidden nick get a guest nick, people in a forbidden channel are
+// kicked (opers stay). It returns how many.
+func (s *Services) enforceForbid(kind, name, reason string) int {
+	n := 0
+	switch kind {
+	case store.ForbidNick:
+		for _, oc := range s.clients {
+			if !oc.closed && !oc.isOper() && irc.Match(name, oc.user.Nick) {
+				guest := s.guestNick()
+				s.forceNick(oc, guest)
+				s.notice(oc, "*** That nick is forbidden by the network, so you are now "+guest+".")
+				n++
+			}
+		}
+	case store.ForbidChan:
+		for _, ch := range s.net.Channels() {
+			if !irc.Match(name, ch.Name) {
+				continue
+			}
+			for _, m := range ch.SortedMembers() {
+				if oc := s.clientOf(m.User); oc != nil && !oc.isOper() && s.net.Channel(ch.Name) != nil {
+					s.svcKick(s.operServ, ch, m.User, "This channel is forbidden: "+reason)
+					n++
+				}
+			}
+		}
+	}
+	return n
+}
+
+func osForbidAdd(s *Services, c *Client, kind, name, reason string, life time.Duration) {
+	if problem := s.forbidProblem(kind, name); problem != "" {
+		s.os(c, "%s", problem)
+		return
 	}
 	if reason == "" {
 		reason = "Not allowed here"
@@ -438,30 +473,12 @@ func osForbidAdd(s *Services, c *Client, kind, name, reason string, life time.Du
 	} else {
 		s.osLog(c, "to add a forbid on %s of type %s", name, strings.ToUpper(kind))
 	}
+	n := s.enforceForbid(kind, name, reason)
 	switch kind {
 	case store.ForbidNick:
-		for _, oc := range s.clients {
-			if !oc.closed && !oc.isOper() && irc.Match(name, oc.user.Nick) {
-				guest := s.guestNick()
-				s.forceNick(oc, guest)
-				s.notice(oc, "*** That nick is forbidden by the network, so you are now "+guest+".")
-			}
-		}
 		s.os(c, "%s is forbidden now.", name)
 	case store.ForbidChan:
-		kicked := 0
-		for _, ch := range s.net.Channels() {
-			if !irc.Match(name, ch.Name) {
-				continue
-			}
-			for _, m := range ch.SortedMembers() {
-				if oc := s.clientOf(m.User); oc != nil && !oc.isOper() && s.net.Channel(ch.Name) != nil {
-					s.svcKick(s.operServ, ch, m.User, "This channel is forbidden: "+reason)
-					kicked++
-				}
-			}
-		}
-		s.os(c, "%s is forbidden now (%s kicked).", name, plural(kicked, "person"))
+		s.os(c, "%s is forbidden now (%s kicked).", name, plural(n, "person"))
 	case store.ForbidEmail:
 		s.os(c, "No account may use %s now.", name)
 	default:

@@ -70,6 +70,11 @@ func init() {
 		"server_ban_exception.add":  change((*Server).rpcExceptAdd),
 		"server_ban_exception.del":  change((*Server).rpcExceptDel),
 
+		"name_ban.list": read((*Server).rpcNameBanList),
+		"name_ban.get":  read((*Server).rpcNameBanGet),
+		"name_ban.add":  change((*Server).rpcNameBanAdd),
+		"name_ban.del":  change((*Server).rpcNameBanDel),
+
 		"spamfilter.list": read((*Server).rpcSpamList),
 		"spamfilter.get":  read((*Server).rpcSpamGet),
 		"spamfilter.add":  change((*Server).rpcSpamAdd),
@@ -142,7 +147,7 @@ func (s *Server) rpcStats(rc *rpcConn, _ json.RawMessage) (any, *rpcError) {
 		"server":     obj{"total": len(s.netServers()), "ulined": boolInt(s.hasServices())},
 		"user":       obj{"total": total + bots, "ulined": bots, "oper": opers, "record": s.maxGlobal, "countries": top},
 		"channel":    obj{"total": len(s.net.Channels())},
-		"server_ban": obj{"total": bans + spam + counts[store.BanEline], "server_ban": bans, "spamfilter": spam, "name_ban": 0, "server_ban_exception": counts[store.BanEline]},
+		"server_ban": obj{"total": bans + spam + counts[store.BanEline], "server_ban": bans, "spamfilter": spam, "name_ban": len(s.rpcNameBans()), "server_ban_exception": counts[store.BanEline]},
 	}, nil
 }
 
@@ -1047,6 +1052,131 @@ func (s *Server) rpcExceptAdd(rc *rpcConn, p json.RawMessage) (any, *rpcError) {
 }
 func (s *Server) rpcExceptDel(rc *rpcConn, p json.RawMessage) (any, *rpcError) {
 	return s.rpcBanDelKind(rc, p, true)
+}
+
+// ---- name_ban.* ----
+// UnrealIRCd's name bans (Q-lines) are our nick and channel forbids
+// (/os sqline, /os forbid chan, /qline). Q-lines that came over a link
+// from an UnrealIRCd server are listed too, but are removed there.
+
+func rpcNameBan(name, reason, setBy string, setAt, expires time.Time) obj {
+	o := obj{
+		"type":            "qline",
+		"type_string":     "Q-Line",
+		"name":            name,
+		"reason":          reason,
+		"set_by":          setBy,
+		"set_at":          rpcTime(setAt),
+		"set_in_config":   false,
+		"duration_string": "permanent",
+	}
+	if !expires.IsZero() {
+		o["expire_at"] = rpcTime(expires)
+		o["duration_string"] = durShortWords(expires.Sub(setAt))
+	}
+	rpcStamps(o, setAt, expires)
+	return o
+}
+
+// rpcNameBans are ours, then the live ones from links.
+func (s *Server) rpcNameBans() []obj {
+	list := []obj{}
+	for _, f := range s.svc.NameBans() {
+		list = append(list, rpcNameBan(f.Name, f.Reason, f.SetBy, f.SetAt, f.Expires))
+	}
+	now := time.Now().Unix()
+	for _, q := range s.links.qlines {
+		if q.expires == 0 || q.expires > now {
+			var exp time.Time
+			if q.expires > 0 {
+				exp = time.Unix(q.expires, 0)
+			}
+			list = append(list, rpcNameBan(q.mask, q.reason, q.setBy, time.Unix(q.setAt, 0), exp))
+		}
+	}
+	return list
+}
+
+func (s *Server) rpcFindNameBan(name string) (obj, bool) {
+	for _, o := range s.rpcNameBans() {
+		if irc.Fold(o["name"].(string)) == irc.Fold(name) {
+			return o, true
+		}
+	}
+	return nil, false
+}
+
+func (s *Server) rpcNameBanList(rc *rpcConn, _ json.RawMessage) (any, *rpcError) {
+	return obj{"list": s.rpcNameBans()}, nil
+}
+
+func (s *Server) rpcNameBanGet(rc *rpcConn, params json.RawMessage) (any, *rpcError) {
+	var p rpcBanParams
+	if e := rpcParams(params, &p); e != nil {
+		return nil, e
+	}
+	if p.Name == "" {
+		return nil, rpcErr(rpcInvalidParams, "Missing parameter: 'name'")
+	}
+	o, ok := s.rpcFindNameBan(p.Name)
+	if !ok {
+		return nil, rpcErr(rpcNotFound, "Ban not found")
+	}
+	return obj{"tkl": o}, nil
+}
+
+func (s *Server) rpcNameBanAdd(rc *rpcConn, params json.RawMessage) (any, *rpcError) {
+	var p rpcBanParams
+	if e := rpcParams(params, &p); e != nil {
+		return nil, e
+	}
+	if p.Name == "" {
+		return nil, rpcErr(rpcInvalidParams, "Missing parameter: 'name'")
+	}
+	life, e := p.life()
+	if e != nil {
+		return nil, e
+	}
+	if p.Reason == "" {
+		return nil, rpcErr(rpcInvalidParams, "Missing parameter: 'reason'")
+	}
+	if s.svc.Off() {
+		return nil, rpcErr(rpcInternal, "Name bans are kept by the services, which are off on this server")
+	}
+	if _, there := s.rpcFindNameBan(p.Name); there {
+		return nil, rpcErr(rpcExists, "A ban with that name already exists")
+	}
+	by := rc.by()
+	if p.SetBy != "" && !strings.ContainsAny(p.SetBy, " \r\n") && len(p.SetBy) <= 64 {
+		by = p.SetBy
+	}
+	if _, problem := s.svc.NameBanVia(by, "RPC", p.Name, p.Reason, life); problem != "" {
+		return nil, rpcErr(rpcInvalidName, "%s", problem)
+	}
+	o, ok := s.rpcFindNameBan(p.Name)
+	if !ok {
+		return nil, rpcErr(rpcInternal, "The name ban couldn't be saved")
+	}
+	return obj{"tkl": o}, nil
+}
+
+func (s *Server) rpcNameBanDel(rc *rpcConn, params json.RawMessage) (any, *rpcError) {
+	var p rpcBanParams
+	if e := rpcParams(params, &p); e != nil {
+		return nil, e
+	}
+	if p.Name == "" {
+		return nil, rpcErr(rpcInvalidParams, "Missing parameter: 'name'")
+	}
+	o, ok := s.rpcFindNameBan(p.Name)
+	if !ok {
+		return nil, rpcErr(rpcNotFound, "Ban not found")
+	}
+	if problem := s.svc.NameBanDelVia(rc.by(), "RPC", o["name"].(string)); problem != "" {
+		// Not ours: a Q-line from a linked UnrealIRCd server.
+		return nil, rpcErr(rpcDenied, "%s was set on another server: remove it there", o["name"])
+	}
+	return obj{"tkl": o}, nil
 }
 
 // ---- spamfilter.* ----

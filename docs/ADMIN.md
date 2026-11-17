@@ -952,11 +952,12 @@ rehash; `listen` and `socket` need a restart.
 | `server` | `list`, `get`, `rehash`, `module_list` (one entry, `beeircd`: everything is built in) |
 | `server_ban` | `list`, `get`, `add`, `del` for the types `gline` (AKILL), `kline`, `gzline` / `zline`, `shun` |
 | `server_ban_exception` | `list`, `get`, `add`, `del` (ELINE: it lifts every kind of ban, so `exception_types` is not used) |
+| `name_ban` | `list`, `get`, `add`, `del`: the nick and channel forbids (`/qline`, `/os sqline`, `/os forbid chan`). A name starting with `#` is a channel name. Adding one moves people off the nick or out of the channel; Q-lines from a linked UnrealIRCd server are listed but removed there |
 | `spamfilter` | `list`, `get`, `add`, `del` |
 | `whowas` | `get` |
 | `log` | `subscribe`, `unsubscribe` (the live log, on a WebSocket or the socket file), `list` (the last 500 lines) |
 
-Not there (yet): `user.set_oper`, `user.set_snomask`, `name_ban.*`,
+Not there (yet): `user.set_oper`, `user.set_snomask`,
 `server.connect`, `server.disconnect`, `message.*`. A spam filter rule
 that would also catch normal chat is refused, as the Hive Panel warns
 about. The live log carries the server notices opers see, with the

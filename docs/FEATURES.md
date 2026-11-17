@@ -143,7 +143,7 @@ Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few 
 | `beeircd status`, `check`, `backup`, `rehash`, `start`, `stop`, `restart` | ✅ | over a local socket, no network port |
 | Signed updates (`beeircd update`) | ✅ | checks the signature, backs up, rolls back by itself if the new version doesn't start; `--rollback` goes back |
 | Logins checked against LDAP or an SQL database (`[auth]`) | ✅ | NickServ IDENTIFY, SASL and the Hive Panel; accounts made on first login; oper passwords too (`opers`); MySQL / MariaDB, PostgreSQL, SQLite; bcrypt, argon2id and older hashes; a login log table |
-| JSON-RPC admin API over HTTPS, WebSocket and a socket file (`[rpc]`) | ✅ | UnrealIRCd's method names: `user.*`, `channel.*`, `server.*`, `server_ban.*`, `server_ban_exception.*`, `spamfilter.*`, `stats.get`, `whowas.get` and the live log; a name, password and allowed methods per tool |
+| JSON-RPC admin API over HTTPS, WebSocket and a socket file (`[rpc]`) | ✅ | UnrealIRCd's method names: `user.*`, `channel.*`, `server.*`, `server_ban.*`, `server_ban_exception.*`, `name_ban.*`, `spamfilter.*`, `stats.get`, `whowas.get` and the live log; a name, password and allowed methods per tool |
 | Docker image (amd64, arm64) | ✅ | `ghcr.io/fhazal/beeircd` |
 | Moving from Anope 2.0 (`beeircd import-anope`) | ✅ | accounts, passwords (no resets), channels, bots, bans and the rest of anope.db |
 | UnrealIRCd oper blocks (`import-anope -unreal-opers`) | ✅ | plain and argon2id passwords kept, certificate opers too; other hashes are named in the report |

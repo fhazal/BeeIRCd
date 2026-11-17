@@ -446,3 +446,43 @@ func TestRPCRefusalsLookAlike(t *testing.T) {
 		t.Fatalf("the allowed address is locked with the stranger: %s", why)
 	}
 }
+
+// name_ban.* are the nick and channel forbids (Q-lines): a forbidden nick
+// in use is changed to a guest nick, a forbidden channel is emptied.
+func TestRPCNameBans(t *testing.T) {
+	s := rpcServer(t)
+	pest, ember := login(t, s, "Pestbot1"), login(t, s, "ember")
+	ember.send("JOIN #warez")
+	ember.expect(" 366 ")
+
+	has(t, "name_ban.add nick", rpcOK(t, s, "name_ban.add", `{"name":"Pestbot*","reason":"spam bots","duration_string":"0w1d0h"}`),
+		`"tkl":{`, `"type":"qline"`, `"type_string":"Q-Line"`, `"name":"Pestbot*"`, `"reason":"spam bots"`, `"set_by":"tool"`,
+		`"expire_at":"20`, `"duration_string":"24h00m"`)
+	pest.expect("That nick is forbidden by the network")
+	has(t, "name_ban.add channel", rpcOK(t, s, "name_ban.add", `{"name":"#warez","reason":"no warez","set_by":"Belon"}`),
+		`"name":"#warez"`, `"set_by":"Belon"`, `"expire_at_string":"Never"`)
+	ember.expect("This channel is forbidden: no warez")
+
+	rpcFails(t, s, "name_ban.add", `{"name":"pestbot*","reason":"again"}`, rpcExists)
+	rpcFails(t, s, "name_ban.add", `{"name":"*","reason":"everyone"}`, rpcInvalidName)
+	rpcFails(t, s, "name_ban.add", `{"name":"1bad","reason":"x"}`, rpcInvalidName)
+	rpcFails(t, s, "name_ban.add", `{"name":"Spammer"}`, rpcInvalidParams)
+	rpcFails(t, s, "name_ban.add", `{"reason":"x"}`, rpcInvalidParams)
+
+	has(t, "name_ban.list", rpcOK(t, s, "name_ban.list", ""), `"name":"Pestbot*"`, `"name":"#warez"`, `"set_at_string":"`)
+	has(t, "name_ban.get", rpcOK(t, s, "name_ban.get", `{"name":"pestbot*"}`), `"reason":"spam bots"`)
+	has(t, "stats.get", rpcOK(t, s, "stats.get", ""), `"name_ban":2`)
+
+	pest.send("NICK Pestbot2")
+	pest.expect(" 432 ")
+	ember.send("JOIN #warez")
+	ember.expect("#warez")
+
+	has(t, "name_ban.del", rpcOK(t, s, "name_ban.del", `{"name":"PESTBOT*"}`), `"name":"Pestbot*"`)
+	rpcOK(t, s, "name_ban.del", `{"name":"#warez"}`)
+	rpcFails(t, s, "name_ban.get", `{"name":"Pestbot*"}`, rpcNotFound)
+	rpcFails(t, s, "name_ban.del", `{"name":"#warez"}`, rpcNotFound)
+	has(t, "name_ban.list", rpcOK(t, s, "name_ban.list", ""), `"list":[]`)
+	pest.send("NICK Pestbot3")
+	pest.expect("NICK Pestbot3")
+}

@@ -196,3 +196,95 @@ func (s *Services) BanDelVia(by, via, kind, mask string) (removed string, proble
 	s.Flush()
 	return m, ""
 }
+
+// NameBan is a nick or channel-name forbid (UnrealIRCd's name ban,
+// a Q-line): Chan says which list it is on.
+type NameBan struct {
+	store.Forbid
+	Chan bool
+}
+
+// nameBanKind is the forbid list for name: channel names go on the
+// channel list, everything else on the nick list (= SQLINE).
+func nameBanKind(name string) string {
+	if irc.IsChannel(name) {
+		return store.ForbidChan
+	}
+	return store.ForbidNick
+}
+
+// NameBans are the live nick and channel forbids, newest first.
+func (s *Services) NameBans() []NameBan {
+	now := time.Now()
+	var out []NameBan
+	for _, kind := range []string{store.ForbidNick, store.ForbidChan} {
+		for _, f := range s.forbids[kind] {
+			if f.Expires.IsZero() || now.Before(f.Expires) {
+				out = append(out, NameBan{f, kind == store.ForbidChan})
+			}
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].SetAt.After(out[j].SetAt) })
+	return out
+}
+
+// NameBanVia forbids nicks or channel names matching name, as
+// /os sqline add and /os forbid add chan do; via is named in the notice
+// to opers (see BanVia). It returns how many people it moved off the nick
+// or out of the channel, and problem says why not.
+func (s *Services) NameBanVia(by, via, name, reason string, life time.Duration) (hit int, problem string) {
+	name = strings.TrimSpace(name)
+	kind := nameBanKind(name)
+	if name == "" || strings.ContainsAny(name, " ,\r\n") {
+		return 0, "Give one nick or channel name, * and ? allowed."
+	}
+	if strings.Trim(name, "*?#") == "" {
+		return 0, name + " would match every name. Give a narrower one."
+	}
+	if problem := s.forbidProblem(kind, name); problem != "" {
+		return 0, problem
+	}
+	reason = irc.Truncate(strings.TrimSpace(reason), 200)
+	if reason == "" {
+		reason = "Not allowed here"
+	}
+	f := store.Forbid{Name: name, Reason: reason, SetBy: by, SetAt: time.Now()}
+	if life > 0 {
+		f.Expires = f.SetAt.Add(life)
+	}
+	added, err := s.store.AddForbid(kind, f)
+	if err != nil {
+		s.log.Printf("services database: %v", err)
+		return 0, "Something went wrong on the server. Please try again in a moment."
+	}
+	if !added {
+		return 0, name + " is forbidden already."
+	}
+	s.reloadOperData()
+	hit = s.enforceForbid(kind, name, reason)
+	how := "until removed"
+	if life > 0 {
+		how = "for " + durWords(life)
+	}
+	s.snotice("%s (%s) forbade the name %s %s (%s): %d moved", by, via, name, how, reason, hit)
+	s.Flush()
+	return hit, ""
+}
+
+// NameBanDelVia lifts the nick or channel forbid on name. problem says
+// why not.
+func (s *Services) NameBanDelVia(by, via, name string) (problem string) {
+	name = strings.TrimSpace(name)
+	gone, err := s.store.DelForbid(nameBanKind(name), name)
+	if err != nil {
+		s.log.Printf("services database: %v", err)
+		return "Something went wrong on the server. Please try again in a moment."
+	}
+	if !gone {
+		return name + " isn't forbidden."
+	}
+	s.reloadOperData()
+	s.snotice("%s (%s) lifted the forbid on the name %s", by, via, name)
+	s.Flush()
+	return ""
+}
