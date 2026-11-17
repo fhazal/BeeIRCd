@@ -945,11 +945,11 @@ rehash; `listen` and `socket` need a restart.
 
 | Group | Methods |
 | --- | --- |
-| `rpc` | `info` (the method list), `set_issuer` |
+| `rpc` | `info` (the method list), `set_issuer`, `add_timer` and `del_timer` (run a call again every `every_msec`, 250 or more, on a WebSocket or the socket file; at most 32 per connection; unrealircd-webpanel's Overview uses it) |
 | `stats` | `get`: people, opers, channels, servers and bans in numbers |
 | `user` | `list`, `get`, `set_nick`, `set_username`, `set_realname`, `set_vhost`, `set_mode`, `join`, `part`, `kill`, `quit` |
 | `channel` | `list`, `get` (`object_detail_level` 4: each member as a whole user), `set_mode`, `set_topic`, `kick` |
-| `server` | `list`, `get`, `rehash`, `module_list` (one entry, `beeircd`: everything is built in) |
+| `server` | `list`, `get`, `rehash`, `disconnect` (SQUIT: `link` is a server name or SID, `reason` is optional; a server further away is split off too), `module_list` (one entry, `beeircd`: everything is built in) |
 | `server_ban` | `list`, `get`, `add`, `del` for the types `gline` (AKILL), `kline`, `gzline` / `zline`, `shun` |
 | `server_ban_exception` | `list`, `get`, `add`, `del` (ELINE: it lifts every kind of ban, so `exception_types` is not used) |
 | `name_ban` | `list`, `get`, `add`, `del`: the nick and channel forbids (`/qline`, `/os sqline`, `/os forbid chan`). A name starting with `#` is a channel name. Adding one moves people off the nick or out of the channel; Q-lines from a linked UnrealIRCd server are listed but removed there |
@@ -958,7 +958,7 @@ rehash; `listen` and `socket` need a restart.
 | `log` | `subscribe`, `unsubscribe` (the live log, on a WebSocket or the socket file), `list` (the last 500 lines) |
 
 Not there (yet): `user.set_oper`, `user.set_snomask`,
-`server.connect`, `server.disconnect`, `message.*`. A spam filter rule
+`server.connect`, `message.*`. A spam filter rule
 that would also catch normal chat is refused, as the Hive Panel warns
 about. The live log carries the server notices opers see, with the
 subsystems `connect`, `oper`, `link`, `rpc` and `server`.

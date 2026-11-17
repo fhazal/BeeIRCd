@@ -486,3 +486,99 @@ func TestRPCNameBans(t *testing.T) {
 	pest.send("NICK Pestbot3")
 	pest.expect("NICK Pestbot3")
 }
+
+// server.disconnect is SQUIT by a tool: refusals over HTTPS, the split on
+// a linked pair.
+func TestRPCServerDisconnect(t *testing.T) {
+	s := rpcServer(t)
+	rpcFails(t, s, "server.disconnect", `{}`, rpcInvalidParams)
+	rpcFails(t, s, "server.disconnect", `{"link":"irc.test.local"}`, rpcInvalidParams)
+	rpcFails(t, s, "server.disconnect", `{"link":"no.such.server","reason":"x"}`, rpcNotFound)
+
+	hub, _ := linkedPair(t)
+	op := login(t, hub.s, "op")
+	netadminOn(t, hub, op, "op")
+	op.send("MODE op +s")
+	call := func(params string) (res any, e *rpcError) {
+		hub.s.onLoop(func() {
+			res, e = hub.s.rpcServerDisconnect(&rpcConn{name: "tool", issuer: "Belon"}, json.RawMessage(params))
+		})
+		return
+	}
+	if _, e := call(`{"link":"leaf.test.local","reason":"moving it"}`); e != nil {
+		t.Fatalf("disconnect: %+v", e)
+	}
+	op.expect("RPC Belon used SQUIT on leaf.test.local (moving it)")
+	waitLink(t, "leaf split", func() bool {
+		var gone bool
+		hub.s.onLoop(func() { gone = hub.s.serverByName("leaf.test.local") == nil })
+		return gone
+	})
+	if _, e := call(`{"link":"leaf.test.local"}`); e == nil || e.Code != rpcNotFound {
+		t.Errorf("second disconnect: %+v", e)
+	}
+}
+
+// rpc.add_timer runs a request again and again on a stream until
+// rpc.del_timer; it needs a stream and checks what it is given.
+func TestRPCTimers(t *testing.T) {
+	s := rpcServer(t)
+	rpcFails(t, s, "rpc.add_timer", `{"timer_id":"t","every_msec":500,"request":{"jsonrpc":"2.0","method":"stats.get","id":9}}`, rpcInvalidRequest)
+	rpcFails(t, s, "rpc.del_timer", `{"timer_id":"t"}`, rpcNotFound)
+
+	conn, err := net.Dial("unix", s.cfg.RPC.Socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	r := bufio.NewReader(conn)
+	send := func(line string) {
+		t.Helper()
+		if _, err := io.WriteString(conn, line+"\n"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	read := func() string {
+		t.Helper()
+		conn.SetDeadline(time.Now().Add(5 * time.Second))
+		got, err := r.ReadString('\n')
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	ask := func(line string) string { send(line); return read() }
+	add := func(id int, params string) string {
+		return ask(fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"rpc.add_timer","params":%s}`, id, params))
+	}
+	req := `"request":{"jsonrpc":"2.0","method":"stats.get","params":null,"id":424242}`
+	has(t, "too often", add(1, `{"timer_id":"t","every_msec":100,`+req+`}`), `"code":-32602`, `250`)
+	has(t, "no request", add(2, `{"timer_id":"t","every_msec":300}`), `"code":-32602`)
+	has(t, "bad request", add(3, `{"timer_id":"t","every_msec":300,"request":{"method":"stats.get"}}`), `"code":-32602`)
+	has(t, "no such method", add(4, `{"timer_id":"t","every_msec":300,"request":{"jsonrpc":"2.0","method":"nope.x","id":1}}`), `"code":-32602`)
+	has(t, "timer in a timer", add(5, `{"timer_id":"t","every_msec":300,"request":{"jsonrpc":"2.0","method":"rpc.add_timer","id":1}}`), `"code":-32602`)
+	has(t, "no id", add(6, `{"every_msec":300,`+req+`}`), `"code":-32602`)
+	has(t, "added", add(7, `{"timer_id":"t","every_msec":300,`+req+`}`), `"id":7`, `"result":true`)
+	for i := 0; i < 3; i++ {
+		has(t, "timer run", read(), `"id":424242`, `"method":"stats.get"`, `"user":{`)
+	}
+	has(t, "same name", add(8, `{"timer_id":"t","every_msec":300,`+req+`}`), `"code":-1001`)
+	send(`{"jsonrpc":"2.0","id":9,"method":"rpc.del_timer","params":{"timer_id":"t"}}`)
+	for {
+		got := read()
+		if strings.Contains(got, `"id":9`) {
+			has(t, "deleted", got, `"result":true`)
+			break
+		}
+		has(t, "a run before the delete", got, `"id":424242`)
+	}
+	// Nothing more comes; the next answer is the next call's.
+	time.Sleep(800 * time.Millisecond)
+	has(t, "after delete", ask(`{"jsonrpc":"2.0","id":10,"method":"rpc.del_timer","params":{"timer_id":"t"}}`), `"id":10`, `"code":-1000`)
+
+	// A timer ends with its connection.
+	has(t, "second", add(11, `{"timer_id":"u","every_msec":250,`+req+`}`), `"result":true`)
+	read()
+	conn.Close()
+	time.Sleep(600 * time.Millisecond) // the timer goroutine must stop (the test's wait on shutdown would hang otherwise)
+}

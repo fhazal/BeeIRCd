@@ -71,8 +71,11 @@ type rpcConn struct {
 	user   config.RPCUser // rights (all on the socket file)
 	issuer string         // rpc.set_issuer: who is behind the tool
 	out    chan []byte    // lines to write (streams only; nil for one HTTPS call)
+	stop   chan struct{}  // closed when a stream ends (streams only)
 	// The live log (on the loop).
 	logSources []string
+	// rpc.add_timer: each timer's stop channel by timer_id (on the loop).
+	timers map[string]chan struct{}
 }
 
 // by names the caller for bans, notices and the log.
@@ -389,6 +392,7 @@ func (s *Server) rpcLogin(name, pass string, ip net.IP) (rc *rpcConn, why string
 func (s *Server) rpcStream(conn net.Conn, rc *rpcConn, eol string) {
 	rc.out = make(chan []byte, rpcQueue)
 	stop := make(chan struct{})
+	rc.stop = stop // ends the writer below and every rpc.add_timer timer
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"sort"
@@ -35,6 +36,8 @@ func init() {
 	rpcMethods = map[string]rpcMethod{
 		"rpc.info":       read((*Server).rpcInfo),
 		"rpc.set_issuer": read((*Server).rpcSetIssuer),
+		"rpc.add_timer":  read((*Server).rpcAddTimer),
+		"rpc.del_timer":  read((*Server).rpcDelTimer),
 		"stats.get":      read((*Server).rpcStats),
 
 		"user.list":         read((*Server).rpcUserList),
@@ -58,6 +61,7 @@ func init() {
 		"server.list":        read((*Server).rpcServerList),
 		"server.get":         read((*Server).rpcServerGet),
 		"server.rehash":      change((*Server).rpcServerRehash),
+		"server.disconnect":  change((*Server).rpcServerDisconnect),
 		"server.module_list": read((*Server).rpcModuleList),
 
 		"server_ban.list": read((*Server).rpcBanList),
@@ -112,6 +116,118 @@ func (s *Server) rpcSetIssuer(rc *rpcConn, params json.RawMessage) (any, *rpcErr
 		return nil, rpcErr(rpcInvalidName, "The issuer is a name of at most 32 characters without spaces")
 	}
 	rc.issuer = p.Name
+	return true, nil
+}
+
+const (
+	rpcTimerMin = 250 * time.Millisecond // UnrealIRCd's lowest every_msec
+	rpcTimerMax = 32                     // timers on one connection
+)
+
+// rpcAddTimer is UnrealIRCd's rpc.add_timer: run request every every_msec
+// on this connection and send each answer (with the request's id), until
+// rpc.del_timer or the connection ends. unrealircd-webpanel uses it for its
+// live pages; without it, the panel asks again itself.
+func (s *Server) rpcAddTimer(rc *rpcConn, params json.RawMessage) (any, *rpcError) {
+	var p struct {
+		TimerID   string          `json:"timer_id"`
+		EveryMsec *int64          `json:"every_msec"`
+		Request   json.RawMessage `json:"request"`
+	}
+	if e := rpcParams(params, &p); e != nil {
+		return nil, e
+	}
+	if rc.out == nil {
+		return nil, rpcErr(rpcInvalidRequest, "Timers need a connection that stays open: a WebSocket or the socket file")
+	}
+	switch {
+	case p.TimerID == "":
+		return nil, rpcErr(rpcInvalidParams, "Missing parameter: 'timer_id'")
+	case len(p.TimerID) > 64:
+		return nil, rpcErr(rpcInvalidParams, "The timer_id is at most 64 characters")
+	case p.EveryMsec == nil:
+		return nil, rpcErr(rpcInvalidParams, "Missing parameter: 'every_msec'")
+	case time.Duration(*p.EveryMsec)*time.Millisecond < rpcTimerMin:
+		return nil, rpcErr(rpcInvalidParams, "every_msec must be %d or more", rpcTimerMin.Milliseconds())
+	case len(p.Request) == 0 || bytes.Equal(p.Request, []byte("null")):
+		return nil, rpcErr(rpcInvalidParams, "Missing parameter: 'request'")
+	}
+	var req rpcRequest
+	if err := json.Unmarshal(p.Request, &req); err != nil || req.Version != "2.0" || req.Method == "" || len(req.ID) == 0 {
+		return nil, rpcErr(rpcInvalidParams, "The request must be a JSON-RPC 2.0 request with a method and an id")
+	}
+	if _, ok := rpcMethods[req.Method]; !ok {
+		return nil, rpcErr(rpcInvalidParams, "The request calls %s, which does not exist", req.Method)
+	}
+	if req.Method == "rpc.add_timer" || req.Method == "rpc.del_timer" {
+		return nil, rpcErr(rpcInvalidParams, "A timer cannot add or remove timers")
+	}
+	if _, ok := rc.timers[p.TimerID]; ok {
+		return nil, rpcErr(rpcExists, "A timer named %s is running already", p.TimerID)
+	}
+	if len(rc.timers) >= rpcTimerMax {
+		return nil, rpcErr(rpcRefused, "At most %d timers on one connection", rpcTimerMax)
+	}
+	var body bytes.Buffer
+	if err := json.Compact(&body, p.Request); err != nil {
+		return nil, rpcErr(rpcInvalidParams, "The request is not valid JSON")
+	}
+	if rc.timers == nil {
+		rc.timers = map[string]chan struct{}{}
+	}
+	cancel := make(chan struct{})
+	rc.timers[p.TimerID] = cancel
+	s.wg.Add(1)
+	go s.rpcTimer(rc, time.Duration(*p.EveryMsec)*time.Millisecond, body.Bytes(), cancel)
+	return true, nil
+}
+
+// rpcTimer runs one rpc.add_timer timer. Not on the loop: rpcHandle goes
+// there itself. When the tool is not reading, a run is skipped rather than
+// piling up.
+func (s *Server) rpcTimer(rc *rpcConn, every time.Duration, req []byte, cancel chan struct{}) {
+	defer s.wg.Done()
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-t.C:
+		case <-cancel:
+			return
+		case <-rc.stop:
+			return
+		case <-s.done:
+			return
+		}
+		answer := s.rpcHandle(rc, req)
+		select {
+		case <-cancel:
+			return // deleted while it ran: rpc.del_timer said no more
+		default:
+		}
+		select {
+		case rc.out <- answer:
+		default:
+		}
+	}
+}
+
+func (s *Server) rpcDelTimer(rc *rpcConn, params json.RawMessage) (any, *rpcError) {
+	var p struct {
+		TimerID string `json:"timer_id"`
+	}
+	if e := rpcParams(params, &p); e != nil {
+		return nil, e
+	}
+	if p.TimerID == "" {
+		return nil, rpcErr(rpcInvalidParams, "Missing parameter: 'timer_id'")
+	}
+	cancel, ok := rc.timers[p.TimerID]
+	if !ok {
+		return nil, rpcErr(rpcNotFound, "There is no timer named %s", p.TimerID)
+	}
+	close(cancel)
+	delete(rc.timers, p.TimerID)
 	return true, nil
 }
 
@@ -791,6 +907,37 @@ func (s *Server) rpcServerRehash(rc *rpcConn, params json.RawMessage) (any, *rpc
 		return obj{"success": false, "log": []string{err.Error()}}, nil
 	}
 	return obj{"success": true, "log": []string{rehashSummary(r)}}, nil
+}
+
+// rpcServerDisconnect is UnrealIRCd's server.disconnect: SQUIT by the
+// tool. link is a server name (or SID); a server further away is split off
+// too, and a jupe is lifted.
+func (s *Server) rpcServerDisconnect(rc *rpcConn, params json.RawMessage) (any, *rpcError) {
+	var p struct {
+		Link   string `json:"link"`
+		Reason string `json:"reason"`
+	}
+	if e := rpcParams(params, &p); e != nil {
+		return nil, e
+	}
+	switch {
+	case p.Link == "":
+		return nil, rpcErr(rpcInvalidParams, "Missing parameter: 'link'")
+	case strings.EqualFold(p.Link, s.cfg.Server.Name) || p.Link == s.cfg.Server.SID:
+		return nil, rpcErr(rpcInvalidParams, "%s is the server you are calling: it cannot disconnect from itself", s.cfg.Server.Name)
+	}
+	name := p.Link
+	if r, ok := s.links.servers[p.Link]; ok {
+		name = r.name
+	}
+	reason := irc.Truncate(strings.TrimSpace(p.Reason), 300)
+	if reason == "" {
+		reason = "Disconnected by RPC " + rc.by()
+	}
+	if _, ok := s.squitBy("RPC "+rc.by(), s.cfg.Server.SID, name, reason); !ok {
+		return nil, rpcErr(rpcNotFound, "Server not found")
+	}
+	return true, nil
 }
 
 func (s *Server) rpcModuleList(rc *rpcConn, _ json.RawMessage) (any, *rpcError) {
