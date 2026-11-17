@@ -39,7 +39,7 @@ func init() {
 	helpTopics["FPART"] = []string{"FPART <#channel> <nick> [reason]", "The same as REMOVE."}
 	helpTopics["UNINVITE"] = []string{"UNINVITE <nick> <#channel>", "Takes back an INVITE (channel ops)."}
 	helpTopics["ACCEPT"] = []string{"ACCEPT <nick>[,-nick][,*]", "With user mode +g only people on your accept list can message you: nick adds someone, -nick removes them, * shows the list (at most 30).",
-		"Anyone you message yourself is added for you. The list lasts until you disconnect."}
+		"Anyone you message yourself is added for you. Someone who changes nick drops off the list. The list lasts until you disconnect."}
 }
 
 // cmdCycle is CYCLE #chan[,#chan]: part and join again.
@@ -173,6 +173,19 @@ func (s *Server) acceptAdd(c *Client, t *state.User) bool {
 	}
 	c.accept[t.UID] = true
 	return true
+}
+
+// acceptForget takes uid off every accept list here after a nick change
+// (not one of case only): the ACCEPT was for that nick. Every server sees
+// the NICK and does the same, as InspIRCd does by default (callerid
+// tracknick="no"), so the lists stay alike across a link.
+func (s *Server) acceptForget(uid string) {
+	for _, c := range s.clients {
+		delete(c.accept, uid)
+	}
+	for _, list := range s.links.farAccept {
+		delete(list, uid)
+	}
 }
 
 // cmdAccept is ACCEPT nick,-nick,*.

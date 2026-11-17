@@ -345,7 +345,8 @@ restart ends it too. It applies to the server you type it on.
 - **Caller ID.** `/MODE yournick +g` lets only people on your accept list
   message you. `/ACCEPT nick` adds someone, `/ACCEPT -nick` removes them,
   `/ACCEPT *` shows the list (30 people, until you disconnect). People
-  you message yourself are added for you. A refused sender is told, and
+  you message yourself are added for you; someone who changes nick drops
+  off the list (as on InspIRCd). A refused sender is told, and
   you are told who tried, at most once a minute for each sender. Opers
   and services always get through.
 - **Notify lists.** `WATCH` and `MONITOR` both tell a client when a nick

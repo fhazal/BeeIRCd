@@ -94,6 +94,29 @@ func TestCallerID(t *testing.T) {
 	nova.expect("PRIVMSG nova :hello")
 	nova.send("PRIVMSG Bee :hi back")
 	bee.expect(":nova!~nova@127.0.0.1 PRIVMSG Bee :hi back")
+
+	// A nick change takes someone off the lists, as InspIRCd does by
+	// default; one of case only does not.
+	var novaUID string
+	s.onLoop(func() {
+		novaUID = s.net.UserByNick("nova").UID
+		s.links.farAccept = map[string]map[string]bool{"0XXAAAAAA": {novaUID: true}}
+	})
+	nova.send("NICK Nova")
+	nova.expect(" NICK Nova")
+	nova.send("PRIVMSG Bee :case only")
+	bee.expect(":Nova!~nova@127.0.0.1 PRIVMSG Bee :case only")
+	nova.send("NICK nova2")
+	nova.expect(" NICK nova2")
+	nova.send("PRIVMSG Bee :new nick")
+	nova.expect(" 716 nova2 Bee ")
+	bee.send("ACCEPT *")
+	bee.expect(" 282 Bee :End of /ACCEPT list.")
+	var far bool
+	s.onLoop(func() { far = s.links.farAccept["0XXAAAAAA"][novaUID] })
+	if far {
+		t.Error("nick change left nova on a far accept list")
+	}
 }
 
 func TestDCCRules(t *testing.T) {

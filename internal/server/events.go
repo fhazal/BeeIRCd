@@ -65,8 +65,12 @@ func (s *Server) prepare(ev state.Event) func() {
 			return nil
 		}
 		o := s.out(u, "NICK", e.Nick)
+		renamed := irc.Fold(u.Nick) != irc.Fold(e.Nick) // not case only
 		return func() {
 			s.addWhowasNick(e.Old, u)
+			if renamed {
+				s.acceptForget(u.UID)
+			}
 			s.toNeighbours(u, o, true)
 		}
 	case *state.Join:
