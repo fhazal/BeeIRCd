@@ -3,7 +3,8 @@ package server
 // The Hive Panel's Bans page: the network bans OperServ keeps
 // (AKILL, ZLINE, SHUN, SNLINE, exceptions), added and removed with the same checks,
 // and a "matches N people" preview while a mask is typed. Flag k, like
-// OperServ's ban commands.
+// OperServ's ban commands. The Forbid kind is the nick and channel forbids
+// (SQLINE and FORBID CHAN), flag s like those.
 
 import (
 	"fmt"
@@ -16,12 +17,40 @@ import (
 	"github.com/fhazal/beeircd/internal/services"
 )
 
-func (s *Server) panelBans(kind string) control.Response {
+// forbidKind is the Bans page's kind for nick and channel forbids.
+const forbidKind = "forbid"
+
+// banFlag is the oper flag a kind of ban needs.
+func banFlag(kind string) byte {
+	if kind == forbidKind {
+		return 's'
+	}
+	return 'k'
+}
+
+func (s *Server) panelBans(po *control.PanelOper, kind string) control.Response {
 	if kind == "" {
 		kind = services.PanelKinds[0]
 	}
 	out := &control.Bans{Counts: map[string]int{}, Kind: kind, Default: config.FormatDuration(s.cfg.Services.BanExpiry.Duration)}
 	found := false
+	if strings.IndexByte(po.Flags, 's') >= 0 {
+		list := s.svc.NameBans()
+		out.Counts[forbidKind] = len(list)
+		if kind == forbidKind {
+			found = true
+			out.Rows = make([]control.Ban, 0, len(list))
+			for _, b := range list {
+				out.Rows = append(out.Rows, control.Ban{Kind: forbidKind, Mask: b.Name, Reason: b.Reason, SetBy: b.SetBy, SetAt: b.SetAt, Expires: b.Expires})
+			}
+		}
+	}
+	if strings.IndexByte(po.Flags, 'k') < 0 {
+		if !found {
+			return control.Response{Error: "That isn't a kind of ban."}
+		}
+		return control.Response{Bans: out}
+	}
 	for _, k := range services.PanelKinds {
 		list := s.svc.PanelBans(k)
 		out.Counts[k] = len(list)
@@ -45,6 +74,9 @@ func (s *Server) panelBanAdd(po *control.PanelOper, ip string, req control.Reque
 	if !ok {
 		return control.Response{Error: "That ban length isn't one I know. Use 1h, 1d, 7d, 30d or 0 for until removed."}
 	}
+	if req.Kind == forbidKind {
+		return s.panelForbidAdd(po, ip, req, d)
+	}
 	mask, hit, problem := s.svc.PanelBan(po.Account, req.Kind, req.Mask, req.Reason, d)
 	if problem != "" {
 		return control.Response{Error: problem}
@@ -63,6 +95,14 @@ func (s *Server) panelBanAdd(po *control.PanelOper, ip string, req control.Reque
 }
 
 func (s *Server) panelBanDel(po *control.PanelOper, ip string, req control.Request) control.Response {
+	if req.Kind == forbidKind {
+		name := strings.TrimSpace(req.Mask)
+		if problem := s.svc.NameBanDelVia(po.Account, "Hive Panel", name); problem != "" {
+			return control.Response{Error: problem}
+		}
+		s.panelEvent(po.Account, ip, "removed a forbid")
+		return control.Response{Done: &control.Done{Text: "Forbid on " + name + " removed."}}
+	}
 	mask, problem := s.svc.PanelBanDel(po.Account, req.Kind, req.Mask)
 	if problem != "" {
 		return control.Response{Error: problem}
@@ -73,11 +113,38 @@ func (s *Server) panelBanDel(po *control.PanelOper, ip string, req control.Reque
 }
 
 func (s *Server) panelBanMatch(req control.Request) control.Response {
+	if req.Kind == forbidKind {
+		n, problem := s.svc.NameBanMatch(req.Mask)
+		if problem != "" {
+			return control.Response{Error: problem}
+		}
+		return control.Response{Match: &control.Match{Mask: strings.TrimSpace(req.Mask), People: n}}
+	}
 	mask, n, problem := s.svc.PanelBanMatch(req.Kind, req.Mask)
 	if problem != "" {
 		return control.Response{Error: problem}
 	}
 	return control.Response{Match: &control.Match{Mask: mask, People: n}}
+}
+
+// panelForbidAdd forbids a nick or channel name (d < 0: until removed,
+// as forbids have no default length).
+func (s *Server) panelForbidAdd(po *control.PanelOper, ip string, req control.Request, d time.Duration) control.Response {
+	name := strings.TrimSpace(req.Mask)
+	hit, problem := s.svc.NameBanVia(po.Account, "Hive Panel", name, req.Reason, max(d, 0))
+	if problem != "" {
+		return control.Response{Error: problem}
+	}
+	how := "until removed"
+	if d > 0 {
+		how = "for " + lengthWords(d)
+	}
+	s.panelEvent(po.Account, ip, "added a forbid "+how)
+	what := "moved off the nick"
+	if strings.HasPrefix(name, "#") {
+		what = "kicked out"
+	}
+	return control.Response{Done: &control.Done{Text: fmt.Sprintf("Forbid added on %s %s. %d %s.", name, how, hit, what)}}
 }
 
 // lengthWords says a ban length the way people do: "7 days", "1 hour".

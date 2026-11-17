@@ -187,10 +187,21 @@ type Client struct {
 	helpOn       bool         // had user mode +h at the last mode change (HelpServ)
 	reply        func(string) // set for the Hive Panel's stand-in client: answers go here, not by notice
 	logged       bool         // a command logged a change (the Hive Panel's stand-in reads it)
+	webFlags     string       // the Hive Panel's stand-in for an oper: their oper flags
+	webDone      func()       // the stand-in's command finished later (a password being hashed)
 }
 
-func (c *Client) isOper() bool    { return c.s.host.OperFlags(c.user.UID) != "" }
-func (c *Client) can(f byte) bool { return strings.IndexByte(c.s.host.OperFlags(c.user.UID), f) >= 0 }
+// operFlags are c's oper flags: from the server for someone on IRC, from
+// the oper entry for the Hive Panel's stand-in (it has no UID).
+func (c *Client) operFlags() string {
+	if c.reply != nil {
+		return c.webFlags
+	}
+	return c.s.host.OperFlags(c.user.UID)
+}
+
+func (c *Client) isOper() bool    { return c.operFlags() != "" }
+func (c *Client) can(f byte) bool { return strings.IndexByte(c.operFlags(), f) >= 0 }
 
 // New starts services on an open store. Call Start once the server can
 // take events.

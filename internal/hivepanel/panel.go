@@ -201,6 +201,11 @@ func New(o Options) *Panel {
 	m.HandleFunc("GET /api/my-chan", p.withOper(p.myChan))
 	m.HandleFunc("POST /api/chan-do", p.withOper(p.chanDo))
 	m.HandleFunc("POST /api/chan-memo", p.withOper(p.chanMemo))
+	m.HandleFunc("GET /api/accounts", p.withOper(p.accounts))
+	m.HandleFunc("GET /api/account", p.withOper(p.account))
+	m.HandleFunc("GET /api/svc", p.withOper(p.svc))
+	m.HandleFunc("POST /api/serv-do", p.withOper(p.servDo))
+	m.HandleFunc("POST /api/global", p.withOper(p.global))
 	m.HandleFunc("GET /api/live", p.live)
 	p.mux = m
 	return p
@@ -501,6 +506,53 @@ func (p *Panel) memoSend(w http.ResponseWriter, r *http.Request, oc operCtx) {
 		return
 	}
 	p.send(w, oc, control.Request{Cmd: control.CmdMemoSend, Name: in.To, Value: in.Text}, 10*time.Second)
+}
+
+// accounts is People's Accounts list: ?q, filter and offset.
+func (p *Panel) accounts(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	q := r.URL.Query()
+	off, _ := strconv.Atoi(q.Get("offset"))
+	p.send(w, oc, control.Request{Cmd: control.CmdAccounts, Query: q.Get("q"), Filter: q.Get("filter"), Offset: off, Limit: 50}, 10*time.Second)
+}
+
+// account opens one account: ?name (a nick of it).
+func (p *Panel) account(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	name := r.URL.Query().Get("name")
+	if name == "" || len(name) > 64 {
+		writeErr(w, http.StatusBadRequest, "Bad request.")
+		return
+	}
+	p.send(w, oc, control.Request{Cmd: control.CmdAccount, Name: name}, 10*time.Second)
+}
+
+// svc is one tab of the Services page: ?kind.
+func (p *Panel) svc(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	p.send(w, oc, control.Request{Cmd: control.CmdSvcData, Kind: r.URL.Query().Get("kind")}, 10*time.Second)
+}
+
+// servDo is one services change from the oper pages (see control.CmdServDo).
+func (p *Panel) servDo(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	var in struct {
+		Kind, Name, Value, Mask, Reason, Life, Password string
+		ID                                              int64
+	}
+	if json.NewDecoder(r.Body).Decode(&in) != nil || in.Kind == "" || len(in.Name)+len(in.Mask)+len(in.Life) > 300 ||
+		len(in.Value) > 500 || len(in.Reason) > 400 || len(in.Password) > 200 {
+		writeErr(w, http.StatusBadRequest, "Bad request.")
+		return
+	}
+	p.send(w, oc, control.Request{Cmd: control.CmdServDo, Kind: in.Kind, Name: in.Name, Value: in.Value, Mask: in.Mask,
+		Reason: in.Reason, Life: in.Life, Password: in.Password, ID: in.ID}, 25*time.Second)
+}
+
+// global is OperServ GLOBAL: a notice to everyone online.
+func (p *Panel) global(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	var in struct{ Text string }
+	if json.NewDecoder(r.Body).Decode(&in) != nil || in.Text == "" || len(in.Text) > 1000 {
+		writeErr(w, http.StatusBadRequest, "Bad request.")
+		return
+	}
+	p.send(w, oc, control.Request{Cmd: control.CmdGlobal, Value: in.Text}, 25*time.Second)
 }
 
 func (p *Panel) undo(w http.ResponseWriter, r *http.Request, oc operCtx) {

@@ -913,7 +913,7 @@ var statusPrivs = map[byte]string{'q': "OWNER", 'a': "PROTECT", 'o': "OP", 'h': 
 // the mode string and arguments left ("" modes = nothing left). Opers
 // with flag s may do all of them, like Anope's chanserv/administration.
 func (s *Services) statusAllowed(c *Client, reg *store.Channel, modes []string) []string {
-	if strings.IndexByte(s.host.OperFlags(c.user.UID), 's') >= 0 {
+	if c.can('s') {
 		return modes
 	}
 	args := modes[1:]

@@ -49,6 +49,16 @@
   }
   const fmt = n => Number(n || 0).toLocaleString('en-US');
   const plural = (n, one, many) => fmt(n) + ' ' + (n === 1 ? one : many);
+  // tabIntoView scrolls a tab strip that is wider than the screen (phones)
+  // so its active tab shows, once the strip is on the page.
+  function tabIntoView(strip) {
+    requestAnimationFrame(() => {
+      const on = strip.querySelector('.on');
+      if (!on || strip.scrollWidth <= strip.clientWidth) return;
+      const s = strip.getBoundingClientRect(), b = on.getBoundingClientRect();
+      if (b.left < s.left || b.right > s.right) strip.scrollLeft += b.left - s.left - (s.width - b.width) / 2;
+    });
+  }
   function bytes(n) {
     if (n >= 1 << 30) return (n / (1 << 30)).toFixed(1) + ' GB';
     if (n >= 1 << 20) return (n / (1 << 20)).toFixed(1) + ' MB';
@@ -160,16 +170,16 @@
     { id: 'overview', label: 'Overview', icon: 'overview', make: overviewPage },
     { id: 'people', label: 'People', icon: 'people', eyebrow: 'Live list', make: peoplePage },
     { id: 'channels', label: 'Channels', icon: 'hash', eyebrow: 'Live list', make: channelsPage },
-    { id: 'bans', label: 'Bans', icon: 'bans', need: 'k', eyebrow: 'Network bans', make: bansPage },
+    { id: 'bans', label: 'Bans', icon: 'bans', need: 'ks', eyebrow: 'Network bans', make: bansPage },
     { id: 'spamfilter', label: 'Spam filter', icon: 'filter', need: 'k', eyebrow: 'Spam filter', make: spamPage },
     { id: 'opers', label: 'Opers', icon: 'opers', need: 'a', eyebrow: 'Who may /oper', make: opersPage },
     { id: 'servers', label: 'Linked servers', icon: 'servers', need: 'c', eyebrow: 'Links', make: serversPage },
-    { id: 'services', label: 'Services', icon: 'services', need: 'a', eyebrow: 'Built in', make: servicesPage },
+    { id: 'services', label: 'Services', icon: 'services', need: 'abghk', eyebrow: 'Built in', make: servicesPage },
     { id: 'settings', label: 'Settings', icon: 'settings', need: 'a', eyebrow: 'beeircd.conf', make: settingsPage },
   ];
   // A member (signed in with the NickServ password) sees only the YOU
   // pages; the server refuses the rest anyway.
-  const allowed = p => (!p.chat || !!me && !!me.chat) && (p.you || !!me && !me.member && (!p.need || has(p.need)));
+  const allowed = p => (!p.chat || !!me && !!me.chat) && (p.you || !!me && !me.member && (!p.need || [...p.need].some(has)));
 
   // ---------- themes (kept in this browser only) ----------
   const THEMES = [['bee', 'Bee'], ['catppuccin-latte', 'Catppuccin Latte'], ['catppuccin-mocha', 'Catppuccin Mocha'], ['one-dark-pro', 'One Dark Pro'], ['dracula', 'Dracula']];
@@ -373,10 +383,12 @@
   // heads. It runs again when a page redraws a part (a MutationObserver).
   const HEAD_ICON = {
     'Health': 'pulse', 'What happened': 'list', 'Services': 'services', 'Bots': 'services', 'Services run on the hub': 'services',
-    'Limits': 'gauge', 'Server actions': 'terminal', 'Server details': 'cpu', 'Backups': 'archive', 'Add a ban': 'plus', 'Network map': 'map',
+    'Limits': 'gauge', 'Server actions': 'terminal', 'Server details': 'cpu', 'Backups': 'archive', 'Add a ban': 'plus', 'Add a forbid': 'plus', 'Network map': 'map',
     'Settings': 'settings', 'Members': 'people', 'Mail': 'mail', 'What the flags allow': 'opers', 'Change an oper': 'opers', 'Add an oper': 'opers',
     'This server, for the other side': 'lock', 'Server tree': 'servers', 'Link blocks': 'servers', 'Link block': 'servers', 'Not linked': 'servers',
     'Filters': 'list', 'Try a line': 'search', 'Add a filter': 'plus',
+    'Waiting for an oper': 'user', 'Vhosts in use': 'user', 'Give a vhost': 'plus', 'Add a bot': 'plus', 'Logon news': 'message', 'Oper news': 'message', 'Random news': 'message',
+    'Session exceptions': 'gauge', 'Busiest addresses': 'gauge', 'Add an exception': 'plus', 'DEFCON level': 'alert', 'Services ignore': 'eye-off', 'Add an ignore': 'plus',
   };
   const TILE_ICON = [[/^caught$/i, 'pulse'], [/^blocking$/i, 'bans'], [/^warn only$/i, 'eye'], [/^except$/i, 'check'], [/^filters$/i, 'filter'], [/oper/i, 'opers'], [/bot/i, 'services'], [/memo/i, 'message'], [/logged|nick/i, 'lock'], [/online|guest|people/i, 'people'],
     [/suspend|akill|zline|shun|snline/i, 'bans'], [/exception|registered/i, 'check'], [/channel|biggest/i, 'hash']];
@@ -576,7 +588,7 @@
     { id: 'map', label: 'Network map', wide: true, need: 'c' },
     { id: 'where', label: 'Where people connect from', col: 'l', need: 'h' },
     { id: 'events', label: 'What happened', col: 'l' },
-    { id: 'actions', label: 'Server actions', col: 'l', can: () => has('a') || me.owner },
+    { id: 'actions', label: 'Server actions', col: 'l', can: () => has('a') || has('g') || me.owner },
     { id: 'details', label: 'Server details', col: 'l' },
     { id: 'health', label: 'Health', col: 'r' },
     { id: 'services', label: 'Services', col: 'r' },
@@ -924,8 +936,36 @@
         c.card.append(h('div', { class: 'acts-v' },
           has('a') ? btn('check', 'Check the config', '/api/check', checkLines) : null,
           me.owner ? btn('archive', 'Back up now', '/api/backup', backupLines) : null,
-          has('a') ? btn('refresh', 'Rehash', '/api/rehash', rehashLines) : null, res));
+          has('a') ? btn('refresh', 'Rehash', '/api/rehash', rehashLines) : null,
+          has('g') ? globalBox() : null, res));
         return { el: c.card, tail: c.tail };
+        // Notice to everyone (OperServ GLOBAL): asks once before sending.
+        function globalBox() {
+          const note = h('input', { class: 'in', id: 'ov-global', type: 'text', maxlength: '400', autocomplete: 'off', placeholder: 'Everyone on the network sees it' });
+          const send = h('button', { type: 'button', class: 'btn', text: 'Send…' });
+          const sure = h('div', { class: 'confirm', hidden: true });
+          const open = () => {
+            if (!note.value.trim()) { note.classList.add('wrong'); note.focus(); return; }
+            note.classList.remove('wrong');
+            const n = status && status.online ? plural(status.online, 'person', 'people') : 'everyone';
+            const go = h('button', { type: 'button', class: 'btn main', text: 'Send to ' + n });
+            const cancel = h('button', { type: 'button', class: 'btn ghost', text: 'Cancel' });
+            cancel.addEventListener('click', () => { sure.hidden = true; note.focus(); });
+            go.addEventListener('click', () => busy(go, async () => {
+              try {
+                const d = await api('POST', '/api/global', { text: note.value });
+                put(res, line('ok', d.done.text)); res.hidden = false;
+                note.value = ''; sure.hidden = true;
+              } catch (e) { put(res, line('bad', e.message)); res.hidden = false; }
+            }));
+            put(sure, h('span', { class: 'f', text: 'Send this notice to ' + n + ' on the network, from OperServ?' }), go, cancel);
+            sure.hidden = false; go.focus();
+          };
+          send.addEventListener('click', open);
+          note.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); open(); } });
+          return h('div', { class: 'ov-global' },
+            h('div', { class: 'acts' }, h('div', { class: 'grow' }, h('label', { class: 'f', for: 'ov-global' }, 'Notice to everyone', note), send)), sure);
+        }
       },
       details() {
         // What this server runs on. Version, certificate date, memory and
@@ -1458,6 +1498,157 @@
     if (!asn) return h('span', { class: 'asn none', text: '—' });
     return h('span', { class: 'asn', title: org || '' }, 'AS' + asn, org ? h('small', { text: org }) : null);
   }
+  // ---------- People: Accounts (flag s) ----------
+  // Every registered account, online or not; one opened can be suspended,
+  // dropped, given a new password or email. Each is NickServ's own command.
+  const servDo = body => api('POST', '/api/serv-do', body);
+  const LIVES = [['1d', '1 day'], ['7d', '7 days'], ['30d', '30 days'], ['0', 'Until lifted']];
+  function accountsView() {
+    const PAGE = 50;
+    let q = '', filter = 'all', offset = 0, openName = null, data = null, typing = 0;
+    const tile = label => { const n = h('span', { class: 'num', text: '…' }); return { n, el: h('section', { class: 'card tight' }, h('span', { class: 'lbl', text: label }), n) }; };
+    const tAll = tile('Accounts'), tOn = tile('Online now'), tSus = tile('Suspended'), tUn = tile('Not confirmed');
+    const search = h('input', { class: 'search', type: 'search', placeholder: 'Search account, nick or email (* and ? too)', 'aria-label': 'Search accounts', autocomplete: 'off', spellcheck: 'false' });
+    const segs = [['all', 'All'], ['online', 'Online'], ['suspended', 'Suspended'], ['unconfirmed', 'Not confirmed']].map(([v, label]) =>
+      h('button', { type: 'button', 'aria-pressed': v === filter ? 'true' : 'false', 'data-f': v, text: label }));
+    const tbody = h('tbody');
+    const COLS = 6;
+    const count = h('span', { class: 'lbl' });
+    const back = h('button', { type: 'button', class: 'btn', text: 'Back' });
+    const next = h('button', { type: 'button', class: 'btn', text: 'Next' });
+    const el = h('div', { class: 'main-stack' },
+      h('div', { class: 'tiles4' }, tAll.el, tOn.el, tSus.el, tUn.el),
+      h('section', { class: 'card list-card' },
+        h('div', { class: 'tools' }, search, h('div', { class: 'seg', role: 'group', 'aria-label': 'Show' }, segs)),
+        h('div', { class: 'wrap' }, h('table', {},
+          h('thead', {}, h('tr', {}, ['Account', 'Email', 'Nicks', 'Registered', 'Last seen', 'State'].map(t => h('th', { scope: 'col', text: t })))), tbody)),
+        h('div', { class: 'pager' }, count, h('div', { class: 'row-btns' }, back, next))));
+
+    async function load() {
+      try {
+        data = (await api('GET', '/api/accounts?' + new URLSearchParams({ q, filter, offset }))).accounts;
+        draw();
+      } catch (e) { put(tbody, h('tr', {}, h('td', { colspan: COLS, class: 'empty', text: e.message }))); }
+    }
+    const state = r => r.suspended ? h('span', { class: 'tag sus', text: 'suspended' })
+      : r.online ? h('span', { class: 'tag reg', text: r.online > 1 ? 'online ×' + r.online : 'online' })
+      : r.unconfirmed ? h('span', { class: 'tag', text: 'not confirmed' }) : h('span', { class: 'lbl', text: '—' });
+    function draw() {
+      const d = data;
+      if (!d) return;
+      tAll.n.textContent = fmt(d.total); tOn.n.textContent = fmt(d.online); tSus.n.textContent = fmt(d.suspended); tUn.n.textContent = fmt(d.unconfirmed);
+      const rows = [];
+      if (!d.rows.length) rows.push(h('tr', {}, h('td', { colspan: COLS, class: 'empty', text: q || filter !== 'all' ? 'No account matches.' : 'Nobody has registered yet.' })));
+      for (const r of d.rows) {
+        const open = r.name === openName;
+        const tr = h('tr', { class: 'person' + (open ? ' open' : '') },
+          h('td', {}, h('button', { type: 'button', class: 'rowbtn', 'aria-expanded': open ? 'true' : 'false' }, r.name), r.oper ? [' ', h('span', { class: 'tag', text: 'oper' })] : null),
+          h('td', { class: 'mono', text: r.email || '—' }),
+          h('td', { text: String(r.nicks) }),
+          h('td', { class: 'lbl', text: day(r.registered) }),
+          h('td', { class: 'lbl', text: r.online ? 'now' : r.last_seen ? ago(r.last_seen) : '—' }),
+          h('td', {}, state(r)));
+        tr.addEventListener('click', () => { openName = openName === r.name ? null : r.name; draw(); });
+        rows.push(tr);
+        if (open) rows.push(detailRow(r.name));
+      }
+      put(tbody, ...rows);
+      const from = d.matched ? d.offset + 1 : 0, to = d.offset + d.rows.length;
+      count.textContent = fmt(from) + ' to ' + fmt(to) + ' of ' + fmt(d.matched);
+      back.disabled = d.offset <= 0;
+      next.disabled = to >= d.matched;
+    }
+    function detailRow(name) {
+      const box = h('div', {}, h('p', { class: 'empty', text: 'Loading…' }));
+      const tr = h('tr', { class: 'detail' }, h('td', { colspan: COLS }, box));
+      // Clicks inside the open account don't close it.
+      tr.addEventListener('click', e => e.stopPropagation());
+      api('GET', '/api/account?name=' + encodeURIComponent(name)).then(d => fill(box, d.account))
+        .catch(e => put(box, h('p', { class: 'empty', text: e.message })));
+      return tr;
+    }
+    const item = (label, value, cls, wide) => h('div', { class: wide ? 'wide' : null }, h('span', { class: 'lbl', text: label }), h('span', { class: cls || null, text: value || '—' }));
+    function fill(box, a) {
+      const items = [
+        item('Nicks', a.nick_list.join(' '), 'mono', true),
+        item('Email', a.email || 'none', 'mono'),
+        item('Registered', day(a.registered)),
+        item('Last seen', a.online ? 'online now' + (a.online > 1 ? ' (' + a.online + ' connections)' : '') : a.last_seen ? ago(a.last_seen) : '—'),
+        item('Last host', a.last_host, 'mono'),
+        item('Vhost', a.vhost || 'none', 'mono'),
+        item('Founder of', (a.founder || []).join(' ') || 'no channels', 'mono', true),
+      ];
+      if (a.unconfirmed) items.push(item('Email confirmed', 'not yet'));
+      if (a.no_expire) items.push(item('Expires', 'never (kept)'));
+      if (a.suspended) items.push(item('Suspended', 'by ' + (a.suspended_by || '?') + (a.suspended_at ? ' ' + ago(a.suspended_at) : '') +
+        ' · ' + (a.suspend_until ? 'ends ' + ends(a.suspend_until) : 'until lifted') + (a.suspend_reason ? ' · ' + a.suspend_reason : ''), null, true));
+      if (a.locked) {
+        put(box, h('div', { class: 'dl' }, items), h('p', { class: 'hint', text: a.locked }));
+        return;
+      }
+      const sure = h('div', { class: 'confirm', hidden: true });
+      const run = (btn, body) => busy(btn, async () => {
+        try { toast([(await servDo(body)).done.text]); sure.hidden = true; load(); }
+        catch (e) { toastErr(e.message); }
+      });
+      // ask shows one small form under the account; its button runs it.
+      const ask = (label, fields, goText, goCls, body) => {
+        const go = h('button', { type: 'button', class: 'btn ' + goCls, text: goText });
+        const cancel = h('button', { type: 'button', class: 'btn ghost', text: 'Cancel' });
+        cancel.addEventListener('click', () => { sure.hidden = true; });
+        go.addEventListener('click', () => { const b = body(); if (b) run(go, b); });
+        for (const f of fields) if (f.tagName === 'INPUT') f.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go.click(); } });
+        put(sure, h('span', { class: 'f', text: label }), ...fields, go, cancel);
+        sure.hidden = false;
+        (fields.find(f => f.tagName === 'INPUT') || go).focus();
+      };
+      const acts = [];
+      const btn = (text, cls, f) => { const b = h('button', { type: 'button', class: 'btn' + (cls ? ' ' + cls : ''), text }); b.addEventListener('click', () => f(b)); acts.push(b); };
+      if (a.suspended) btn('Unsuspend', 'main', b => run(b, { kind: 'unsuspend', name: a.name }));
+      else btn('Suspend…', 'bad', () => {
+        const reason = h('input', { class: 'in', type: 'text', maxlength: '200', autocomplete: 'off', placeholder: 'Reason (opers see it)', 'aria-label': 'Reason' });
+        const life = h('select', { class: 'in', 'aria-label': 'Suspend for' }, LIVES.map(([v, t]) => h('option', { value: v, text: t })));
+        life.value = '7d';
+        ask('Suspend ' + a.name + "? They are logged out and can't identify until it ends.", [reason, life], 'Suspend ' + a.name, 'bad',
+          () => ({ kind: 'suspend', name: a.name, reason: reason.value, life: life.value }));
+      });
+      btn('New password…', '', () => {
+        const pw = h('input', { class: 'in', type: 'password', maxlength: '200', autocomplete: 'new-password', placeholder: 'New password', 'aria-label': 'New password' });
+        ask('New password for ' + a.name + ". Tell them yourself; services don't send it.", [pw], 'Set password', 'main', () => {
+          if (!pw.value) { pw.classList.add('wrong'); pw.focus(); return null; }
+          return { kind: 'password', name: a.name, password: pw.value };
+        });
+      });
+      btn('Email…', '', () => {
+        const em = h('input', { class: 'in mono', type: 'email', maxlength: '200', autocomplete: 'off', placeholder: 'Empty removes it', 'aria-label': 'Email' });
+        em.value = a.email || '';
+        ask('Email for ' + a.name + ':', [em], 'Save email', 'main', () => ({ kind: 'email', name: a.name, value: em.value.trim() }));
+      });
+      btn('Drop…', 'bad', () => {
+        ask('Drop ' + a.name + '? Its ' + plural(a.nick_list.length, 'nick', 'nicks') + ' and memos go for good' +
+          ((a.founder || []).length ? '; its channels pass to their successors or are dropped' : '') + '.', [], 'Drop ' + a.name, 'bad',
+          () => ({ kind: 'drop', name: a.name }));
+      });
+      put(box, h('div', { class: 'dl' }, items), h('div', { class: 'acts' }, h('div', { class: 'end' }, acts)), sure);
+    }
+    search.addEventListener('input', () => {
+      clearTimeout(typing);
+      typing = setTimeout(() => { q = search.value.trim(); offset = 0; openName = null; load(); }, 250);
+    });
+    for (const b of segs) b.addEventListener('click', () => {
+      filter = b.dataset.f; offset = 0; openName = null;
+      segs.forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+      load();
+    });
+    back.addEventListener('click', () => { offset = Math.max(0, offset - PAGE); openName = null; load(); });
+    next.addEventListener('click', () => { offset += PAGE; openName = null; load(); });
+    let timer = 0;
+    return { el,
+      show() { load(); clearInterval(timer); timer = setInterval(() => { if (!openName && !document.hidden) bg(load); }, 30000); },
+      hide() { clearInterval(timer); },
+      esc() { if (!openName) return false; openName = null; draw(); return true; } };
+  }
+
   function peoplePage() {
     const PAGE = 50;
     let q = '', filter = 'all', offset = 0, openUID = null, data = null, typing = 0;
@@ -1483,14 +1674,38 @@
     const count = h('span', { class: 'lbl' });
     const back = h('button', { type: 'button', class: 'btn', text: 'Back' });
     const next = h('button', { type: 'button', class: 'btn', text: 'Next' });
-    const el = h('div', { class: 'main-stack' },
-      h('header', { class: 'head' }, h('div', { class: 'head-text' }, h('h1', { text: 'People' }),
-        h('span', { class: 'sub', text: 'Everyone online on the network, on every server' }))),
+    const onlineBox = h('div', { class: 'main-stack' },
       h('div', { class: 'tiles4' }, tOn.el, tIn.el, tGuests.el, tOpers.el),
       h('section', { class: 'card list-card' },
         h('div', { class: 'tools' }, search, seg),
         h('div', { class: 'wrap' }, h('table', {}, thead, tbody)),
         h('div', { class: 'pager' }, count, h('div', { class: 'row-btns' }, back, next))));
+    // Online now or Accounts (every registered nick, flag s): #/people?view=accounts.
+    const accts = has('s') ? accountsView() : null;
+    let view = accts && new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'accounts' ? 'accounts' : 'online';
+    const sub = h('span', { class: 'sub' });
+    const views = accts ? [['online', 'Online now'], ['accounts', 'Accounts']].map(([v, label]) =>
+      h('button', { type: 'button', 'data-v': v, text: label })) : [];
+    function showView() {
+      views.forEach(b => b.setAttribute('aria-pressed', b.dataset.v === view ? 'true' : 'false'));
+      onlineBox.hidden = view !== 'online';
+      sub.textContent = view === 'online' ? 'Everyone online on the network, on every server' : 'Every registered account, online or not';
+      if (!accts) return;
+      accts.el.hidden = view !== 'accounts';
+      if (view === 'accounts') accts.show(); else accts.hide();
+    }
+    for (const b of views) b.addEventListener('click', () => {
+      if (view === b.dataset.v) return;
+      view = b.dataset.v; openUID = null;
+      history.replaceState(null, '', '#/people' + (view === 'accounts' ? '?view=accounts' : ''));
+      showView();
+      if (view === 'online') load();
+    });
+    const el = h('div', { class: 'main-stack' },
+      h('header', { class: 'head' }, h('div', { class: 'head-text' }, h('h1', { text: 'People' }), sub),
+        accts ? h('div', { class: 'seg', role: 'group', 'aria-label': 'Show' }, views) : null),
+      onlineBox, accts ? accts.el : null);
+    showView();
 
     async function load() {
       try {
@@ -1628,12 +1843,16 @@
     });
     back.addEventListener('click', () => { offset = Math.max(0, offset - PAGE); openUID = null; load(); });
     next.addEventListener('click', () => { offset += PAGE; openUID = null; load(); });
-    const onKey = e => { if (e.key === 'Escape' && openUID) { openUID = null; draw(); } };
+    const onKey = e => {
+      if (e.key !== 'Escape') return;
+      if (view === 'accounts') accts.esc();
+      else if (openUID) { openUID = null; draw(); }
+    };
     document.addEventListener('keydown', onKey);
     // Fresh list every 15 s, unless a person is open (don't move things under the oper's hands).
-    const timer = setInterval(() => { if (!openUID && !document.hidden) bg(load); }, 15000);
-    load();
-    return { el, leave() { clearInterval(timer); document.removeEventListener('keydown', onKey); } };
+    const timer = setInterval(() => { if (view === 'online' && !openUID && !document.hidden) bg(load); }, 15000);
+    if (view === 'online') load();
+    return { el, leave() { clearInterval(timer); if (accts) accts.hide(); document.removeEventListener('keydown', onKey); } };
   }
 
   // ---------- Bans ----------
@@ -1644,7 +1863,11 @@
     { kind: 'snline', name: 'SNLINE', what: 'by realname', life: '30d', ph: '*free bitcoin*', field: 'Realname',
       hint: "* and ? as wildcards, or a /regex/. A nick takes that person's realname.", note: 'BeeIRCd servers only' },
     { kind: 'eline', name: 'Exception', what: 'never banned', life: '0', ph: '*@staff.example.org' },
+    { kind: 'forbid', name: 'Forbid', what: 'nick or channel', life: '0', ph: 'BadNick or #badchan', field: 'Nick or channel', need: 's',
+      hint: 'One nick or #channel, * and ? as wildcards. Nobody may use or register it; opers are never moved.', note: 'NickServ and ChanServ' },
   ];
+  // Forbids need flag s, the network bans k.
+  const shownKinds = () => KINDS.filter(k => has(k.need || 'k'));
   const kindOf = k => KINDS.find(x => x.kind === k) || KINDS[0];
   function ends(t) {
     if (!t) return 'never';
@@ -1655,8 +1878,9 @@
     return 'in ' + Math.round(s / 86400) + ' days';
   }
   function bansPage() {
-    let kind = 'akill', data = null, freshMask = null, matchTimer = 0, matchSeq = 0;
-    const tiles = KINDS.map(k => {
+    const SHOWN = shownKinds();
+    let kind = SHOWN[0].kind, data = null, freshMask = null, matchTimer = 0, matchSeq = 0;
+    const tiles = SHOWN.map(k => {
       const n = h('span', { class: 'num', text: '…' });
       const b = h('button', { type: 'button', class: 'card tile', 'aria-pressed': k.kind === kind ? 'true' : 'false' },
         h('span', { class: 'lbl', text: k.name }), n, h('span', { class: 'lbl', text: k.what }));
@@ -1669,7 +1893,7 @@
     const tbody = h('tbody');
 
     // add form
-    const type = h('select', { class: 'in', id: 'ban-type' }, KINDS.map(k => h('option', { value: k.kind, text: k.name + ' · ' + k.what })));
+    const type = h('select', { class: 'in', id: 'ban-type' }, SHOWN.map(k => h('option', { value: k.kind, text: k.name + ' · ' + k.what })));
     const mask = h('input', { class: 'in mono', id: 'ban-mask', type: 'text', autocomplete: 'off', spellcheck: 'false' });
     const hit = h('span', { class: 'hit', role: 'status' });
     const maskLabel = h('span', { text: 'Mask' });
@@ -1686,7 +1910,7 @@
       maskHint.hidden = !k.hint;
       if (k.hint) mask.setAttribute('aria-describedby', 'ban-mask-hint'); else mask.removeAttribute('aria-describedby');
       life.value = k.life;
-      add.textContent = k.kind === 'eline' ? 'Add exception' : 'Add ' + k.name;
+      add.textContent = k.kind === 'eline' ? 'Add exception' : k.kind === 'forbid' ? 'Add forbid' : 'Add ' + k.name;
       checkMask();
     }
     function checkMask() {
@@ -1699,10 +1923,11 @@
         try {
           const d = await api('GET', '/api/ban-match?' + new URLSearchParams({ kind: type.value, mask: v }));
           if (seq !== matchSeq) return;
-          const n = d.match.people, ex = type.value === 'eline';
+          const n = d.match.people, ex = type.value === 'eline', fb = type.value === 'forbid';
           hit.className = 'hit' + (n ? ' some' : '');
           put(hit, h('span', { class: 'dot ' + (n ? 'warn' : 'off') }),
-            (ex ? 'Covers ' : 'Matches ') + plural(n, 'person', 'people') + ' online' + (d.match.mask !== v ? ' · saved as ' + d.match.mask : ''));
+            fb ? (n ? plural(n, 'person', 'people') + (v.startsWith('#') ? ' would be kicked out' : ' would be moved off the nick') : 'Nobody online uses it')
+              : (ex ? 'Covers ' : 'Matches ') + plural(n, 'person', 'people') + ' online' + (d.match.mask !== v ? ' · saved as ' + d.match.mask : ''));
         } catch (e) {
           if (seq !== matchSeq) return;
           hit.className = 'hit bad';
@@ -1775,17 +2000,19 @@
       freshMask = null;
     }
 
+    const tileRow = h('div', { class: 'tiles5' }, tiles.map(t => t.b));
+    tileRow.style.setProperty('--n', tiles.length); // CSSOM: the CSP allows no style attributes
     const el = h('div', { class: 'main-stack' },
       h('header', { class: 'head' }, h('div', { class: 'head-text' }, h('h1', { text: 'Bans' }),
         h('span', { class: 'sub', text: 'Network bans reach every linked server' }))),
-      h('div', { class: 'tiles5' }, tiles.map(t => t.b)),
+      tileRow,
       h('div', { class: 'band21' },
         h('section', { class: 'card list-card' },
           h('div', { class: 'ch tools' }, title, listNote),
           h('div', { class: 'wrap' }, h('table', { class: 'bans' },
             h('thead', {}, h('tr', {}, h('th', { scope: 'col', text: 'Type' }), maskHead, ['Reason', 'Set by', 'Ends'].map(t => h('th', { scope: 'col', text: t })), h('th', { scope: 'col' }, h('span', { class: 'sr', text: 'Remove' })))),
             tbody))),
-        h('section', { class: 'card' }, h('h2', { text: 'Add a ban' }),
+        h('section', { class: 'card' }, h('h2', { text: SHOWN.every(x => x.kind === 'forbid') ? 'Add a forbid' : 'Add a ban' }),
           h('label', { class: 'f', for: 'ban-type' }, 'Type', type),
           h('label', { class: 'f', for: 'ban-mask' }, maskLabel, mask, maskHint),
           hit,
@@ -2585,6 +2812,7 @@
     NickServ: 'Registers nicks, logs people in', ChanServ: 'Registers and guards channels',
     MemoServ: 'Messages for people who are away', OperServ: 'Oper tools and network bans',
     HostServ: 'Virtual hosts', AdminServ: 'Server settings and opers', BotServ: 'Channel bots', Global: 'Notices to everyone',
+    HelpServ: 'Help with the other bots',
   };
   // toSecs reads 90s / 30m / 12h / 30d / 2w (a bare number is seconds); -1 when it isn't a time.
   function toSecs(v) {
@@ -3035,6 +3263,7 @@
         b.addEventListener('click', () => { tab = id; draw(); });
         return b;
       }));
+      tabIntoView(tabs);
       const make = { people: peopleTab, access: accessTab, akick: akickTab, settings: settingsTab, memo: memoTab }[tab];
       put(body, make());
     }
@@ -3126,26 +3355,351 @@
     return { el };
   }
 
+  // ---------- Services: tabs ----------
+  // Overview (the settings, flag a), then one tab per services job an oper
+  // may have: Vhosts (h), Bots (b), News (g), Sessions (k), DEFCON (a or k).
+  // Each tab reads /api/svc?kind and changes through /api/serv-do, which runs
+  // the real HostServ, BotServ or OperServ command.
+  const SVC_TABS = [
+    ['overview', 'hive', 'Overview', ''],
+    ['vhosts', 'user', 'Vhosts', 'h'],
+    ['bots', 'services', 'Bots', 'b'],
+    ['news', 'message', 'News', 'g'],
+    ['sessions', 'gauge', 'Sessions', 'k'],
+    ['defcon', 'alert', 'DEFCON', 'ak'],
+  ];
+  const SVC_LIVES = [['1h', '1 hour'], ['1d', '1 day'], ['7d', '7 days'], ['30d', '30 days'], ['0', 'Until removed']];
+  // svcKit is what every Services tab shares: its card, loading, a table,
+  // a remove button that asks once and a form field.
+  function svcKit(kind) {
+    const box = h('div', { class: 'main-stack' }, h('p', { class: 'empty', text: 'Loading…' }));
+    const kit = {
+      box, d: null, draw: () => {},
+      async load() {
+        try { kit.d = (await api('GET', '/api/svc?kind=' + kind)).svc; kit.draw(kit.d); }
+        catch (e) { put(box, h('section', { class: 'card' }, h('p', { class: 'empty', text: e.message }))); }
+      },
+      // busyNow is true while a remove or a form is half done, so the timer
+      // doesn't redraw under the oper.
+      busyNow: () => !!box.querySelector('.rm, .confirm:not([hidden])'),
+      async run(btn, body, after) {
+        return busy(btn, async () => {
+          try { toast([(await servDo(body)).done.text]); if (after) after(); await kit.load(); }
+          catch (e) { toastErr(e.message); }
+        });
+      },
+      table(heads, rows, empty) {
+        return h('div', { class: 'wrap' }, h('table', { class: 'svc' },
+          h('thead', {}, h('tr', {}, heads.map(t => t ? h('th', { scope: 'col', text: t }) : h('th', { scope: 'col' }, h('span', { class: 'sr', text: 'Actions' }))))),
+          h('tbody', {}, rows.length ? rows : h('tr', {}, h('td', { colspan: heads.length, class: 'empty', text: empty })))));
+      },
+      // rm is a cell with a remove button that asks once; extra (say a
+      // Change button) sits before it and comes back on Keep.
+      rm(label, body, ...extra) {
+        const cell = h('td', { class: 'end-cell' });
+        const trash = h('button', { type: 'button', class: 'x', 'aria-label': label, title: 'Remove' }, icon('trash'));
+        cell.append(...extra, trash);
+        trash.addEventListener('click', () => {
+          const yes = h('button', { type: 'button', class: 'btn bad', text: 'Remove' });
+          const no = h('button', { type: 'button', class: 'btn ghost', text: 'Keep' });
+          no.addEventListener('click', () => put(cell, ...extra, trash));
+          yes.addEventListener('click', () => kit.run(yes, body));
+          put(cell, h('span', { class: 'rm' }, yes, no));
+          yes.focus();
+        });
+        return cell;
+      },
+      input(id, label, attrs, hint) {
+        const i = h('input', Object.assign({ class: 'in', id, type: 'text', autocomplete: 'off', spellcheck: 'false' }, attrs));
+        return { i, el: h('label', { class: 'f', for: id }, label, i, hint ? h('span', { class: 'hint', text: hint }) : null) };
+      },
+      select(id, label, opts, value) {
+        const i = h('select', { class: 'in', id }, opts.map(([v, t]) => h('option', { value: v, text: t })));
+        i.value = value;
+        return { i, el: h('label', { class: 'f', for: id }, label, i) };
+      },
+      // enter makes Enter in the inputs press go.
+      enter(inputs, go) {
+        for (const i of inputs) i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go.click(); } });
+      },
+    };
+    return kit;
+  }
+
+  function vhostsTab() {
+    const k = svcKit('vhosts');
+    const nick = k.input('vh-nick', 'Nick', { maxlength: '64', placeholder: 'Their registered nick' });
+    const vhost = k.input('vh-host', 'Vhost', { class: 'in mono', maxlength: '200', placeholder: 'cool.example or ident@cool.example' }, 'Shown instead of their real host once they identify.');
+    const give = h('button', { type: 'button', class: 'btn main', text: 'Give vhost' });
+    give.addEventListener('click', () => {
+      if (!nick.i.value.trim()) { nick.i.classList.add('wrong'); nick.i.focus(); return; }
+      if (!vhost.i.value.trim()) { vhost.i.classList.add('wrong'); vhost.i.focus(); return; }
+      k.run(give, { kind: 'vhost-set', name: nick.i.value.trim(), value: vhost.i.value.trim() }, () => { nick.i.value = ''; vhost.i.value = ''; });
+    });
+    for (const f of [nick, vhost]) f.i.addEventListener('input', () => f.i.classList.remove('wrong'));
+    k.enter([nick.i, vhost.i], give);
+    const form = h('section', { class: 'card' }, h('h2', { text: 'Give a vhost' }), nick.el, vhost.el, give);
+    k.draw = d => {
+      const waiting = d.waiting || [], active = d.active || [];
+      const wRows = waiting.map(v => {
+        const cell = h('td', { class: 'end-cell' });
+        const ok = h('button', { type: 'button', class: 'btn main', text: 'Approve' });
+        const no = h('button', { type: 'button', class: 'btn', text: 'Reject…' });
+        ok.addEventListener('click', () => k.run(ok, { kind: 'vhost-ok', name: v.nick }));
+        no.addEventListener('click', () => {
+          const why = h('input', { class: 'in', type: 'text', maxlength: '200', autocomplete: 'off', placeholder: 'Reason (they see it)', 'aria-label': 'Reason for ' + v.nick });
+          const yes = h('button', { type: 'button', class: 'btn bad', text: 'Reject' });
+          const keep = h('button', { type: 'button', class: 'btn ghost', text: 'Cancel' });
+          keep.addEventListener('click', () => put(cell, h('span', { class: 'row-btns' }, ok, no)));
+          yes.addEventListener('click', () => k.run(yes, { kind: 'vhost-no', name: v.nick, reason: why.value }));
+          k.enter([why], yes);
+          put(cell, h('span', { class: 'rm' }, why, yes, keep));
+          why.focus();
+        });
+        cell.append(h('span', { class: 'row-btns' }, ok, no));
+        return h('tr', {}, h('td', { text: v.nick }), h('td', { class: 'mono', text: v.vhost }), h('td', { class: 'lbl', text: ago(v.created) }), cell);
+      });
+      const aRows = active.map(v => h('tr', {}, h('td', { text: v.nick }), h('td', { class: 'mono', text: v.vhost }),
+        h('td', { text: v.creator || '—' }), h('td', { class: 'lbl', text: day(v.created) }),
+        k.rm('Remove the vhost of ' + v.nick, { kind: 'vhost-del', name: v.nick })));
+      put(k.box,
+        h('div', { class: 'band21' },
+          h('div', { class: 'main-stack' },
+            h('section', { class: 'card list-card' },
+              h('div', { class: 'ch tools' }, h('h2', { text: 'Waiting for an oper' }), h('span', { class: 'lbl', text: waiting.length ? plural(waiting.length, 'request', 'requests') : '' })),
+              k.table(['Nick', 'Asked for', 'Asked', ''], wRows, 'No vhost requests are waiting. People ask with /msg HostServ REQUEST.')),
+            h('section', { class: 'card list-card' },
+              h('div', { class: 'ch tools' }, h('h2', { text: 'Vhosts in use' }), h('span', { class: 'lbl', text: plural(active.length, 'vhost', 'vhosts') })),
+              k.table(['Nick', 'Vhost', 'Set by', 'Since', ''], aRows, 'Nobody has a vhost yet.'))),
+          form));
+    };
+    return k;
+  }
+
+  function botsTab() {
+    const k = svcKit('bots');
+    const nick = k.input('bot-nick', 'Nick', { maxlength: '30', placeholder: 'Beebot' });
+    const mask = k.input('bot-mask', 'User@host', { class: 'in mono', maxlength: '200', placeholder: 'bot@services.hive' });
+    const real = k.input('bot-real', 'Real name', { maxlength: '200', placeholder: 'Shown in /whois (the nick if empty)' });
+    const add = h('button', { type: 'button', class: 'btn main', text: 'Add bot' });
+    add.addEventListener('click', () => {
+      if (!nick.i.value.trim()) { nick.i.classList.add('wrong'); nick.i.focus(); return; }
+      if (!mask.i.value.trim()) { mask.i.classList.add('wrong'); mask.i.focus(); return; }
+      k.run(add, { kind: 'bot-add', name: nick.i.value.trim(), mask: mask.i.value.trim(), reason: real.i.value }, () => { nick.i.value = mask.i.value = real.i.value = ''; });
+    });
+    for (const f of [nick, mask]) f.i.addEventListener('input', () => f.i.classList.remove('wrong'));
+    k.enter([nick.i, mask.i, real.i], add);
+    const form = h('section', { class: 'card' }, h('h2', { text: 'Add a bot' }), nick.el, mask.el, real.el,
+      h('p', { class: 'hint', text: 'Channel founders put it in with /msg BotServ ASSIGN #channel nick.' }), add);
+    let open = null;
+    const COLS = 6;
+    k.busyNow = () => !!open || !!k.box.querySelector('.rm');
+    k.draw = d => {
+      const bots = d.bots || [];
+      const rows = [];
+      for (const b of bots) {
+        const isOpen = b.nick === open;
+        const change = h('button', { type: 'button', class: 'btn', text: 'Change…', 'aria-expanded': String(isOpen) });
+        change.addEventListener('click', () => { open = isOpen ? null : b.nick; k.draw(k.d); });
+        const rmCell = k.rm('Delete the bot ' + b.nick, { kind: 'bot-del', name: b.nick }, change);
+        rows.push(h('tr', { class: isOpen ? 'open' : null },
+          h('td', {}, b.nick, b.private ? [' ', h('span', { class: 'tag', text: 'private' })] : null),
+          h('td', { class: 'mono', text: b.user + '@' + b.host }),
+          h('td', { text: b.real }),
+          h('td', { text: String(b.channels) }),
+          h('td', { class: 'lbl', text: day(b.created) }),
+          rmCell));
+        if (isOpen) {
+          const n = h('input', { class: 'in', type: 'text', maxlength: '30', autocomplete: 'off', 'aria-label': 'Nick', value: b.nick });
+          const m = h('input', { class: 'in mono', type: 'text', maxlength: '200', autocomplete: 'off', 'aria-label': 'User@host', value: b.user + '@' + b.host });
+          const r = h('input', { class: 'in', type: 'text', maxlength: '200', autocomplete: 'off', 'aria-label': 'Real name', value: b.real });
+          const save = h('button', { type: 'button', class: 'btn main', text: 'Save' });
+          const cancel = h('button', { type: 'button', class: 'btn ghost', text: 'Cancel' });
+          cancel.addEventListener('click', () => { open = null; k.draw(k.d); });
+          save.addEventListener('click', () => k.run(save, { kind: 'bot-change', name: b.nick, value: n.value.trim(), mask: m.value.trim(), reason: r.value }, () => { open = null; }));
+          k.enter([n, m, r], save);
+          rows.push(h('tr', { class: 'detail' }, h('td', { colspan: COLS },
+            h('div', { class: 'bot-edit' },
+              h('label', { class: 'f' }, 'Nick', n), h('label', { class: 'f' }, 'User@host', m), h('label', { class: 'f' }, 'Real name', r),
+              h('div', { class: 'row-btns' }, save, cancel)))));
+        }
+      }
+      put(k.box, h('div', { class: 'band21' },
+        h('section', { class: 'card list-card' },
+          h('div', { class: 'ch tools' }, h('h2', { text: 'Bots' }), h('span', { class: 'lbl', text: plural(bots.length, 'bot', 'bots') })),
+          k.table(['Nick', 'User@host', 'Real name', 'Channels', 'Made', ''], rows, 'No BotServ bots yet.')),
+        form));
+    };
+    return Object.assign(k, { esc() { if (!open) return false; open = null; k.draw(k.d); return true; } });
+  }
+
+  const NEWS_TITLE = { logon: 'Logon news', oper: 'Oper news', random: 'Random news' };
+  function newsTab() {
+    const k = svcKit('news');
+    k.draw = d => {
+      put(k.box, (d.news || []).map(l => {
+        const rows = l.items.map(n => h('tr', {}, h('td', { text: n.text }), h('td', { text: n.set_by }), h('td', { class: 'lbl', text: ago(n.set_at) }),
+          k.rm('Remove this ' + l.kind + ' news', { kind: 'news-del', name: l.kind, id: n.id })));
+        const full = l.items.length >= l.max;
+        const text = h('input', { class: 'in', type: 'text', maxlength: '400', autocomplete: 'off', 'aria-label': 'New ' + l.kind + ' news',
+          placeholder: full ? 'Full: remove one first' : 'Type the news' });
+        const add = h('button', { type: 'button', class: 'btn main', text: 'Add' });
+        text.disabled = add.disabled = full;
+        add.addEventListener('click', () => {
+          if (!text.value.trim()) { text.classList.add('wrong'); text.focus(); return; }
+          k.run(add, { kind: 'news-add', name: l.kind, value: text.value });
+        });
+        text.addEventListener('input', () => text.classList.remove('wrong'));
+        k.enter([text], add);
+        return h('section', { class: 'card list-card' },
+          h('div', { class: 'ch tools' }, h('h2', { text: NEWS_TITLE[l.kind] || l.kind }), h('span', { class: 'lbl', text: l.items.length + ' of ' + l.max })),
+          h('p', { class: 'note pad', text: l.about }),
+          k.table(['News', 'Set by', 'Set', ''], rows, 'None.'),
+          h('div', { class: 'tools' }, text, add));
+      }));
+    };
+    k.busyNow = () => !!k.box.querySelector('.rm') || [...k.box.querySelectorAll('input')].some(i => i.value);
+    return k;
+  }
+
+  function sessionsTab() {
+    const k = svcKit('sessions');
+    const mask = k.input('se-mask', 'Address', { class: 'in mono', maxlength: '200', placeholder: '203.0.113.7 or 203.0.113.*' });
+    const limit = k.input('se-limit', 'Connections allowed', { class: 'in mono', type: 'number', min: '0', max: '10000', value: '10' }, '0 = no limit.');
+    const reason = k.input('se-reason', 'Reason', { maxlength: '200', placeholder: 'A school, a bouncer host…' });
+    const life = k.select('se-life', 'Ends', SVC_LIVES, '0');
+    const add = h('button', { type: 'button', class: 'btn main', text: 'Add exception' });
+    add.addEventListener('click', () => {
+      if (!mask.i.value.trim()) { mask.i.classList.add('wrong'); mask.i.focus(); return; }
+      const n = Number(limit.i.value);
+      if (limit.i.value === '' || !Number.isInteger(n) || n < 0 || n > 10000) { limit.i.classList.add('wrong'); limit.i.focus(); return; }
+      k.run(add, { kind: 'except-add', mask: mask.i.value.trim(), value: String(n), reason: reason.i.value, life: life.i.value },
+        () => { mask.i.value = reason.i.value = ''; });
+    });
+    for (const f of [mask, limit]) f.i.addEventListener('input', () => f.i.classList.remove('wrong'));
+    k.enter([mask.i, limit.i, reason.i], add);
+    const form = h('section', { class: 'card' }, h('h2', { text: 'Add an exception' }), mask.el, limit.el, reason.el, life.el, add);
+    k.draw = d => {
+      const ex = d.excepts || [], busiest = d.busiest || [];
+      const lim = n => n ? String(n) : 'no limit';
+      const bRows = busiest.map(b => {
+        const pick = h('button', { type: 'button', class: 'btn ghost', text: 'Except…' });
+        pick.addEventListener('click', () => { mask.i.value = b.ip; mask.i.classList.remove('wrong'); limit.i.focus(); limit.i.select(); });
+        return h('tr', { class: b.limit && b.count >= b.limit ? 'full' : null }, h('td', { class: 'mono', text: b.ip }),
+          h('td', { text: b.count + ' of ' + lim(b.limit) }), h('td', { class: 'end-cell' }, pick));
+      });
+      const eRows = ex.map(e => h('tr', {}, h('td', { class: 'mono', text: e.mask }), h('td', { text: lim(e.limit) }), h('td', { text: e.reason || '—' }),
+        h('td', { text: e.set_by }), h('td', { class: 'lbl', text: ends(e.expires) }),
+        k.rm('Remove the exception for ' + e.mask, { kind: 'except-del', mask: e.mask })));
+      put(k.box, h('div', { class: 'band21' },
+        h('div', { class: 'main-stack' },
+          h('section', { class: 'card list-card' },
+            h('div', { class: 'ch tools' }, h('h2', { text: 'Session exceptions' }), h('span', { class: 'lbl', text: 'Everyone else: ' + (d.session_limit ? plural(d.session_limit, 'connection', 'connections') + ' per address' : 'no limit') })),
+            k.table(['Address', 'Allowed', 'Reason', 'Set by', 'Ends', ''], eRows, 'No exceptions. Every address gets the same limit.')),
+          h('section', { class: 'card list-card' },
+            h('div', { class: 'ch tools' }, h('h2', { text: 'Busiest addresses' }), h('span', { class: 'lbl', text: 'now' })),
+            k.table(['Address', 'Connections', ''], bRows, 'Nobody is connected.'))),
+        form));
+    };
+    k.busyNow = () => !!k.box.querySelector('.rm') || !!mask.i.value;
+    return k;
+  }
+
+  function defconTab() {
+    const k = svcKit('defcon');
+    const mask = k.input('ig-mask', 'Nick or mask', { class: 'in mono', maxlength: '200', placeholder: 'Spammer or *!*@203.0.113.*' });
+    const reason = k.input('ig-reason', 'Reason', { maxlength: '200', placeholder: 'Only opers see it' });
+    const life = k.select('ig-life', 'Ends', SVC_LIVES, '1d');
+    const add = h('button', { type: 'button', class: 'btn main', text: 'Add ignore' });
+    add.addEventListener('click', () => {
+      if (!mask.i.value.trim()) { mask.i.classList.add('wrong'); mask.i.focus(); return; }
+      k.run(add, { kind: 'ignore-add', mask: mask.i.value.trim(), reason: reason.i.value, life: life.i.value }, () => { mask.i.value = reason.i.value = ''; });
+    });
+    mask.i.addEventListener('input', () => mask.i.classList.remove('wrong'));
+    k.enter([mask.i, reason.i], add);
+    k.draw = d => {
+      const sure = h('div', { class: 'confirm', hidden: true });
+      const levels = (d.levels || []).map((words, i) => {
+        const n = i + 1, on = n === d.defcon;
+        const kids = [h('b', { text: 'DEFCON ' + n }), h('span', { class: 'lbl', text: words })];
+        if (!d.can_defcon) return h('div', { class: 'dc-lv' + (on ? ' on' : '') }, kids);
+        const b = h('button', { type: 'button', class: 'dc-lv' + (on ? ' on' : ''), 'aria-pressed': String(on) }, kids);
+        b.addEventListener('click', () => {
+          if (on) { sure.hidden = true; return; }
+          const go = h('button', { type: 'button', class: 'btn ' + (n < d.defcon ? 'bad' : 'main'), text: 'Set DEFCON ' + n });
+          const cancel = h('button', { type: 'button', class: 'btn ghost', text: 'Cancel' });
+          cancel.addEventListener('click', () => { sure.hidden = true; });
+          go.addEventListener('click', () => k.run(go, { kind: 'defcon', value: String(n) }));
+          put(sure, h('span', { class: 'f', text: 'Set DEFCON ' + n + ' (' + words + ')?' + (n === 5 ? '' : ' Opers are told, and it stays until someone sets it back.') }), go, cancel);
+          sure.hidden = false;
+          go.focus();
+        });
+        return b;
+      });
+      const parts = [h('section', { class: 'card' }, h('h2', { text: 'DEFCON level' }),
+        h('p', { class: 'note', text: d.defcon === 5 ? 'Normal: nothing is held back.' : 'DEFCON ' + d.defcon + ' is on. 5 is normal.' }),
+        h('div', { class: 'dc-list' }, levels), sure,
+        d.can_defcon ? null : h('p', { class: 'hint', text: 'Changing the level needs oper flag a (admin).' }))];
+      if (d.can_ignore) {
+        const ig = d.ignores || [];
+        const rows = ig.map(g => h('tr', {}, h('td', { class: 'mono', text: g.mask }), h('td', { text: g.reason || '—' }), h('td', { text: g.set_by }),
+          h('td', { class: 'lbl', text: ends(g.expires) }), k.rm('Stop ignoring ' + g.mask, { kind: 'ignore-del', mask: g.mask })));
+        parts.push(h('div', { class: 'band21' },
+          h('section', { class: 'card list-card' },
+            h('div', { class: 'ch tools' }, h('h2', { text: 'Services ignore' }), h('span', { class: 'lbl', text: plural(ig.length, 'entry', 'entries') })),
+            k.table(['Nick or mask', 'Reason', 'Set by', 'Ends', ''], rows, 'Services answer everyone.')),
+          h('section', { class: 'card' }, h('h2', { text: 'Add an ignore' }), mask.el, reason.el, life.el,
+            h('p', { class: 'hint', text: 'Services stop answering them; they can still chat.' }), add)));
+      }
+      put(k.box, parts);
+    };
+    k.busyNow = () => !!k.box.querySelector('.rm, .confirm:not([hidden])') || !!mask.i.value;
+    return k;
+  }
+
   function servicesPage() {
     const tile = label => { const n = h('span', { class: 'num', text: '…' }); return { n, el: h('section', { class: 'card tight' }, h('span', { class: 'lbl', text: label }), n) }; };
     const tNicks = tile('Registered nicks'), tChans = tile('Registered channels'), tMemos = tile('Memos waiting'), tBots = tile('Bots');
     const bots = h('div');
+    const canSet = has('a');
     const form = h('div', { class: 'svc-form' }, h('p', { class: 'empty', text: 'Loading…' }));
     const count = h('span');
     const undoBtn = h('button', { type: 'button', class: 'btn ghost', text: 'Undo' });
     const saveBtn = h('button', { type: 'button', class: 'btn main', text: 'Save' });
     const bar = h('div', { class: 'unsaved', hidden: true }, count, h('div', { class: 'row-btns' }, undoBtn, saveBtn));
     const off = h('section', { class: 'card', hidden: true }, h('h2', { text: 'Services run on the hub' }),
-      h('p', { class: 'note', text: 'This server has its services switched off ([services] enabled = false): the hub of the network runs them. Change these settings in the hub\'s Hive Panel.' }));
-    const main = h('div', { class: 'band21' },
-      h('section', { class: 'card' }, h('h2', { text: 'Settings' }), form, bar),
-      h('section', { class: 'card' }, h('h2', { text: 'Bots' }), bots));
+      h('p', { class: 'note', text: 'This server has its services switched off ([services] enabled = false): the hub of the network runs them. Use the hub\'s Hive Panel for these pages.' }));
+    const botsCard = h('section', { class: 'card' }, h('h2', { text: 'Bots' }), bots);
+    const main = canSet ? h('div', { class: 'band21' }, h('section', { class: 'card' }, h('h2', { text: 'Settings' }), form, bar), botsCard) : botsCard;
+    const overview = h('div', { class: 'main-stack' }, h('div', { class: 'tiles4' }, tNicks.el, tChans.el, tMemos.el, tBots.el), main);
+
+    // The tabs this oper may open; Overview is everyone's.
+    const shown = SVC_TABS.filter(([, , , need]) => !need || [...need].some(has));
+    const makers = { vhosts: vhostsTab, bots: botsTab, news: newsTab, sessions: sessionsTab, defcon: defconTab };
+    const made = {};
+    const asked = new URLSearchParams(location.hash.split('?')[1] || '').get('tab');
+    let tab = shown.some(t => t[0] === asked) ? asked : 'overview';
+    const tabs = h('div', { class: 'cm-tabs', role: 'tablist', 'aria-label': 'Services' });
+    const body = h('div', { role: 'tabpanel' });
+    function showTab() {
+      put(tabs, shown.map(([id, ic, label]) => {
+        const b = h('button', { type: 'button', role: 'tab', class: 'cm-tab' + (id === tab ? ' on' : ''), 'aria-selected': String(id === tab) }, icon(ic), label);
+        b.addEventListener('click', () => { if (tab !== id) { tab = id; showTab(); } });
+        return b;
+      }));
+      tabIntoView(tabs);
+      if (tab === 'overview') put(body, overview);
+      else {
+        if (!made[tab]) made[tab] = makers[tab]();
+        put(body, made[tab].box);
+        made[tab].load();
+      }
+      history.replaceState(null, '', '#/services' + (tab === 'overview' ? '' : '?tab=' + tab));
+    }
     const el = h('div', { class: 'main-stack' },
       h('header', { class: 'head' }, h('div', { class: 'head-text' }, h('h1', { text: 'Services' }),
         h('span', { class: 'sub', text: 'NickServ, ChanServ and the other bots, built in' }))),
-      off,
-      h('div', { class: 'tiles4' }, tNicks.el, tChans.el, tMemos.el, tBots.el),
-      main);
+      off, shown.length > 1 ? tabs : null, body);
     const fields = [];
 
     function check(f) {
@@ -3222,12 +3776,25 @@
         toast(['Put back as it was']);
       });
     }));
-    load();
+    if (canSet) load();
+    showTab();
+    // The open tab is read again every 30 s unless the oper is busy in it.
+    const timer = setInterval(() => {
+      const t = made[tab];
+      if (t && !document.hidden && !t.busyNow()) bg(t.load);
+    }, 30000);
+    const onKey = e => { if (e.key === 'Escape' && made[tab] && made[tab].esc) made[tab].esc(); };
+    document.addEventListener('keydown', onKey);
+    let svcOn = true;
     return {
       el,
+      leave() { clearInterval(timer); document.removeEventListener('keydown', onKey); },
       status(s) {
-        off.hidden = s.services_on;
-        main.hidden = !s.services_on;
+        if (svcOn !== s.services_on) {
+          svcOn = s.services_on;
+          off.hidden = svcOn;
+          tabs.hidden = body.hidden = !svcOn;
+        }
         tNicks.n.textContent = fmt(s.nicks); tChans.n.textContent = fmt(s.reg_channels); tMemos.n.textContent = fmt(s.memos);
         const list = s.services || [];
         tBots.n.textContent = fmt(list.length);

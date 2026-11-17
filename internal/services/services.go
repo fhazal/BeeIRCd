@@ -461,6 +461,9 @@ func (s *Services) hashPassword(c *Client, pw string, done func(hash string)) {
 		return
 	}
 	s.HashSecret(&c.pwBusy, func() bool { return c.closed }, pw, func(h string, err error) {
+		if c.webDone != nil { // the Hive Panel waits for the answer
+			defer c.webDone()
+		}
 		if err != nil {
 			s.dbErr(c, s.nickServ, err)
 			return

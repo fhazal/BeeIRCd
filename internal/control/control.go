@@ -91,6 +91,13 @@ const (
 	CmdMyChan   = "my-chan"   // Name -> Chan
 	CmdChanDo   = "chan-do"   // Name + Kind (ACCESS, AKICK, SET, TOPIC, DROP) + Value/Mask/Reason -> Done (ChanServ's answer)
 	CmdChanMemo = "chan-memo" // Name + ID + Value ("read" or "del") -> Done
+
+	// Oper pages that run the real services commands with the oper's flags.
+	CmdGlobal   = "global"   // Value (the text) -> Done (flag g: OperServ GLOBAL)
+	CmdAccounts = "accounts" // Query + Filter + Offset + Limit -> Accounts (flag s)
+	CmdAccount  = "account"  // Name (a nick) -> Account (flag s)
+	CmdSvcData  = "svc-data" // Kind (vhosts, bots, news, sessions, defcon) -> Svc
+	CmdServDo   = "serv-do"  // Kind (the action) + Name + Value + Mask + Reason + Life + Password + ID -> Done
 )
 
 // MaxRequest is the most bytes one request may be (the Hive Panel takes
@@ -169,6 +176,9 @@ type Response struct {
 	SpamTest  *SpamTest    `json:"spamTest,omitempty"`
 	Mail      *Mail        `json:"mail,omitempty"`
 	MailTest  *MailTest    `json:"mailTest,omitempty"`
+	Accounts  *Accounts    `json:"accounts,omitempty"`
+	Account   *Account     `json:"account,omitempty"`
+	Svc       *Svc         `json:"svc,omitempty"`
 	// Denied is set (with Error) when the oper may not do this: signed
 	// out, or missing a flag. The panel then signs them out or says so.
 	Denied string `json:"denied,omitempty"` // "signin" or "flag"
@@ -801,4 +811,129 @@ type UpdateInfo struct {
 	Version string `json:"version"`
 	Date    string `json:"date"`
 	How     string `json:"how"` // the command that installs it
+}
+
+// Accounts is People's Accounts list: registered nicks, online or not.
+type Accounts struct {
+	Total       int          `json:"total"`
+	Online      int          `json:"online"`
+	Suspended   int          `json:"suspended"`
+	Unconfirmed int          `json:"unconfirmed"`
+	Matched     int          `json:"matched"`
+	Offset      int          `json:"offset"`
+	Rows        []AccountRow `json:"rows"`
+}
+
+// AccountRow is one registered account.
+type AccountRow struct {
+	Name        string    `json:"name"`
+	Email       string    `json:"email,omitempty"`
+	Registered  time.Time `json:"registered"`
+	LastSeen    time.Time `json:"last_seen,omitzero"`
+	Nicks       int       `json:"nicks"`
+	Online      int       `json:"online"`
+	Suspended   bool      `json:"suspended,omitempty"`
+	Oper        bool      `json:"oper,omitempty"`
+	Unconfirmed bool      `json:"unconfirmed,omitempty"`
+}
+
+// Account is one account opened from the Accounts list.
+type Account struct {
+	AccountRow
+	NickList      []string  `json:"nick_list"`
+	LastHost      string    `json:"last_host,omitempty"`
+	SuspendedBy   string    `json:"suspended_by,omitempty"`
+	SuspendReason string    `json:"suspend_reason,omitempty"`
+	SuspendedAt   time.Time `json:"suspended_at,omitzero"`
+	SuspendUntil  time.Time `json:"suspend_until,omitzero"` // zero = until lifted
+	VHost         string    `json:"vhost,omitempty"`
+	Founder       []string  `json:"founder"`
+	NoExpire      bool      `json:"no_expire,omitempty"`
+	// Locked says why the actions are off: the owner's account, or an
+	// oper's (NickServ won't change those from here), "" when they're on.
+	Locked string `json:"locked,omitempty"`
+}
+
+// Svc is one tab of the Services page.
+type Svc struct {
+	Kind string `json:"kind"`
+
+	Waiting []VHostRow `json:"waiting,omitempty"` // vhosts
+	Active  []VHostRow `json:"active,omitempty"`
+
+	Bots []BotRow `json:"bots,omitempty"` // bots
+
+	News []NewsList `json:"news,omitempty"` // news
+
+	SessionLimit int             `json:"session_limit"` // sessions
+	Busiest      []SessionRow    `json:"busiest,omitempty"`
+	Excepts      []SessionExcept `json:"excepts,omitempty"`
+
+	Defcon  int         `json:"defcon,omitempty"` // defcon: 5 = normal
+	Levels  []string    `json:"levels,omitempty"` // what levels 1-5 do
+	Ignores []IgnoreRow `json:"ignores,omitempty"`
+	// CanDefcon and CanIgnore say what the DEFCON tab may change (flags a, k).
+	CanDefcon bool `json:"can_defcon,omitempty"`
+	CanIgnore bool `json:"can_ignore,omitempty"`
+}
+
+// VHostRow is a vhost in use or one waiting for an oper.
+type VHostRow struct {
+	Nick    string    `json:"nick"`
+	VHost   string    `json:"vhost"`
+	Creator string    `json:"creator,omitempty"`
+	Created time.Time `json:"created"`
+}
+
+// BotRow is one BotServ bot.
+type BotRow struct {
+	Nick     string    `json:"nick"`
+	User     string    `json:"user"`
+	Host     string    `json:"host"`
+	Real     string    `json:"real"`
+	Created  time.Time `json:"created"`
+	Private  bool      `json:"private,omitempty"`
+	Channels int       `json:"channels"`
+}
+
+// NewsList is one kind of news: logon, oper or random.
+type NewsList struct {
+	Kind  string     `json:"kind"`
+	About string     `json:"about"`
+	Max   int        `json:"max"`
+	Items []NewsItem `json:"items"`
+}
+
+// NewsItem is one news line.
+type NewsItem struct {
+	ID    int64     `json:"id"`
+	Text  string    `json:"text"`
+	SetBy string    `json:"set_by"`
+	SetAt time.Time `json:"set_at"`
+}
+
+// SessionRow is an address and how many connections it has.
+type SessionRow struct {
+	IP    string `json:"ip"`
+	Count int    `json:"count"`
+	Limit int    `json:"limit"`
+}
+
+// SessionExcept lets an address have more (or fewer) connections.
+type SessionExcept struct {
+	Mask    string    `json:"mask"`
+	Limit   int       `json:"limit"`
+	Reason  string    `json:"reason"`
+	SetBy   string    `json:"set_by"`
+	SetAt   time.Time `json:"set_at"`
+	Expires time.Time `json:"expires,omitzero"`
+}
+
+// IgnoreRow is someone services ignore.
+type IgnoreRow struct {
+	Mask    string    `json:"mask"`
+	Reason  string    `json:"reason"`
+	SetBy   string    `json:"set_by"`
+	SetAt   time.Time `json:"set_at"`
+	Expires time.Time `json:"expires,omitzero"`
 }

@@ -287,6 +287,11 @@ func (s *Server) panelEvents(po *control.PanelOper) ([]control.Event, error) {
 // panelControl answers the Hive Panel's commands, and the admin commands
 // when the panel sends them for an oper (As set). It reports false for a
 // command it doesn't handle.
+// svcHere are the panel commands that read or change this server's own
+// services, so they need services running here, not on the hub.
+var svcHere = map[string]bool{control.CmdAccounts: true, control.CmdAccount: true, control.CmdSvcData: true,
+	control.CmdServDo: true, control.CmdGlobal: true}
+
 func (s *Server) panelControl(req control.Request, setDeadline func(time.Duration)) (control.Response, bool) {
 	var resp control.Response
 	stopping := control.Response{Error: "the server is stopping"}
@@ -296,6 +301,10 @@ func (s *Server) panelControl(req control.Request, setDeadline func(time.Duratio
 			po, deny := s.panelAllowed(req, need)
 			if deny != nil {
 				resp = *deny
+				return
+			}
+			if svcHere[req.Cmd] && s.svc.Off() {
+				resp = control.Response{Error: "Services run on the hub of this network. Use the hub's Hive Panel for this."}
 				return
 			}
 			f(po)
@@ -402,13 +411,13 @@ func (s *Server) panelControl(req control.Request, setDeadline func(time.Duratio
 	case control.CmdSpamTest:
 		return run('k', func(*control.PanelOper) { resp = *s.panelSpamTest(req) }), true
 	case control.CmdBans:
-		return run('k', func(*control.PanelOper) { resp = s.panelBans(req.Kind) }), true
+		return run(banFlag(req.Kind), func(po *control.PanelOper) { resp = s.panelBans(po, req.Kind) }), true
 	case control.CmdBanAdd:
-		return run('k', func(po *control.PanelOper) { resp = s.panelBanAdd(po, req.IP, req) }), true
+		return run(banFlag(req.Kind), func(po *control.PanelOper) { resp = s.panelBanAdd(po, req.IP, req) }), true
 	case control.CmdBanDel:
-		return run('k', func(po *control.PanelOper) { resp = s.panelBanDel(po, req.IP, req) }), true
+		return run(banFlag(req.Kind), func(po *control.PanelOper) { resp = s.panelBanDel(po, req.IP, req) }), true
 	case control.CmdBanMatch:
-		return run('k', func(*control.PanelOper) { resp = s.panelBanMatch(req) }), true
+		return run(banFlag(req.Kind), func(*control.PanelOper) { resp = s.panelBanMatch(req) }), true
 	case control.CmdOpers:
 		return run('a', func(*control.PanelOper) {
 			o, problem := s.panelOpers()
@@ -459,6 +468,47 @@ func (s *Server) panelControl(req control.Request, setDeadline func(time.Duratio
 		return run('s', func(po *control.PanelOper) { resp = s.panelChanSuspend(po, req.IP, req.Name, req.Reason, req.Life) }), true
 	case control.CmdChanUnsuspend:
 		return run('s', func(po *control.PanelOper) { resp = s.panelChanUnsuspend(po, req.IP, req.Name) }), true
+	case control.CmdAccounts:
+		return run('s', func(*control.PanelOper) { resp.Accounts = s.panelAccounts(req) }), true
+	case control.CmdAccount:
+		return run('s', func(*control.PanelOper) { resp = s.panelAccountView(req.Name) }), true
+	case control.CmdSvcData:
+		need, ok := svcFlags[req.Kind]
+		if !ok {
+			return control.Response{Error: "That isn't a Services tab."}, true
+		}
+		return run(0, func(po *control.PanelOper) {
+			if strings.IndexAny(po.Flags, need) < 0 {
+				resp = control.Response{Error: fmt.Sprintf("You need oper flag %c (%s) for that.", need[0], flagNames[need[0]]), Denied: "flag"}
+				return
+			}
+			resp = s.panelSvc(po, req.Kind)
+		}), true
+	case control.CmdServDo, control.CmdGlobal:
+		kind := req.Kind
+		if req.Cmd == control.CmdGlobal {
+			kind = "global"
+		}
+		act, ok := servActs[kind]
+		if !ok {
+			return control.Response{Error: "The Hive Panel can't do that."}, true
+		}
+		setDeadline(panelLoginWait + 5*time.Second)
+		ch := make(chan control.Response, 1)
+		r := run(act.flag, func(po *control.PanelOper) {
+			s.panelServDo(po, req, act, func(r control.Response) { ch <- r })
+		})
+		if r.Error != "" {
+			return r, true
+		}
+		select {
+		case r := <-ch:
+			return r, true
+		case <-time.After(panelLoginWait):
+			return control.Response{Error: "The server took too long to answer. Please look again in a moment."}, true
+		case <-s.done:
+			return stopping, true
+		}
 	}
 	if req.As == "" {
 		return resp, false

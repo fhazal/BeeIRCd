@@ -32,7 +32,7 @@ func TestPanelBans(t *testing.T) {
 	}
 
 	r := ask("Boss", control.Request{Cmd: control.CmdBans})
-	if r.Bans == nil || r.Bans.Kind != "akill" || len(r.Bans.Rows) != 0 || r.Bans.Default != "30d" || len(r.Bans.Counts) != 5 {
+	if r.Bans == nil || r.Bans.Kind != "akill" || len(r.Bans.Rows) != 0 || r.Bans.Default != "30d" || len(r.Bans.Counts) != 6 {
 		t.Fatalf("empty list: %+v", r)
 	}
 	if r := ask("Boss", control.Request{Cmd: control.CmdBans, Kind: "kline"}); r.Error == "" {

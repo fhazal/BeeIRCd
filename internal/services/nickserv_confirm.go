@@ -7,7 +7,6 @@ package services
 // channels, and it is dropped after unconfirmed_expire.
 
 import (
-	"strings"
 	"time"
 
 	"github.com/fhazal/beeircd/internal/store"
@@ -22,7 +21,7 @@ func (s *Services) confirmOn() bool { return s.regMode() != "none" }
 
 // operCan reports whether c is an IRC operator with flag f.
 func (s *Services) operCan(c *Client, f byte) bool {
-	return strings.IndexByte(s.host.OperFlags(c.user.UID), f) >= 0
+	return c.can(f)
 }
 
 // afterRegister marks a new account unconfirmed and says what to do next.

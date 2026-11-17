@@ -15,11 +15,11 @@ import (
 // the same limits, ignores, notices and log lines apply as on IRC.
 
 // webClient is a stand-in for account a at the Hive Panel (ip): replies
-// land in *out instead of a notice.
+// land in *out instead of a notice, without IRC bold, colour and the like.
 func (s *Services) webClient(a *store.Account, ip, cmd string, out *[]string) *Client {
 	return &Client{s: s, ip: ip, accountID: a.ID, cmdName: cmd,
 		user:  &state.User{Nick: a.Name, Ident: "hive", Host: "hive-panel", RealHost: ip, IP: ip, Account: a.Name},
-		reply: func(text string) { *out = append(*out, text) }}
+		reply: func(text string) { *out = append(*out, normalizeBuffer(text)) }}
 }
 
 // webAccount is the live account behind id, or why not.

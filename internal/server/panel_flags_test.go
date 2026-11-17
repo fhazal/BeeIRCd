@@ -30,6 +30,7 @@ func TestPanelFlagMatrix(t *testing.T) {
 		control.CmdLinks: 'c', control.CmdLinkConnect: 'c', control.CmdLinkSplit: 'c', control.CmdLinkSave: 'c', control.CmdLinkDel: 'c', control.CmdMapPlace: 'c',
 		control.CmdChannels: 0, control.CmdChannel: 0, control.CmdChanNotice: 'g',
 		control.CmdChanTopic: 's', control.CmdChanSuspend: 's', control.CmdChanUnsuspend: 's',
+		control.CmdAccounts: 's', control.CmdAccount: 's', control.CmdGlobal: 'g', // the Services tabs and serv-do: TestPanelOperPages
 	}
 	who := []string{"Boss"}
 	for _, f := range allFlags {
@@ -55,7 +56,7 @@ func TestPanelFlagMatrix(t *testing.T) {
 		}
 	}
 	// Every command the panel has is in the matrix.
-	if len(need) != 36 {
+	if len(need) != 39 {
 		t.Errorf("matrix has %d commands", len(need))
 	}
 }
