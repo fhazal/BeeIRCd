@@ -405,6 +405,7 @@ func (s *Server) tryRegister(c *Client) {
 	s.snoticeOnly(connect)
 	s.svc.LogUserConnect(u)
 	s.welcome(c)
+	s.autoJoin(c)
 	if c.preAway != "" {
 		msg := c.preAway
 		c.preAway = ""

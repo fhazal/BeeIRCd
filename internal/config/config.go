@@ -186,8 +186,17 @@ type Server struct {
 	ConnectModes string `toml:"connect_modes"`
 	// OperModes are user modes set at /oper, like "+WH".
 	OperModes string `toml:"oper_modes"`
+	// AutoJoin are channels everyone joins on connect (UnrealIRCd's
+	// set::auto-join), like ["#chat"].
+	AutoJoin []string `toml:"auto_join"`
+	// AutoJoinSkip are security groups that skip AutoJoin, like a
+	// relay bridge's ["webirc-users"].
+	AutoJoinSkip []string `toml:"auto_join_skip"`
 	// OperJoin are channels an oper joins at /oper.
 	OperJoin []string `toml:"oper_join"`
+	// OperJoinFlag are more channels for opers with one oper flag, like
+	// { s = ["#services"] }.
+	OperJoinFlag map[string][]string `toml:"oper_join_flag"`
 	// PingCookie makes every new connection answer a PING with a random
 	// word before it is let in: it proves the other side really reads
 	// what the server sends.

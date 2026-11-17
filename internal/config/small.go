@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"strings"
+	"unicode"
 )
 
 // CreateMode is [channels] create in lower case, "everyone" when not set.
@@ -133,9 +134,36 @@ func (c *Config) checkSmall() error {
 		seen[strings.ToLower(v.Name)] = true
 	}
 	for _, ch := range c.Server.OperJoin {
-		if !strings.HasPrefix(ch, "#") || strings.ContainsAny(ch, " ,") {
+		if !JoinChannel(ch) {
 			return fmt.Errorf("[server] oper_join: %q is not a channel name", ch)
 		}
 	}
+	for _, ch := range c.Server.AutoJoin {
+		if !JoinChannel(ch) {
+			return fmt.Errorf("[server] auto_join: %q is not a channel name", ch)
+		}
+	}
+	for _, g := range c.Server.AutoJoinSkip {
+		if !c.GroupKnown(g) {
+			return fmt.Errorf("[server] auto_join_skip: there is no group %q", g)
+		}
+	}
+	for f, list := range c.Server.OperJoinFlag {
+		if len(f) != 1 || !strings.Contains(OperFlagLetters, f) {
+			return fmt.Errorf("[server] oper_join_flag: %q is not an oper flag (%s)", f, OperFlagLetters)
+		}
+		for _, ch := range list {
+			if !JoinChannel(ch) {
+				return fmt.Errorf("[server] oper_join_flag %s: %q is not a channel name", f, ch)
+			}
+		}
+	}
 	return nil
+}
+
+// JoinChannel reports whether ch can go in an auto-join list: a #channel
+// without spaces or commas, at most 50 characters.
+func JoinChannel(ch string) bool {
+	return len(ch) > 1 && len(ch) <= 50 && strings.HasPrefix(ch, "#") &&
+		!strings.ContainsAny(ch, " ,") && !strings.ContainsFunc(ch, unicode.IsControl)
 }

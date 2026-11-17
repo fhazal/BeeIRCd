@@ -1347,7 +1347,158 @@
     { name: 'flood-burst', label: 'Flood burst', hint: 'lines at once' },
     { name: 'flood-rate', label: 'Flood rate', hint: 'lines a second after that' },
   ];
+  // Auto-join: [server] auto_join, auto_join_skip, oper_join and
+  // oper_join_flag as rows of chips. A changed row gets the yellow bar;
+  // Save sends only the settings that changed.
+  const FLAG_WORDS = { a: 'admin', b: 'bots', c: 'links', g: 'global', h: 'hosts', k: 'kill', s: 'services' };
+  function autoJoinCard() {
+    const rowsEl = h('div', { class: 'aj-rows' });
+    const count = h('span');
+    const undoBtn = h('button', { type: 'button', class: 'btn ghost', text: 'Undo' });
+    const saveBtn = h('button', { type: 'button', class: 'btn main', text: 'Save' });
+    const bar = h('div', { class: 'unsaved', hidden: true }, count, h('div', { class: 'row-btns' }, undoBtn, ' ', saveBtn));
+    const flagSel = h('select', { class: 'in aj-flag', 'aria-label': 'Add a row for an oper flag' });
+    const flagAdd = h('div', { class: 'aj-more' }, flagSel);
+    const el = h('section', { class: 'card', hidden: true }, h('h2', { text: 'Auto-join' }),
+      h('p', { class: 'note', text: 'Channels people are put in. It applies from the next connect or /oper; people already on stay where they are.' }),
+      rowsEl, flagAdd, bar);
+    let set = {}, rows = [], groups = [], flags = [];
+    const list = v => (!v || v === 'off') ? [] : v.split(',').filter(Boolean);
+    const okChan = v => /^#[^\s,\x00-\x1f]{1,49}$/.test(v);
+    const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+
+    function flagValue() {
+      const parts = flags.map(f => rows.find(r => r.flag === f)).filter(r => r && r.items.length).map(r => r.flag + ':' + r.items.join(','));
+      return parts.length ? parts.join(' ') : 'off';
+    }
+    function dirtyNames() {
+      const out = [];
+      for (const n of ['auto-join', 'auto-join-skip', 'oper-join']) {
+        const r = rows.find(x => x.name === n);
+        if (r && !same(r.items, r.orig)) out.push(n);
+      }
+      if (set['oper-join-flag'] && flagValue() !== set['oper-join-flag'].value) out.push('oper-join-flag');
+      return out;
+    }
+    function refresh() {
+      const n = rows.filter(r => !same(r.items, r.orig)).length;
+      bar.hidden = n === 0;
+      count.textContent = n === 1 ? '1 unsaved change' : n + ' unsaved changes';
+      const used = rows.filter(r => r.flag).map(r => r.flag);
+      const free = flags.filter(f => !used.includes(f));
+      put(flagSel, h('option', { value: '', text: '+ Opers with flag…' }), ...free.map(f => h('option', { value: f, text: f + ' · ' + (FLAG_WORDS[f] || f) })));
+      flagAdd.hidden = !set['oper-join-flag'] || free.length === 0;
+    }
+    function row(r) {
+      const chips = h('div', { class: 'chips aj-chips' });
+      const hint = h('span', { class: 'hint' });
+      let adder;
+      if (r.kind === 'groups') {
+        adder = h('select', { class: 'in aj-in', 'aria-label': 'Add a group to ' + r.label });
+        adder.addEventListener('change', () => { if (adder.value) { r.items.push(adder.value); draw(); } });
+      } else {
+        adder = h('input', { class: 'in aj-in', type: 'text', placeholder: '#channel', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Add a channel to ' + r.label });
+        const add = () => {
+          const v = adder.value.trim();
+          if (!v) return;
+          const names = v.split(/[\s,]+/).filter(Boolean);
+          const bad = names.find(x => !okChan(x));
+          if (bad) { hint.textContent = bad + ' is not a channel name. Channels start with #.'; hint.classList.add('wrong'); return; }
+          for (const x of names) if (!r.items.some(y => y.toLowerCase() === x.toLowerCase())) r.items.push(x);
+          adder.value = '';
+          draw();
+          adder.focus();
+        };
+        adder.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); add(); } });
+        adder.addEventListener('blur', add);
+      }
+      function draw() {
+        hint.classList.remove('wrong');
+        put(chips, ...r.items.map((x, i) => h('span', { class: 'chip2 aj-chip' }, x,
+          h('button', { type: 'button', class: 'aj-x', 'aria-label': 'Remove ' + x, title: 'Remove', text: '×', onclick: () => { r.items.splice(i, 1); draw(); } }))));
+        if (!r.items.length) chips.append(h('span', { class: 'lbl', text: r.empty }));
+        if (r.kind === 'groups') {
+          const free = groups.filter(g => !r.items.some(y => y.toLowerCase() === g.toLowerCase()));
+          put(adder, h('option', { value: '', text: '+ group' }), ...free.map(g => h('option', { value: g, text: g })));
+          adder.hidden = free.length === 0;
+        }
+        chips.append(adder);
+        hint.textContent = !same(r.items, r.orig) ? 'was ' + (r.orig.join(', ') || 'none') : r.hint;
+        r.el.classList.toggle('changed', !same(r.items, r.orig));
+        refresh();
+      }
+      r.el = h('div', { class: 'aj-row' }, h('div', { class: 'aj-lbl' }, h('b', { text: r.label }), hint), chips);
+      r.draw = draw;
+      return r;
+    }
+    function build() {
+      rows = [];
+      const mk = (name, label, kind, empty, hintText, items) => rows.push(row({ name, label, kind, empty, hint: hintText, items: items.slice(), orig: items.slice() }));
+      if (set['auto-join']) mk('auto-join', 'Everyone on connect', 'channels', 'No channels', 'a normal join: bans and keys still apply', list(set['auto-join'].value));
+      if (set['auto-join-skip']) mk('auto-join-skip', 'Except these groups', 'groups', 'Nobody skips it', 'security groups that are not auto-joined', list(set['auto-join-skip'].value));
+      if (set['oper-join']) mk('oper-join', 'Every oper at /oper', 'channels', 'No channels', 'joined even past bans and keys', list(set['oper-join'].value));
+      if (set['oper-join-flag']) {
+        const v = set['oper-join-flag'].value;
+        for (const part of (v && v !== 'off') ? v.split(' ') : []) {
+          const [f, chans] = part.split(':');
+          addFlag(f, list(chans));
+        }
+      }
+      rows.forEach(r => r.draw());
+      put(rowsEl, ...rows.map(r => r.el));
+      refresh();
+    }
+    function addFlag(f, items) {
+      const r = row({ name: 'oper-join-flag', flag: f, label: 'Opers with flag ' + f, kind: 'channels', empty: 'No channels', hint: FLAG_WORDS[f] ? 'flag ' + f + ': ' + FLAG_WORDS[f] : '', items: items.slice(), orig: items.slice() });
+      rows.push(r);
+      return r;
+    }
+    flagSel.addEventListener('change', () => {
+      const f = flagSel.value;
+      if (!f) return;
+      const r = addFlag(f, []);
+      r.draw();
+      rowsEl.append(r.el);
+      r.el.querySelector('input').focus();
+    });
+    undoBtn.addEventListener('click', build);
+    saveBtn.addEventListener('click', () => busy(saveBtn, async () => {
+      const value = n => n === 'oper-join-flag' ? flagValue() : (rows.find(r => r.name === n).items.join(',') || 'off');
+      const done = [];
+      for (const n of dirtyNames()) {
+        try {
+          const d = await api('POST', '/api/set', { name: n, value: value(n) });
+          done.push(d.changed);
+          set[n].value = d.changed.new;
+        } catch (e) {
+          toastErr(n + ' was not saved: ' + e.message);
+        }
+      }
+      build();
+      if (!done.length) return;
+      toast(['Auto-join saved · applies from the next connect or /oper'], async () => {
+        for (const c of done.slice().reverse()) if (c.id) await api('POST', '/api/undo', { id: c.id });
+        await load();
+        toast(['Put back as it was']);
+      });
+    }));
+    let load = async () => {};
+    return {
+      el,
+      fill(byName, reload) {
+        load = reload;
+        set = {};
+        for (const n of ['auto-join', 'auto-join-skip', 'oper-join', 'oper-join-flag']) if (byName[n]) set[n] = Object.assign({}, byName[n]);
+        el.hidden = !Object.keys(set).length;
+        groups = (set['auto-join-skip'] && set['auto-join-skip'].choices) || [];
+        flags = (set['oper-join-flag'] && set['oper-join-flag'].choices) || [];
+        build();
+      },
+    };
+  }
+
   function settingsPage() {
+    const aj = autoJoinCard();
     const grid = h('div', { class: 'grid2' }, h('p', { class: 'empty', text: 'Loading…' }));
     const count = h('span');
     const undoBtn = h('button', { type: 'button', class: 'btn ghost', text: 'Undo' });
@@ -1375,6 +1526,7 @@
         const d = await api('GET', '/api/settings');
         const byName = Object.fromEntries((d.settings || []).map(s => [s.name, s]));
         if (byName.members) { membersCard.hidden = false; membersBox.checked = byName.members.value === 'on'; }
+        aj.fill(byName, load);
         fields.length = 0;
         put(grid, ...LIMITS.filter(l => byName[l.name]).map(l => {
           const s = byName[l.name];
@@ -1471,6 +1623,7 @@
       h('div', { class: 'two' },
         h('section', { class: 'card' }, h('h2', { text: 'Limits' }), grid, bar),
         h('section', { class: 'card' }, h('h2', { text: 'Server actions' }), actions)),
+      aj.el,
       membersCard,
       mailBox && mailBox.el,
       backups && backups.el);

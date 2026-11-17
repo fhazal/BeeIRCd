@@ -847,3 +847,20 @@ button.dc-lv:focus-visible{outline:2px solid var(--honey);outline-offset:-2px}
 tr.full td:nth-child(2){color:var(--bad)}
 .end-cell .row-btns{justify-content:flex-end}
 @media (max-width:700px){.bot-edit{grid-template-columns:1fr}.rm .in{width:140px}}
+
+/* Auto-join card (Settings) */
+.aj-rows{margin:4px 0 12px}
+.aj-row{display:grid;grid-template-columns:minmax(0,190px) minmax(0,1fr);gap:14px;align-items:start;padding:10px 12px;border-left:3px solid transparent;border-bottom:1px solid var(--line-soft);border-radius:0}
+.aj-row:focus-within,.aj-row.changed{border-left-color:var(--honey);background:var(--honey-tint)}
+.aj-lbl b{display:block;font-size:14px}
+.aj-lbl .hint{display:block;min-height:0}
+.aj-chips{align-items:center}
+.aj-chip{gap:2px;padding-right:2px}
+.aj-x{width:22px;height:22px;border:0;background:transparent;color:var(--muted);font:inherit;font-size:15px;line-height:1;cursor:pointer;border-radius:3px}
+.aj-x:hover,.aj-x:focus-visible{color:var(--bad);background:var(--bad-soft);outline:0}
+.aj-in{width:150px;min-height:30px;height:30px;font-size:13px;padding:0 9px}
+select.aj-in{width:auto}
+.aj-more{margin:0 0 12px}
+.aj-more[hidden]{display:none}
+.aj-flag{width:auto;min-height:34px}
+@media (max-width:640px){.aj-row{grid-template-columns:minmax(0,1fr);gap:8px}.aj-in{width:130px}}

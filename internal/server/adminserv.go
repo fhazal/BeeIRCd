@@ -112,7 +112,7 @@ type setting struct {
 	table string
 	key   string
 	help  string
-	kind  byte // 'i' number, 'd' time, 'b' on/off, 't' text
+	kind  byte // 'i' number, 'd' time, 'b' on/off, 't' text, 'c' channels, 'g' groups, 'f' channels by oper flag
 	lo    int64
 	hi    int64 // numbers: limits; times: in seconds
 	get   func(*config.Config) string
@@ -120,6 +120,8 @@ type setting struct {
 	check func(string) string // extra check for text, returns the problem
 	offOK bool                // text: OFF empties it
 	after func(s *Server, old string)
+	// enc checks a list value and writes it as TOML (kinds c, g and f).
+	enc func(c *config.Config, v string) (lit, problem string)
 }
 
 func limitsApply(dst, src *config.Config)   { dst.Limits = src.Limits }
@@ -128,6 +130,149 @@ func servicesApply(dst, src *config.Config) { dst.Services = src.Services }
 var guestRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]{0,9}$`)
 
 func settings() []setting {
+	return append(baseSettings(), joinSettings()...)
+}
+
+// joinSettings are the auto-join settings. Lists are written like
+// "#chat,#help", groups like "webirc-users" and flag channels like
+// "s:#services k:#kills". OFF empties one.
+func joinSettings() []setting {
+	server := func(d, s *config.Config) {
+		d.Server.AutoJoin, d.Server.AutoJoinSkip = s.Server.AutoJoin, s.Server.AutoJoinSkip
+		d.Server.OperJoin, d.Server.OperJoinFlag = s.Server.OperJoin, s.Server.OperJoinFlag
+	}
+	return []setting{
+		{name: "auto-join", table: "server", key: "auto_join", help: "everyone joins these on connect (OFF for none)", kind: 'c', apply: server,
+			get: func(c *config.Config) string { return listOrOff(c.Server.AutoJoin) },
+			enc: func(_ *config.Config, v string) (string, string) { return channelList("auto-join", v) }},
+		{name: "auto-join-skip", table: "server", key: "auto_join_skip", help: "people in these security groups don't auto-join (OFF for none)", kind: 'g', apply: server,
+			get: func(c *config.Config) string { return listOrOff(c.Server.AutoJoinSkip) },
+			enc: groupList},
+		{name: "oper-join", table: "server", key: "oper_join", help: "every oper joins these at /oper (OFF for none)", kind: 'c', apply: server,
+			get: func(c *config.Config) string { return listOrOff(c.Server.OperJoin) },
+			enc: func(_ *config.Config, v string) (string, string) { return channelList("oper-join", v) }},
+		{name: "oper-join-flag", table: "server", key: "oper_join_flag", help: "opers with a flag also join these, like s:#services (OFF for none)", kind: 'f', apply: server,
+			get: flagJoins, enc: flagJoinList},
+	}
+}
+
+func listOrOff(list []string) string {
+	if len(list) == 0 {
+		return "off"
+	}
+	return strings.Join(list, ",")
+}
+
+// splitList splits "a, b c" into its words.
+func splitList(v string) []string {
+	return strings.FieldsFunc(v, func(r rune) bool { return r == ',' || r == ' ' })
+}
+
+func tomlArray(list []string) string {
+	q := make([]string, len(list))
+	for i, v := range list {
+		q[i] = config.Quote(v)
+	}
+	return "[" + strings.Join(q, ", ") + "]"
+}
+
+// joinChannels checks a channel list and keeps each channel once.
+func joinChannels(name, v string) ([]string, string) {
+	var out []string
+	seen := map[string]bool{}
+	for _, ch := range splitList(v) {
+		if !config.JoinChannel(ch) {
+			return nil, fmt.Sprintf("%s: %q is not a channel name. Write channels like #chat,#help, or OFF.", name, ch)
+		}
+		if k := irc.Fold(ch); !seen[k] {
+			seen[k] = true
+			out = append(out, ch)
+		}
+	}
+	if len(out) > 20 {
+		return nil, name + " takes at most 20 channels."
+	}
+	return out, ""
+}
+
+func channelList(name, v string) (string, string) {
+	if strings.EqualFold(v, "off") {
+		return "[]", ""
+	}
+	list, problem := joinChannels(name, v)
+	if problem == "" && len(list) == 0 {
+		problem = name + " takes channels like #chat,#help, or OFF."
+	}
+	if problem != "" {
+		return "", problem
+	}
+	return tomlArray(list), ""
+}
+
+func groupList(c *config.Config, v string) (string, string) {
+	if strings.EqualFold(v, "off") {
+		return "[]", ""
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, g := range splitList(v) {
+		if !c.GroupKnown(g) {
+			return "", fmt.Sprintf("auto-join-skip: there is no security group %q.", g)
+		}
+		if k := strings.ToLower(g); !seen[k] {
+			seen[k] = true
+			out = append(out, g)
+		}
+	}
+	if len(out) == 0 {
+		return "", "auto-join-skip takes security group names, or OFF."
+	}
+	return tomlArray(out), ""
+}
+
+// flagJoins writes oper_join_flag like "s:#services k:#a,#b".
+func flagJoins(c *config.Config) string {
+	var parts []string
+	for _, f := range config.OperFlagLetters {
+		if list := c.Server.OperJoinFlag[string(f)]; len(list) > 0 {
+			parts = append(parts, string(f)+":"+strings.Join(list, ","))
+		}
+	}
+	if len(parts) == 0 {
+		return "off"
+	}
+	return strings.Join(parts, " ")
+}
+
+func flagJoinList(_ *config.Config, v string) (string, string) {
+	if strings.EqualFold(v, "off") {
+		return "{}", ""
+	}
+	byFlag := map[string][]string{}
+	for _, part := range strings.Fields(v) {
+		f, chans, ok := strings.Cut(part, ":")
+		if !ok || len(f) != 1 || !strings.Contains(config.OperFlagLetters, f) {
+			return "", fmt.Sprintf("oper-join-flag: write it like s:#services k:#kills (flags %s), or OFF.", config.OperFlagLetters)
+		}
+		list, problem := joinChannels("oper-join-flag "+f, strings.Join(append(byFlag[f], splitList(chans)...), ","))
+		if problem != "" {
+			return "", problem
+		}
+		byFlag[f] = list
+	}
+	var parts []string
+	for _, f := range config.OperFlagLetters {
+		if list := byFlag[string(f)]; len(list) > 0 {
+			parts = append(parts, string(f)+" = "+tomlArray(list))
+		}
+	}
+	if len(parts) == 0 {
+		return "{}", ""
+	}
+	return "{ " + strings.Join(parts, ", ") + " }", ""
+}
+
+func baseSettings() []setting {
 	num := func(f func(*config.Config) int) func(*config.Config) string {
 		return func(c *config.Config) string { return strconv.Itoa(f(c)) }
 	}
@@ -331,7 +476,12 @@ func (s *Server) applySetting(c *Client, sv *state.User, name, value string) {
 // records it for HISTORY as made by who. problem says (in words for the
 // person) why nothing changed; id is the HISTORY entry.
 func (s *Server) setSetting(who string, st setting, value string) (old, now string, id int64, problem string) {
-	lit, problem := st.tomlValue(value)
+	var lit string
+	if st.enc != nil {
+		lit, problem = st.enc(s.cfg, value)
+	} else {
+		lit, problem = st.tomlValue(value)
+	}
 	if problem != "" {
 		return "", "", 0, problem
 	}

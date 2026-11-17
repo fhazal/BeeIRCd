@@ -356,7 +356,7 @@ func restartOnly(ch config.Change) bool {
 // fixed while the server runs.
 var serverLive = map[string]bool{
 	"description": true, "resolve_hosts": true, "hide_servers": true, "connect_modes": true,
-	"oper_modes": true, "oper_join": true, "ping_cookie": true, "web_redirect": true,
+	"oper_modes": true, "oper_join": true, "oper_join_flag": true, "auto_join": true, "auto_join_skip": true, "ping_cookie": true, "web_redirect": true,
 	"oper_tag": true,
 }
 
@@ -371,6 +371,7 @@ func keepRestartOnly(fresh, old *config.Config) {
 	fresh.Server.OperModes, fresh.Server.OperJoin = live.OperModes, live.OperJoin
 	fresh.Server.PingCookie, fresh.Server.WebRedirect = live.PingCookie, live.WebRedirect
 	fresh.Server.OperTag = live.OperTag
+	fresh.Server.AutoJoin, fresh.Server.AutoJoinSkip, fresh.Server.OperJoinFlag = live.AutoJoin, live.AutoJoinSkip, live.OperJoinFlag
 	fresh.Cloak, fresh.TLS, fresh.Control = old.Cloak, old.TLS, old.Control
 	fresh.RPC.Listen, fresh.RPC.Socket = old.RPC.Listen, old.RPC.Socket
 	servers := fresh.Link.Servers

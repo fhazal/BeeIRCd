@@ -218,6 +218,8 @@ type Setting struct {
 	Min   int64  `json:"min,omitempty"`
 	Max   int64  `json:"max,omitempty"`
 	Value string `json:"value"`
+	// Choices are the security groups (groups) or oper flags (flagchannels).
+	Choices []string `json:"choices,omitempty"`
 }
 
 // People is one page of the People list.

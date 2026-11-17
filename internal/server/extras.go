@@ -3,6 +3,7 @@ package server
 import (
 	"math/rand/v2"
 	"strings"
+	"time"
 
 	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/irc"
@@ -103,11 +104,48 @@ func (s *Server) operExtras(c *Client) {
 	if m := s.cfg.Server.OperModes; m != "" {
 		s.setUserModes(c, c.uid, m)
 	}
-	for _, name := range s.cfg.Server.OperJoin {
+	for _, name := range s.operJoins(c.operFlags) {
 		if s.clients[c.uid] != c || c.closed {
 			return
 		}
 		host{s}.ForceJoin(c.uid, name)
+	}
+}
+
+// operJoins are the channels an oper with flags joins at /oper: oper_join,
+// then oper_join_flag for each of their flags, each channel once.
+func (s *Server) operJoins(flags string) []string {
+	var out []string
+	seen := map[string]bool{}
+	add := func(list []string) {
+		for _, name := range list {
+			if k := irc.Fold(name); !seen[k] {
+				seen[k] = true
+				out = append(out, name)
+			}
+		}
+	}
+	add(s.cfg.Server.OperJoin)
+	for _, f := range config.OperFlagLetters {
+		if strings.ContainsRune(flags, f) {
+			add(s.cfg.Server.OperJoinFlag[string(f)])
+		}
+	}
+	return out
+}
+
+// autoJoin joins c, just connected, to [server] auto_join (UnrealIRCd's
+// set::auto-join), unless they are in a group of auto_join_skip. It is a
+// normal JOIN: bans, keys and limits still apply.
+func (s *Server) autoJoin(c *Client) {
+	if len(s.cfg.Server.AutoJoin) == 0 || s.inAnyGroup(c.user, s.cfg.Server.AutoJoinSkip, time.Now()) {
+		return
+	}
+	for _, name := range s.cfg.Server.AutoJoin {
+		if s.clients[c.uid] != c || c.closed {
+			return
+		}
+		s.joinOne(c, name, "")
 	}
 }
 

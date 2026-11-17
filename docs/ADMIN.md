@@ -88,7 +88,8 @@ can change things; every oper can look.
 `nick-expire`, `chan-expire`, `identify-within`, `kill-quick`,
 `allow-kill-immed`, `ban-expiry`, `guest-prefix`, `log-channel`,
 `log-connects`, `flood-profile`, `find-place-by-ip`, `members`,
-`registration`, `unconfirmed-expire`, `default-language`, `ircv3-drafts`.
+`registration`, `unconfirmed-expire`, `default-language`, `ircv3-drafts`,
+`auto-join`, `auto-join-skip`, `oper-join`, `oper-join-flag`.
 
 ### Opers
 
@@ -1061,11 +1062,33 @@ Unknown settings are refused, so a typo shows up in `beeircd check`.
 | `hide_servers` | `false` | Keep the server list from people who are not opers: LINKS and MAP only show the server they are on |
 | `connect_modes` | – | User modes everyone gets when they connect, like `"+R"` (on top of `+i`, and `+x` with cloaking) |
 | `oper_modes` | – | User modes set at `/oper`, like `"+WH"` |
-| `oper_join` | – | Channels an oper joins at `/oper`, like `["#opers"]` |
+| `auto_join` | – | Channels everyone joins when they connect, like `["#chat"]` (UnrealIRCd's `set::auto-join`). It is a normal JOIN: bans, keys and limits still apply. See "Auto-join" below |
+| `auto_join_skip` | – | Security groups that don't auto-join, like `["webirc-users"]` for a relay bridge (UnrealIRCd's `set discord-bridge { auto-join "0"; }`) |
+| `oper_join` | – | Channels every oper joins at `/oper`, like `["#opers"]`; an oper is let in past bans and keys |
+| `oper_join_flag` | – | More channels for opers with one oper flag, like `{ s = ["#services"] }`: opers with flag s (admin and netadmin) also join #services |
 | `ping_cookie` | `false` | Every new connection must answer a PING with a random word before it is let in; this stops programs that send without reading |
 | `web_redirect` | – | A web address, like `"https://chat.example.org/"`: browsers that open an IRC port by mistake are sent there |
 | `oper_tag` | – | A short text after every oper's rank in WHOIS, like `"(IRCop)"`: "is a Network Administrator (IRCop)" |
 | `ircv3_drafts` | `false` | Offer the IRCv3 drafts that aren't final yet to clients that ask: `draft/read-marker` (read position shared by all your devices), `draft/pre-away` (bouncers and phones set AWAY while connecting), `draft/extended-isupport` (the 005 list before sign-in with `ISUPPORT`), `draft/multiline` (a pasted block of up to 24 lines or 4096 bytes is one message, checked once by the spam filter and flood rules; clients without it and other servers get the lines one by one), `draft/message-redaction` (`REDACT` takes a message back: the sender for 15 minutes, channel ops and IRC operators at any time; clients with it hide the message, +H history forgets it, other BeeIRCd servers pass it on; clients without it still show the message), `draft/account-registration` (`REGISTER <nick|*> <email|*> <password>` and `VERIFY <nick> <code>` from a client's sign-up screen, with NickServ's rules: `force_email`, `registration`, `reg_delay`; offered on the server that runs services, once the connection is complete). Clients that don't ask see no change. AdminServ `SET ircv3-drafts` switches it live (clients with cap-notify hear CAP NEW / DEL) |
+
+### Auto-join
+
+Put people in channels without them typing `/join`:
+
+```toml
+[server]
+auto_join = ["#chat"]                 # everyone, on connect
+auto_join_skip = ["webirc-users"]     # but not the relay bridge's puppets
+oper_join = ["#opers"]                # every oper, at /oper
+oper_join_flag = { s = ["#services"] } # opers with flag s, at /oper
+```
+
+Each server of a network has its own list, so one server can send people to
+#chat and another to #skinhead. A change applies from the next connect or
+`/oper`; people already on stay where they are. Change them live with
+AdminServ (`/as set auto-join #chat,#help`, `/as set oper-join-flag
+s:#services k:#kills`, `OFF` empties one) or in the Hive Panel under
+Settings → Auto-join.
 
 ### [[listen]]
 
