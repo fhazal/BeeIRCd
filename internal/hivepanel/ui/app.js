@@ -1908,6 +1908,7 @@
       try {
         data = (await api('GET', '/api/spam')).spam;
         draw();
+        tryIt(); // the rules changed: "Try a line" answers for the new ones
       } catch (e) {
         put(tbody, h('tr', {}, h('td', { colspan: 5, class: 'empty', text: e.message })));
       }
