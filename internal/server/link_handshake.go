@@ -675,6 +675,8 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		s.remoteOper(l, m)
 	case "BEEOPERR":
 		s.operAnswered(l, m)
+	case "BEEOPERLOOK":
+		s.remoteOperLook(l, m)
 	case "BEEPLACE":
 		s.remotePlace(l, m.Source, m.Params)
 	case "BEESESS":

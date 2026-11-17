@@ -66,6 +66,7 @@ type Client struct {
 	adminFrom   string            // stand-in running AdminServ for an admin on that server
 	operRelay   *operRelay        // a /oper sent to the services server, waiting (link_oper.go)
 	operVia     *linkConn         // opered by the services server behind this link (its changes apply)
+	operLookVia *linkConn         // leaf admin: asked this link for their WHOIS look
 	saslAccount *store.Account    // SASL done before registration finished
 	certfp      string            // SHA-256 of the TLS client certificate, "" = none
 	sessionLate bool              // over its IP's session limit at connect: check again with the hostname

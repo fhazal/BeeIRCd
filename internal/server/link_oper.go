@@ -11,6 +11,12 @@ package server
 //	:<sid> BEEOPERR <uid> UPDATE :<json>      (the entry or class changed)
 //	:<sid> BEEOPERR <uid> DEOPER :<reason>    (removed, disabled, host)
 //
+// The admin from beeircd.conf opers on a leaf with the leaf's own
+// admin_password, and then asks only how they look in WHOIS:
+//
+//	:<uid> BEEOPERLOOK <services sid> <account>
+//	:<sid> BEEOPERR <uid> LOOK :<json: account title vhost swhois>
+//
 // The services server checks the entry, the user's host and the password
 // (with its lockout), as for /oper there. The leaf only takes an answer
 // for a request it sent, from the link it sent it on.
@@ -251,6 +257,10 @@ func (s *Server) operAnswered(l *linkConn, m irc.Message) {
 	if c == nil || c.user == nil {
 		return
 	}
+	if m.Params[1] == "LOOK" {
+		s.operLookAnswered(c, l, m.Params[len(m.Params)-1])
+		return
+	}
 	if kind := m.Params[1]; kind == "UPDATE" || kind == "DEOPER" {
 		if c.operVia != l || !c.isOper() {
 			return // not opered by that server: not its to change
@@ -309,4 +319,72 @@ func (s *Server) operRelayLost(l *linkConn) {
 			}
 		}
 	}
+}
+
+// askOperLook asks the services server how the admin from beeircd.conf,
+// opered here on a leaf, looks in WHOIS (their own oper entry there).
+func (s *Server) askOperLook(c *Client, account string) {
+	target := s.saslTarget()
+	if target == "" || account == "" {
+		return
+	}
+	r := s.serverByName(target)
+	if r == nil || r.via == nil || !r.via.peer.Bee {
+		return
+	}
+	c.operLookVia = r.via
+	r.via.send(":" + c.uid + " BEEOPERLOOK " + r.sid + " " + account)
+}
+
+// remoteOperLook is BEEOPERLOOK on the services server: the title, WHOIS
+// lines and vhost of account's oper entry, for its owner only. It grants
+// nothing: the leaf already opered them with its own admin_password.
+func (s *Server) remoteOperLook(l *linkConn, m irc.Message) {
+	if len(m.Params) < 2 || !l.peer.Bee {
+		return
+	}
+	target, name := m.Params[0], m.Params[1]
+	_, svcSID, _ := s.cfg.ServicesServer()
+	if target != s.cfg.Server.SID && target != svcSID {
+		if r := s.links.servers[target]; r != nil && r.via != l && r.via != nil && r.via.peer.Bee {
+			r.via.send(m.String())
+		}
+		return
+	}
+	uid := m.Source
+	u := s.net.UserByUID(uid)
+	if u == nil || s.ours(uid) || !s.behind(l, uidServer(uid)) || s.svc.Off() || !irc.EqualFold(u.Account, name) {
+		return
+	}
+	a, err := s.store.AccountByNick(name)
+	if err != nil || a == nil || !irc.EqualFold(a.Name, u.Account) {
+		return
+	}
+	o, err := s.store.OperByAccount(a.ID)
+	if err != nil || o == nil {
+		return
+	}
+	v := s.viewOf(o)
+	b, _ := json.Marshal(operGrant{Account: a.Name, Title: v.title, Vhost: v.vhost, Swhois: v.swhois})
+	s.operAnswer(uid, "LOOK :"+string(b))
+}
+
+// operLookAnswered applies a LOOK answer to the leaf admin who asked for
+// it: title and WHOIS lines from their entry, its vhost only when
+// beeircd.conf names none. Flags and class stay as this server gave them.
+func (s *Server) operLookAnswered(c *Client, l *linkConn, text string) {
+	if c.operLookVia != l || !c.isOper() || c.operVia != nil {
+		return
+	}
+	c.operLookVia = nil
+	var g operGrant
+	if json.Unmarshal([]byte(text), &g) != nil {
+		return
+	}
+	title, lines := readOperLook(operLook(g.Title, g.Swhois))
+	vhost := s.cfg.Services.AdminVhost
+	if vhost == "" {
+		vhost = strings.TrimSpace(g.Vhost)
+	}
+	s.operUpView(c, &store.Oper{Account: c.user.OperName}, operView{class: c.operClass, flags: c.operFlags, title: title, vhost: vhost, swhois: lines})
 }

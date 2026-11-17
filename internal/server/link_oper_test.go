@@ -250,3 +250,33 @@ func TestOperLook(t *testing.T) {
 		t.Errorf("junk: %q %q", title, lines)
 	}
 }
+
+// The admin from beeircd.conf opers on a leaf with the leaf's own password,
+// and still shows the title and WHOIS lines of their own entry on the
+// services server, from either server.
+func TestLeafAdminKeepsOwnLook(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	h, _ := passwd.Hash(operPW)
+	leaf.s.onLoop(func() { leaf.s.cfg.Services.Admin, leaf.s.cfg.Services.AdminPassword = "Queen", h })
+	q := login(t, leaf.s, "Queen")
+	q.send("NS REGISTER " + pw)
+	q.expect("is now registered to you.")
+	waitLink(t, "account on the leaf", func() bool { u := leaf.user("Queen"); return u != nil && u.Account == "Queen" })
+	operEntryOn(t, hub, "Queen", "gk", []string{"*@*"})
+
+	q.send("OPER Queen " + operPW)
+	q.expect(" 381 Queen :You are now an IRC operator")
+	waitLink(t, "the hub knows Queen's lines", func() bool { u := hub.user("Queen"); return u != nil && len(u.OperSwhois) > 0 })
+	var flags string
+	leaf.s.onLoop(func() { flags = leaf.s.clients[leaf.s.net.UserByNick("Queen").UID].operFlags })
+	if flags != allFlags {
+		t.Errorf("the leaf admin's flags became %q, want %q", flags, allFlags)
+	}
+	for who, n := range map[string]*linkNode{"hugo": hub, "lena": leaf} {
+		c := login(t, n.s, who)
+		c.send("WHOIS Queen")
+		c.expect(" 313 " + who + " Queen :is an IRC Operator (Test oper)")
+		c.expect(" 320 " + who + " Queen :looks very helpful")
+		c.expect(" 318 " + who + " Queen ")
+	}
+}

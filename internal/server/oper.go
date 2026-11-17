@@ -90,7 +90,14 @@ func (s *Server) operEntry(a *store.Account) (*store.Oper, error) {
 // operLockKey keeps wrong oper passwords apart from wrong NickServ ones.
 func operLockKey(id int64) int64 { return -id }
 
-func (s *Server) operUp(c *Client, o *store.Oper) { s.operUpView(c, o, s.viewOf(o)) }
+func (s *Server) operUp(c *Client, o *store.Oper) {
+	s.operUpView(c, o, s.viewOf(o))
+	if s.svc.Off() && o.AccountID == 0 {
+		// The admin from beeircd.conf on a leaf: their own entry (title,
+		// WHOIS lines, vhost) is on the services server, so ask for it.
+		s.askOperLook(c, o.Account)
+	}
+}
 
 // operUpView opers c up with v; o names the entry (its account). On a
 // leaf v comes from the services server (o.AccountID 0: no account here).
