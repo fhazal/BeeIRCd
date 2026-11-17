@@ -28,6 +28,14 @@ func (s *Server) panelChan(po *control.PanelOper, name string) *control.Response
 		URL: reg.URL, Registered: reg.Registered, People: []control.ChanPerson{}, MemoLimit: v.MemoLimit,
 		Can: control.ChanCan{AccessList: v.Can.AccessList, AccessChange: v.Can.AccessChange, Akick: v.Can.Akick, Set: v.Can.Set,
 			Topic: v.Can.Topic, Memo: v.Can.Memo, Founder: v.Can.Founder}}
+	if v.Can.AccessChange {
+		// ChanServ only lets you give levels below your own (the founder: any).
+		for _, l := range []int{store.LevelVOP, store.LevelHOP, store.LevelAOP, store.LevelSOP, store.LevelQOP} {
+			if l < v.Rank {
+				c.Give = append(c.Give, store.LevelName(l))
+			}
+		}
+	}
 	if v.Can.Set {
 		c.Toggles = services.ChanToggles(reg)
 	}
@@ -52,7 +60,8 @@ func (s *Server) panelChan(po *control.PanelOper, name string) *control.Response
 		if acct, _ := s.store.AccountByID(e.AccountID); on && (acct == nil || acct.HideStatus) {
 			on = false // HIDE STATUS: nobody is told whether they are online
 		}
-		c.Access = append(c.Access, control.ChanAccess{Nick: e.Account, Level: store.LevelName(e.Level), By: e.AddedBy, At: e.AddedAt, Online: on})
+		c.Access = append(c.Access, control.ChanAccess{Nick: e.Account, Level: store.LevelName(e.Level), By: e.AddedBy, At: e.AddedAt, Online: on,
+			Locked: v.Rank != store.LevelFounder && e.Level >= v.Rank})
 	}
 	for _, k := range v.Akicks {
 		c.Akicks = append(c.Akicks, control.ChanAkick{Mask: k.Mask, Reason: k.Reason, By: k.AddedBy, At: k.AddedAt})

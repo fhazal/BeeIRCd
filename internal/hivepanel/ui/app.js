@@ -2851,19 +2851,22 @@
           : h('p', { class: 'empty', text: 'Nobody is in ' + d.name + ' right now.' }));
     }
 
+    // levelPick offers only the levels ChanServ lets you give (below your own).
     function levelPick(value, id) {
-      const sel = h('select', { class: 'in cm-lvl', id, 'aria-label': 'Level' }, LEVELS.map(l => h('option', { value: l, text: l })));
-      if (value && !LEVELS.includes(value)) sel.prepend(h('option', { value, text: value }));
-      sel.value = value || 'VOP';
+      const give = d.give || LEVELS;
+      const sel = h('select', { class: 'in cm-lvl', id, 'aria-label': 'Level' }, give.map(l => h('option', { value: l, text: l })));
+      if (value && !give.includes(value)) sel.prepend(h('option', { value, text: value }));
+      sel.value = value || give[0];
       return sel;
     }
 
     function accessTab() {
-      const can = d.can.accessChange;
+      const can = d.can.accessChange && (d.give || []).length > 0;
       const rows = (d.access || []).map(a => {
-        const lv = can ? levelPick(a.level) : h('span', { class: 'role', text: a.level });
-        if (can) lv.addEventListener('change', async () => { lv.disabled = true; if (!await run(null, 'ACCESS', 'ADD', a.nick, lv.value)) lv.value = a.level; lv.disabled = false; });
-        const del = can ? h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Remove ' + a.nick, title: 'Remove ' + a.nick }, icon('x')) : null;
+        const mine = can && !a.locked; // at or above your level: ChanServ won't let you touch it
+        const lv = mine ? levelPick(a.level) : h('span', { class: 'role', text: a.level });
+        if (mine) lv.addEventListener('change', async () => { lv.disabled = true; if (!await run(null, 'ACCESS', 'ADD', a.nick, lv.value)) lv.value = a.level; lv.disabled = false; });
+        const del = mine ? h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Remove ' + a.nick, title: 'Remove ' + a.nick }, icon('x')) : null;
         if (del) del.addEventListener('click', () => run(del, 'ACCESS', 'DEL', a.nick));
         return h('tr', {}, h('td', {}, h('b', { text: a.nick }), a.online ? h('span', { class: 'dot cm-on', title: 'online now' }) : null), h('td', {}, lv),
           h('td', { class: 'mono', text: a.by || '' }), h('td', { class: 'mono', text: ago2(a.at) }), h('td', { class: 'cm-x' }, del));
@@ -2873,7 +2876,7 @@
           : h('p', { class: 'empty', text: 'Nobody is on the list yet. Founders don\'t need to be.' }));
       if (can) {
         const nick = h('input', { class: 'in', type: 'text', maxlength: '40', autocomplete: 'off', spellcheck: 'false', placeholder: 'nick (must be registered)', 'aria-label': 'Nick to add' });
-        const lv = levelPick('VOP');
+        const lv = levelPick();
         const add = h('button', { type: 'submit', class: 'btn main' }, icon('plus'), 'Add');
         const f = h('form', { class: 'cm-add' }, nick, lv, add);
         f.addEventListener('submit', async e => { e.preventDefault(); if (!nick.value.trim()) { nick.focus(); return; } if (await run(add, 'ACCESS', 'ADD', nick.value.trim(), lv.value)) nick.value = ''; });

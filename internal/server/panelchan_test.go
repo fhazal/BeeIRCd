@@ -167,3 +167,47 @@ func TestPanelChannelManager(t *testing.T) {
 		t.Errorf("DROP: %+v", r)
 	}
 }
+
+// An SOP's page offers only the levels below SOP, and entries at SOP or
+// above are locked (ChanServ refuses to change them).
+func TestPanelChanGiveLevels(t *testing.T) {
+	s, _, _ := fileServer(t, membersOn)
+	e := registered(t, s, "ember")
+	registered(t, s, "sop")
+	registered(t, s, "boss")
+	registered(t, s, "small")
+	e.send("JOIN #kampung")
+	e.expect(" 366 ember #kampung ")
+	e.send("PRIVMSG ChanServ :REGISTER #kampung")
+	e.expect("#kampung is registered")
+	for _, add := range []string{"sop SOP", "boss QOP", "small VOP"} {
+		e.send("PRIVMSG ChanServ :ACCESS #kampung ADD " + add)
+		e.expect("added to the access list")
+	}
+	syncWith(e)
+
+	fc := myChan(t, s, memberSession(t, s, "ember", pw), "#kampung")
+	if strings.Join(fc.Give, ",") != "VOP,HOP,AOP,SOP,QOP" {
+		t.Errorf("founder may give %v", fc.Give)
+	}
+	for _, a := range fc.Access {
+		if a.Locked {
+			t.Errorf("founder sees %s locked", a.Nick)
+		}
+	}
+	sc := myChan(t, s, memberSession(t, s, "sop", pw), "#kampung")
+	if strings.Join(sc.Give, ",") != "VOP,HOP,AOP" {
+		t.Errorf("SOP may give %v", sc.Give)
+	}
+	locked := map[string]bool{}
+	for _, a := range sc.Access {
+		locked[a.Nick] = a.Locked
+	}
+	if !locked["sop"] || !locked["boss"] || locked["small"] {
+		t.Errorf("SOP's locked rows: %v", locked)
+	}
+	// A VOP can't change the list at all: nothing to give.
+	if ac := myChan(t, s, memberSession(t, s, "small", pw), "#kampung"); ac.Give != nil {
+		t.Errorf("VOP may give %v", ac.Give)
+	}
+}

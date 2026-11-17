@@ -21,6 +21,7 @@ type ChanCan struct {
 type ChanView struct {
 	Reg       *store.Channel
 	Level     string
+	Rank      int // the level number (store.LevelFounder for the founder)
 	Can       ChanCan
 	Access    []store.AccessEntry // with AccessList
 	Akicks    []store.Akick       // with Akick
@@ -56,7 +57,7 @@ func (s *Services) WebChan(id int64, name string) (*ChanView, string) {
 	if reg == nil || lvl.level == store.LevelNone {
 		return nil, "You aren't on the access list of " + name + "."
 	}
-	v := &ChanView{Reg: reg, Level: lvl.name(), MemoLimit: reg.MemoLimit, Can: ChanCan{
+	v := &ChanView{Reg: reg, Level: lvl.name(), Rank: lvl.level, MemoLimit: reg.MemoLimit, Can: ChanCan{
 		AccessList: s.levelHas(reg, lvl, "ACCESS_LIST"), AccessChange: s.levelHas(reg, lvl, "ACCESS_CHANGE"),
 		Akick: s.levelHas(reg, lvl, "AKICK"), Set: s.levelHas(reg, lvl, "SET"), Topic: s.levelHas(reg, lvl, "TOPIC"),
 		Memo: s.levelHas(reg, lvl, "MEMO"), Founder: lvl.level == store.LevelFounder}}

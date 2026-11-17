@@ -526,6 +526,7 @@ type MyChan struct {
 	Topic       string          `json:"topic,omitempty"`
 	Users       int             `json:"users"`
 	Can         ChanCan         `json:"can"`
+	Give        []string        `json:"give,omitempty"`    // with Can.AccessChange: the levels they may give (below their own)
 	Toggles     map[string]bool `json:"toggles,omitempty"` // with Can.Set: SET option -> on
 	People      []ChanPerson    `json:"people"`
 	Access      []ChanAccess    `json:"access,omitempty"`
@@ -559,6 +560,7 @@ type ChanAccess struct {
 	By     string    `json:"by,omitempty"`
 	At     time.Time `json:"at"`
 	Online bool      `json:"online,omitempty"`
+	Locked bool      `json:"locked,omitempty"` // at or above the viewer's level: they can't change or remove it
 }
 
 // ChanAkick is one AKICK entry.
