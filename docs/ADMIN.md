@@ -750,7 +750,12 @@ then open <http://127.0.0.1:8787>. `beeircd install` sets it up as the
   real MemoServ SEND with its limits, ignores and send delay). Opers
   start on Overview and find the YOU pages at the top of the menu. Opers sign
   in with their oper password for the admin pages, or with their NickServ
-  password for the member pages only. Wrong NickServ passwords count on
+  password for the member pages only. An oper with no oper password yet
+  (and no certificate) who signs in with their NickServ password sees a
+  note on Home that says how to get one: the owner's first `/oper` from
+  `[services] admin_hosts`, `admin_password` in beeircd.conf when there
+  are no admin_hosts, or `/as oper <name> set password` by an admin for
+  everyone else. Wrong NickServ passwords count on
   the same lock as IDENTIFY on IRC. A new NickServ password, a
   suspension or turning members off (Settings → Members, or `members` in
   the file then rehash) ends member sessions.

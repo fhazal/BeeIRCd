@@ -183,6 +183,11 @@ type PanelOper struct {
 	// Member is a sign-in with the NickServ password: only the member
 	// pages (Chat, My nick, My channels), never the admin ones.
 	Member bool `json:"member,omitempty"`
+	// NoOperPass is set on a member session whose account is an oper with
+	// no oper password yet, so Home can say how to get one: "owner" (the
+	// first /oper from admin_hosts sets it), "owner-conf" (no admin_hosts:
+	// admin_password in beeircd.conf) or "oper" (an admin sets it).
+	NoOperPass string `json:"noOperPass,omitempty"`
 	// Chat is BeeRoom's address ([web] chat_url) when the Chat tab is on.
 	Chat string `json:"chat,omitempty"`
 	// Seal changes when the oper password does; the panel keeps it from

@@ -285,3 +285,68 @@ func TestPanelOperLockIsSaid(t *testing.T) {
 		t.Fatalf("locked oper, NickServ password: %+v", r)
 	}
 }
+
+// An oper with no oper password yet signs in with the NickServ password
+// and gets the member pages; NoOperPass tells Home to say why and how to
+// get one, until there is one. Not for a member who isn't an oper, nor for
+// an oper who uses a TLS certificate alone.
+func TestPanelMemberNoOperPassHint(t *testing.T) {
+	s, _, _ := fileServer(t, membersOn) // admin = "Boss", no admin_password
+	who := func(nick string) string {
+		t.Helper()
+		r := panelAsk(t, s, control.Request{Cmd: control.CmdPanelLogin, Nick: nick, Password: pw, IP: "127.0.0.1"})
+		if r.Oper == nil || !r.Oper.Member {
+			t.Fatalf("login %s: %+v", nick, r)
+		}
+		sess := control.Request{As: r.Oper.Account, Seal: r.Oper.Seal, IP: "127.0.0.1"}
+		w := panelAsk(t, s, as(sess, control.CmdPanelWho))
+		if w.Oper == nil || w.Oper.NoOperPass != r.Oper.NoOperPass {
+			t.Fatalf("who %s: %+v, login said %q", nick, w, r.Oper.NoOperPass)
+		}
+		return r.Oper.NoOperPass
+	}
+	b := registered(t, s, "Boss")
+	if got := who("Boss"); got != "owner" {
+		t.Fatalf("owner with no admin_password: %q, want owner", got)
+	}
+	var hosts []string
+	s.onLoop(func() { hosts, s.cfg.Services.AdminHosts = s.cfg.Services.AdminHosts, nil })
+	if got := who("Boss"); got != "owner-conf" { // /oper can't set it then
+		t.Errorf("owner with no admin_hosts: %q, want owner-conf", got)
+	}
+	s.onLoop(func() { s.cfg.Services.AdminHosts = hosts })
+	ownerSess := memberSession(t, s, "Boss", pw)
+	b.send("OPER Boss " + operPW)
+	b.expect("Your oper password is set and saved to beeircd.conf.")
+	if got := who("Boss"); got != "" {
+		t.Errorf("owner with a password now: %q", got)
+	}
+	if w := panelAsk(t, s, as(ownerSess, control.CmdPanelWho)); w.Oper == nil || w.Oper.NoOperPass != "" {
+		t.Errorf("the open member session still says no password: %+v", w)
+	}
+
+	registered(t, s, "ember")
+	if got := who("ember"); got != "" {
+		t.Errorf("a member who isn't an oper: %q", got)
+	}
+	b.send("AS OPER ember ADD CLASS globop HOST *@127.0.0.0/8")
+	b.expect("ember is an oper now")
+	if got := who("ember"); got != "oper" {
+		t.Fatalf("oper with no password: %q, want oper", got)
+	}
+	s.onLoop(func() {
+		a, _ := s.store.AccountByNick("ember")
+		o, err := s.operEntry(a)
+		if err != nil || o == nil {
+			t.Errorf("oper entry: %v", err)
+			return
+		}
+		o.CertFPs = []string{strings.Repeat("ab", 32)}
+		if err := s.store.SaveOper(o); err != nil {
+			t.Error(err)
+		}
+	})
+	if got := who("ember"); got != "" {
+		t.Errorf("oper with a certificate alone: %q", got)
+	}
+}

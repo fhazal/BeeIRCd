@@ -39,7 +39,30 @@ func (s *Server) panelMember(req control.Request) (po *control.PanelOper, deny *
 		signin.Error = a.Name + " is suspended."
 		return nil, signin, true
 	}
-	return &control.PanelOper{Account: a.Name, Member: true, Seal: memberSeal(a), Chat: s.cfg.Web.ChatURL}, nil, true
+	return s.memberOper(a, req.IP), nil, true
+}
+
+// memberOper is a member session for a. When a is an oper who could
+// sign in from ip but has no oper password yet, NoOperPass says so: the
+// owner's first /oper on IRC sets one (firstOperPassword), otherwise
+// beeircd.conf or an admin does. Not for opers who use
+// a TLS certificate alone or an outside login server, where it doesn't.
+func (s *Server) memberOper(a *store.Account, ip string) *control.PanelOper {
+	po := &control.PanelOper{Account: a.Name, Member: true, Seal: memberSeal(a), Chat: s.cfg.Web.ChatURL}
+	if s.outsideOpers() {
+		return po
+	}
+	if op, _, o, _ := s.panelOper(a.Name, ip); op != nil && o.PassHash == "" && len(o.CertFPs) == 0 {
+		switch { // how they get one: see firstOperPassword
+		case !op.Owner:
+			po.NoOperPass = "oper" // an admin sets it (/as oper <nick> set password)
+		case len(s.cfg.Services.AdminHosts) == 0:
+			po.NoOperPass = "owner-conf" // admin_password in beeircd.conf
+		default:
+			po.NoOperPass = "owner" // their first /oper from admin_hosts
+		}
+	}
+	return po
 }
 
 // memberOffMsg answers a right NickServ password while Members is off.
@@ -62,7 +85,7 @@ func (s *Server) memberLogin(a *store.Account, nick, pw, ip string, done func(co
 				return
 			}
 			s.panelEvent(a.Name, ip, "signed in as a member")
-			done(control.Response{Oper: &control.PanelOper{Account: a.Name, Member: true, Seal: memberSeal(a), Chat: s.cfg.Web.ChatURL}})
+			done(control.Response{Oper: s.memberOper(a, ip)})
 		case services.PwLocked:
 			done(control.Response{Error: "Too many wrong passwords for this nick. Try again in " + services.RoundUp(s.lockedFor(a.ID, ip)) + ".", Denied: "signin"})
 		default:

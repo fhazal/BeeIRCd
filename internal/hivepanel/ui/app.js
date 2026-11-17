@@ -2637,6 +2637,20 @@
     b.textContent = unreadMemos;
   }
 
+  // An oper with no oper password yet signs in with their NickServ
+  // password and gets the member pages: Home says why and how to fix it.
+  const operHint = () => {
+    const how = me.member && {
+      owner: ['On IRC, identified and connected from your [services] admin_hosts, type ', h('code', { text: '/oper ' + me.account + ' <new password>' }), ' once.'],
+      'owner-conf': ['Make one with ', h('code', { text: 'beeircd mkpasswd' }), ', put it in beeircd.conf as [services] admin_password, and rehash.'],
+      oper: ['An admin sets it with ', h('code', { text: '/as oper ' + me.account + ' set password <password>' }), '.'],
+    }[me.noOperPass];
+    if (!how) return null;
+    return h('section', { class: 'hm-hint', role: 'note' },
+      h('b', { text: me.noOperPass === 'oper' ? "You're an oper, but have no oper password yet" : "You're the owner, but have no oper password yet" }),
+      h('p', {}, "So you're seeing the member pages. ", how, ' Then sign out and sign in here with that password for the oper pages.'));
+  };
+
   function homePage() {
     const title = h('h1', { text: me.account });
     const facts = h('div', { class: 'hm-facts' });
@@ -2646,7 +2660,7 @@
     const net = h('div', { class: 'hm-net' });
     const el = h('div', { class: 'main-stack' },
       h('header', { class: 'head', 'data-deco': '1' }, h('div', { class: 'head-text' }, h('div', { class: 'eyebrow', text: 'Welcome back' }), title, facts)),
-      tiles, h('div', { class: 'hm-cols' }, left, right), net);
+      operHint(), tiles, h('div', { class: 'hm-cols' }, left, right), net);
     const tile = (href, ic, label, n, foot, fresh) => h('a', { href, class: 'card tight' + (fresh ? ' hm-new' : ''), 'data-deco': '1' },
       h('div', { class: 'slab' }, h('span', { text: label }), h('span', { class: 'sico' }, icon(ic))),
       h('span', { class: 'num', text: fmt(n) }), h('span', { class: 'foot-n', text: foot }));
