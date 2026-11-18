@@ -71,16 +71,26 @@ func freePort(t *testing.T) int {
 		if freePortUsed[port] {
 			continue
 		}
-		l, err := net.Listen("tcp", ":"+strconv.Itoa(port)) // all addresses, as the link port listens
-		if err != nil {
+		// 127.0.0.1 first: on Windows a program listening there alone (seen:
+		// ROGLiveService on 22112) doesn't stop a listen on all addresses,
+		// yet it takes the test's connections to 127.0.0.1.
+		if !canListen("127.0.0.1:"+strconv.Itoa(port)) || !canListen(":"+strconv.Itoa(port)) { // all addresses, as the link port listens
 			continue
 		}
-		l.Close()
 		freePortUsed[port] = true
 		return port
 	}
 	t.Fatal("no free port in 20000-31999")
 	return 0
+}
+
+func canListen(addr string) bool {
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		return false
+	}
+	l.Close()
+	return true
 }
 
 var (
