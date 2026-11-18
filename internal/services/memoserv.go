@@ -379,7 +379,7 @@ func msList(s *Services, c *Client, args []string) {
 			return
 		}
 	}
-	from, sent := s.tr(c, "From"), s.tr(c, "Sent")
+	from, sent := s.tr(c, "From"), s.tr(c, "Sent (UTC)")
 	width := max(4, utf8.RuneCountInString(from))
 	for _, m := range memos {
 		width = max(width, len(m.From))

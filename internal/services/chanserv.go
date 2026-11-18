@@ -306,6 +306,12 @@ func csInfo(s *Services, c *Client, args []string) {
 	if reg.URL != "" {
 		s.cs(c, "  URL           %s", reg.URL)
 	}
+	if reg.Topic != "" && s.infoTopicVisible(c, reg, lvl) {
+		s.cs(c, "  Topic         %s", reg.Topic)
+		if reg.TopicBy != "" && reg.TopicAt.Unix() > 0 {
+			s.cs(c, "  Topic by      %s, %s", reg.TopicBy, showTime(reg.TopicAt))
+		}
+	}
 	if s.channelInUse(reg) {
 		s.cs(c, "  Last used     in use now")
 	} else {
@@ -375,6 +381,17 @@ func csInfo(s *Services, c *Client, args []string) {
 		s.cs(c, "  %-13s %s", label, e.Text)
 	}
 	s.showOperInfo(c, s.chanServ, true, reg.ID)
+}
+
+// infoTopicVisible: INFO shows the kept topic to everyone, as Anope does,
+// except on a secret (+s) channel, where only people with the INFO
+// privilege and opers see it. A private channel's INFO is already limited
+// to people on its access list.
+func (s *Services) infoTopicVisible(c *Client, reg *store.Channel, lvl access) bool {
+	if live := s.net.Channel(reg.Name); live == nil || !live.HasMode('s') {
+		return true
+	}
+	return s.levelHas(reg, lvl, "INFO") || c.isOper()
 }
 
 // csLevelList handles QOP, SOP, AOP, HOP, VOP and UOP.
