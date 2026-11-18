@@ -498,7 +498,7 @@ func (s *Server) panelControl(req control.Request, setDeadline func(time.Duratio
 			return control.Response{Error: "That isn't a Services tab."}, true
 		}
 		return run(0, func(po *control.PanelOper) {
-			if strings.IndexAny(po.Flags, need) < 0 {
+			if !strings.ContainsAny(po.Flags, need) {
 				resp = control.Response{Error: fmt.Sprintf("You need oper flag %c (%s) for that.", need[0], flagNames[need[0]]), Denied: "flag"}
 				return
 			}
