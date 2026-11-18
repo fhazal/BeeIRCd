@@ -111,8 +111,8 @@ func TestInstallLeafFingerprintLater(t *testing.T) {
 // A hub's block tells leaves where to connect; a standalone server prints
 // nothing.
 func TestLinkInfoTextHub(t *testing.T) {
-	text := linkInfoText("hub.beenet.org", "0HB", "hub", 7000, "FP=", nil)
-	for _, want := range []string{"On each leaf (BeeIRCd)", `host = "hub.beenet.org"`, "port = 7000", "autoconnect = true",
+	text := linkInfoText("hub.beenet.org", "0HB", "hub", 7000, "FP=", nil, "services.beenet.org")
+	for _, want := range []string{"ulines { services.beenet.org; }", `set { services-server "services.beenet.org"; }`, "On each leaf (BeeIRCd)", `host = "hub.beenet.org"`, "port = 7000", "autoconnect = true",
 		"outgoing { hostname hub.beenet.org; port 7000;", `password "FP=" { spkifp; }`, "Every server on a network needs"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("lacks %q:\n%s", want, text)

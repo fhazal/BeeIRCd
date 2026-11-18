@@ -264,6 +264,13 @@ func (s *Server) cmdOper(c *Client, m irc.Message) {
 			return
 		}
 	}
+	if a == nil && s.cfg.Services.Admin != "" && irc.EqualFold(name, s.cfg.Services.Admin) {
+		// A fresh install: the admin from beeircd.conf has no account yet,
+		// and "from this host" sent people to check their hosts.
+		s.reply(c, irc.ErrNoOperHost, "No account "+s.cfg.Services.Admin+" yet: register it with NickServ (and log in), then /oper again")
+		s.snotice("Failed /oper as %s from %s (%s@%s): the admin account isn't registered yet", name, u.Nick, u.Ident, u.RealHost)
+		return
+	}
 	if o == nil || !operHostOK(o, u) {
 		s.reply(c, irc.ErrNoOperHost, "No oper entry for you from this host")
 		s.snotice("Failed /oper as %s from %s (%s@%s): no matching oper entry", name, u.Nick, u.Ident, u.RealHost)

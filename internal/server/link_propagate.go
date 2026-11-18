@@ -628,6 +628,11 @@ func (s *Server) remoteMessage(l *linkConn, raw irc.Message, m *link.Message) {
 	if from == nil && !isSID(m.Source) && s.serverByName(m.Source) == nil {
 		return
 	}
+	if from != nil && m.Source != from.UID {
+		// UnrealIRCd may name the sender by nick on channel messages; links
+		// further on (InspIRCd) only take a UID, so pass it on as one.
+		m.Source, raw.Source = from.UID, from.UID
+	}
 	msgid := raw.Tags["msgid"]
 	if msgid == "" {
 		msgid = s.newMsgID()

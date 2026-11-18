@@ -147,7 +147,7 @@ func has(lines []string, want string) bool {
 func TestInspBridgeOut(t *testing.T) {
 	b := testBridge(t)
 	first := b.Out(":0BE SID leaf.test 2 0LF :a leaf")
-	if len(first) == 0 || !strings.HasPrefix(first[0], ":0BE BURST ") || !has(first, "SINFO rawversion") || !has(first, ":0BE SERVER leaf.test 0LF :a leaf") {
+	if len(first) == 0 || !strings.HasPrefix(first[0], ":0BE BURST ") || !has(first, "SINFO rawversion") || !has(first, ":0BE SERVER leaf.test 0LF :a leaf") || !has(first, ":0LF BURST ") {
 		t.Fatalf("first out %q", first)
 	}
 	cases := []struct{ in, want string }{

@@ -235,12 +235,44 @@ func (s *Server) cmdChgname(c *Client, m irc.Message) {
 		s.stdReply(c, "FAIL", "CHGNAME", "INVALID_REALNAME", "Real names may be at most 50 characters long", "*** ChgName Error: Requested realname too long -- rejected.")
 		return
 	}
-	t := s.opTarget(c, m.Params[0])
+	t := s.chgTarget(c, m.Params[0])
 	if t == nil {
 		return
 	}
-	s.snotice("CHGNAME: %s changed the realname of %s to be %s", c.user.Nick, t.user.Nick, m.Params[1])
-	s.emit(&state.RealnameChange{UID: t.uid, Realname: m.Params[1]})
+	s.snotice("CHGNAME: %s changed the realname of %s to be %s", c.user.Nick, t.Nick, m.Params[1])
+	s.emit(&state.RealnameChange{UID: t.UID, Realname: m.Params[1]})
+}
+
+// chgTarget finds the person CHGHOST, CHGIDENT or CHGNAME acts on, here or
+// on another server (the change then goes out over the links); nil after
+// replying when there is nobody to change.
+func (s *Server) chgTarget(c *Client, nick string) *state.User {
+	t := s.userByUIDOrNick(nick)
+	if t == nil {
+		s.reply(c, irc.ErrNoSuchNick, nick, "No such nick/channel")
+		return nil
+	}
+	if t.Service {
+		s.reply(c, irc.ErrNoPrivileges, "Cannot use this command on a network service")
+		return nil
+	}
+	return t
+}
+
+// chgHost sets someone's host or ident: through changeHost for people here
+// (they get 396), or as a change the links carry to their own server.
+func (s *Server) chgHost(t *state.User, host, ident string) {
+	if tc := s.clientOf(t); tc != nil {
+		s.changeHost(tc, host, ident)
+		return
+	}
+	if host == "" {
+		host = t.Host
+	}
+	if host == t.Host && (ident == "" || ident == t.Ident) {
+		return
+	}
+	s.emit(&state.HostChange{UID: t.UID, Host: host, Ident: ident})
 }
 
 // validVhost is UnrealIRCd's rule for SETHOST/CHGHOST: a-z, A-Z, 0-9, '-'
@@ -317,12 +349,12 @@ func (s *Server) cmdChghost(c *Client, m irc.Message) {
 		s.stdReply(c, "FAIL", "CHGHOST", "INVALID_HOST", "A host may only contain a-z, A-Z, 0-9, '-' and '.' (at most 63)", "*** /ChgHost Error: A hostname may contain a-z, A-Z, 0-9, '-' & '.' - Please only use them", host)
 		return
 	}
-	t := s.opTarget(c, m.Params[0])
+	t := s.chgTarget(c, m.Params[0])
 	if t == nil {
 		return
 	}
-	s.changeHost(t, host, "")
-	s.snotice("CHGHOST: %s changed the virtual hostname of %s (%s@%s) to be %s", c.user.Nick, t.user.Nick, t.user.TrueIdent(), t.user.RealHost, host)
+	s.chgHost(t, host, "")
+	s.snotice("CHGHOST: %s changed the virtual hostname of %s (%s@%s) to be %s", c.user.Nick, t.Nick, t.TrueIdent(), t.RealHost, host)
 }
 
 func (s *Server) cmdChgident(c *Client, m irc.Message) {
@@ -334,12 +366,12 @@ func (s *Server) cmdChgident(c *Client, m irc.Message) {
 		s.stdReply(c, "FAIL", "CHGIDENT", "INVALID_IDENT", "A username may only contain a-z, A-Z, 0-9, '-', '_', '~' and '.' (at most 10)", "*** /ChgIdent Error: A ident may contain a-z, A-Z, 0-9, '-', '_', '~' & '.' - Please only use them", id)
 		return
 	}
-	t := s.opTarget(c, m.Params[0])
+	t := s.chgTarget(c, m.Params[0])
 	if t == nil {
 		return
 	}
-	s.changeHost(t, "", id)
-	s.snotice("CHGIDENT: %s changed the username of %s (%s@%s) to be %s", c.user.Nick, t.user.Nick, t.user.TrueIdent(), t.user.RealHost, id)
+	s.chgHost(t, "", id)
+	s.snotice("CHGIDENT: %s changed the username of %s (%s@%s) to be %s", c.user.Nick, t.Nick, t.TrueIdent(), t.RealHost, id)
 }
 
 // ---- SA commands (oper flag a) ----

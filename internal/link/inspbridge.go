@@ -336,7 +336,10 @@ func (b *inspBridge) out(m irc.Message) []string {
 			return nil
 		}
 		b.names[p[2]] = p[0]
-		return []string{line(nil, src, "SERVER", true, p[0], p[2], last())}
+		// Its own BURST, so InspIRCd times its ENDBURST (EOS) from now
+		// and not from 0 (QA: "burst time: 1795037518 secs").
+		return []string{line(nil, src, "SERVER", true, p[0], p[2], last()),
+			line(nil, p[2], "BURST", false, strconv.FormatInt(b.now(), 10))}
 	case "EOS":
 		return []string{line(nil, src, "ENDBURST", false)}
 	case "NETINFO", "PROTOCTL", "PASS", "BEESESS", "BEEOPER", "BEEOPERR", "BEEADMIN", "BEEPLACE", "REPUTATION",

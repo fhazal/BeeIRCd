@@ -42,9 +42,9 @@ func cmdLinkInfo(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "link certificate:", err)
 		return 1
 	}
-	fmt.Fprint(stdout, linkInfoText(cfg.Server.Name, cfg.Server.SID, cfg.Link.Role, cfg.Link.Port, fp, cfg.Link.Servers))
+	svc, _, _ := cfg.ServicesServer()
+	fmt.Fprint(stdout, linkInfoText(cfg.Server.Name, cfg.Server.SID, cfg.Link.Role, cfg.Link.Port, fp, cfg.Link.Servers, svc))
 	if hash, err := link.FileCertHash(cfg.Link.Cert); err == nil {
-		svc, _, _ := cfg.ServicesServer()
 		fmt.Fprint(stdout, inspInfoText(cfg.Server.Name, cfg.Link.Port, hash, svc))
 	}
 	return 0
@@ -83,7 +83,7 @@ func inspInfoText(name string, port int, hash, services string) string {
 // server's fingerprint and the block the other side pastes. A hub's block
 // tells leaves where to connect; a leaf's block tells its hub to wait for
 // it. servers are the [[link.server]] blocks this server already has.
-func linkInfoText(name, sid, role string, port int, fp string, servers []config.LinkServer) string {
+func linkInfoText(name, sid, role string, port int, fp string, servers []config.LinkServer, services string) string {
 	var b strings.Builder
 	ps := strconv.Itoa(port)
 	fmt.Fprintf(&b, "\n  This server   %s (SID %s), %s, link port %s (TLS)\n  Fingerprint   %s\n", name, sid, role, ps, fp)
@@ -135,6 +135,16 @@ func linkInfoText(name, sid, role string, port int, fp string, servers []config.
         class servers;
     }
 `, name, name, ps, fp, name, name, ps, fp)
+	}
+	if services != "" {
+		// Without these UnrealIRCd keeps SASL off and takes no SVSNICK
+		// (SANICK) from us; it may find SASL by itself, but not the rest.
+		fmt.Fprintf(&b, `
+  And on any UnrealIRCd server, U-line our services (unrealircd.conf):
+
+    ulines { %s; }
+    set { services-server "%s"; }
+`, services, services)
 	}
 	b.WriteString(`
   The fingerprint is the lock: only a server holding this server's private

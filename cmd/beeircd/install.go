@@ -960,7 +960,7 @@ func (in *installer) linkSteps(p *plan) {
 		servers = append(servers, config.LinkServer{Name: p.UplinkName, Host: p.UplinkHost, Port: p.UplinkPort, Fingerprint: p.UplinkFP})
 	}
 	fmt.Fprint(in.out, "\n  Linking (beeircd link-info shows this again)")
-	fmt.Fprint(in.out, linkInfoText(p.Name, p.SID, p.Role, p.LinkPort, p.LinkFP, servers))
+	fmt.Fprint(in.out, linkInfoText(p.Name, p.SID, p.Role, p.LinkPort, p.LinkFP, servers, ""))
 	if p.UplinkName != "" && p.UplinkFP == "" {
 		fmt.Fprintf(in.out, "  The [[link.server]] block for %s is in %s, commented out:\n  add the hub's fingerprint, remove the # signs, then beeircd rehash.\n", p.UplinkName, in.paths().conf)
 	}
