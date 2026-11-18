@@ -1,6 +1,9 @@
 package irc
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestExtbanSpellings(t *testing.T) {
 	for in, want := range map[string]string{
@@ -207,5 +210,18 @@ func TestInspNativeExtbans(t *testing.T) {
 		if !ok || got != want {
 			t.Errorf("%s: got %q %v, want %q", in, got, ok, want)
 		}
+	}
+}
+
+func TestBanTooLong(t *testing.T) {
+	long := "~realmask:" + strings.Repeat("x", 99)
+	if _, ok := NormalizeBan(long); ok || !BanTooLong(long) || !BanTooLong("~q:"+long) {
+		t.Errorf("a 99-byte realmask with no + must be refused as too long")
+	}
+	if got, ok := NormalizeBan("~realmask:" + strings.Repeat("x", 98)); !ok || got != "~realmask:"+strings.Repeat("x", 98)+"+*" {
+		t.Errorf("98 bytes fits: %q %v", got, ok)
+	}
+	if BanTooLong("~account:" + strings.Repeat("x", 200)) {
+		t.Errorf("only realmask is checked")
 	}
 }

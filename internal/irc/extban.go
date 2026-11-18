@@ -247,6 +247,31 @@ func inner(arg string, depth int) (string, bool) {
 	return n, true
 }
 
+// realmaskTooLong: a ~realmask mask must fit in 100 bytes, with room for
+// the "+*" added when it has no realname part.
+func realmaskTooLong(arg string) bool {
+	if strings.Contains(arg, "+") {
+		return len(arg) > 100
+	}
+	return len(arg) > 98
+}
+
+// BanTooLong reports a ban refused only because its ~realmask is too long,
+// so the reply can say so.
+func BanTooLong(m string) bool {
+	for depth := 0; depth < 3 && strings.HasPrefix(m, "~"); depth++ {
+		name, arg, ok := strings.Cut(m[1:], ":")
+		if !ok {
+			return false
+		}
+		if strings.EqualFold(name, "realmask") {
+			return realmaskTooLong(arg)
+		}
+		m = arg
+	}
+	return false
+}
+
 func word(arg string) (string, bool) {
 	if arg == "" {
 		return "", false
@@ -271,13 +296,13 @@ func normArg(e *Extban, arg string, depth int) (string, bool) {
 	case "operclass", "realname", "oper", "server", "gateway":
 		return word(arg)
 	case "realmask":
-		out, ok := word(arg)
-		if ok && !strings.Contains(out, "+") {
-			// No realname part: any realname. Added after the cut, so
-			// a long mask reads back the same.
-			out = Truncate(out, 98) + "+*"
+		if arg == "" || realmaskTooLong(arg) {
+			return "", false // refused, not cut: a cut mask matches other people
 		}
-		return out, ok
+		if !strings.Contains(arg, "+") {
+			arg += "+*" // no realname part: any realname
+		}
+		return arg, true
 	case "security-group":
 		arg = strings.ToLower(arg)
 		if arg == "" || len(arg) > 30 || strings.Trim(arg, "abcdefghijklmnopqrstuvwxyz0123456789_-") != "" {

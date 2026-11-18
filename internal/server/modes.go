@@ -236,6 +236,10 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 			}
 			used++
 			mask, valid := irc.NormalizeBan(arg)
+			if !valid && irc.BanTooLong(arg) {
+				s.reply(c, irc.ErrInvalidModeParam, ch.Name, string(mc), arg, "Ban mask is too long")
+				continue
+			}
 			if !valid {
 				s.reply(c, irc.ErrInvalidModeParam, ch.Name, string(mc), arg, "Invalid ban mask or unknown extban (/HELP EXTBANS lists them)")
 				continue

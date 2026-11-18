@@ -228,10 +228,10 @@ func TestLeafOperByCertificate(t *testing.T) {
 
 // What another server says about an oper's looks is kept short and clean.
 func TestOperLook(t *testing.T) {
-	if got := operLook("", nil); got != "" {
+	if got := operLook("", nil, nil); got != "" {
 		t.Errorf("nothing to say gives %q", got)
 	}
-	title, lines := readOperLook(operLook("is the Founder", []string{"looks very helpful", "second"}))
+	title, lines, _ := readOperLook(operLook("is the Founder", []string{"looks very helpful", "second"}, nil))
 	if title != "is the Founder" || len(lines) != 2 || lines[1] != "second" {
 		t.Errorf("round trip: %q %q", title, lines)
 	}
@@ -239,14 +239,14 @@ func TestOperLook(t *testing.T) {
 	for i := range long {
 		long[i] = strings.Repeat("x", 60)
 	}
-	if got := operLook("t", long); len(got) > 380 {
+	if got := operLook("t", long, nil); len(got) > 380 {
 		t.Errorf("too long for a link line: %d", len(got))
 	}
-	title, lines = readOperLook(`{"t":"bad\r\ntitle","s":["a","b","c","d","e","f","\u0001"]}`)
+	title, lines, _ = readOperLook(`{"t":"bad\r\ntitle","s":["a","b","c","d","e","f","\u0001"]}`)
 	if title != "badtitle" || len(lines) != 5 {
 		t.Errorf("unclean: %q %q", title, lines)
 	}
-	if title, lines = readOperLook("not json"); title != "" || lines != nil {
+	if title, lines, _ = readOperLook("not json"); title != "" || lines != nil {
 		t.Errorf("junk: %q %q", title, lines)
 	}
 }
@@ -279,4 +279,38 @@ func TestLeafAdminKeepsOwnLook(t *testing.T) {
 		c.expect(" 320 " + who + " Queen :looks very helpful")
 		c.expect(" 318 " + who + " Queen ")
 	}
+}
+
+// The oper_tag of the oper's own server shows from every server, and a
+// change on rehash reaches the others.
+func TestOperTagCrossesLink(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	hub.s.onLoop(func() { hub.s.cfg.Server.OperTag = "(IRCop)" })
+	leaf.s.onLoop(func() { leaf.s.cfg.Server.OperTag = "(LeafTag)" })
+	h, _ := passwd.Hash(operPW)
+	hub.s.onLoop(func() { hub.s.cfg.Services.Admin, hub.s.cfg.Services.AdminPassword = "Kumbang", h })
+	k := login(t, hub.s, "Kumbang")
+	k.send("NS REGISTER " + pw)
+	k.expect("is now registered to you.")
+	k.send("OPER Kumbang " + operPW)
+	k.expect(" 381 Kumbang :You are now an IRC operator")
+	waitLink(t, "the leaf knows the hub's tag", func() bool {
+		u := leaf.user("Kumbang")
+		return u != nil && u.OperTag != nil && *u.OperTag == "(IRCop)"
+	})
+	for who, n := range map[string]*linkNode{"hugo": hub, "lena": leaf} {
+		c := login(t, n.s, who)
+		c.send("WHOIS Kumbang")
+		c.expect(" 313 " + who + " Kumbang :is a Network Administrator (IRCop)")
+	}
+
+	// oper_tag changes on the hub: a rehash sends it again.
+	hub.s.onLoop(func() { hub.s.cfg.Server.OperTag = ""; hub.s.resendOperLooks() })
+	waitLink(t, "the leaf hears the tag is gone", func() bool {
+		u := leaf.user("Kumbang")
+		return u != nil && u.OperTag != nil && *u.OperTag == ""
+	})
+	c := login(t, leaf.s, "lina")
+	c.send("WHOIS Kumbang")
+	c.expect(" 313 lina Kumbang :is a Network Administrator\r")
 }

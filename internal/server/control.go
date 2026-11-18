@@ -402,6 +402,9 @@ func (s *Server) rehash(by string) (*control.Rehash, error) {
 	}
 	keepRestartOnly(fresh, &old)
 	*s.cfg = *fresh // services share this Config
+	if old.Server.OperTag != fresh.Server.OperTag {
+		s.resendOperLooks()
+	}
 	if old.Services.LogChannel != fresh.Services.LogChannel {
 		s.svc.SyncLogChannel(old.Services.LogChannel)
 	}

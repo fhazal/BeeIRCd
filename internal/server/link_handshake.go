@@ -117,6 +117,12 @@ type remoteServer struct {
 	hops            int    // 1 = linked to us directly
 	via             *linkConn
 	synced          bool // sent EOS
+	// What it runs, from the handshake (direct links) and SINFO.
+	software          string
+	protocol          int
+	boot              time.Time
+	umodes, chanmodes string
+	sinfo             string // its SINFO line as we got it, to pass on
 }
 
 // linkConn is one server link, from TCP connect until it closes.
@@ -529,7 +535,8 @@ func (s *Server) linkUp(l *linkConn) {
 		l.limit = 20 << 20
 	}
 	others := s.burstServers(l)
-	s.links.servers[p.SID] = &remoteServer{name: p.Name, sid: p.SID, desc: p.Description, uplink: s.cfg.Server.SID, hops: 1, via: l}
+	s.links.servers[p.SID] = &remoteServer{name: p.Name, sid: p.SID, desc: p.Description, uplink: s.cfg.Server.SID, hops: 1, via: l,
+		software: p.Software, protocol: p.Protocol}
 	if r := s.links.retry[strings.ToLower(p.Name)]; r != nil {
 		r.wait, r.lastErr = 0, ""
 	}
@@ -538,6 +545,11 @@ func (s *Server) linkUp(l *linkConn) {
 	}
 	for _, line := range s.operBurst(l) {
 		l.send(line)
+	}
+	if p.Bee {
+		for _, line := range s.sinfoBurst(l) {
+			l.send(line)
+		}
 	}
 	s.saslAnnounce(l)
 	if t := s.saslTarget(); t != "" {
@@ -683,7 +695,9 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		s.remoteExcepts(l, m)
 	case "REPUTATION":
 		s.remoteReputation(l, m)
-	case "SINFO", "SMOD", "GLOBOPS", "SENDUMODE", "SENDSNO", "SLOG", "SWHOIS", "BOTMOTD":
+	case "SINFO":
+		s.linkSINFO(l, m)
+	case "SMOD", "GLOBOPS", "SENDUMODE", "SENDSNO", "SLOG", "SWHOIS", "BOTMOTD":
 		// Server info, module lists and notices for opers: nothing to do,
 		// and nothing worth a log line.
 	default:
@@ -695,6 +709,49 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 			s.log.Printf("link %s: %s not handled (skipped)", l.peer.Name, m.Command)
 		}
 	}
+}
+
+// linkSINFO is UnrealIRCd's ":sid SINFO boottime protocol umodes chanmodes
+// nickchars :software": what a server runs, for the rpc server.* answers.
+// It goes on to BeeIRCd links only.
+func (s *Server) linkSINFO(l *linkConn, m irc.Message) {
+	r := s.sourceServer(l, m.Source)
+	if r == nil || len(m.Params) < 6 {
+		return
+	}
+	if boot, err := strconv.ParseInt(m.Params[0], 10, 64); err == nil && boot > 0 {
+		r.boot = time.Unix(boot, 0)
+	}
+	if n, err := strconv.Atoi(m.Params[1]); err == nil {
+		r.protocol = n
+	}
+	r.umodes, r.chanmodes = irc.Truncate(m.Params[2], 64), irc.Truncate(m.Params[3], 200)
+	r.software = irc.Truncate(m.Params[len(m.Params)-1], 80)
+	r.sinfo = m.String()
+	for o := range s.links.conns {
+		if o != l && o.up && !o.closed && o.peer.Bee {
+			o.send(r.sinfo)
+		}
+	}
+}
+
+// sinfoBurst is SINFO for us and every server not behind l whose SINFO we
+// have, for a BeeIRCd link.
+func (s *Server) sinfoBurst(l *linkConn) []string {
+	mine := func(sid string) string {
+		return fmt.Sprintf(":%s SINFO %d %d %s %s * :%s", sid, s.created.Unix(), link.UnrealProtocol,
+			userModes, strings.Join([]string{chanModesList, chanModesKey, chanModesParam, chanModesFlags}, ","), version.String())
+	}
+	out := []string{mine(s.cfg.Server.SID)}
+	if si, ok := s.servicesInfo(); ok {
+		out = append(out, mine(si.SID)) // services run inside us
+	}
+	for _, r := range s.links.servers {
+		if r.sinfo != "" && !s.behind(l, r.sid) {
+			out = append(out, r.sinfo)
+		}
+	}
+	return out
 }
 
 // linkSID is ":uplink SID name hops sid :description": a server behind l.

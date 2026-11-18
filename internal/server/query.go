@@ -209,12 +209,16 @@ func (s *Server) whoisOne(c *Client, u *state.User, reply func(code string, p ..
 		reply(irc.RplWhoisOperator, u.Nick, "is a Network Service")
 	case tc != nil && tc.isOper() && (!u.HasMode('H') || self || c.isOper()):
 		var rank string
-		rank, own = s.operRank(tc.operTitle, tc.operSwhois)
+		rank, own = operRank(tc.operTitle, tc.operSwhois, s.cfg.Server.OperTag)
 		reply(irc.RplWhoisOperator, u.Nick, rank)
 	case tc == nil && u.Modes['o'] && (!u.HasMode('H') || c.isOper()):
 		// On another server: what that server said about them.
 		var rank string
-		rank, own = s.operRank(u.OperTitle, u.OperSwhois)
+		tag := s.cfg.Server.OperTag
+		if u.OperTag != nil {
+			tag = *u.OperTag // their server's oper_tag
+		}
+		rank, own = operRank(u.OperTitle, u.OperSwhois, tag)
 		reply(irc.RplWhoisOperator, u.Nick, rank)
 	}
 	for _, line := range own {

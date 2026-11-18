@@ -1122,7 +1122,7 @@ Unknown settings are refused, so a typo shows up in `beeircd check`.
 | `oper_join` | – | Channels every oper joins at `/oper`, like `["#opers"]`; an oper is let in past bans and keys |
 | `oper_join_flag` | – | More channels for opers with one oper flag, like `{ s = ["#services"] }`: opers with flag s (admin and netadmin) also join #services |
 | `ping_cookie` | `false` | Every new connection must answer a PING with a random word before it is let in; this stops programs that send without reading |
-| `web_redirect` | – | A web address, like `"https://chat.example.org/"`: browsers that open an IRC port by mistake are sent there |
+| `web_redirect` | – | A web address, like `"https://chat.example.org/"`: browsers that open an IRC port by mistake are sent there. Browsers refuse ports 6665–6669 and 6697 themselves (ERR_UNSAFE_PORT) and never reach the server, so this only helps on a port like 8067; or link people straight to the web chat or the Hive Panel |
 | `oper_tag` | – | A short text after every oper's rank in WHOIS, like `"(IRCop)"`: "is a Network Administrator (IRCop)" |
 | `ircv3_drafts` | `false` | Offer the IRCv3 drafts that aren't final yet to clients that ask: `draft/read-marker` (read position shared by all your devices), `draft/pre-away` (bouncers and phones set AWAY while connecting), `draft/extended-isupport` (the 005 list before sign-in with `ISUPPORT`), `draft/multiline` (a pasted block of up to 24 lines or 4096 bytes is one message, checked once by the spam filter and flood rules; clients without it and other servers get the lines one by one), `draft/message-redaction` (`REDACT` takes a message back: the sender for 15 minutes, channel ops and IRC operators at any time; clients with it hide the message, +H history forgets it, other BeeIRCd servers pass it on; clients without it still show the message), `draft/account-registration` (`REGISTER <nick|*> <email|*> <password>` and `VERIFY <nick> <code>` from a client's sign-up screen, with NickServ's rules: `force_email`, `registration`, `reg_delay`; offered on the server that runs services, once the connection is complete). Clients that don't ask see no change. AdminServ `SET ircv3-drafts` switches it live (clients with cap-notify hear CAP NEW / DEL) |
 
@@ -1428,8 +1428,15 @@ title, else "is an IRC Operator". Their extra lines come right under it.
 An oper with no title whose first extra line reads like one ("is the
 Network Overwatch") has that line as their rank, and an extra line that
 only repeats the rank is left out. `[server] oper_tag = "(IRCop)"` puts
-that text after every rank: "is a Network Administrator (IRCop)". Every
-BeeIRCd server on the network shows the same lines.
+that text after every rank: "is a Network Administrator (IRCop)". The tag
+is the one set on the server the oper opered on, so setting it on the hub
+is enough. Every BeeIRCd server on the network shows the same lines (a
+server older than 1.3.0 doesn't send its tag; then the viewer's own is
+used).
+
+The server admin from beeircd.conf sets their own title, WHOIS lines and
+vhost from IRC: `/as oper <name> set title|swhois|vhost <text>` (OFF
+clears one). Their flags, hosts and class stay in beeircd.conf.
 
 What only opers see about someone's connection (their modes and real
 address near the top; security groups, country, network and reputation

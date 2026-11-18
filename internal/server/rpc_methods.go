@@ -312,7 +312,15 @@ func (s *Server) rpcUser(u *state.User, full bool) obj {
 	if u.Away != "" {
 		usr["away_reason"] = u.Away
 	}
-	if u.IP != "" && s.repOn() {
+	// Always there, as on UnrealIRCd (unrealircd-webpanel's Users page
+	// needs it); services and people with no known address have 0.
+	usr["reputation"] = 0
+	if u.Service || u.Modes['S'] {
+		// Services bots have +S on UnrealIRCd: the web panel's badge.
+		if m := usr["modes"].(string); !strings.Contains(m, "S") {
+			usr["modes"] = m + "S"
+		}
+	} else if u.IP != "" && s.repOn() {
 		usr["reputation"] = s.repScore(u.IP)
 	}
 	if len(u.Groups) > 0 {
@@ -844,16 +852,35 @@ func (s *Server) rpcServer(n netServer, people map[string]int) obj {
 	if n.uplink != "" {
 		srv["uplink"] = s.sidName(n.uplink)
 	}
-	if n.sid == s.cfg.Server.SID {
-		srv["boot_time"] = rpcTime(s.created)
-		// UnrealIRCd's features: unrealircd-webpanel builds its channel mode
-		// editor from chanmodes (the four CHANMODES groups).
-		srv["features"] = obj{
-			"software":  version.String(),
-			"protocol":  link.UnrealProtocol,
-			"usermodes": userModes,
-			"chanmodes": []string{chanModesList, chanModesKey, chanModesParam, chanModesFlags},
+	own := obj{
+		"software":  version.String(),
+		"protocol":  link.UnrealProtocol,
+		"usermodes": userModes,
+		"chanmodes": []string{chanModesList, chanModesKey, chanModesParam, chanModesFlags},
+	}
+	switch r := s.links.servers[n.sid]; {
+	case r != nil:
+		// What the link told us: the handshake, then SINFO.
+		f := obj{"software": r.software, "protocol": r.protocol}
+		if r.software == "" {
+			f["software"] = "unknown"
 		}
+		if r.umodes != "" {
+			f["usermodes"] = r.umodes
+		}
+		if groups := strings.Split(r.chanmodes, ","); len(groups) == 4 {
+			f["chanmodes"] = groups
+		}
+		srv["features"] = f
+		if !r.boot.IsZero() {
+			srv["boot_time"] = rpcTime(r.boot)
+		}
+	default:
+		// Us, and services and jupes, which run inside us. UnrealIRCd's
+		// features: unrealircd-webpanel builds its channel mode editor
+		// from chanmodes (the four CHANMODES groups).
+		srv["boot_time"] = rpcTime(s.created)
+		srv["features"] = own
 	}
 	// "ip" is null as UnrealIRCd sends it for its own server (we do not
 	// keep link addresses); without the key unrealircd-webpanel warns.

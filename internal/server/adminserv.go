@@ -34,7 +34,7 @@ func adminCommands() map[string]adminCmd {
 		"PORT": {"PORT ADD|DEL|LIST [port] [TLS]", "open or close a port",
 			"PORT LIST\nPORT ADD <port> [TLS]   opens it now, on the same address as the first port\nPORT ADD <address:port> [TLS]\nPORT DEL <port|address:port>\nPeople already connected through a closed port stay connected.", asPort},
 		"OPER": {"OPER LIST | OPER <nick> ADD|SET|DEL|DISABLE|ENABLE ...", "who is an IRC operator",
-			"OPER LIST\nOPER <nick> ADD CLASS <class>|FLAGS <letters> HOST <mask> [PASSWORD <password>] [TITLE <text>]\nOPER <nick> SET CLASS <class>|OFF\nOPER <nick> SET FLAGS <letters>|OFF   flags on top of the class\nOPER <nick> SET HOST <mask> [mask ...]   globs or CIDR, like *@192.168.50.0/24\nOPER <nick> SET PASSWORD <password>|OFF   OFF: certificate only\nOPER <nick> SET CERT <fingerprint> [...]|OFF   /oper needs this TLS client certificate\nOPER <nick> SET TITLE|VHOST <text>|OFF   instead of the class's\nOPER <nick> SET SWHOIS <line> [| <line> ...]|OFF\nOPER <nick> DISABLE [reason]   keep the entry, refuse /oper\nOPER <nick> ENABLE\nOPER <nick> DEL\nClasses: /as class list (helper, globop, admin, netadmin are built in).\nFlags: a admin, b bots, c links, g global, h hosts, k kill, s services.\nThe nick must be registered. Opers oper up with /oper <nick> <oper password>\nfrom a matching host; the oper password is their own, not the NickServ one.\nYou can only give flags (and classes) you have.\nExample: /as oper ember add class globop host *@192.168.50.* password Hive-2026", asOper},
+			"OPER LIST\nOPER <nick> ADD CLASS <class>|FLAGS <letters> HOST <mask> [PASSWORD <password>] [TITLE <text>]\nOPER <nick> SET CLASS <class>|OFF\nOPER <nick> SET FLAGS <letters>|OFF   flags on top of the class\nOPER <nick> SET HOST <mask> [mask ...]   globs or CIDR, like *@192.168.50.0/24\nOPER <nick> SET PASSWORD <password>|OFF   OFF: certificate only\nOPER <nick> SET CERT <fingerprint> [...]|OFF   /oper needs this TLS client certificate\nOPER <nick> SET TITLE|VHOST <text>|OFF   instead of the class's\nOPER <nick> SET SWHOIS <line> [| <line> ...]|OFF\nOPER <nick> DISABLE [reason]   keep the entry, refuse /oper\nOPER <nick> ENABLE\nOPER <nick> DEL\nThe server admin from beeircd.conf may SET their own TITLE, SWHOIS and VHOST.\nClasses: /as class list (helper, globop, admin, netadmin are built in).\nFlags: a admin, b bots, c links, g global, h hosts, k kill, s services.\nThe nick must be registered. Opers oper up with /oper <nick> <oper password>\nfrom a matching host; the oper password is their own, not the NickServ one.\nYou can only give flags (and classes) you have.\nExample: /as oper ember add class globop host *@192.168.50.* password Hive-2026", asOper},
 		"CLASS": {"CLASS LIST | CLASS <name> ADD|SET|DEL ...", "oper classes",
 			"CLASS LIST\nCLASS <name> ADD FLAGS <letters>\nCLASS <name> SET FLAGS <letters>\nCLASS <name> SET TITLE <text>|OFF   WHOIS line, like: is a Network Administrator\nCLASS <name> SET VHOST <host>|OFF   shown host at /oper, like staff.example.org\nCLASS <name> SET SWHOIS <line> [| <line> ...]|OFF\nCLASS <name> DEL   a built-in class goes back to its defaults\nClasses are saved as [[operclass]] blocks in beeircd.conf.", asClass},
 		"HISTORY": {"HISTORY [count]", "the changes AdminServ made",
@@ -884,6 +884,14 @@ func asOper(s *Server, c *Client, args []string) {
 			})
 			return
 		}
+		if what := strings.ToUpper(argAt(args, 2)); strings.EqualFold(args[1], "SET") && (what == "TITLE" || what == "SWHOIS" || what == "VHOST") {
+			if s.accountID(c) != a.ID {
+				s.as(c, "Only %s can change their own title, WHOIS lines and vhost.", a.Name)
+				return
+			}
+			s.ownerLook(c, a, what, args[min(3, len(args)):])
+			return
+		}
 		s.as(c, "%s is the server admin from beeircd.conf; change it there.", a.Name)
 		return
 	}
@@ -1237,6 +1245,80 @@ func asOper(s *Server, c *Client, args []string) {
 	}
 }
 
+// ownerLook sets the title, WHOIS lines or vhost of a, the admin from
+// beeircd.conf, on their own entry; the first SET makes the entry. Their
+// flags, hosts and password stay in beeircd.conf (see operEntry).
+func (s *Server) ownerLook(c *Client, a *store.Account, what string, rest []string) {
+	if len(rest) == 0 {
+		s.as(c, "Syntax: OPER %s SET TITLE|SWHOIS|VHOST <value> (OFF clears it)", a.Name)
+		return
+	}
+	cur, err := s.store.OperByAccount(a.ID)
+	if err != nil {
+		s.dbErr(c, s.adminServ, err)
+		return
+	}
+	before := encodeOper(cur)
+	if cur == nil {
+		cur = &store.Oper{AccountID: a.ID, Account: a.Name, AddedBy: c.user.Nick, AddedAt: time.Now()}
+	}
+	val := strings.Join(rest, " ")
+	off := strings.EqualFold(val, "OFF")
+	var said string
+	switch what {
+	case "TITLE":
+		cur.Title = irc.Truncate(val, 50)
+		if off {
+			cur.Title = ""
+		}
+		said = "title is now " + orNone(cur.Title)
+	case "SWHOIS":
+		if off {
+			cur.Swhois = nil
+		} else if lines, ok := splitSwhois(val); ok {
+			cur.Swhois = lines
+		} else {
+			s.as(c, "Up to 5 swhois lines of 100 characters, split with |.")
+			return
+		}
+		said = "WHOIS lines are now " + orNone(strings.Join(cur.Swhois, " | "))
+	case "VHOST":
+		if off {
+			cur.Vhost = ""
+		} else if !s.validOperVhost(val) {
+			s.as(c, "A vhost is a hostname like staff.example.org.")
+			return
+		} else {
+			cur.Vhost = val
+		}
+		said = "vhost is now " + orNone(cur.Vhost)
+		if s.cfg.Services.AdminVhost != "" {
+			said += " (admin_vhost in beeircd.conf, " + s.cfg.Services.AdminVhost + ", still comes first)"
+		}
+	}
+	if err := s.store.SaveOper(cur); err != nil {
+		s.dbErr(c, s.adminServ, err)
+		return
+	}
+	s.audit(c, s.adminServ, "OPER %s SET %s %s", a.Name, what, val)
+	s.record(c, "oper", a.Name, before, encodeOper(cur))
+	s.svc.LogAdmin(c.uid, s.adminServ, "to change the "+strings.ToLower(what)+" of "+a.Name+" to "+val)
+	s.recheckOpers(a.ID)
+	s.as(c, "%s: %s.", a.Name, said)
+}
+
+// withoutOwner leaves out the entry of the admin from beeircd.conf: it
+// only holds their look, and lists show them on their own line.
+func (s *Server) withoutOwner(list []store.Oper) []store.Oper {
+	out := list[:0]
+	for _, o := range list {
+		if !s.isAdminAccount(&store.Account{ID: o.AccountID, Name: o.Account}) {
+			out = append(out, o)
+		}
+	}
+	return out
+}
+
 func orNone(v string) string {
 	if v == "" {
 		return "none"
@@ -1250,6 +1332,7 @@ func asOperList(s *Server, c *Client) {
 		s.dbErr(c, s.adminServ, err)
 		return
 	}
+	list = s.withoutOwner(list)
 	online := map[int64]bool{}
 	for _, oc := range s.clients {
 		if oc.isOper() {

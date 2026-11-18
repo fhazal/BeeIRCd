@@ -39,6 +39,7 @@ func (s *Server) panelOpers() (*control.Opers, string) {
 		s.log.Printf("services database: %v", err)
 		return nil, "Something went wrong on the server."
 	}
+	list = s.withoutOwner(list)
 	on := s.operOnline()
 	out := &control.Opers{}
 	if admin := s.cfg.Services.Admin; admin != "" {
@@ -47,6 +48,9 @@ func (s *Server) panelOpers() (*control.Opers, string) {
 			Password: s.cfg.Services.AdminPassword != ""}
 		if a != nil {
 			row.Account, row.Online = a.Name, on[a.ID]
+			if o, _ := s.operEntry(a); o != nil {
+				row.Title = o.Title
+			}
 		}
 		out.Rows = append(out.Rows, row)
 	}

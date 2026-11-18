@@ -154,6 +154,25 @@ func TestShowFileAndAbbreviations(t *testing.T) {
 	s.onLoop(func() { s.clients[s.net.UserByNick("ann").UID].tempShun = true })
 	c.send("FAQ")
 	c.quiet(" 375 ")
+	// Nor "Unknown command" or "Not enough parameters".
+	c.send("NOSUCHTHING")
+	c.quiet(" 421 ")
+	c.send("WHOIS")
+	c.quiet(" 461 ")
+}
+
+// A ~realmask that doesn't fit is refused, not cut short.
+func TestLongRealmaskRefused(t *testing.T) {
+	s := testServer(t, nil)
+	c := login(t, s, "ann")
+	c.send("JOIN #long")
+	c.expect(" 366 ann #long ")
+	long := "~realmask:*!*@" + strings.Repeat("h", 100) + "+*"
+	c.send("MODE #long +b " + long)
+	c.expect(" 696 ann #long b " + long + " :Ban mask is too long")
+	fits := "~realmask:*!*@" + strings.Repeat("h", 80) + "+bot"
+	c.send("MODE #long +b " + fits)
+	c.expect(" MODE #long +b " + fits)
 }
 
 func TestAbbreviationsOffByDefault(t *testing.T) {

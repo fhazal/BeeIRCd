@@ -95,12 +95,14 @@ func operMD(o *linkConn, src, uid, class, flags, look string) []string {
 
 // operLook packs an oper's WHOIS title and extra lines for MD
 // bee-operlook, so every BeeIRCd server shows them the same; "" = none.
-func operLook(title string, swhois []string) string {
-	if title == "" && len(swhois) == 0 {
+// tag is the [server] oper_tag of the oper's own server (nil = not known,
+// so the server showing the WHOIS uses its own).
+func operLook(title string, swhois []string, tag *string) string {
+	if title == "" && len(swhois) == 0 && tag == nil {
 		return ""
 	}
 	for {
-		b, _ := json.Marshal(operLookData{Title: title, Lines: swhois})
+		b, _ := json.Marshal(operLookData{Title: title, Lines: swhois, Tag: tag})
 		if len(b) <= 380 || len(swhois) == 0 {
 			return string(b)
 		}
@@ -111,14 +113,21 @@ func operLook(title string, swhois []string) string {
 type operLookData struct {
 	Title string   `json:"t,omitempty"`
 	Lines []string `json:"s,omitempty"`
+	Tag   *string  `json:"g,omitempty"` // oper_tag; older servers leave it out
+}
+
+// ownLook is operLook for an oper of this server, with our oper_tag.
+func (s *Server) ownLook(title string, swhois []string) string {
+	tag := s.cfg.Server.OperTag
+	return operLook(title, swhois, &tag)
 }
 
 // readOperLook is operLook read back from another server, kept short and
 // free of control bytes.
-func readOperLook(value string) (title string, lines []string) {
+func readOperLook(value string) (title string, lines []string, tag *string) {
 	var d operLookData
 	if value == "" || json.Unmarshal([]byte(value), &d) != nil {
-		return "", nil
+		return "", nil, nil
 	}
 	clean := func(t string) string {
 		t = strings.Map(func(r rune) rune {
@@ -134,7 +143,11 @@ func readOperLook(value string) (title string, lines []string) {
 			lines = append(lines, l)
 		}
 	}
-	return clean(d.Title), lines
+	if d.Tag != nil {
+		t := irc.Truncate(clean(*d.Tag), 30)
+		tag = &t
+	}
+	return clean(d.Title), lines, tag
 }
 
 func mdLine(src, uid, key, value string) string {
@@ -155,17 +168,27 @@ func (s *Server) linkOperInfo(except *linkConn, uid, class, flags, look string) 
 	}
 }
 
+// resendOperLooks tells the other servers how our opers look again, after
+// oper_tag changed.
+func (s *Server) resendOperLooks() {
+	for c := range s.opers {
+		if c.user != nil {
+			s.linkOperInfo(nil, c.uid, c.operClass, c.operFlags, s.ownLook(c.operTitle, c.operSwhois))
+		}
+	}
+}
+
 // operBurst is the oper status of everyone not behind l.
 func (s *Server) operBurst(l *linkConn) []string {
 	var out []string
 	for c := range s.opers {
 		if c.user != nil {
-			out = append(out, operMD(l, s.cfg.Server.SID, c.uid, c.operClass, c.operFlags, operLook(c.operTitle, c.operSwhois))...)
+			out = append(out, operMD(l, s.cfg.Server.SID, c.uid, c.operClass, c.operFlags, s.ownLook(c.operTitle, c.operSwhois))...)
 		}
 	}
 	for _, u := range s.net.Users() {
 		if u.OperClass+u.OperFlags != "" && !s.ours(u.UID) && !s.behind(l, uidServer(u.UID)) {
-			out = append(out, operMD(l, s.cfg.Server.SID, u.UID, u.OperClass, u.OperFlags, operLook(u.OperTitle, u.OperSwhois))...)
+			out = append(out, operMD(l, s.cfg.Server.SID, u.UID, u.OperClass, u.OperFlags, operLook(u.OperTitle, u.OperSwhois, u.OperTag))...)
 		}
 	}
 	return out
@@ -193,7 +216,7 @@ func (s *Server) remoteOperMD(l *linkConn, m irc.Message) {
 	case "bee-operflags":
 		u.OperFlags, _ = cleanFlags(value)
 	case "bee-operlook":
-		u.OperTitle, u.OperSwhois = readOperLook(value)
+		u.OperTitle, u.OperSwhois, u.OperTag = readOperLook(value)
 	}
 	for o := range s.links.conns {
 		if o != l && o.up && !o.closed && (key == "operclass" || o.peer.Bee) {

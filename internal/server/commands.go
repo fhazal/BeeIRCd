@@ -229,14 +229,15 @@ func (s *Server) runCommand(c *Client, m irc.Message) {
 	switch {
 	case !ok && !c.registered:
 		s.reply(c, irc.ErrNotRegistered, "You have not registered")
+	case c.registered && !shunAllowed[m.Command] && (c.tempShun || s.svc.Shunned(c.user)):
+		// Shunned: dropped without a word (UnrealIRCd), unknown commands
+		// and missing parameters too.
 	case !ok:
 		s.reply(c, irc.ErrUnknownCommand, m.Command, "Unknown command")
 	case !c.registered && !cmd.preReg:
 		s.reply(c, irc.ErrNotRegistered, "You have not registered")
 	case len(m.Params) < cmd.min:
 		s.reply(c, irc.ErrNeedMoreParams, m.Command, "Not enough parameters")
-	case c.registered && !shunAllowed[m.Command] && (c.tempShun || s.svc.Shunned(c.user)):
-		// Shunned: dropped without a word (UnrealIRCd).
 	case c.registered && s.restrictedCommand(c, m.Command):
 		// [[restrict]]: not yet for new people.
 	case c.registered && !c.isOper() && s.commandOff(m.Command):

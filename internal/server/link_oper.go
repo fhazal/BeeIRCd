@@ -381,7 +381,7 @@ func (s *Server) operLookAnswered(c *Client, l *linkConn, text string) {
 	if json.Unmarshal([]byte(text), &g) != nil {
 		return
 	}
-	title, lines := readOperLook(operLook(g.Title, g.Swhois))
+	title, lines, _ := readOperLook(operLook(g.Title, g.Swhois, nil))
 	vhost := s.cfg.Services.AdminVhost
 	if vhost == "" {
 		vhost = strings.TrimSpace(g.Vhost)

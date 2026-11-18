@@ -2909,6 +2909,7 @@
       if (r.owner) {
         put(form, h('div', { class: 'ch' }, h('h2', { text: r.account }), h('span', { class: 'lbl', text: 'owner' })),
           h('p', { class: 'note', text: 'The owner is the server admin in beeircd.conf, with every flag. Change it there; the owner\'s oper password is changed with /as oper ' + r.account + ' set password.' }),
+          h('p', { class: 'note', text: 'Title, WHOIS lines and vhost: the owner sets them on IRC with /as oper ' + r.account + ' set title|swhois|vhost <text>.' }),
           chips(r.all));
         return;
       }
