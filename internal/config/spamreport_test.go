@@ -61,4 +61,3 @@ func TestSpamReportChecks(t *testing.T) {
 		}
 	}
 }
-
