@@ -9,8 +9,9 @@
 //
 //	go build -o /usr/local/bin/beeircd-status ./tools/statuscheck
 //	cp tools/statuscheck/beeircd-status.service /etc/systemd/system/
-//	chown www-data /var/www/beeircd.org    (the unit runs as www-data and
-//	                                        must be able to write there)
+//	ln -s /var/lib/beeircd-status/status.json /var/www/beeircd.org/status.json
+//	                                       (the unit writes there as www-data;
+//	                                        the web root stays root-owned)
 //	systemctl daemon-reload && systemctl enable --now beeircd-status
 //	journalctl -u beeircd-status           (state changes and errors only)
 //

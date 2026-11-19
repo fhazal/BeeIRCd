@@ -6,12 +6,12 @@ Wants=network-online.target
 
 [Service]
 User=www-data
-ExecStart=/usr/local/bin/beeircd-status
+ExecStart=/usr/local/bin/beeircd-status -out /var/lib/beeircd-status/status.json
 Restart=always
 RestartSec=5
 # History lives in /var/lib/beeircd-status (made and owned by www-data).
 StateDirectory=beeircd-status
-ReadWritePaths=/var/www/beeircd.org
+# The site links /var/www/beeircd.org/status.json here (the web root stays root-owned).
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
