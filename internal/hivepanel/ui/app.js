@@ -3285,7 +3285,9 @@
         h('div', { class: 'wrap' }, h('table', { class: 'links' },
           h('thead', {}, h('tr', {}, ['Server', 'State', 'Up since', 'Software'].map(t => h('th', { scope: 'col', text: t })), h('th', { scope: 'col' }, h('span', { class: 'sr', text: 'Actions' })))),
           tbody))));
-    const body = h('div', { class: 'band21' }, left, h('div', { class: 'stack' }, form, mine));
+    const outside = h('section', { class: 'card' });
+    let outsideBusy = false; // a click is saving: don't redraw the card under it
+    const body = h('div', { class: 'band21' }, left, h('div', { class: 'stack' }, form, mine, outside));
     const el = h('div', { class: 'main-stack' },
       h('header', { class: 'head' }, h('div', { class: 'head-text' }, h('h1', { text: 'Linked servers' }), sub), addBtn),
       nm && nm.el, body);
@@ -3351,7 +3353,40 @@
           h('span', { class: 'lbl', text: 'Link port' }), h('span', { class: 'mono', text: String(d.link_port || '') }),
           h('span', { class: 'lbl', text: 'Fingerprint' }), h('span', { class: 'fp', text: d.fingerprint || '' })),
         h('p', { class: 'note', text: 'The other server\'s link block needs these. On a BeeIRCd, beeircd link-info prints them too.' }));
+      if (!outsideBusy) drawOutside();
       if (!form.dataset.dirty) drawForm();
+    }
+
+    // Admins from other servers: [link] outside_admins. The owner flips it;
+    // everyone else just reads it.
+    function drawOutside() {
+      const cur = data.outside_admins === 'none' ? 'none' : 'network';
+      const note = cur === 'none'
+        ? 'Only this server\'s own admins may run AdminServ here.'
+        : 'Admins whose reach is network (set by the network owner) may run AdminServ here. They can never change this switch, the link blocks or the config admin.';
+      const head = h('h2', { text: 'Admins from other servers' });
+      if (!me.owner) {
+        put(outside, head, h('p', { class: 'lbl', text: 'Admins from other servers: ' + (cur === 'none' ? 'kept out' : 'let in') }), h('p', { class: 'note', text: note }));
+        return;
+      }
+      const seg = h('div', { class: 'seg ml-seg', role: 'group', 'aria-label': 'Admins from other servers' });
+      put(seg, ...[['network', 'Let in network reach'], ['none', 'Keep out']].map(([v, label]) => {
+        const b = h('button', { type: 'button', 'aria-pressed': cur === v ? 'true' : 'false', text: label });
+        b.addEventListener('click', async () => {
+          if (cur === v || outsideBusy) return;
+          outsideBusy = true;
+          await busy(b, async () => {
+            try {
+              await api('POST', '/api/set', { name: 'outside-admins', value: v });
+              toast(['Admins from other servers: ', h('b', { text: v === 'none' ? 'kept out' : 'let in' })]);
+            } catch (e) { toastErr(e.message); }
+          });
+          outsideBusy = false;
+          await load();
+        });
+        return b;
+      }));
+      put(outside, head, seg, h('p', { class: 'note', text: note }));
     }
 
     function drawForm() {

@@ -88,7 +88,7 @@ can change things; every oper can look.
 `flood-rate`, `ping-interval`, `ping-timeout`, `cloak`, `resolve-hosts`,
 `nick-expire`, `chan-expire`, `identify-within`, `kill-quick`,
 `allow-kill-immed`, `ban-expiry`, `guest-prefix`, `log-channel`,
-`log-connects`, `flood-profile`, `find-place-by-ip`, `members`,
+`log-connects`, `flood-profile`, `find-place-by-ip`, `outside-admins` (owner only), `members`,
 `registration`, `unconfirmed-expire`, `default-language`, `ircv3-drafts`,
 `auto-join`, `auto-join-skip`, `oper-join`, `oper-join-flag`,
 `auth-prompt`, `auth-prompt-text`, `auth-prompt-fail`, `auth-prompt-time`,
@@ -148,8 +148,10 @@ own server, or on the whole network:
   HISTORY names them as `nick on server`.
 - Lock-out guard: nobody from another server can change a server's link
   blocks or its config admin's oper entry and password, and
-  `outside_admins` is only set in that server's beeircd.conf. Whoever runs
-  a server can't be locked out of it.
+  `outside_admins` is changed only by the network owner on that server
+  (`/as set outside-admins network|none`, or the Hive Panel's Linked
+  servers page), never from outside. Whoever runs a server can't be
+  locked out of it.
 - `/as server <name> status` shows `outside admins network|none`.
 
 ## Channel bots (BotServ)
@@ -807,7 +809,9 @@ then open <http://127.0.0.1:8787>. `beeircd install` sets it up as the
   beeircd.conf and applied with a rehash at once; the link password is
   never shown (leave it empty to keep it). The card "This server, for the
   other side" shows the name, link port and fingerprint the other
-  server's block needs (the same as `beeircd link-info`).
+  server's block needs (the same as `beeircd link-info`). The card "Admins
+  from other servers" shows `[link] outside_admins`; the network owner
+  switches it there between letting in network reach and keeping out.
 - **Services** (flag `a`): registered nicks, channels and memos, the
   bots, and the services settings from AdminServ SET in plain words
   (account and channel expiry, identify time, guest prefix, KILL QUICK /

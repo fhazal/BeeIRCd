@@ -16,7 +16,7 @@ import (
 )
 
 func (s *Server) panelLinks() *control.Links {
-	out := &control.Links{Role: s.cfg.Link.Role, Self: s.cfg.Server.Name, Status: s.linkStatus()}
+	out := &control.Links{Role: s.cfg.Link.Role, Self: s.cfg.Server.Name, Status: s.linkStatus(), OutsideAdmins: s.cfg.Link.OutsideAdmins}
 	if s.cfg.Link.Linked() {
 		out.Fingerprint, out.LinkPort = s.links.fp, s.cfg.Link.Port
 	}

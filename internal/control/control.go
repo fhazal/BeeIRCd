@@ -363,6 +363,8 @@ type Links struct {
 	Status      []Link      `json:"status"`
 	Places      []MapPlace  `json:"places"`     // where the owner put the servers
 	FindByIP    bool        `json:"find_by_ip"` // [server] find_place_by_ip
+	// OutsideAdmins is [link] outside_admins: network or none.
+	OutsideAdmins string `json:"outside_admins"`
 }
 
 // MapPlace is where a server is on the network map: set by the owner,

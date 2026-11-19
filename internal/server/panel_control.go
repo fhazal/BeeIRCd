@@ -244,6 +244,9 @@ func (s *Server) panelSet(po *control.PanelOper, ip, name, value string) control
 	if !ok {
 		return control.Response{Error: "There is no setting " + name + "."}
 	}
+	if st.owner && !po.Owner {
+		return control.Response{Error: "Only the network owner can change " + st.name + ".", Denied: "flag"}
+	}
 	old, now, id, problem := s.setSetting(po.Account+" (Hive Panel)", st, strings.TrimSpace(value))
 	if problem != "" {
 		return control.Response{Error: problem}

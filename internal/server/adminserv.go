@@ -128,6 +128,18 @@ type setting struct {
 	after func(s *Server, old string)
 	// enc checks a list value and writes it as TOML (kinds c, g and f).
 	enc func(c *config.Config, v string) (lit, problem string)
+	// owner: only the network owner may change it (never an admin from
+	// another server), at AdminServ, in the Hive Panel, and by UNDO.
+	owner bool
+}
+
+// outsideAdminsEnc checks the [link] outside_admins value.
+func outsideAdminsEnc(_ *config.Config, v string) (string, string) {
+	v = strings.ToLower(strings.TrimSpace(v))
+	if v != config.OutsideNetwork && v != config.OutsideNone {
+		return "", "outside-admins is network or none."
+	}
+	return config.Quote(v), ""
 }
 
 func limitsApply(dst, src *config.Config)   { dst.Limits = src.Limits }
@@ -503,6 +515,10 @@ func baseSettings() []setting {
 		{name: "find-place-by-ip", table: "server", key: "find_place_by_ip", help: "ask ipinfo.io once where this server's own IP is, for the network map (city level)", kind: 'b',
 			get: func(c *config.Config) string { return onoff(c.FindPlaceByIP()) }, apply: func(d, s *config.Config) { d.Server.FindPlaceByIP = s.Server.FindPlaceByIP },
 			after: func(s *Server, _ string) { s.startPlaceLookup(); s.announcePlace() }},
+		{name: "outside-admins", table: "link", key: "outside_admins", help: "admins from other servers with network reach may run AdminServ here (network) or not (none)", kind: 't', hi: 7, owner: true,
+			get:   func(c *config.Config) string { return c.Link.OutsideAdmins },
+			apply: func(d, s *config.Config) { d.Link.OutsideAdmins = s.Link.OutsideAdmins },
+			enc:   outsideAdminsEnc},
 		{name: "ircv3-drafts", table: "server", key: "ircv3_drafts", help: "offer the IRCv3 drafts (read-marker, multiline, message-redaction, account-registration, pre-away, extended-isupport) to clients that ask", kind: 'b',
 			get: func(c *config.Config) string { return onoff(c.Server.IRCv3Drafts) }, apply: func(d, s *config.Config) { d.Server.IRCv3Drafts = s.Server.IRCv3Drafts },
 			after: func(s *Server, old string) { s.draftsChanged(old == "off") }},
@@ -636,6 +652,18 @@ func (s *Server) applySetting(c *Client, sv *state.User, name, value string) {
 	if !ok {
 		s.botReply(c, sv, fmt.Sprintf("There is no setting %s. See them all: /as show", name))
 		return
+	}
+	if st.owner {
+		// An admin from another server can never change it; here only the
+		// network owner can.
+		if !s.ours(c.uid) {
+			s.botReply(c, sv, fmt.Sprintf("%s on %s is changed only by people on it, so nobody from another server can lock its admin out.", st.name, s.cfg.Server.Name))
+			return
+		}
+		if !s.isOwner(c) {
+			s.botReply(c, sv, fmt.Sprintf("Only %s can change %s.", s.ownerWhere(), st.name))
+			return
+		}
 	}
 	old, now, _, problem := s.setSetting(s.changedBy(c), st, value)
 	if problem != "" {
