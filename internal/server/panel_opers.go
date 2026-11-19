@@ -296,7 +296,7 @@ func (s *Server) panelOperUndo(po *control.PanelOper, ip string, ch store.Change
 			return control.Response{Error: "That change can't be read."}
 		}
 		o = &store.Oper{AccountID: a.ID, Account: a.Name, Class: r.Class, Flags: r.Flags, Title: r.Title, Vhost: r.Vhost,
-			Swhois: r.Swhois, Hosts: r.Hosts, Disabled: r.Disabled, Reach: cleanReach(r.Reach), AddedBy: po.Account, AddedAt: time.Now()}
+			Swhois: r.Swhois, Hosts: r.Hosts, Disabled: r.Disabled, CertFPs: r.CertFPs, Reach: cleanReach(r.Reach), AddedBy: po.Account, AddedAt: time.Now()}
 		if cur != nil {
 			o.PassHash, o.DisabledBy, o.AddedBy, o.AddedAt = cur.PassHash, cur.DisabledBy, cur.AddedBy, cur.AddedAt
 		} else {
