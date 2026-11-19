@@ -224,3 +224,15 @@ func TestSpamfilterDelBySpec(t *testing.T) {
 	b.send("SPAMFILTER del -simple p block - No_dms_with_links *bit.ly/*")
 	b.expect("there is no spam filter like that")
 }
+
+// Adding and removing a rule tells opers in InspIRCd 4's m_filter words.
+func TestSpamfilterNoticeWords(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	b.send("SPAMFILTER add c gline 1h Spammers_go *buy followers*")
+	b.expect("*** FILTER: Boss added filter '*buy followers*', type 'gline', duration '1 hour', flags 'c', reason: Spammers go")
+	b.send("SPAMFILTER add cp block - No_nitro_spam *free nitro*")
+	b.expect("*** FILTER: Boss added filter '*free nitro*', type 'block', flags 'cp', reason: No nitro spam")
+	b.send("SPAMFILTER del cp block - No_nitro_spam *free nitro*")
+	b.expect("*** FILTER: Boss removed filter '*free nitro*': No nitro spam")
+}

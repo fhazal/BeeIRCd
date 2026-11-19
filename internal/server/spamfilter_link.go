@@ -1,6 +1,7 @@
 package server
 
 import (
+	"strings"
 	"time"
 
 	"github.com/fhazal/beeircd/internal/irc"
@@ -77,10 +78,11 @@ func (s *Server) remoteSpam(l *linkConn, raw irc.Message, it *link.SpamFilter) {
 		}
 	}
 	if l.eos {
+		by, _, _ := strings.Cut(f.SetBy, "!") // the nick, like InspIRCd
 		if it.Add {
-			s.sno('f', "%s added filter %s", f.SetBy, services.Describe(f))
+			s.sno('f', "%s added filter %s", by, services.FilterNotice(f))
 		} else {
-			s.sno('f', "%s removed filter '%s': %s", f.SetBy, f.Match, f.Reason)
+			s.sno('f', "%s removed filter '%s': %s", by, f.Match, f.Reason)
 		}
 	}
 }
