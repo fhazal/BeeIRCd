@@ -127,7 +127,7 @@ func (s *Server) operUpView(c *Client, o *store.Oper, v operView) {
 	} else {
 		s.notice(c, "*** Oper flags: "+describeFlags(v.flags))
 	}
-	s.sno('o', "%s is now a server operator of type \x02%s\x02 (using account \x02%s\x02).", snoWho(u), operType(v.class, v.flags), o.Account)
+	s.sno('o', "%s is now a server operator of type %s", snoWho(u), operType(v.class, v.flags))
 	s.svc.SendOperNews(c.uid)
 	s.operExtras(c)
 }
@@ -215,7 +215,7 @@ func (s *Server) lnotice(format string, a ...any) {
 func (s *Server) snoticeOpers(letter byte, text string) {
 	for c := range s.opers {
 		if c.wantsSno(letter) {
-			s.notice(c, "*** Notice -- "+text)
+			s.notice(c, "*** "+snoCategory(letter)+": "+text)
 		}
 	}
 }
@@ -439,7 +439,7 @@ func (s *Server) killUser(u *state.User, by, reason string) {
 		return
 	}
 	tc.send(irc.Message{Source: by, Command: "KILL", Params: []string{u.Nick, reason}, Trailing: true}.String())
-	s.sno('k', "Local kill by %s: %s!%s@%s (%s)", by, u.Nick, u.TrueIdent(), u.RealHost, reason)
+	s.sno('k', "Local kill by %s: %s (%s)", by, snoWho(u), reason)
 	s.quit(tc, "Killed ("+by+" ("+reason+"))")
 }
 

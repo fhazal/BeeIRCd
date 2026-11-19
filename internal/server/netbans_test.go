@@ -125,9 +125,9 @@ func TestXlineCommandsAndSQLine(t *testing.T) {
 	b.send("GLINE *@five.example 5s quick")
 	b.expect(osLine("Boss", "AKILL added: *@five.example for 5 seconds (quick). 0 people removed."))
 	b.send("GLINE *@mixed.example 2m30s mixed")
-	b.expect(osLine("Boss", "AKILL added: *@mixed.example for 2 minutes, 30 seconds (mixed). 0 people removed."))
+	b.expect(osLine("Boss", "AKILL added: *@mixed.example for 2 minutes and 30 seconds (mixed). 0 people removed."))
 	b.send("OS AKILL ADD +1d12h *@combo.example combo")
-	b.expect(osLine("Boss", "AKILL added: *@combo.example for 1 day, 12 hours (combo). 0 people removed."))
+	b.expect(osLine("Boss", "AKILL added: *@combo.example for 1 day and 12 hours (combo). 0 people removed."))
 	b.send("RLINE *bitcoin* crypto spam")
 	b.expect(osLine("Boss", "SNLINE added: *bitcoin* for 30 days (crypto spam)."))
 	b.send("ELINE ~me@127.0.0.1 me")
@@ -244,4 +244,23 @@ func TestNetBanDelByNick(t *testing.T) {
 	b.expect(osLine("Boss", "No AKILL on ghost. ghost isn't online, so remove it by its mask. See them all: /os akill list"))
 	b.send("GLINE -*@198.51.100.9")
 	b.expect(osLine("Boss", "No AKILL on *@198.51.100.9. See them all: /os akill list"))
+}
+
+// A ban an oper sets or lifts through OperServ reads like InspIRCd 4's own
+// notice, in place of "used OperServ".
+func TestXlineNoticeWording(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	b.send("GLINE *@words.example 1h qa gline")
+	if l := b.expect("*** XLINE: Boss added a timed G-line on *@words.example, expires in 1 hour (on "); !strings.HasSuffix(l, "): qa gline") {
+		t.Errorf("notice %q", l)
+	}
+	b.send("GLINE *@perm.example 0 forever")
+	b.expect("*** XLINE: Boss added a permanent G-line on *@perm.example: forever")
+	b.send("GLINE -*@words.example")
+	b.expect("*** XLINE: Boss removed G-line on *@words.example")
+	b.send("ZLINE 198.51.100.0/24 0 flood")
+	b.expect("*** XLINE: Boss added a permanent Z-line on 198.51.100.0/24: flood")
+	b.send("SHUN ~loud@* 3600 too loud")
+	b.expect("*** XLINE: Boss added a timed SHUN on ~loud@*, expires in 1 hour (on ")
 }

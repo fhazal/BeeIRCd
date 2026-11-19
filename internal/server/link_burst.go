@@ -263,7 +263,7 @@ func (s *Server) remoteUser(l *linkConn, source string, in *link.User) {
 		return
 	}
 	if !u.Service && s.serverSynced(uidServer(u.UID)) {
-		s.snoOnly('C', "Client connecting to "+u.Server+": "+snoWho(u)+" ["+u.Realname+"\x0F]")
+		s.snoOnly('C', "Client connecting at "+u.Server+": "+snoWho(u)+" ["+u.Realname+"\x0F]")
 	}
 }
 
@@ -396,7 +396,7 @@ func (s *Server) remoteKill(l *linkConn, k *link.Kill) {
 	}
 	why := unwrapKill(k.Reason)
 	reason := "Killed (" + by + " (" + why + "))"
-	s.sno('K', "Remote kill by %s: %s!%s@%s (%s)", by, u.Nick, u.TrueIdent(), u.RealHost, why)
+	s.sno('K', "Remote kill by %s: %s (%s)", by, snoWho(u), why)
 	s.linkBroadcastKill(l, k.Source, u.UID, why) // on to the rest of the network
 	if c := s.clientOf(u); c != nil {
 		c.send(irc.Message{Source: by, Command: "KILL", Params: []string{u.Nick, why}, Trailing: true}.String())

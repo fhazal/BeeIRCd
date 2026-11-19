@@ -18,17 +18,63 @@ import (
 //	x/X bans set here / from other servers f spam filter
 //	d DNSBL                                l/L server links / further away
 //	n/N nick changes here / elsewhere      t STATS requests
+//	g/G oper chat (GLOBOPS) here / elsewhere
 //	v oper override
 const (
 	// snomaskLetters are all the letters a mask may hold.
-	snomaskLetters = "acdfklnoqrtvxCKLNOQX"
+	snomaskLetters = "acdfgklnoqrtvxCGKLNOQX"
 	// snomaskDefault is what +s without letters gives: everything opers
 	// got before snomasks, so n, N, t, C, Q and v are off.
 	snomaskDefault = "acdfkloqrxKLOX"
 )
 
+// snoCategory is the word that starts a server notice with letter, like
+// InspIRCd 4 ("*** CONNECT: Client connecting ..."): a capital letter is the
+// same news from another server, so only the letters InspIRCd words that way
+// get a REMOTE prefix.
+func snoCategory(letter byte) string {
+	switch letter {
+	case 'c':
+		return "CONNECT"
+	case 'C':
+		return "REMOTECONNECT"
+	case 'q':
+		return "QUIT"
+	case 'Q':
+		return "REMOTEQUIT"
+	case 'o', 'O':
+		return "OPER"
+	case 'x', 'X':
+		return "XLINE"
+	case 'k', 'K':
+		return "KILL"
+	case 'r':
+		return "REHASH"
+	case 't':
+		return "STATS"
+	case 'l':
+		return "LINK"
+	case 'L':
+		return "REMOTELINK"
+	case 'f':
+		return "FILTER"
+	case 'd':
+		return "DNSBL"
+	case 'n':
+		return "NICK"
+	case 'N':
+		return "REMOTENICK"
+	case 'g', 'G':
+		return "GLOBOPS"
+	case 'v':
+		return "OVERRIDE"
+	}
+	return "ANNOUNCEMENT"
+}
+
 // applySnomask changes the mask cur by change: "+cq-k" adds c and q and
-// takes k away, "cqk" (no sign) adds. Unknown letters are left out. The
+// takes k away, "cqk" (no sign) adds, "+*" adds every letter and "-*" takes
+// them all away. Unknown letters are left out. The
 // result lists the letters lowercase first, then uppercase.
 func applySnomask(cur, change string) string {
 	var set [128]bool
@@ -42,6 +88,10 @@ func applySnomask(cur, change string) string {
 			add = true
 		case l == '-':
 			add = false
+		case l == '*':
+			for j := 0; j < len(snomaskLetters); j++ {
+				set[snomaskLetters[j]] = add
+			}
 		case strings.IndexByte(snomaskLetters, l) >= 0:
 			set[l] = add
 		}
@@ -102,15 +152,15 @@ func (s *Server) setUserModeLine(c *Client, srcUID, line string) bool {
 }
 
 // snoWho is how a server notice names u, like InspIRCd 4: its real mask
-// and IP, "nick!ident@host (ip)".
+// and IP, "nick (ident@host) [ip]".
 func snoWho(u *state.User) string {
-	return u.Nick + "!" + u.TrueIdent() + "@" + u.RealHost + " (" + u.IP + ")"
+	return u.Nick + " (" + u.TrueIdent() + "@" + u.RealHost + ") [" + u.IP + "]"
 }
 
-// snoDate is a time the way InspIRCd's notices give it ("Thu Nov 19
-// 11:00:00 2026"), in UTC.
+// snoDate is a time the way InspIRCd 4's notices give it ("Thu 19 Nov 2026
+// 11:00:00"), in UTC.
 func snoDate(t time.Time) string {
-	return t.UTC().Format("Mon Jan 2 15:04:05 2006")
+	return t.UTC().Format("Mon 2 Jan 2006 15:04:05")
 }
 
 // connClass is the class a connect notice names: BeeIRCd has no connect
@@ -210,7 +260,7 @@ func (s *Server) snoNick(u *state.User, old string) {
 }
 
 // snoRemoteQuit is InspIRCd's notice for someone elsewhere leaving,
-// "Client exiting on server X: nick!ident@host (ip) [reason]". Netsplits
+// "Client exiting on server X: nick (ident@host) [ip] [reason]". Netsplits
 // don't come here; neither do services bots or servers still bursting.
 func (s *Server) snoRemoteQuit(u *state.User, reason string) {
 	if u.Service || s.ours(u.UID) || !s.serverSynced(uidServer(u.UID)) {

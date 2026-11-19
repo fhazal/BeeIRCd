@@ -16,7 +16,7 @@ import (
 //
 //	/SPAMFILTER                                   lists the rules (= STATS F)
 //	/SPAMFILTER add [-simple|-regex] [-force] <targets> <action> <ban-time|-> <reason> <match ...>
-//	/SPAMFILTER del <id>
+//	/SPAMFILTER del <id>                          or the same words as add
 //	/SPAMFILTER test <targets> <text ...>         which rules would catch text
 //
 // The reason uses _ for spaces, as on UnrealIRCd. Without -force a rule
@@ -61,13 +61,17 @@ func (s *Server) cmdSpamfilter(c *Client, m irc.Message) {
 		}
 	case "del", "-":
 		if len(p) < 2 {
-			say("Syntax: /SPAMFILTER del <id> (ids are in /STATS F)")
+			say("Syntax: /SPAMFILTER del <id> (ids are in /STATS F), or the same words as add")
 			return
 		}
 		id, err := strconv.ParseInt(strings.TrimPrefix(p[1], "#"), 10, 64)
 		if err != nil {
-			say("%q is not a rule id (ids are in /STATS F).", p[1])
-			return
+			// Not an id: the words of add name the rule, like InspIRCd.
+			id, err = s.spamFindRule(p[1:])
+			if err != nil {
+				say("%v.", err)
+				return
+			}
 		}
 		f, err := s.svc.DelSpamFilter(id, c.user.Nick)
 		if err != nil {
@@ -97,6 +101,41 @@ func (s *Server) cmdSpamfilter(c *Client, m irc.Message) {
 	default:
 		say("Use add, del or test. /STATS F lists the rules.")
 	}
+}
+
+// spamFindRule is the id of the rule that the words of an add ("-simple p
+// block - reason word") describe: the one with the same type, targets,
+// action and match (the same reason and ban time first, when two differ).
+func (s *Server) spamFindRule(words []string) (int64, error) {
+	f, _, err := parseSpamAdd(words)
+	if err != nil {
+		if len(words) == 1 {
+			return 0, fmt.Errorf("%q is not a rule id (ids are in /STATS F)", words[0])
+		}
+		return 0, err
+	}
+	if f.Targets, err = spamfilter.NormTargets(f.Targets); err != nil {
+		return 0, err
+	}
+	if f.Reason == "" {
+		f.Reason = "Spam is not allowed here"
+	}
+	var id int64
+	for _, have := range s.svc.SpamFilters() {
+		if have.Key() != f.Key() {
+			continue
+		}
+		if have.Reason == f.Reason && have.BanTime == f.BanTime {
+			return have.ID, nil
+		}
+		if id == 0 {
+			id = have.ID
+		}
+	}
+	if id == 0 {
+		return 0, errors.New("there is no spam filter like that (ids are in /STATS F)")
+	}
+	return id, nil
 }
 
 type spamTestHit struct {

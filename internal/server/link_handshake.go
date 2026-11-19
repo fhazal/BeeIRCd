@@ -1033,7 +1033,7 @@ func orStr(a, b string) string {
 
 // longDuration writes a duration the way InspIRCd's
 // Duration::ToLongString does, every non-zero unit: "45 seconds",
-// "15 minutes, 3 seconds", "1 week, 2 days, 3 hours, 5 minutes".
+// "15 minutes and 3 seconds", "1 week, 2 days, 3 hours and 5 minutes".
 func longDuration(d time.Duration) string {
 	secs := int64(d / time.Second)
 	if secs <= 0 {
@@ -1050,7 +1050,7 @@ func longDuration(d time.Duration) string {
 			secs -= n * u.n
 		}
 	}
-	return strings.Join(parts, ", ")
+	return config.JoinWords(parts)
 }
 
 // linkTick handles handshake timeouts, pings and autoconnect.

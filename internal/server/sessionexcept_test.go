@@ -39,5 +39,5 @@ func TestSessionExceptionOnHostName(t *testing.T) {
 	// With no host name exception left the refusal comes at connect, before
 	// anything is sent: read it rather than write into a closed socket.
 	c := raw(t, s)
-	c.expect("ERROR :Closing Link: 127.0.0.1 (Too many connections from your IP (the limit is 2))")
+	c.expect("ERROR :Closing Link: 127.0.0.1 (Too many connections from your IP)")
 }

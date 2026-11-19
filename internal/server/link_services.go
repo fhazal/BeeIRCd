@@ -246,7 +246,7 @@ func (s *Server) remoteOperMD(l *linkConn, m irc.Message) {
 		u.OperTitle, u.OperSwhois, u.OperTag = readOperLook(value)
 	}
 	if !wasOper && u.OperClass+u.OperFlags != "" && !u.Service && s.serverSynced(uidServer(uid)) {
-		s.sno('O', "From %s: %s is now a server operator of type \x02%s\x02.", u.Server, u.Nick, operType(u.OperClass, u.OperFlags))
+		s.sno('O', "From %s: %s is now a server operator of type %s", u.Server, snoWho(u), operType(u.OperClass, u.OperFlags))
 	}
 	for o := range s.links.conns {
 		if o != l && o.up && !o.closed && (key == "operclass" || o.peer.Bee) {

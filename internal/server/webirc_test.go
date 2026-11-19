@@ -118,7 +118,7 @@ func TestWebircSessionLimitPerPerson(t *testing.T) {
 	s := testServer(t, func(c *config.Config) { webircGW()(c); c.Limits.SessionLimit = 2 })
 	viaGateway(t, s, "A1", "203.0.113.7").expect(" 001 A1 ")
 	viaGateway(t, s, "A2", "203.0.113.7").expect(" 001 A2 ")
-	viaGateway(t, s, "A3", "203.0.113.7").expect("Too many connections from your IP (the limit is 2)")
+	viaGateway(t, s, "A3", "203.0.113.7").expect("Too many connections from your IP")
 	// The gateway itself carries more than 2: other people still get in.
 	viaGateway(t, s, "B1", "203.0.113.9").expect(" 001 B1 ")
 	viaGateway(t, s, "B2", "198.51.100.4").expect(" 001 B2 ")

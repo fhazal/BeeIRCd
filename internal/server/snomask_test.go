@@ -107,18 +107,18 @@ func TestSnoticeOpersByLetter(t *testing.T) {
 	ember.sync()
 
 	s.do(func() { s.snoticeOpers('t', "letter t") })
-	ember.expect("*** Notice -- letter t")
+	ember.expect("*** STATS: letter t")
 	b.quiet("letter t")
 
 	// Connects (c) reach Boss only.
 	login(t, s, "dave")
-	b.expect("Notice -- Client connecting to irc.test.local on port ")
-	ember.quiet("dave!~dave")
+	b.expect("CONNECT: Client connecting on port ")
+	ember.quiet("dave (~dave")
 
 	// Both have o.
 	s.do(func() { s.snoticeOpers('o', "letter o") })
-	b.expect("*** Notice -- letter o")
-	ember.expect("*** Notice -- letter o")
+	b.expect("*** OPER: letter o")
+	ember.expect("*** OPER: letter o")
 
 	// Nobody has v; -s gets nothing at all.
 	ember.send("MODE ember -s")

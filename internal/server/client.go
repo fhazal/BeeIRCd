@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"strings"
@@ -169,7 +168,7 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 			c.sessionLate = true // an exception on its hostname may still let it in
 		} else {
 			s.sno('a', "Client %s with IP %s rejected: maxperip limit exceeded (%d local, max %d)", orStr(c.nick, "[Unknown user]"), ip, n, max)
-			s.quit(c, fmt.Sprintf("Too many connections from your IP (the limit is %d)", max))
+			s.quit(c, "Too many connections from your IP")
 			return
 		}
 	}

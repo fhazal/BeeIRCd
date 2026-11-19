@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
@@ -307,7 +308,7 @@ func expiryLine(word, mask, setBy string, setAt time.Time, reason string, now ti
 
 // longDuration writes a duration the way InspIRCd's
 // Duration::ToLongString does (the same as the server's): every non-zero
-// unit, "1 week, 2 days, 3 hours, 5 minutes".
+// unit, "1 week, 2 days, 3 hours and 5 minutes".
 func longDuration(d time.Duration) string {
 	secs := int64(d / time.Second)
 	if secs <= 0 {
@@ -327,7 +328,7 @@ func longDuration(d time.Duration) string {
 			secs -= n * u.n
 		}
 	}
-	return strings.Join(parts, ", ")
+	return config.JoinWords(parts)
 }
 
 // anopeExpired is Anope's line for something that ran out (operserv.cpp,
