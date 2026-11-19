@@ -857,6 +857,7 @@ func (s *Server) killRemote(u *state.User, by, reason string) {
 	}
 	s.sno('K', "Remote kill by %s: %s (%s)", by, snoRealMask(u), reason)
 	s.linkBroadcastKill(nil, src, u.UID, reason)
-	s.snoRemoteQuit(u, fmt.Sprintf("Killed (%s (%s))", by, reason))
-	s.emitQuiet(&state.UserQuit{UID: u.UID, Reason: fmt.Sprintf("Killed (%s (%s))", by, reason)})
+	shown := fmt.Sprintf("Killed (%s (%s))", s.killedBy(by), reason)
+	s.snoRemoteQuit(u, shown)
+	s.emitQuiet(&state.UserQuit{UID: u.UID, Reason: shown})
 }

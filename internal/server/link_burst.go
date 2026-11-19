@@ -388,18 +388,21 @@ func (s *Server) remoteKill(l *linkConn, k *link.Kill) {
 	if u == nil {
 		return // gone already (both sides killed it in a collision)
 	}
-	by := k.Source
+	by, shown, src := k.Source, k.Source, k.Source
 	if r := s.links.servers[by]; r != nil {
-		by = r.name
+		by, shown, src = r.name, r.name, r.name // a server's kill keeps its name
 	} else if v := s.net.UserByUID(by); v != nil {
-		by = v.Nick
+		by, shown, src = v.Nick, s.killedBy(v.Nick), v.Nick
+		if shown != by {
+			src = s.cfg.Server.Name // [messages] hide_killed_by: not the oper
+		}
 	}
 	why := unwrapKill(k.Reason)
-	reason := "Killed (" + by + " (" + why + "))"
+	reason := "Killed (" + shown + " (" + why + "))"
 	s.sno('K', "Remote kill by %s: %s (%s)", by, snoRealMask(u), why)
 	s.linkBroadcastKill(l, k.Source, u.UID, why) // on to the rest of the network
 	if c := s.clientOf(u); c != nil {
-		c.send(irc.Message{Source: by, Command: "KILL", Params: []string{u.Nick, why}, Trailing: true}.String())
+		c.send(irc.Message{Source: src, Command: "KILL", Params: []string{u.Nick, why}, Trailing: true}.String())
 		s.origin = &linkOrigin{quiet: true}
 		s.quit(c, reason)
 		return

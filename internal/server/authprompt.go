@@ -24,7 +24,7 @@ func (s *Server) authPrompt(c *Client, reason string) {
 	ap := s.cfg.AuthPrompt
 	if !ap.On() {
 		s.reply(c, irc.ErrYoureBannedCreep, s.cfg.Messages.BanText("You are banned from this network: "+reason+" (log in with SASL to connect)"))
-		s.quit(c, "Banned: "+reason)
+		s.banQuit(c, "Banned", reason)
 		return
 	}
 	c.authHeld = true
@@ -38,7 +38,7 @@ func (s *Server) authPrompt(c *Client, reason string) {
 func (s *Server) authExpired(c *Client) {
 	c.authHeld = false
 	s.reply(c, irc.ErrYoureBannedCreep, s.cfg.Messages.BanText("You are banned from this network: "+c.authReason))
-	s.quit(c, "Banned: "+c.authReason)
+	s.banQuit(c, "Banned", c.authReason)
 }
 
 // cmdAuth is /AUTH nick:password (or /AUTH nick password) from someone

@@ -156,7 +156,7 @@ func (s *Server) spamDo(c *Client, r *spamfilter.Rule, t byte, to, text string) 
 		return spamGone
 	case spamfilter.Gline, spamfilter.Kline:
 		s.svc.SpamBan(store.BanAkill, c.ip, reason, r.BanTime)
-		s.quit(c, "Banned: "+reason)
+		s.banQuit(c, "Banned", reason)
 		return spamGone
 	case spamfilter.Gzline, spamfilter.Zline:
 		s.svc.SpamBan(store.BanZline, c.ip, reason, r.BanTime)

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
@@ -204,10 +205,11 @@ func (s *Server) operFail(letter byte, u *state.User, account, why string) {
 }
 
 // operFailWhy is the reason for operFail from the answer the services
-// server gave a /OPER relayed to it.
-func operFailWhy(answer string) string {
+// server gave a /OPER relayed to it. wrongPw is the [messages]
+// reject_password text, matched as well as the built-in one.
+func operFailWhy(answer, wrongPw string) string {
 	switch {
-	case answer == "Password incorrect":
+	case answer == config.DefaultRejectPassword, answer == wrongPw:
 		return "they specified the wrong password"
 	case strings.HasPrefix(answer, "Too many wrong passwords"):
 		return "they tried too many wrong passwords"

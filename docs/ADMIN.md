@@ -92,7 +92,9 @@ can change things; every oper can look.
 `registration`, `unconfirmed-expire`, `default-language`, `ircv3-drafts`,
 `auto-join`, `auto-join-skip`, `oper-join`, `oper-join-flag`,
 `auth-prompt`, `auth-prompt-text`, `auth-prompt-fail`, `auth-prompt-time`,
-`static-quit`, `static-part`, `quit-message-min-time`, `ban-contact`.
+`static-quit`, `static-part`, `quit-message-min-time`, `ban-contact`,
+`quit-prefix`, `reject-full`, `reject-too-many`, `reject-password`,
+`ban-notice`, `ban-quit`, `hide-killed-by`.
 
 ### Opers
 
@@ -458,16 +460,38 @@ by default, and opers always keep their own quit and part reasons.
   plain "Quit", so a spammer can't connect, quit with an ad and leave.
 - `ban_contact`: an email added to "You are banned", like "You are banned
   from this network: spam. Email kline@example.net for more information."
+- `quit_prefix`: what goes before the quit reason people give, written as
+  is (keep the space: `"Exit: "`). `"none"` leaves it out; unset is
+  `"Quit: "`.
+- `reject_full`, `reject_too_many`, `reject_password`: your own texts for
+  "This server is full. Please try again later.", "Too many connections
+  from your IP" and a wrong /OPER password ("Password incorrect").
+- `ban_notice`: a notice sent to someone a ban (K-line, G-line, Z-line,
+  DNSBL, spam filter, login prompt) disconnects, like InspIRCd's
+  moronbanner.
+- `ban_quit`: the quit reason others see when a ban disconnects someone.
+  `"yes"` shows just "Banned" (or "K-Lined"), any other text replaces the
+  whole reason. The banned person and the opers still see the real one.
+- `hide_killed_by`: shows this name instead of the oper in "Killed (<name>
+  (reason))", like InspIRCd's hidekills, for everyone including the person
+  killed. Opers' kill notices keep the real oper; kills the server makes
+  (nick collisions) keep the server's name.
 
 ```toml
 [messages]
 static_quit = "Client exited"
 ban_contact = "kline@example.net"
+quit_prefix = "Exit: "
+ban_notice = "You were banned. Read the rules at example.net/rules"
+ban_quit = "yes"
+hide_killed_by = "OperServ"
 ```
 
 Change them live with `/as set static-quit Client exited`, `static-part
 yes`, `quit-message-min-time 5m` or `ban-contact kline@example.net`; `off`
-switches one off.
+switches one off. `quit-prefix` takes quotes to keep a trailing space
+(`/as set quit-prefix "Exit: "`), `none` or `default`; the `reject-*`
+settings take `default` for the built-in text.
 
 ### Spam reports
 
@@ -1335,6 +1359,13 @@ One block per DNS blocklist.
 | `static_part` | off | `"yes"` drops part reasons, other text replaces them, `"no"` = off (opers keep theirs) |
 | `quit_message_min_time` | `0` (off) | People connected for less than this quit with plain "Quit" (up to `1h`; not used with `static_quit`) |
 | `ban_contact` | off | An email added to "You are banned...": "Email <this> for more information." |
+| `quit_prefix` | `"Quit: "` | Goes before the quit reason people give, kept as written (trailing space too); `"none"` = no prefix |
+| `reject_full` | "This server is full. Please try again later." | Quit reason when the server is full |
+| `reject_too_many` | "Too many connections from your IP" | Quit reason when an IP is over its connection limit |
+| `reject_password` | "Password incorrect" | The answer to a wrong /OPER password |
+| `ban_notice` | off | A notice sent to someone a ban disconnects (InspIRCd moronbanner) |
+| `ban_quit` | off | The quit reason others see for a banned user: `"yes"` = just "Banned"/"K-Lined", other text replaces it; the banned user sees the real one |
+| `hide_killed_by` | off | Shown instead of the oper in "Killed (<this> (reason))" (InspIRCd hidekills); server kills keep the server name |
 
 ### [[spamreport]]
 

@@ -328,7 +328,7 @@ func (s *Server) cmdOper(c *Client, m irc.Message) {
 			s.reply(c, irc.ErrPasswdMismatch, "The login server can't be reached right now. Try again in a moment.")
 			s.operFail('o', u, o.Account, "the login server can't be reached")
 		default:
-			s.reply(c, irc.ErrPasswdMismatch, "Password incorrect")
+			s.reply(c, irc.ErrPasswdMismatch, s.cfg.Messages.PasswordText())
 			s.operFail('o', u, o.Account, "they specified the wrong password")
 		}
 	})
@@ -438,9 +438,13 @@ func (s *Server) killUser(u *state.User, by, reason string) {
 		}
 		return
 	}
-	tc.send(irc.Message{Source: by, Command: "KILL", Params: []string{u.Nick, reason}, Trailing: true}.String())
+	src, shown := by, s.killedBy(by)
+	if shown != by {
+		src = s.cfg.Server.Name // [messages] hide_killed_by: not the oper
+	}
+	tc.send(irc.Message{Source: src, Command: "KILL", Params: []string{u.Nick, reason}, Trailing: true}.String())
 	s.sno('k', "Local kill by %s: %s (%s)", by, snoRealMask(u), reason)
-	s.quit(tc, "Killed ("+by+" ("+reason+"))")
+	s.quit(tc, "Killed ("+shown+" ("+reason+"))")
 }
 
 // unwrapKill strips any "Killed (<by> (" ... "))" wrappers a KILL reason

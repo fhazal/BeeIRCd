@@ -58,3 +58,63 @@ func TestMessagesConfig(t *testing.T) {
 		}
 	}
 }
+
+// The newer [messages] keys keep today's texts when left out, quit_prefix
+// keeps its trailing space and "none", and bad values are refused.
+func TestMessagesTextsConfig(t *testing.T) {
+	c, err := Load(write(t, good))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := c.Messages
+	if m.QuitPrefixText() != "Quit: " || m.FullText() != "This server is full. Please try again later." ||
+		m.TooManyText() != "Too many connections from your IP" || m.PasswordText() != "Password incorrect" {
+		t.Errorf("defaults changed: %q %q %q %q", m.QuitPrefixText(), m.FullText(), m.TooManyText(), m.PasswordText())
+	}
+	if m.BanNotice != "" || m.HideKilledBy != "" || m.BanQuitText("Banned", "spam") != "Banned: spam" || m.BanQuitText("K-Lined", "x") != "K-Lined: x" {
+		t.Errorf("ban texts not off by default: %+v", m)
+	}
+
+	c, err = Load(write(t, good+"\n[messages]\nquit_prefix = \"Exit: \"\nreject_full = \" Full up \"\nreject_too_many = \"Too many\"\nreject_password = \"Nope\"\nban_notice = \"Read the rules\"\nban_quit = \"yes\"\nhide_killed_by = \" OperServ \"\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m = c.Messages
+	if m.QuitPrefix != "Exit: " || m.QuitPrefixText() != "Exit: " {
+		t.Errorf("quit_prefix lost its space: %q", m.QuitPrefix)
+	}
+	if m.FullText() != "Full up" || m.TooManyText() != "Too many" || m.PasswordText() != "Nope" || m.BanNotice != "Read the rules" || m.HideKilledBy != "OperServ" {
+		t.Errorf("read %+v", m)
+	}
+	if m.BanQuitText("Banned", "spam") != "Banned" || m.BanQuitText("K-Lined", "spam") != "K-Lined" {
+		t.Error("ban_quit yes kept the reason")
+	}
+	m.BanQuit = "Gone"
+	if m.BanQuitText("Banned", "spam") != "Gone" {
+		t.Error("ban_quit text not used")
+	}
+	m.BanQuit = "No"
+	if m.BanQuitText("Banned", "spam") != "Banned: spam" {
+		t.Error("ban_quit no changed the reason")
+	}
+	for _, none := range []string{"none", "NONE"} {
+		m.QuitPrefix = none
+		if m.QuitPrefixText() != "" {
+			t.Errorf("quit_prefix %q = %q", none, m.QuitPrefixText())
+		}
+	}
+
+	for _, bad := range []string{
+		`quit_prefix = "a\nb"`,
+		"reject_full = \"" + strings.Repeat("x", 301) + "\"",
+		`reject_too_many = "a\rb"`,
+		"reject_password = \"" + strings.Repeat("x", 301) + "\"",
+		`ban_notice = "a\nb"`,
+		"ban_quit = \"" + strings.Repeat("x", 301) + "\"",
+		`hide_killed_by = "a\nb"`,
+	} {
+		if _, err := Load(write(t, good+"\n[messages]\n"+bad+"\n")); err == nil || !strings.Contains(err.Error(), "[messages]") {
+			t.Errorf("%s: %v", bad, err)
+		}
+	}
+}

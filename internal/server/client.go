@@ -168,7 +168,7 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 			c.sessionLate = true // an exception on its hostname may still let it in
 		} else {
 			s.sno('a', "Client %s with IP %s rejected: maxperip limit exceeded (%d local, max %d)", orStr(c.nick, "[Unknown user]"), ip, n, max)
-			s.quit(c, "Too many connections from your IP")
+			s.quit(c, s.cfg.Messages.TooManyText())
 			return
 		}
 	}
@@ -461,6 +461,12 @@ var writeBufs = sync.Pool{New: func() any { b := make([]byte, 0, 4096); return &
 
 // quit takes c off the server, tells its channels and hangs up.
 func (s *Server) quit(c *Client, reason string) {
+	s.quitAs(c, reason, reason)
+}
+
+// quitAs is quit where others see reason but c itself (and the server
+// log and quit notice) the real one, own.
+func (s *Server) quitAs(c *Client, reason, own string) {
 	if c.closed {
 		return
 	}
@@ -481,12 +487,32 @@ func (s *Server) quit(c *Client, reason string) {
 	if c.user != nil {
 		u := c.user
 		s.emit(&state.UserQuit{UID: u.UID, Reason: reason})
-		s.log.Printf("quit %s (%s): %s", u.Nick, c.ip, reason)
-		s.snoOnly('q', "Client exiting: "+snoMaskIP(u)+" ["+reason+"]")
-		s.svc.LogUserQuit(u, reason)
+		s.log.Printf("quit %s (%s): %s", u.Nick, c.ip, own)
+		s.snoOnly('q', "Client exiting: "+snoMaskIP(u)+" ["+own+"]")
+		s.svc.LogUserQuit(u, own)
 	}
-	c.send("ERROR :Closing Link: " + c.host + " (" + reason + ")")
+	c.send("ERROR :Closing Link: " + c.host + " (" + own + ")")
 	c.close()
+}
+
+// banQuit disconnects c for a ban: what is "Banned" or "K-Lined". It sends
+// [messages] ban_notice first; others see the ban_quit wording, c itself
+// the real reason.
+func (s *Server) banQuit(c *Client, what, reason string) {
+	m := &s.cfg.Messages
+	if m.BanNotice != "" && !c.closed {
+		c.send(irc.Message{Source: s.cfg.Server.Name, Command: "NOTICE", Params: []string{c.target(), m.BanNotice}, Trailing: true}.String())
+	}
+	s.quitAs(c, m.BanQuitText(what, reason), what+": "+reason)
+}
+
+// killedBy is who a KILL by by is shown as: [messages] hide_killed_by
+// when set, else by itself. Kills this server makes keep its name.
+func (s *Server) killedBy(by string) string {
+	if h := s.cfg.Messages.HideKilledBy; h != "" && by != s.cfg.Server.Name {
+		return h
+	}
+	return by
 }
 
 // reply sends a numeric whose last parameter is text.

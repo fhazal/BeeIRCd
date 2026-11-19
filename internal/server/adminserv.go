@@ -198,6 +198,81 @@ func messageSettings() []setting {
 			}},
 		{name: "ban-contact", table: "messages", key: "ban_contact", help: "an email added to \"You are banned\" so people know whom to ask (OFF for none)", kind: 't', hi: 300, offOK: true, apply: ms, check: oneLine,
 			get: orOff(func(c *config.Config) string { return c.Messages.BanContact })},
+		{name: "quit-prefix", table: "messages", key: "quit_prefix", help: "what goes before quit reasons, in quotes to keep a space like \"Exit: \" (NONE for nothing, DEFAULT for \"Quit: \")", kind: 't', hi: 300, apply: ms,
+			get: func(c *config.Config) string {
+				if p := c.Messages.QuitPrefixText(); p != "" {
+					return config.Quote(p)
+				}
+				return "none"
+			},
+			enc: func(_ *config.Config, v string) (string, string) {
+				v = strings.TrimSpace(v)
+				if len(v) >= 2 && strings.HasPrefix(v, `"`) && strings.HasSuffix(v, `"`) {
+					v = v[1 : len(v)-1] // "Exit: " keeps its space
+				}
+				switch {
+				case strings.EqualFold(v, "default"):
+					return `""`, ""
+				case strings.EqualFold(strings.TrimSpace(v), "none"):
+					return `"none"`, ""
+				case v == "" || len(v) > 300:
+					return "", "quit-prefix takes a text of up to 300 characters, NONE or DEFAULT."
+				}
+				if p := oneLine(v); p != "" {
+					return "", p
+				}
+				return config.Quote(v), ""
+			}},
+		{name: "reject-full", table: "messages", key: "reject_full", help: "the quit reason when the server is full (DEFAULT for the built-in one)", kind: 't', hi: 300, apply: ms,
+			get: func(c *config.Config) string { return c.Messages.FullText() }, enc: msgText("reject-full", oneLine)},
+		{name: "reject-too-many", table: "messages", key: "reject_too_many", help: "the quit reason for too many connections from one IP (DEFAULT for the built-in one)", kind: 't', hi: 300, apply: ms,
+			get: func(c *config.Config) string { return c.Messages.TooManyText() }, enc: msgText("reject-too-many", oneLine)},
+		{name: "reject-password", table: "messages", key: "reject_password", help: "the answer to a wrong /OPER password (DEFAULT for the built-in one)", kind: 't', hi: 300, apply: ms,
+			get: func(c *config.Config) string { return c.Messages.PasswordText() }, enc: msgText("reject-password", oneLine)},
+		{name: "ban-notice", table: "messages", key: "ban_notice", help: "a notice sent to people a ban disconnects (OFF for none)", kind: 't', hi: 300, offOK: true, apply: ms, check: oneLine,
+			get: orOff(func(c *config.Config) string { return c.Messages.BanNotice })},
+		{name: "ban-quit", table: "messages", key: "ban_quit", help: "the quit reason others see for a banned user: YES hides the reason, other text replaces it (OFF for the real one)", kind: 't', hi: 300, offOK: true, apply: ms, check: oneLine,
+			get: orOff(func(c *config.Config) string {
+				if strings.EqualFold(c.Messages.BanQuit, "no") {
+					return ""
+				}
+				return c.Messages.BanQuit
+			}),
+			enc: func(_ *config.Config, v string) (string, string) {
+				v = strings.TrimSpace(v)
+				switch {
+				case strings.EqualFold(v, "off"), strings.EqualFold(v, "no"):
+					return `""`, ""
+				case strings.EqualFold(v, "yes"):
+					return `"yes"`, ""
+				case v == "" || len(v) > 300:
+					return "", "ban-quit takes YES, a text of up to 300 characters, or OFF."
+				}
+				if p := oneLine(v); p != "" {
+					return "", p
+				}
+				return config.Quote(v), ""
+			}},
+		{name: "hide-killed-by", table: "messages", key: "hide_killed_by", help: "the name KILL quit reasons show instead of the oper, like OperServ (OFF for the real one)", kind: 't', hi: 300, offOK: true, apply: ms, check: oneLine,
+			get: orOff(func(c *config.Config) string { return c.Messages.HideKilledBy })},
+	}
+}
+
+// msgText is the enc of a [messages] text with a built-in default:
+// DEFAULT puts the built-in one back.
+func msgText(name string, check func(string) string) func(*config.Config, string) (string, string) {
+	return func(_ *config.Config, v string) (string, string) {
+		v = strings.TrimSpace(v)
+		switch {
+		case strings.EqualFold(v, "default"):
+			return `""`, ""
+		case v == "" || len(v) > 300:
+			return "", name + " takes text of up to 300 characters (DEFAULT for the built-in one)."
+		}
+		if p := check(v); p != "" {
+			return "", p
+		}
+		return config.Quote(v), ""
 	}
 }
 

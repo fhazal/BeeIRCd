@@ -292,7 +292,7 @@ func (s *Server) cmdPong(c *Client, m irc.Message) {
 func (s *Server) cmdQuit(c *Client, m irc.Message) {
 	reason := "Quit"
 	if r := m.Param(0); r != "" {
-		reason = "Quit: " + irc.Truncate(r, s.cfg.Limits.KickLen)
+		reason = s.cfg.Messages.QuitPrefixText() + irc.Truncate(r, s.cfg.Limits.KickLen)
 	}
 	// [messages]: the owner's text, or plain "Quit" for someone who just
 	// came. Opers keep their own.
@@ -330,7 +330,7 @@ func (s *Server) tryRegister(c *Client) {
 		c.sessionLate = false
 		if n, max := s.sessions(c.ip), s.svc.SessionLimitFor(c.ip, c.host); n > max {
 			s.sno('a', "Client %s with IP %s rejected: maxperip limit exceeded (%d local, max %d)", c.nick, c.ip, n, max)
-			s.quit(c, "Too many connections from your IP")
+			s.quit(c, s.cfg.Messages.TooManyText())
 			return
 		}
 	}
@@ -366,7 +366,7 @@ func (s *Server) tryRegister(c *Client) {
 		u.Modes['r'] = true
 	}
 	if s.localUsers() >= s.cfg.Limits.MaxUsers {
-		s.quit(c, "This server is full. Please try again later.")
+		s.quit(c, s.cfg.Messages.FullText())
 		return
 	}
 	if s.jump != nil {
@@ -386,7 +386,7 @@ func (s *Server) tryRegister(c *Client) {
 	if k != nil {
 		s.reply(c, irc.ErrYoureBannedCreep, s.cfg.Messages.BanText("You are banned from this network: "+k.Reason))
 		s.sno('x', "%s %s stopped %s (%s@%s)", store.BanWord(k.Kind), k.Mask, c.nick, c.ident, c.host)
-		s.quit(c, "Banned: "+k.Reason)
+		s.banQuit(c, "Banned", k.Reason)
 		return
 	}
 	if !s.spamUser(c, c.nick) {

@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/services"
 	"github.com/fhazal/beeircd/internal/store"
@@ -294,8 +295,12 @@ func (s *Server) operAnswered(l *linkConn, m irc.Message) {
 		if numeric != irc.ErrPasswdMismatch {
 			numeric = irc.ErrNoOperHost
 		}
+		why := operFailWhy(text, s.cfg.Messages.PasswordText())
+		if text == config.DefaultRejectPassword {
+			text = s.cfg.Messages.PasswordText() // [messages] reject_password
+		}
 		s.reply(c, numeric, text)
-		s.operFail('o', u, name, operFailWhy(text))
+		s.operFail('o', u, name, why)
 	case m.Params[1] == "OK":
 		var g operGrant
 		if json.Unmarshal([]byte(text), &g) != nil || g.Flags == "" {
