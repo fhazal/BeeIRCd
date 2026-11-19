@@ -20,10 +20,21 @@ func TestLinkConfig(t *testing.T) {
 	if hub.Link.Port != 7000 || !hub.Link.Linked() {
 		t.Errorf("hub %+v", hub.Link)
 	}
+	if c.Link.OutsideAdmins != OutsideNetwork || hub.Link.OutsideAdmins != OutsideNetwork {
+		t.Errorf("outside_admins default %q / %q, want network", c.Link.OutsideAdmins, hub.Link.OutsideAdmins)
+	}
+	none, err := Load(write(t, good+"\n[link]\nrole = \"leaf\"\noutside_admins = \"none\"\nremote_admin = true\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if none.Link.OutsideAdmins != OutsideNone {
+		t.Errorf("outside_admins = %q, want none", none.Link.OutsideAdmins)
+	}
 	for want, body := range map[string]string{
 		"must be standalone, hub or leaf": good + "\n[link]\nrole = \"server\"\n",
 		"already a [[listen]] port":       good + "\n[link]\nrole = \"leaf\"\nport = 6697\n",
 		"must be a port number":           good + "\n[link]\nrole = \"hub\"\nport = 70000\n",
+		"must be network or none":         good + "\n[link]\nrole = \"hub\"\noutside_admins = \"all\"\n",
 	} {
 		if _, err := Load(write(t, body)); err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("want %q, got %v", want, err)

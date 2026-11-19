@@ -482,3 +482,40 @@ func TestAdminHistory(t *testing.T) {
 		t.Fatalf("ChangeByID = %+v %v %v", c, ok, err)
 	}
 }
+
+// TestOperReach: an entry's reach is saved and read back (also after a
+// reopen); old rows and odd values read as home.
+func TestOperReach(t *testing.T) {
+	s, path := open(t)
+	a, _ := s.CreateAccount("ember", "x", "", time.Now())
+	b, _ := s.CreateAccount("wasp", "x", "", time.Now())
+	if err := s.SaveOper(&Oper{AccountID: a.ID, Flags: "a", Hosts: []string{"*@*"}, Reach: ReachNetwork, AddedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveOper(&Oper{AccountID: b.ID, Flags: "a", Hosts: []string{"*@*"}, Reach: "everywhere", AddedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	if o, _ := s.OperByAccount(a.ID); !o.Network() {
+		t.Fatalf("reach = %q, want network", o.Reach)
+	}
+	if o, _ := s.OperByAccount(b.ID); o.Network() || o.Reach != "" {
+		t.Fatalf("odd reach kept: %q", o.Reach)
+	}
+	s.Close()
+	s2, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s2.Close()
+	if o, _ := s2.OperByAccount(a.ID); !o.Network() {
+		t.Fatalf("after reopen reach = %q, want network", o.Reach)
+	}
+	o, _ := s2.OperByAccount(a.ID)
+	o.Reach = ""
+	if err := s2.SaveOper(o); err != nil {
+		t.Fatal(err)
+	}
+	if o, _ := s2.OperByAccount(a.ID); o.Network() {
+		t.Fatal("reach not set back to home")
+	}
+}

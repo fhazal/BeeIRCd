@@ -61,6 +61,9 @@ type operGrant struct {
 	Title   string   `json:"title,omitempty"`
 	Vhost   string   `json:"vhost,omitempty"`
 	Swhois  []string `json:"swhois,omitempty"`
+	// Reach is "network" for an entry with whole-network admin reach;
+	// older servers leave it out, which means home.
+	Reach string `json:"reach,omitempty"`
 }
 
 // operRelayTo sends c's /oper to the services server.
@@ -191,7 +194,7 @@ type remoteGrant struct {
 }
 
 func grantJSON(v operView, account string) string {
-	b, _ := json.Marshal(operGrant{Account: account, Class: v.class, Flags: v.flags, Title: v.title, Vhost: v.vhost, Swhois: v.swhois})
+	b, _ := json.Marshal(operGrant{Account: account, Class: v.class, Flags: v.flags, Title: v.title, Vhost: v.vhost, Swhois: v.swhois, Reach: v.reach})
 	return string(b)
 }
 
@@ -275,7 +278,7 @@ func (s *Server) operAnswered(l *linkConn, m irc.Message) {
 			s.deoper(c, m.Params[len(m.Params)-1])
 		case json.Unmarshal([]byte(m.Params[len(m.Params)-1]), &g) == nil && g.Flags != "":
 			flags, _ := cleanFlags(g.Flags)
-			s.operUpView(c, &store.Oper{Account: g.Account}, operView{class: g.Class, flags: flags, title: g.Title, vhost: g.Vhost, swhois: g.Swhois})
+			s.operUpView(c, &store.Oper{Account: g.Account}, operView{class: g.Class, flags: flags, title: g.Title, vhost: g.Vhost, swhois: g.Swhois, reach: cleanReach(g.Reach)})
 			c.operVia = l
 		}
 		return
@@ -312,7 +315,7 @@ func (s *Server) operAnswered(l *linkConn, m irc.Message) {
 		}
 		flags, _ := cleanFlags(g.Flags)
 		o := &store.Oper{Account: g.Account}
-		s.operUpView(c, o, operView{class: g.Class, flags: flags, title: g.Title, vhost: g.Vhost, swhois: g.Swhois})
+		s.operUpView(c, o, operView{class: g.Class, flags: flags, title: g.Title, vhost: g.Vhost, swhois: g.Swhois, reach: cleanReach(g.Reach)})
 		c.operVia = l
 	}
 }
@@ -394,5 +397,5 @@ func (s *Server) operLookAnswered(c *Client, l *linkConn, text string) {
 	if vhost == "" {
 		vhost = strings.TrimSpace(g.Vhost)
 	}
-	s.operUpView(c, &store.Oper{Account: c.user.OperName}, operView{class: c.operClass, flags: c.operFlags, title: title, vhost: vhost, swhois: lines})
+	s.operUpView(c, &store.Oper{Account: c.user.OperName}, operView{class: c.operClass, flags: c.operFlags, title: title, vhost: vhost, swhois: lines, reach: c.operReach})
 }

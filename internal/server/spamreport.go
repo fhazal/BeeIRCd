@@ -451,7 +451,7 @@ func asSpamReport(s *Server, c *Client, args []string) {
 		if strings.EqualFold(key, "off") {
 			key = ""
 		}
-		msg, problem = s.setSpamReportKey(c.user.Nick, name, key)
+		msg, problem = s.setSpamReportKey(s.changedBy(c), name, key)
 		if problem == "" {
 			s.audit(c, s.adminServ, "SPAMREPORT KEY %s", name)
 		}
@@ -461,7 +461,7 @@ func asSpamReport(s *Server, c *Client, args []string) {
 			s.as(c, "Syntax: SPAMREPORT STAGING <name> ON|OFF")
 			return
 		}
-		msg, problem = s.setSpamReportStaging(c.user.Nick, name, on)
+		msg, problem = s.setSpamReportStaging(s.changedBy(c), name, on)
 		if problem == "" {
 			s.audit(c, s.adminServ, "SPAMREPORT STAGING %s %s", name, map[bool]string{true: "ON", false: "OFF"}[on])
 		}

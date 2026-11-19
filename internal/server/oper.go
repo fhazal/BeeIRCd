@@ -74,6 +74,10 @@ func (s *Server) operEntry(a *store.Account) (*store.Oper, error) {
 	if s.isAdminAccount(a) {
 		o := &store.Oper{AccountID: a.ID, Account: a.Name, Class: "netadmin", Flags: allFlags,
 			Vhost: s.cfg.Services.AdminVhost, Hosts: s.adminHosts(), PassHash: s.cfg.Services.AdminPassword}
+		if !s.svc.Off() {
+			// The services server's admin owns the network.
+			o.Reach = store.ReachNetwork
+		}
 		// Their own entry, when they have one, still says how they look:
 		// title, WHOIS lines, and the vhost when beeircd.conf names none.
 		if own, err := s.store.OperByAccount(a.ID); err == nil && own != nil {
@@ -103,8 +107,9 @@ func (s *Server) operUp(c *Client, o *store.Oper) {
 // leaf v comes from the services server (o.AccountID 0: no account here).
 func (s *Server) operUpView(c *Client, o *store.Oper, v operView) {
 	u := c.user
-	was := c.operFlags
+	was, wasReach := c.operFlags, c.operReach
 	c.operFlags, c.operTitle, c.operAccount, c.operSwhois, c.operClass = v.flags, v.title, o.AccountID, v.swhois, v.class
+	c.operReach = v.reach
 	u.OperClass, u.OperName = v.class, o.Account // ~O: and ~oper: bans
 	s.opers[c] = true
 	c.noLag.Store(true)
@@ -113,13 +118,16 @@ func (s *Server) operUpView(c *Client, o *store.Oper, v operView) {
 		if was != v.flags {
 			s.notice(c, "*** Your oper flags are now "+describeFlags(v.flags))
 		}
-		// Also when only the title or the WHOIS lines changed.
-		s.linkOperInfo(nil, u.UID, v.class, v.flags, s.ownLook(v.title, v.swhois))
+		if wasReach != v.reach {
+			s.notice(c, "*** Your admin reach is now "+s.reachWords(v.reach))
+		}
+		// Also when only the title, the WHOIS lines or the reach changed.
+		s.linkOperInfo(nil, u.UID, v.class, v.flags, s.ownLook(v.title, v.swhois, v.reach))
 		return
 	}
 	c.snomask = snomaskDefault
 	s.emit(&state.UserMode{UID: u.UID, Changes: umodes(true, "os")})
-	s.linkOperInfo(nil, u.UID, v.class, v.flags, s.ownLook(v.title, v.swhois))
+	s.linkOperInfo(nil, u.UID, v.class, v.flags, s.ownLook(v.title, v.swhois, v.reach))
 	s.reply(c, irc.RplYoureOper, "You are now an IRC operator")
 	s.replySnomask(c)
 	if v.class != "" {
@@ -139,6 +147,7 @@ func (s *Server) deoper(c *Client, why string) {
 		return
 	}
 	c.operFlags, c.operTitle, c.operAccount, c.operSwhois, c.operClass = "", "", 0, nil, ""
+	c.operReach = ""
 	u.OperClass, u.OperName = "", ""
 	c.operVia = nil
 	c.snomask = ""

@@ -33,7 +33,27 @@ func (s *Server) operOnline() map[int64]bool {
 	return on
 }
 
-func (s *Server) panelOpers() (*control.Opers, string) {
+// panelOwner reports whether po is the network owner: the [services]
+// admin on the services server.
+func (s *Server) panelOwner(po *control.PanelOper) bool {
+	return po.Owner && !s.svc.Off()
+}
+
+// panelNetwork reports whether po may change entries with network reach:
+// the owner, or an oper whose own entry has network reach.
+func (s *Server) panelNetwork(po *control.PanelOper) bool {
+	if s.panelOwner(po) {
+		return true
+	}
+	a, err := s.store.AccountByNick(po.Account)
+	if err != nil || a == nil {
+		return false
+	}
+	o, err := s.store.OperByAccount(a.ID)
+	return err == nil && o.Network()
+}
+
+func (s *Server) panelOpers(po *control.PanelOper) (*control.Opers, string) {
 	list, err := s.store.Opers()
 	if err != nil {
 		s.log.Printf("services database: %v", err)
@@ -41,11 +61,14 @@ func (s *Server) panelOpers() (*control.Opers, string) {
 	}
 	list = s.withoutOwner(list)
 	on := s.operOnline()
-	out := &control.Opers{}
+	out := &control.Opers{OwnerView: s.panelOwner(po)}
 	if admin := s.cfg.Services.Admin; admin != "" {
 		a, _ := s.store.AccountByNick(admin)
 		row := control.OperRow{Account: admin, Class: "netadmin", All: allFlags, Hosts: s.adminHosts(), Owner: true,
 			Password: s.cfg.Services.AdminPassword != ""}
+		if !s.svc.Off() {
+			row.Reach = store.ReachNetwork
+		}
 		if a != nil {
 			row.Account, row.Online = a.Name, on[a.ID]
 			if o, _ := s.operEntry(a); o != nil {
@@ -60,7 +83,7 @@ func (s *Server) panelOpers() (*control.Opers, string) {
 		v := s.viewOf(o)
 		out.Rows = append(out.Rows, control.OperRow{Account: o.Account, Class: v.class, Flags: o.Flags, All: v.flags,
 			Hosts: o.Hosts, Title: v.title, Online: on[o.AccountID], Password: o.PassHash != "", Disabled: o.Disabled,
-			AddedBy: o.AddedBy, AddedAt: o.AddedAt})
+			Reach: o.Reach, AddedBy: o.AddedBy, AddedAt: o.AddedAt})
 	}
 	for _, oc := range s.cfg.Classes() {
 		out.Classes = append(out.Classes, control.OperClass{Name: oc.Name, Flags: oc.Flags})
@@ -129,6 +152,9 @@ func (s *Server) panelOperSave(po *control.PanelOper, ip string, req control.Req
 		if l := lacking(po.Flags, s.viewOf(cur).flags); l != "" {
 			return fail("You can't change %s: they have %s and you don't.", a.Name, flagWords(l))
 		}
+		if cur.Network() && !s.panelNetwork(po) {
+			return fail("You can't change %s: their admin reach is the whole network and yours isn't.", a.Name)
+		}
 	}
 	o := &store.Oper{AccountID: a.ID, Account: a.Name, AddedBy: po.Account, AddedAt: time.Now()}
 	if cur != nil {
@@ -161,6 +187,18 @@ func (s *Server) panelOperSave(po *control.PanelOper, ip string, req control.Req
 	o.Hosts = hosts
 	if hash != "" {
 		o.PassHash = hash
+	}
+	// reach: only the network owner gives or takes it
+	if r := strings.ToLower(strings.TrimSpace(req.Reach)); r != "" {
+		if r != store.ReachHome && r != store.ReachNetwork {
+			return fail("Reach is home or network.")
+		}
+		if want := cleanReach(r); want != o.Reach {
+			if !s.panelOwner(po) {
+				return fail("Only %s gives or takes whole-network admin reach.", s.ownerWhere())
+			}
+			o.Reach = want
+		}
 	}
 	// the rules
 	newAll, oldAll := s.viewOf(o).flags, ""
@@ -220,6 +258,9 @@ func (s *Server) panelOperDel(po *control.PanelOper, ip, name string) control.Re
 	if l := lacking(po.Flags, all); l != "" {
 		return control.Response{Error: fmt.Sprintf("You can't remove %s: they have %s and you don't.", a.Name, flagWords(l))}
 	}
+	if cur.Network() && !s.panelNetwork(po) {
+		return control.Response{Error: fmt.Sprintf("You can't remove %s: their admin reach is the whole network and yours isn't.", a.Name)}
+	}
 	if _, err := s.store.DeleteOper(a.ID); err != nil {
 		s.log.Printf("services database: %v", err)
 		return control.Response{Error: "Something went wrong on the server."}
@@ -255,7 +296,7 @@ func (s *Server) panelOperUndo(po *control.PanelOper, ip string, ch store.Change
 			return control.Response{Error: "That change can't be read."}
 		}
 		o = &store.Oper{AccountID: a.ID, Account: a.Name, Class: r.Class, Flags: r.Flags, Title: r.Title, Vhost: r.Vhost,
-			Swhois: r.Swhois, Hosts: r.Hosts, Disabled: r.Disabled, AddedBy: po.Account, AddedAt: time.Now()}
+			Swhois: r.Swhois, Hosts: r.Hosts, Disabled: r.Disabled, Reach: cleanReach(r.Reach), AddedBy: po.Account, AddedAt: time.Now()}
 		if cur != nil {
 			o.PassHash, o.DisabledBy, o.AddedBy, o.AddedAt = cur.PassHash, cur.DisabledBy, cur.AddedBy, cur.AddedAt
 		} else {
@@ -278,6 +319,16 @@ func (s *Server) panelOperUndo(po *control.PanelOper, ip string, ch store.Change
 	}
 	if irc.EqualFold(a.Name, po.Account) && strings.IndexByte(after, 'a') < 0 {
 		return control.Response{Error: "You can't take flag a from yourself here."}
+	}
+	if (cur.Network() || o.Network()) && !s.panelNetwork(po) {
+		return control.Response{Error: fmt.Sprintf("You can't change %s: their admin reach is the whole network and yours isn't.", a.Name)}
+	}
+	wasReach := ""
+	if cur != nil {
+		wasReach = cur.Reach
+	}
+	if o != nil && o.Reach != wasReach && !s.panelOwner(po) {
+		return control.Response{Error: "That change also changes the admin reach of " + a.Name + ", and only the network owner gives or takes that."}
 	}
 	var err error
 	if o == nil {

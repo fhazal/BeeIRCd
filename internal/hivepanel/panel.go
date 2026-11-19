@@ -613,15 +613,15 @@ func (p *Panel) banChange(cmd string) func(http.ResponseWriter, *http.Request, o
 
 func (p *Panel) operSave(w http.ResponseWriter, r *http.Request, oc operCtx) {
 	var in struct {
-		Name, Class, Flags, Hosts, Password string
-		New                                 bool
+		Name, Class, Flags, Hosts, Password, Reach string
+		New                                        bool
 	}
 	if json.NewDecoder(r.Body).Decode(&in) != nil || in.Name == "" {
 		writeErr(w, http.StatusBadRequest, "Bad request.")
 		return
 	}
 	p.send(w, oc, control.Request{Cmd: control.CmdOperSave, Name: in.Name, Class: in.Class, Flags: in.Flags,
-		Hosts: in.Hosts, Password: in.Password, New: in.New}, 20*time.Second)
+		Hosts: in.Hosts, Password: in.Password, New: in.New, Reach: in.Reach}, 20*time.Second)
 }
 
 func (p *Panel) operDel(w http.ResponseWriter, r *http.Request, oc operCtx) {

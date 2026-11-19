@@ -101,6 +101,7 @@ type Client struct {
 	operSwhois  []string  // extra WHOIS lines (320) while opered
 	operVhost   string    // host shown because of the oper entry
 	operAccount int64     // the oper entry (account ID) c opered with
+	operReach   string    // store.ReachNetwork when c's admin powers count on other servers too
 	snomask     string    // server notice letters (snomask.go), "" = none set
 	confirm     string    // confirms AdminServ RESTART and DIE
 	confirmTill time.Time // confirm is valid until then

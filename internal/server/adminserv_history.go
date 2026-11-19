@@ -17,7 +17,16 @@ import (
 // record notes a change for HISTORY. Old and New are as UNDO reads them
 // for kind (see undo).
 func (s *Server) record(c *Client, kind, key, old, new string) {
-	s.recordBy(c.user.Nick, kind, key, old, new)
+	s.recordBy(s.changedBy(c), kind, key, old, new)
+}
+
+// changedBy names c for HISTORY: their nick, with their server when they
+// are an admin on another server.
+func (s *Server) changedBy(c *Client) string {
+	if !s.ours(c.uid) && c.user.Server != "" {
+		return c.user.Nick + " on " + c.user.Server
+	}
+	return c.user.Nick
 }
 
 // recordBy is record for a change made by who (a nick, or an oper in the
@@ -41,13 +50,14 @@ type operRecord struct {
 	Hosts    []string `json:"hosts,omitempty"`
 	Disabled string   `json:"disabled,omitempty"`
 	CertFPs  []string `json:"certfps,omitempty"`
+	Reach    string   `json:"reach,omitempty"`
 }
 
 func encodeOper(o *store.Oper) string {
 	if o == nil {
 		return ""
 	}
-	b, _ := json.Marshal(operRecord{o.Class, o.Flags, o.Title, o.Vhost, o.Swhois, o.Hosts, o.Disabled, o.CertFPs})
+	b, _ := json.Marshal(operRecord{o.Class, o.Flags, o.Title, o.Vhost, o.Swhois, o.Hosts, o.Disabled, o.CertFPs, o.Reach})
 	return string(b)
 }
 
@@ -412,6 +422,9 @@ func asUndo(s *Server, c *Client, args []string) {
 			s.as(c, "%s isn't a registered nick any more.", ch.Key)
 			return
 		}
+		if s.isAdminAccount(a) && s.lockedForOutside(c, "The config admin's oper entry") {
+			return
+		}
 		cur, _ := s.store.OperByAccount(a.ID)
 		if cur != nil && !s.coversOper(c, cur) {
 			return
@@ -430,11 +443,19 @@ func asUndo(s *Server, c *Client, args []string) {
 				return
 			}
 			o := &store.Oper{AccountID: a.ID, Account: a.Name, Class: r.Class, Flags: r.Flags, Title: r.Title, Vhost: r.Vhost,
-				Swhois: r.Swhois, Hosts: r.Hosts, Disabled: r.Disabled, CertFPs: r.CertFPs, AddedBy: c.user.Nick, AddedAt: time.Now()}
+				Swhois: r.Swhois, Hosts: r.Hosts, Disabled: r.Disabled, CertFPs: r.CertFPs, Reach: cleanReach(r.Reach), AddedBy: c.user.Nick, AddedAt: time.Now()}
 			if cur != nil {
 				o.PassHash, o.DisabledBy = cur.PassHash, cur.DisabledBy
 			}
 			if !s.coversOper(c, o) {
+				return
+			}
+			wasReach := ""
+			if cur != nil {
+				wasReach = cur.Reach
+			}
+			if o.Reach != wasReach && !s.isOwner(c) {
+				s.as(c, "Change #%d also changes the admin reach of %s, and only %s gives or takes that.", ch.ID, a.Name, s.ownerWhere())
 				return
 			}
 			if err := s.store.SaveOper(o); err != nil {

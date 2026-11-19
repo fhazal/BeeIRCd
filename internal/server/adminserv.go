@@ -34,7 +34,7 @@ func adminCommands() map[string]adminCmd {
 		"PORT": {"PORT ADD|DEL|LIST [port] [TLS]", "open or close a port",
 			"PORT LIST\nPORT ADD <port> [TLS]   opens it now, on the same address as the first port\nPORT ADD <address:port> [TLS]\nPORT DEL <port|address:port>\nPeople already connected through a closed port stay connected.", asPort},
 		"OPER": {"OPER LIST | OPER <nick> ADD|SET|DEL|DISABLE|ENABLE ...", "who is an IRC operator",
-			"OPER LIST\nOPER <nick> ADD CLASS <class>|FLAGS <letters> HOST <mask> [PASSWORD <password>] [TITLE <text>]\nOPER <nick> SET CLASS <class>|OFF\nOPER <nick> SET FLAGS <letters>|OFF   flags on top of the class\nOPER <nick> SET HOST <mask> [mask ...]   globs or CIDR, like *@192.168.50.0/24\nOPER <nick> SET PASSWORD <password>|OFF   OFF: certificate only\nOPER <nick> SET CERT <fingerprint> [...]|OFF   /oper needs this TLS client certificate\nOPER <nick> SET TITLE|VHOST <text>|OFF   instead of the class's\nOPER <nick> SET SWHOIS <line> [| <line> ...]|OFF\nOPER <nick> DISABLE [reason]   keep the entry, refuse /oper\nOPER <nick> ENABLE\nOPER <nick> DEL\nThe server admin from beeircd.conf may SET their own TITLE, SWHOIS and VHOST.\nClasses: /as class list (helper, globop, admin, netadmin are built in).\nFlags: a admin, b bots, c links, g global, h hosts, k kill, s services.\nThe nick must be registered. Opers oper up with /oper <nick> <oper password>\nfrom a matching host; the oper password is their own, not the NickServ one.\nYou can only give flags (and classes) you have.\nExample: /as oper ember add class globop host *@192.168.50.* password Hive-2026", asOper},
+			"OPER LIST\nOPER <nick> ADD CLASS <class>|FLAGS <letters> HOST <mask> [PASSWORD <password>] [TITLE <text>]\nOPER <nick> SET CLASS <class>|OFF\nOPER <nick> SET FLAGS <letters>|OFF   flags on top of the class\nOPER <nick> SET HOST <mask> [mask ...]   globs or CIDR, like *@192.168.50.0/24\nOPER <nick> SET PASSWORD <password>|OFF   OFF: certificate only\nOPER <nick> SET CERT <fingerprint> [...]|OFF   /oper needs this TLS client certificate\nOPER <nick> SET TITLE|VHOST <text>|OFF   instead of the class's\nOPER <nick> SET SWHOIS <line> [| <line> ...]|OFF\nOPER <nick> SET REACH HOME|NETWORK   network owner only: with network their\n                   AdminServ powers count on the other servers too\nOPER <nick> DISABLE [reason]   keep the entry, refuse /oper\nOPER <nick> ENABLE\nOPER <nick> DEL\nThe server admin from beeircd.conf may SET their own TITLE, SWHOIS and VHOST.\nClasses: /as class list (helper, globop, admin, netadmin are built in).\nFlags: a admin, b bots, c links, g global, h hosts, k kill, s services.\nThe nick must be registered. Opers oper up with /oper <nick> <oper password>\nfrom a matching host; the oper password is their own, not the NickServ one.\nYou can only give flags (and classes) you have.\nExample: /as oper ember add class globop host *@192.168.50.* password Hive-2026", asOper},
 		"CLASS": {"CLASS LIST | CLASS <name> ADD|SET|DEL ...", "oper classes",
 			"CLASS LIST\nCLASS <name> ADD FLAGS <letters>\nCLASS <name> SET FLAGS <letters>\nCLASS <name> SET TITLE <text>|OFF   WHOIS line, like: is a Network Administrator\nCLASS <name> SET VHOST <host>|OFF   shown host at /oper, like staff.example.org\nCLASS <name> SET SWHOIS <line> [| <line> ...]|OFF\nCLASS <name> DEL   a built-in class goes back to its defaults\nClasses are saved as [[operclass]] blocks in beeircd.conf.", asClass},
 		"HISTORY": {"HISTORY [count]", "the changes AdminServ made",
@@ -47,7 +47,7 @@ func adminCommands() map[string]adminCmd {
 		"SPAMREPORT": {"SPAMREPORT LIST | KEY <name> <rpckey|OFF> | STAGING <name> ON|OFF", "where /SPAMREPORT sends spammers",
 			"SPAMREPORT LIST                the [[spamreport]] places of beeircd.conf\nSPAMREPORT KEY <name> <rpckey>  save a DroneBL RPC key (adds a dronebl place\n                               called <name> when there is none). OFF removes it.\nSPAMREPORT STAGING <name> ON    send to DroneBL's test list instead of the real one\nGet a DroneBL key at https://dronebl.org/rpckey_signup. Keys are never shown.", asSpamReport},
 		"SERVER": {"SERVER LIST|ADD|SET|DEL|LINK|UNLINK ... | SERVER <name> STATUS|<command>", "linked servers",
-			serverHelp + "\nSERVER <name> STATUS       version, uptime, users and links of that server\nSERVER <name> <command>    run an AdminServ command there (SET, MOTD, OPER,\n                           CLASS, SHOW, HISTORY, DIFF, UNDO, DNSBL); it must\n                           allow it with [link] remote_admin = true", asServer},
+			serverHelp + "\nSERVER <name> STATUS       version, uptime, users and links of that server\nSERVER <name> <command>    run an AdminServ command there (SET, MOTD, OPER,\n                           CLASS, SHOW, HISTORY, DIFF, UNDO, DNSBL); it must\n                           take outside admins ([link] outside_admins =\n                           network) and your admin reach must be network", asServer},
 		"RESTART": {"RESTART [reason]", "restart the server",
 			"Disconnects everyone and starts the server again. You are asked to repeat it\nwith a code first.", asStop(stopRestart)},
 		"DIE": {"DIE [reason]", "stop the server",
@@ -70,11 +70,15 @@ func (s *Server) adminServCommands() map[string]services.BotCommand {
 				return
 			}
 			// Someone on another server: SERVER (to reach their own
-			// server) always; the rest only with [link] remote_admin.
+			// server) always; the rest only when this server takes
+			// outside admins and their reach is network.
 			s.runFor(uid, func(c *Client) {
-				if name != "SERVER" && !s.cfg.Link.RemoteAdmin {
-					s.as(c, "AdminServ on %s only takes commands from people on it ([link] remote_admin = false). For your own server: /as server <its name> <command>", s.cfg.Server.Name)
-					return
+				if name != "SERVER" {
+					if why := s.outsideRefusal(c); why != "" {
+						s.as(c, "%s", why)
+						return
+					}
+					s.outsideNote(c, strings.TrimSpace(name+" "+strings.Join(args, " ")))
 				}
 				run(s, c, args)
 			})
@@ -633,7 +637,7 @@ func (s *Server) applySetting(c *Client, sv *state.User, name, value string) {
 		s.botReply(c, sv, fmt.Sprintf("There is no setting %s. See them all: /as show", name))
 		return
 	}
-	old, now, _, problem := s.setSetting(c.user.Nick, st, value)
+	old, now, _, problem := s.setSetting(s.changedBy(c), st, value)
 	if problem != "" {
 		s.botReply(c, sv, problem)
 		return
@@ -1008,7 +1012,15 @@ func asOper(s *Server, c *Client, args []string) {
 		return
 	}
 	if s.isAdminAccount(a) {
-		if strings.EqualFold(args[1], "SET") && strings.EqualFold(argAt(args, 2), "PASSWORD") && c.operAccount == a.ID {
+		what := strings.ToUpper(argAt(args, 2))
+		ownLook := strings.EqualFold(args[1], "SET") && (what == "TITLE" || what == "SWHOIS" || what == "VHOST")
+		self := s.accountID(c) == a.ID || c.operAccount == a.ID
+		// The lock-out guard: from another server only their own look,
+		// by themselves.
+		if !(ownLook && self) && s.lockedForOutside(c, "The config admin's oper entry") {
+			return
+		}
+		if strings.EqualFold(args[1], "SET") && what == "PASSWORD" && c.operAccount == a.ID {
 			pw := argAt(args, 3)
 			if len(pw) < minOperPassword {
 				s.as(c, "Syntax: OPER %s SET PASSWORD <password> (at least %d characters)", a.Name, minOperPassword)
@@ -1025,8 +1037,8 @@ func asOper(s *Server, c *Client, args []string) {
 			})
 			return
 		}
-		if what := strings.ToUpper(argAt(args, 2)); strings.EqualFold(args[1], "SET") && (what == "TITLE" || what == "SWHOIS" || what == "VHOST") {
-			if s.accountID(c) != a.ID {
+		if ownLook {
+			if !self {
 				s.as(c, "Only %s can change their own title, WHOIS lines and vhost.", a.Name)
 				return
 			}
@@ -1221,7 +1233,7 @@ func asOper(s *Server, c *Client, args []string) {
 		}
 		what, rest := strings.ToUpper(argAt(args, 2)), args[min(3, len(args)):]
 		if len(rest) == 0 {
-			s.as(c, "Syntax: OPER <nick> SET CLASS|FLAGS|HOST|PASSWORD|CERT|TITLE|VHOST|SWHOIS <value>")
+			s.as(c, "Syntax: OPER <nick> SET CLASS|FLAGS|HOST|PASSWORD|CERT|TITLE|VHOST|SWHOIS|REACH <value>")
 			return
 		}
 		if what == "PASSWORD" && strings.EqualFold(rest[0], "OFF") {
@@ -1342,8 +1354,22 @@ func asOper(s *Server, c *Client, args []string) {
 				return
 			}
 			cur.CertFPs = fps
+		case "REACH":
+			if !s.isOwner(c) {
+				s.as(c, "Only %s gives or takes whole-network admin reach.", s.ownerWhere())
+				return
+			}
+			switch strings.ToLower(val) {
+			case store.ReachHome:
+				cur.Reach = ""
+			case store.ReachNetwork:
+				cur.Reach = store.ReachNetwork
+			default:
+				s.as(c, "Syntax: OPER %s SET REACH HOME|NETWORK (home: AdminServ on their own server only; network: on every server that takes outside admins)", a.Name)
+				return
+			}
 		default:
-			s.as(c, "Syntax: OPER <nick> SET CLASS|FLAGS|HOST|PASSWORD|CERT|TITLE|VHOST|SWHOIS <value>")
+			s.as(c, "Syntax: OPER <nick> SET CLASS|FLAGS|HOST|PASSWORD|CERT|TITLE|VHOST|SWHOIS|REACH <value>")
 			return
 		}
 		if err := s.store.SaveOper(cur); err != nil {
@@ -1365,6 +1391,9 @@ func asOper(s *Server, c *Client, args []string) {
 		}
 		if len(cur.CertFPs) > 0 { // shown in full, so a paste error stands out
 			reply += ", certificate " + strings.Join(cur.CertFPs, " ")
+		}
+		if cur.Network() {
+			reply += ", reach network"
 		}
 		s.as(c, "%s.", reply)
 	case "DEL":
@@ -1497,12 +1526,18 @@ func asOperList(s *Server, c *Client) {
 		if len(s.cfg.Services.AdminHosts) > 0 {
 			where = strings.Join(s.adminHosts(), " ") + " (server admin from beeircd.conf)"
 		}
+		if !s.svc.Off() {
+			where += "  reach: network (network owner)"
+		}
 		s.as(c, "  %-*s  %-10s  %-6s  %-6s  %-8s  %s", width, admin, "netadmin", allFlags, yesNo(a != nil && online[a.ID]), yesNo(s.cfg.Services.AdminPassword != ""), where)
 	}
 	for _, o := range list {
 		hosts := strings.Join(o.Hosts, " ")
 		if o.Disabled != "" {
 			hosts += "  DISABLED: " + o.Disabled
+		}
+		if o.Network() {
+			hosts += "  reach: network"
 		}
 		s.as(c, "  %-*s  %-10s  %-6s  %-6s  %-8s  %s", width, o.Account, describeClass(o), orNone(s.viewOf(&o).flags), yesNo(online[o.AccountID]), yesNo(o.PassHash != ""), hosts)
 	}
@@ -1517,8 +1552,7 @@ func asServer(s *Server, c *Client, args []string) {
 	switch strings.ToUpper(argAt(args, 0)) {
 	case "", "LIST", "LINK", "UNLINK":
 	case "ADD", "SET", "DEL":
-		if !s.ours(c.uid) && !s.cfg.Link.RemoteAdmin {
-			s.as(c, "Link blocks on %s are changed by people on it ([link] remote_admin = false).", s.cfg.Server.Name)
+		if s.lockedForOutside(c, "The link blocks") {
 			return
 		}
 	default:

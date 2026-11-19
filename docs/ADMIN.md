@@ -120,6 +120,38 @@ from IRC. Add others with AdminServ:
   (abcghks). You can only give flags you have yourself.
 - Opers skip the flood slowdown.
 
+### Admin roles
+
+On linked servers an admin's AdminServ powers (flag `a`) count on their
+own server, or on the whole network:
+
+| Role | Who | Where AdminServ works |
+|------|-----|-----------------------|
+| Network owner | `[services] admin` of the services server (the hub) | every server; only they give or take network reach |
+| Network admin | an oper entry with reach `network` | their own server, and every server with `[link] outside_admins = "network"` |
+| Server admin | an oper entry with reach `home` (the default), or a leaf's own `[services] admin` | their own server only |
+
+```
+/as oper ember set reach network
+/as oper ember set reach home
+```
+
+- Only the network owner sets reach (logged in or opered as that account,
+  on the services server). OPER LIST shows `reach: network`; the change is
+  in HISTORY and UNDO like any other, and someone already opered gets the
+  new reach at once.
+- Only network admins (or the owner) change or remove an entry with
+  network reach.
+- A server takes admins from elsewhere with `[link] outside_admins =
+  "network"` (the default); `"none"` turns them all away. Every command an
+  outside admin runs is logged and shown as a server notice to the admins there, and
+  HISTORY names them as `nick on server`.
+- Lock-out guard: nobody from another server can change a server's link
+  blocks or its config admin's oper entry and password, and
+  `outside_admins` is only set in that server's beeircd.conf. Whoever runs
+  a server can't be locked out of it.
+- `/as server <name> status` shows `outside admins network|none`.
+
 ## Channel bots (BotServ)
 
 BeeIRCd starts with no bots, like Anope. An oper with flag `b` makes one,
@@ -1765,7 +1797,8 @@ links with BeeIRCd and UnrealIRCd 6, and translates to and from InspIRCd
 | `port` | `7000` for hub/leaf | TLS port for server links (restart) |
 | `cert`, `key` | next to services.db | This server's link certificate, made at the first start as a hub or leaf and never renewed, so its fingerprint stays the same. It is in every backup |
 | `hide_split` | `false` | In a netsplit, show non-opers `*.net *.split` as the quit reason instead of the two server names (opers always see them) |
-| `remote_admin` | `false` | Let admins on other servers run AdminServ commands here (`/as server <this server> SET ...`) and use this server's AdminServ. Off: only people on this server change it; `SERVER <name> STATUS` (read-only) works either way |
+| `outside_admins` | `"network"` | Whether admins from other servers may run AdminServ here. `network`: admins whose reach is network (see [Admin roles](#admin-roles)) can; admins with home reach can't. `none`: no admin commands from other servers. Either way an outside admin can never change this setting, the link blocks, or the config admin's oper entry and password (restart) |
+| `remote_admin` | – | Replaced by `outside_admins`. Still read so old configs load, but it no longer changes anything |
 
 Each server we link with gets a `[[link.server]]` block. These apply on
 `beeircd rehash`; removing one drops that link.
@@ -1884,8 +1917,9 @@ and software), `JUPE <server> [reason]` / `JUPE LIST` / `JUPE DEL`
 ADD | SET | DEL | LINK | UNLINK` (writes the `[[link.server]]` blocks,
 also in AdminServ). AdminServ `SERVER <name> STATUS` and
 `SERVER <name> <command>` run on another BeeIRCd (SET, MOTD, OPER, CLASS,
-SHOW, HISTORY, DIFF, UNDO, DNSBL; it needs `remote_admin = true` there;
-ports, restarts and link blocks are changed in that server's shell). Each
+SHOW, HISTORY, DIFF, UNDO, DNSBL; it needs `outside_admins = "network"`
+there and network reach, see [Admin roles](#admin-roles); ports, restarts
+and link blocks are changed in that server's shell). Each
 remote change is logged on both servers with who and what.
 
 **Link notices.** IRC operators (user mode `+s`) see each step of a

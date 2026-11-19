@@ -19,11 +19,20 @@ type operView struct {
 	title  string
 	vhost  string
 	swhois []string
+	reach  string // store.ReachNetwork or "" (home)
+}
+
+// cleanReach keeps only the reach values there are: network, else home.
+func cleanReach(r string) string {
+	if r == store.ReachNetwork {
+		return r
+	}
+	return ""
 }
 
 // viewOf works out what entry o gives.
 func (s *Server) viewOf(o *store.Oper) operView {
-	v := operView{class: o.Class, flags: o.Flags, title: o.Title, vhost: o.Vhost, swhois: o.Swhois}
+	v := operView{class: o.Class, flags: o.Flags, title: o.Title, vhost: o.Vhost, swhois: o.Swhois, reach: cleanReach(o.Reach)}
 	if o.Class != "" {
 		if oc, ok := s.cfg.Class(o.Class); ok {
 			v.class = oc.Name
@@ -129,6 +138,12 @@ func (s *Server) coversOper(c *Client, o *store.Oper) bool {
 			s.as(c, "You can't change %s: they have flag %c and you don't.", o.Account, eff[i])
 			return false
 		}
+	}
+	// Network reach is above home reach: only network admins (or the
+	// owner) change an entry that has it.
+	if o.Network() && c.operReach != store.ReachNetwork && !s.isOwner(c) {
+		s.as(c, "You can't change %s: their admin reach is the whole network and yours isn't.", o.Account)
+		return false
 	}
 	return true
 }

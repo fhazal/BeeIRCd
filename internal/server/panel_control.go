@@ -439,8 +439,8 @@ func (s *Server) panelControl(req control.Request, setDeadline func(time.Duratio
 	case control.CmdBanMatch:
 		return run(banFlag(req.Kind), func(*control.PanelOper) { resp = s.panelBanMatch(req) }), true
 	case control.CmdOpers:
-		return run('a', func(*control.PanelOper) {
-			o, problem := s.panelOpers()
+		return run('a', func(po *control.PanelOper) {
+			o, problem := s.panelOpers(po)
 			resp.Opers, resp.Error = o, problem
 		}), true
 	case control.CmdOperSave:
