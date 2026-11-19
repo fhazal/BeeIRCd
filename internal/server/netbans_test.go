@@ -213,3 +213,14 @@ func TestExtbansAndTimedBans(t *testing.T) {
 	bee.send("CS BAN #bchat +soon x")
 	bee.expect(csLine("Bee", "+soon isn't a time. Use +30m, +12h, +7d."))
 }
+
+// A timed ban's expiry notice comes within seconds, not at the next
+// hourly clean-up.
+func TestBanExpiresPromptly(t *testing.T) {
+	// A short client tick, as the default one can be 15 s.
+	s, _, _ := fileServerWith(t, "", func(s *Server) { s.cfg.Limits.PingInterval.Duration = 2 * time.Second })
+	b := boss(t, s)
+	b.send("GLINE *@soon.example 1s gone soon")
+	b.expect("AKILL added: *@soon.example for 1 second")
+	b.expect("Removing an expired G-line on *@soon.example (set by Boss")
+}

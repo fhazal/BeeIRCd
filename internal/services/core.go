@@ -156,6 +156,7 @@ type Services struct {
 	forbids        map[string][]store.Forbid // by kind
 	randNews       int                       // the RANDOMNEWS line the next connection gets
 	ignores        []store.Ignore            // OperServ IGNORE
+	banDue         time.Time                 // when the next timed ban, forbid or exception runs out (zero = none); see ExpireDue
 
 	// SEEN, kept in memory and saved every minute (see SaveSeen).
 	seen      map[string]*store.Seen // by folded nick
@@ -367,8 +368,9 @@ func (s *Services) connected(c *Client) {
 	s.nickCheck(c)
 }
 
-// Tick runs the timers: identify deadlines every second, expiry hourly
-// (the server decides when).
+// Tick runs the timers: identify deadlines every second. The full expiry
+// pass runs hourly (the server decides when); ExpireDue drops timed bans
+// as they run out.
 func (s *Services) Tick(now time.Time) {
 	if s.off {
 		return
@@ -380,6 +382,26 @@ func (s *Services) Tick(now time.Time) {
 	}
 	if now.Sub(s.seenSaved) >= seenSaveEach {
 		s.SaveSeen()
+	}
+	s.Flush()
+}
+
+// ExpireDue drops timed bans, forbids, exceptions and spam filters as soon
+// as the first one runs out, so the "expired" notice isn't up to an hour
+// late. It is cheap to call every tick: nothing happens before the
+// earliest expiry time.
+func (s *Services) ExpireDue(now time.Time) {
+	if !s.banDue.IsZero() && !now.Before(s.banDue) {
+		s.expireBans(now)
+		if !s.banDue.IsZero() && !now.Before(s.banDue) {
+			s.banDue = now.Add(time.Minute) // nothing went (database trouble): try again later
+		}
+	}
+	if !s.spam.due.IsZero() && !now.Before(s.spam.due) {
+		s.expireSpamFilters(now)
+		if !s.spam.due.IsZero() && !now.Before(s.spam.due) {
+			s.spam.due = now.Add(time.Minute)
+		}
 	}
 	s.Flush()
 }

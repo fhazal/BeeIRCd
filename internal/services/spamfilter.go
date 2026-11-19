@@ -31,6 +31,7 @@ type spamState struct {
 	recent []time.Time // catch times, oldest first (SpamCaught24h)
 	hook   func(f spamfilter.Filter, add bool)
 	loaded bool
+	due    time.Time // when the next timed rule runs out (zero = none)
 }
 
 // OnSpamChange sets what runs after a rule went on (add) or off.
@@ -44,6 +45,12 @@ func (s *Services) loadSpamFilters() error {
 	}
 	set, bad := spamfilter.NewSet(list, time.Now())
 	s.spam.list, s.spam.set, s.spam.bad = list, set, map[int64]bool{}
+	s.spam.due = time.Time{}
+	for _, f := range list {
+		if t := time.Unix(f.Expires.Unix(), 0); !f.Expires.IsZero() && t.Unix() > 0 && (s.spam.due.IsZero() || t.Before(s.spam.due)) {
+			s.spam.due = t
+		}
+	}
 	for _, f := range bad {
 		s.spam.bad[f.ID] = true
 		if !s.spam.loaded {

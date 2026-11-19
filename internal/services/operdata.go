@@ -38,6 +38,25 @@ func (s *Services) loadOperData() error {
 	}
 	old := s.netbans
 	s.netbans, s.news, s.sessionExcepts, s.forbids, s.ignores = bans, news, ex, forbids, ignores
+	s.banDue = time.Time{}
+	due := func(t time.Time) {
+		// The database keeps whole seconds; PurgeExpired takes them once
+		// that second has come.
+		if t = time.Unix(t.Unix(), 0); t.Unix() > 0 && (s.banDue.IsZero() || t.Before(s.banDue)) {
+			s.banDue = t
+		}
+	}
+	for _, b := range bans {
+		due(b.Expires)
+	}
+	for _, e := range ex {
+		due(e.Expires)
+	}
+	for _, list := range forbids {
+		for _, f := range list {
+			due(f.Expires)
+		}
+	}
 	if s.operHook != nil {
 		defer s.operHook()
 	}

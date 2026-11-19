@@ -383,11 +383,13 @@ func (s *Server) Serve(ctx context.Context) error {
 			s.groupTick(now)
 			s.certTick(now)
 			s.svc.Tick(now)
+			s.svc.ExpireDue(now)
 			s.reap()
 			s.flushWrites()
 		case now := <-linkTick:
 			s.notePeakGlobal() // people coming in over links
 			s.linkTick(now)
+			s.svc.ExpireDue(now)
 			s.reap()
 			s.flushWrites()
 		case now := <-hourly.C:
