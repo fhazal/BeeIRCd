@@ -430,6 +430,29 @@ func (s *Server) remoteNick(l *linkConn, src string, n *link.Nick) {
 	s.emitFrom(l, src, &state.NickChange{UID: u.UID, Nick: nick, TS: ts})
 }
 
+// remoteGlobops is oper chat from elsewhere (":uid GLOBOPS :text" from an
+// oper, or from a server with the whole line "From nick: text"): the opers
+// here with the G letter get "*** GLOBOPS: From <nick>: <text>", and the
+// other links get it on.
+func (s *Server) remoteGlobops(l *linkConn, m irc.Message) {
+	if len(m.Params) == 0 || m.Params[len(m.Params)-1] == "" {
+		return
+	}
+	text := m.Params[len(m.Params)-1]
+	_, u, ok := s.linkSource(l, m.Source)
+	if !ok {
+		return
+	}
+	if u != nil {
+		if !u.Modes['o'] {
+			return
+		}
+		text = "From " + u.Nick + ": " + text
+	}
+	s.sno('G', "%s", text)
+	s.linkBroadcast(l, m.String())
+}
+
 // linkBroadcastKill tells every link but one that uid was killed.
 func (s *Server) linkBroadcastKill(except *linkConn, src, uid, reason string) {
 	for _, o := range s.upLinks(except) {

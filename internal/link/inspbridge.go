@@ -480,6 +480,15 @@ func (b *inspBridge) out(m irc.Message) []string {
 		return nil
 	case "SASL": // :src SASL target uid mode data...
 		return b.outSASL(src, p)
+	case "GLOBOPS": // :uid GLOBOPS :text -> :sid SNONOTICE G :From nick: text
+		if len(p) == 0 || last() == "" {
+			return nil
+		}
+		text := last()
+		if n := b.nicks[src]; n != "" {
+			text = "From " + n + ": " + text
+		}
+		return []string{line(nil, sourceSID(src), "SNONOTICE", true, "G", text)}
 	}
 	if len(m.Command) == 3 && m.Command[0] >= '0' && m.Command[0] <= '9' && len(p) > 0 {
 		// :src 401 uid params -> NUM src uid 401 params
@@ -993,7 +1002,12 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 	}
 	one := func(l string) ([]string, []string) { return []string{l}, nil }
 	switch m.Command {
-	case "BURST", "SINFO", "SNONOTICE", "RSQUIT", "RESYNC", "SVSHOLD", "SVSOPER", "SVSCMODE", "MAP", "RCONNECT":
+	case "SNONOTICE": // :sid SNONOTICE G :text: their GLOBOPS (every other letter is dropped)
+		if len(p) < 2 || (p[0] != "G" && p[0] != "g") {
+			return nil, nil
+		}
+		return one(line(nil, src, "GLOBOPS", true, p[1]))
+	case "BURST", "SINFO", "RSQUIT", "RESYNC", "SVSHOLD", "SVSOPER", "SVSCMODE", "MAP", "RCONNECT":
 		return nil, nil
 	case "SERVER": // :up SERVER name sid [key=value...] :desc
 		if len(p) < 3 {

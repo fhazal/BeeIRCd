@@ -470,6 +470,18 @@ func (s *Server) cmdWallops(c *Client, m irc.Message) {
 	}
 }
 
+// /GLOBOPS <text> is oper chat: everyone with the g notice letter here gets
+// "*** GLOBOPS: From <nick>: <text>", and the other servers get it as
+// letter G.
+func (s *Server) cmdGlobops(c *Client, m irc.Message) {
+	if !s.needOper(c) {
+		return
+	}
+	text := strings.Join(m.Params, " ")
+	s.sno('g', "From %s: %s", c.user.Nick, text)
+	s.linkBroadcast(nil, irc.Message{Source: c.uid, Command: "GLOBOPS", Params: []string{text}, Trailing: true}.String())
+}
+
 // sessions counts the connections from ip.
 func (s *Server) sessions(ip string) int { return s.perIP[ip] }
 

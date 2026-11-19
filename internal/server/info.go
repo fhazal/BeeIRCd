@@ -135,6 +135,7 @@ var helpTopics = map[string][]string{
 	"USER":     {"USER <username> 0 * <realname>", "Sends your username and real name while connecting."},
 	"USERHOST": {"USERHOST <nick> [nick ...]", "Shows the user@host of these nicks."},
 	"VERSION":  {"VERSION", "Shows the server's version and what it supports."},
+	"GLOBOPS":  {"GLOBOPS <text>", "Sends a message to the opers who have the g server notice letter, here and on the other servers."},
 	"WALLOPS":  {"WALLOPS <text>", "Sends a message to everyone with user mode +w (opers)."},
 	"WHO":      {"WHO <#channel|mask> [o][%fields[,token]]", "Lists people on a channel or matching a mask; o shows only opers. With %fields (WHOX: t c u i h s n f d l a o r) each person is one line with just those fields, a for the account."},
 	"WHOIS":    {"WHOIS <nick>", "Shows who someone is."},

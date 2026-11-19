@@ -77,3 +77,24 @@ func TestInspBanOut(t *testing.T) {
 		t.Errorf("without their list: %q, %v", got, ok)
 	}
 }
+
+// GLOBOPS goes to InspIRCd as its SNONOTICE G ("From nick: text") and an
+// SNONOTICE G from it comes in as GLOBOPS. Other letters stay ignored.
+func TestInspGlobops(t *testing.T) {
+	b := testBridge(t)
+	b.Out(":0BE EOS")
+	b.Out(":0BE UID bee 1 1700000000 ~bee host.example 0BEAAAAAA Bee +iox * cloak.example fwAAAQ== :The Bee")
+	if got := b.Out(":0BEAAAAAA GLOBOPS :maintenance at noon"); !has(got, ":0BE SNONOTICE G :From bee: maintenance at noon") {
+		t.Errorf("out %q", got)
+	}
+	b.In(":1IN ENDBURST")
+	if got, _ := b.In(":1IN SNONOTICE G :From carol: hello"); !has(got, ":1IN GLOBOPS :From carol: hello") {
+		t.Errorf("in G %q", got)
+	}
+	if got, _ := b.In(":1IN SNONOTICE g :From carol: hello"); !has(got, ":1IN GLOBOPS :From carol: hello") {
+		t.Errorf("in g %q", got)
+	}
+	if got, _ := b.In(":1IN SNONOTICE A :announcement"); len(got) != 0 {
+		t.Errorf("another letter came in: %q", got)
+	}
+}

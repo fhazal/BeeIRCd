@@ -91,6 +91,7 @@ func init() {
 		"HELP":         {0, false, (*Server).cmdHelp},
 		"INFO":         {0, false, (*Server).cmdInfo},
 		"WALLOPS":      {1, false, (*Server).cmdWallops},
+		"GLOBOPS":      {1, false, (*Server).cmdGlobops},
 		"SILENCE":      {0, false, (*Server).cmdSilence},
 		"KNOCK":        {1, false, (*Server).cmdKnock},
 		"SETNAME":      {1, false, (*Server).cmdSetname},
