@@ -1802,7 +1802,7 @@ links with BeeIRCd and UnrealIRCd 6, and translates to and from InspIRCd
 | `cert`, `key` | next to services.db | This server's link certificate, made at the first start as a hub or leaf and never renewed, so its fingerprint stays the same. It is in every backup |
 | `hide_split` | `false` | In a netsplit, show non-opers `*.net *.split` as the quit reason instead of the two server names (opers always see them) |
 | `outside_admins` | `"network"` | Whether admins from other servers may run AdminServ here. `network`: admins whose reach is network (see [Admin roles](#admin-roles)) can; admins with home reach can't. `none`: no admin commands from other servers. Either way an outside admin can never change this setting, the link blocks, or the config admin's oper entry and password (restart) |
-| `remote_admin` | – | Replaced by `outside_admins`. Still read so old configs load, but it no longer changes anything |
+| `remote_admin` | – | Replaced by `outside_admins`. Still read so old configs load: `remote_admin = false` with no `outside_admins` line means `outside_admins = "none"` |
 
 Each server we link with gets a `[[link.server]]` block. These apply on
 `beeircd rehash`; removing one drops that link.

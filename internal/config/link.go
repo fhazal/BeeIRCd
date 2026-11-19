@@ -27,10 +27,10 @@ type Link struct {
 	Key  string `toml:"key"`
 	// Servers are the [[link.server]] blocks, one per server we link with.
 	Servers []LinkServer `toml:"server"`
-	// RemoteAdmin is the old on/off for AdminServ from other servers. It
-	// is still read so old configs load, but it no longer restricts
-	// anything: OutsideAdmins replaced it.
-	RemoteAdmin bool `toml:"remote_admin"`
+	// RemoteAdmin is the old on/off for AdminServ from other servers;
+	// OutsideAdmins replaced it. An old config that says false, with no
+	// outside_admins, keeps refusing them (outside_admins = none).
+	RemoteAdmin *bool `toml:"remote_admin"`
 	// OutsideAdmins says whether admins from other servers may run
 	// AdminServ here: "network" (the default) lets in admins whose reach
 	// is network (given by the network owner), "none" takes no admin
@@ -104,6 +104,9 @@ func (c *Config) setLinkDefaults() {
 	}
 	if c.Link.OutsideAdmins == "" {
 		c.Link.OutsideAdmins = OutsideNetwork
+		if c.Link.RemoteAdmin != nil && !*c.Link.RemoteAdmin {
+			c.Link.OutsideAdmins = OutsideNone
+		}
 	}
 	dir := filepath.Dir(c.Services.Database)
 	if c.Link.Cert == "" && c.Link.Key == "" {

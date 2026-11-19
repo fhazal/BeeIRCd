@@ -30,6 +30,20 @@ func TestLinkConfig(t *testing.T) {
 	if none.Link.OutsideAdmins != OutsideNone {
 		t.Errorf("outside_admins = %q, want none", none.Link.OutsideAdmins)
 	}
+	// An old config that turned remote_admin off keeps outside admins out.
+	for body, want := range map[string]string{
+		"[link]\nrole = 'leaf'\nremote_admin = false\n":                             OutsideNone,
+		"[link]\nrole = 'leaf'\nremote_admin = true\n":                              OutsideNetwork,
+		"[link]\nrole = 'leaf'\nremote_admin = false\noutside_admins = 'network'\n": OutsideNetwork,
+	} {
+		c, err := Load(write(t, good+"\n"+body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c.Link.OutsideAdmins != want {
+			t.Errorf("%q: outside_admins %q, want %q", body, c.Link.OutsideAdmins, want)
+		}
+	}
 	for want, body := range map[string]string{
 		"must be standalone, hub or leaf": good + "\n[link]\nrole = \"server\"\n",
 		"already a [[listen]] port":       good + "\n[link]\nrole = \"leaf\"\nport = 6697\n",
