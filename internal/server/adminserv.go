@@ -655,13 +655,13 @@ func (s *Server) applySetting(c *Client, sv *state.User, name, value string) {
 	}
 	if st.owner {
 		// An admin from another server can never change it; here only the
-		// network owner can.
+		// network owner can (on a leaf: its own config admin).
 		if !s.ours(c.uid) {
 			s.botReply(c, sv, fmt.Sprintf("%s on %s is changed only by people on it, so nobody from another server can lock its admin out.", st.name, s.cfg.Server.Name))
 			return
 		}
-		if !s.isOwner(c) {
-			s.botReply(c, sv, fmt.Sprintf("Only %s can change %s.", s.ownerWhere(), st.name))
+		if !s.ownsServer(c) {
+			s.botReply(c, sv, fmt.Sprintf("Only %s can change %s.", s.ownerOfServer(), st.name))
 			return
 		}
 	}

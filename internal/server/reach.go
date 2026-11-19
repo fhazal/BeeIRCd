@@ -39,6 +39,30 @@ func (s *Server) isOwner(c *Client) bool {
 	return false
 }
 
+// ownsServer reports whether c may change this server's owner-only
+// settings (outside-admins): the network owner on the services server;
+// on a leaf, which has no network owner of its own, the admin from this
+// server's beeircd.conf, opered here.
+func (s *Server) ownsServer(c *Client) bool {
+	if !s.svc.Off() {
+		return s.isOwner(c)
+	}
+	admin := s.cfg.Services.Admin
+	return admin != "" && c != nil && c.user != nil && c.isOper() &&
+		strings.EqualFold(c.user.OperName, admin) && strings.EqualFold(c.user.Account, admin)
+}
+
+// ownerOfServer names who ownsServer means, for refusals.
+func (s *Server) ownerOfServer() string {
+	if !s.svc.Off() {
+		return s.ownerWhere()
+	}
+	if admin := s.cfg.Services.Admin; admin != "" {
+		return admin + " (the admin in beeircd.conf), opered on " + s.cfg.Server.Name + ","
+	}
+	return "the admin in beeircd.conf"
+}
+
 // reachOf is uid's admin reach as this server knows it: store.ReachNetwork
 // or "" (home). Someone elsewhere has the reach their server sends; the
 // network owner, opered on another server, always has network reach here

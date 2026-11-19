@@ -6,6 +6,7 @@ import (
 
 	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/control"
+	"github.com/fhazal/beeircd/internal/passwd"
 	"github.com/fhazal/beeircd/internal/store"
 )
 
@@ -128,4 +129,22 @@ func TestOutsideAdminsOwnerAtAdminServ(t *testing.T) {
 	b.expect("outside-admins is now network")
 	b.send("AS SET outside-admins NETWORK")
 	b.expect("outside-admins is now network")
+}
+
+// On a leaf (no network owner of its own) its config admin, opered there,
+// may change outside-admins with AdminServ; it gets past the owner check
+// (this test leaf has no config file to save to).
+func TestOutsideAdminsLeafAdmin(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	h, _ := passwd.Hash(operPW)
+	leaf.s.onLoop(func() { leaf.s.cfg.Services.Admin, leaf.s.cfg.Services.AdminPassword = "Queen", h })
+	q := login(t, leaf.s, "Queen")
+	q.send("NS REGISTER " + pw)
+	q.expect("is now registered to you.")
+	waitLink(t, "account on the leaf", func() bool { u := leaf.user("Queen"); return u != nil && u.Account == "Queen" })
+	operEntryOn(t, hub, "Queen", "gk", []string{"*@*"})
+	q.send("OPER Queen " + operPW)
+	q.expect(" 381 Queen :You are now an IRC operator")
+	q.send("AS SERVER leaf.test.local SET outside-admins none")
+	q.expect("wasn't started from a config file")
 }
