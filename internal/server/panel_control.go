@@ -215,7 +215,7 @@ func (s *Server) panelAllowed(req control.Request, need byte) (*control.PanelOpe
 
 // panelSettings lists what Settings can change.
 func (s *Server) panelSettings() []control.Setting {
-	kinds := map[byte]string{'i': "number", 'd': "time", 'b': "onoff", 't': "text", 'c': "channels", 'g': "groups", 'f': "flagchannels"}
+	kinds := map[byte]string{'i': "number", 'd': "time", 'b': "onoff", 't': "text", 'c': "channels", 'g': "groups", 'f': "flagchannels", 'e': "events"}
 	var out []control.Setting
 	for _, st := range settings() {
 		cs := control.Setting{Name: st.name, Table: st.table, Key: st.key, Help: st.help, Kind: kinds[st.kind], Value: st.get(s.cfg)}
@@ -228,6 +228,8 @@ func (s *Server) panelSettings() []control.Setting {
 				cs.Choices = append(cs.Choices, g.Name)
 			}
 			cs.Choices = append(cs.Choices, config.UnknownUsers)
+		} else if st.kind == 'e' {
+			cs.Choices = config.LogEventNames
 		} else if st.kind == 'f' {
 			for _, f := range config.OperFlagLetters {
 				cs.Choices = append(cs.Choices, string(f))

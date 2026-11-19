@@ -88,7 +88,7 @@ can change things; every oper can look.
 `flood-rate`, `ping-interval`, `ping-timeout`, `cloak`, `resolve-hosts`,
 `nick-expire`, `chan-expire`, `identify-within`, `kill-quick`,
 `allow-kill-immed`, `ban-expiry`, `guest-prefix`, `log-channel`,
-`log-connects`, `flood-profile`, `find-place-by-ip`, `outside-admins` (owner only), `members`,
+`log-connects`, `log-events`, `flood-profile`, `find-place-by-ip`, `outside-admins` (owner only), `members`,
 `registration`, `unconfirmed-expire`, `default-language`, `ircv3-drafts`,
 `auto-join`, `auto-join-skip`, `oper-join`, `oper-join-flag`,
 `auth-prompt`, `auth-prompt-text`, `auth-prompt-fail`, `auth-prompt-time`,
@@ -1339,6 +1339,16 @@ config with `log_connects = false` also leaves out `connect`, `quit` and
 `nick`. A list you set replaces that default. Ban and session lines stop
 at 5 per ban mask (or IP) in 10 seconds, then one `... and N more hits`
 line. An unknown name is a config error.
+
+You can change it without editing the file. In the Hive Panel, Services,
+the "Services log" card has a box for each event (the eight on by
+default under "Shown in the log", the three busy ones under "Busy, off
+by default"), and Save applies it at once. In AdminServ:
+`/as set log-events connect,quit,kill` (a list of names), `/as set
+log-events *` (all), `/as set log-events off` (none) or `/as set
+log-events default` (back to the default; removes the key). `/as show`
+lists the events that are on now. `log-connects` still works for older
+setups, but the panel no longer shows it.
 
 ```toml
 [services]

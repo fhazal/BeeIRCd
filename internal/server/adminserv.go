@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -118,7 +119,7 @@ type setting struct {
 	table string
 	key   string
 	help  string
-	kind  byte // 'i' number, 'd' time, 'b' on/off, 't' text, 'c' channels, 'g' groups, 'f' channels by oper flag
+	kind  byte // 'i' number, 'd' time, 'b' on/off, 't' text, 'c' channels, 'g' groups, 'f' channels by oper flag, 'e' log events
 	lo    int64
 	hi    int64 // numbers: limits; times: in seconds
 	get   func(*config.Config) string
@@ -126,7 +127,8 @@ type setting struct {
 	check func(string) string // extra check for text, returns the problem
 	offOK bool                // text: OFF empties it
 	after func(s *Server, old string)
-	// enc checks a list value and writes it as TOML (kinds c, g and f).
+	// enc checks a list value and writes it as TOML (kinds c, g, f and e). An
+	// empty lit removes the key (log-events DEFAULT).
 	enc func(c *config.Config, v string) (lit, problem string)
 	// owner: only the network owner may change it (never an admin from
 	// another server), at AdminServ, in the Hive Panel, and by UNDO.
@@ -140,6 +142,49 @@ func outsideAdminsEnc(_ *config.Config, v string) (string, string) {
 		return "", "outside-admins is network or none."
 	}
 	return config.Quote(v), ""
+}
+
+// logEventsEnc checks the [services] log_events value: event names with
+// commas or spaces, "*" for all, OFF for none, DEFAULT to drop the key.
+func logEventsEnc(_ *config.Config, v string) (string, string) {
+	v = strings.TrimSpace(v)
+	switch strings.ToLower(v) {
+	case "default":
+		return "", ""
+	case "off", "none":
+		return "[]", ""
+	}
+	var out []string
+	for _, e := range splitList(v) {
+		e = strings.ToLower(e)
+		if e == "*" {
+			return `["*"]`, ""
+		}
+		if !slices.Contains(config.LogEventNames, e) {
+			return "", fmt.Sprintf("log-events: %q is not an event. Use %s, * for all, OFF for none or DEFAULT.", e, strings.Join(config.LogEventNames, ", "))
+		}
+		if !slices.Contains(out, e) {
+			out = append(out, e)
+		}
+	}
+	if len(out) == 0 {
+		return "", "log-events takes event names like connect,quit,kill (or * for all, OFF for none, DEFAULT)."
+	}
+	return tomlArray(out), ""
+}
+
+// logEventsGet is the events logged now: "*" for all, "off" for none.
+func logEventsGet(c *config.Config) string {
+	var on []string
+	for _, e := range config.LogEventNames {
+		if c.Services.LogEventOn(e) {
+			on = append(on, e)
+		}
+	}
+	if len(on) == len(config.LogEventNames) {
+		return "*"
+	}
+	return listOrOff(on)
 }
 
 func limitsApply(dst, src *config.Config)   { dst.Limits = src.Limits }
@@ -565,6 +610,8 @@ func baseSettings() []setting {
 			}},
 		{name: "log-connects", table: "services", key: "log_connects", help: "also log connects and quits there", kind: 'b',
 			get: func(c *config.Config) string { return onoff(c.Services.LogConnectsOn()) }, apply: servicesApply},
+		{name: "log-events", table: "services", key: "log_events", help: "events logged there: connect, quit, nick, oper, kill, server, bans, other, umode, host, channel (* all, OFF none, DEFAULT)", kind: 'e',
+			get: logEventsGet, apply: servicesApply, enc: logEventsEnc},
 		{name: "registration", table: "services", key: "registration", help: "new NickServ accounts: none (ready at once), mail (confirm by email) or admin (an oper confirms)", kind: 't', hi: 5,
 			get: func(c *config.Config) string { return c.Services.RegistrationMode() }, apply: servicesApply,
 			check: func(v string) string {
@@ -693,7 +740,11 @@ func (s *Server) setSetting(who string, st setting, value string) (old, now stri
 		return "", "", 0, "This server wasn't started from a config file, so settings can't be saved."
 	}
 	fresh, err := config.Edit(s.cfg.Path, func(d *config.Doc) error {
-		d.Set(st.table, st.key, lit)
+		if lit == "" {
+			d.Unset(st.table, st.key)
+		} else {
+			d.Set(st.table, st.key, lit)
+		}
 		return nil
 	})
 	if err != nil {

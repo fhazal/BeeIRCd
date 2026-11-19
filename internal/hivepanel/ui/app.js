@@ -3465,9 +3465,22 @@
     ['Network bans', [['ban-expiry', 'Bans without a length last']]],
     ['Services log', [
       ['log-channel', 'Log channel (off for none)'],
-      ['log-connects', 'Also log connects and quits'],
     ]],
   ];
+  // The events the services log shows (log-events): name, label, hint.
+  const LOG_EVENTS = [
+    ['Shown in the log', [
+      ['connect', 'Connects', 'someone joins the network'], ['quit', 'Quits', 'someone leaves'],
+      ['nick', 'Nick changes', ''], ['oper', 'Opers', 'oper up and down'],
+      ['kill', 'Kills', ''], ['server', 'Servers', 'links and splits'],
+      ['bans', 'Ban hits', 'AKILL, Q-line, spamfilter…'], ['other', 'Other', 'DEFCON, session limits'],
+    ]],
+    ['Busy, off by default', [
+      ['umode', 'User modes', ''], ['host', 'Host changes', ''], ['channel', 'Channels', 'joins, parts, new, empty'],
+    ]],
+  ];
+  // The names a log-events value turns on ("*" all, "off" none).
+  const eventsOn = (s) => s.value === '*' ? (s.choices || []).slice() : s.value === 'off' ? [] : s.value.split(',');
   const BOT_TEXT = {
     NickServ: 'Registers nicks, logs people in', ChanServ: 'Registers and guards channels',
     MemoServ: 'Messages for people who are away', OperServ: 'Oper tools and network bans',
@@ -4364,7 +4377,11 @@
 
     function check(f) {
       const s = f.s;
-      if (s.kind === 'onoff') {
+      if (s.kind === 'events') {
+        const was = eventsOn(s);
+        f.dirty = Object.entries(f.boxes).some(([n, b]) => b.checked !== was.includes(n));
+        f.ok = true;
+      } else if (s.kind === 'onoff') {
         f.dirty = (f.input.checked ? 'on' : 'off') !== s.value;
         f.ok = true;
       } else {
@@ -4382,6 +4399,23 @@
       bar.hidden = dirty === 0;
       count.textContent = dirty === 1 ? '1 unsaved change' : dirty + ' unsaved changes';
       saveBtn.disabled = fields.some(x => x.dirty && !x.ok);
+    }
+    // The log-events checkboxes: one field, saved as one list.
+    function eventsBlock(s) {
+      if (!s) return null;
+      const f = { s, boxes: {}, ok: true, dirty: false, label: 'Log events' };
+      const on = eventsOn(s);
+      fields.push(f);
+      return LOG_EVENTS.map(([title, list]) => [
+        h('div', { class: 'grp', text: title }),
+        h('div', { class: 'ev-grid' }, list.map(([n, label, note]) => {
+          const box = h('input', { type: 'checkbox', id: 'svc-ev-' + n });
+          box.checked = on.includes(n);
+          box.addEventListener('change', () => check(f));
+          f.boxes[n] = box;
+          return h('label', { class: 'ck ev', for: 'svc-ev-' + n }, box, h('span', null, label, note ? h('small', { text: note }) : null));
+        })),
+      ]);
     }
     async function load() {
       try {
@@ -4407,25 +4441,29 @@
             input.addEventListener('keydown', e => { if (e.key === 'Enter' && !saveBtn.disabled) saveBtn.click(); });
             fields.push(f);
             return h('label', { class: 'f', for: id }, label, input, hint);
-          })));
+          }),
+          title === 'Services log' ? eventsBlock(by['log-events']) : null));
         put(form, groups);
         fields.forEach(check);
       } catch (e) { put(form, h('p', { class: 'empty', text: e.message })); }
     }
-    undoBtn.addEventListener('click', () => { fields.forEach(f => { if (f.s.kind === 'onoff') f.input.checked = f.s.value === 'on'; else f.input.value = f.s.value; check(f); }); });
+    function resetEvents(f) { const on = eventsOn(f.s); for (const [n, b] of Object.entries(f.boxes)) b.checked = on.includes(n); }
+    undoBtn.addEventListener('click', () => { fields.forEach(f => { if (f.s.kind === 'events') resetEvents(f); else if (f.s.kind === 'onoff') f.input.checked = f.s.value === 'on'; else f.input.value = f.s.value; check(f); }); });
     saveBtn.addEventListener('click', () => busy(saveBtn, async () => {
       const done = [];
       for (const f of fields.filter(x => x.dirty && x.ok)) {
-        const value = f.s.kind === 'onoff' ? (f.input.checked ? 'on' : 'off') : f.input.value.trim();
+        const picked = f.s.kind === 'events' ? Object.keys(f.boxes).filter(n => f.boxes[n].checked) : [];
+        const value = f.s.kind === 'events' ? (picked.length ? picked.join(',') : 'off') : f.s.kind === 'onoff' ? (f.input.checked ? 'on' : 'off') : f.input.value.trim();
         try {
           const d = await api('POST', '/api/set', { name: f.s.name, value });
           done.push(d.changed);
           f.s.value = d.changed.new;
-          if (f.s.kind !== 'onoff') f.input.value = d.changed.new;
+          if (f.s.kind === 'events') resetEvents(f);
+          else if (f.s.kind !== 'onoff') f.input.value = d.changed.new;
           check(f);
-          f.input.classList.remove('saved'); void f.input.offsetWidth; f.input.classList.add('saved');
+          if (f.input) { f.input.classList.remove('saved'); void f.input.offsetWidth; f.input.classList.add('saved'); }
         } catch (e) {
-          if (f.s.kind !== 'onoff') { f.input.classList.add('wrong'); f.hint.classList.add('wrong'); f.hint.textContent = e.message; }
+          if (f.s.kind !== 'onoff' && f.s.kind !== 'events') { f.input.classList.add('wrong'); f.hint.classList.add('wrong'); f.hint.textContent = e.message; }
           toastErr(f.label + ': ' + e.message);
         }
       }
