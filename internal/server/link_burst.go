@@ -394,6 +394,7 @@ func (s *Server) remoteKill(l *linkConn, k *link.Kill) {
 		by = v.Nick
 	}
 	reason := "Killed (" + by + " (" + k.Reason + "))"
+	s.sno('K', "Remote kill by %s: %s!%s@%s (%s)", by, u.Nick, u.TrueIdent(), u.RealHost, k.Reason)
 	s.linkBroadcastKill(l, k.Source, u.UID, k.Reason) // on to the rest of the network
 	if c := s.clientOf(u); c != nil {
 		c.send(irc.Message{Source: by, Command: "KILL", Params: []string{u.Nick, k.Reason}, Trailing: true}.String())
