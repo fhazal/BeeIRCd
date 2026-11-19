@@ -80,10 +80,10 @@ func (s *Server) antiRandom(u *state.User, now time.Time) string {
 		return ""
 	}
 	if a.Warn() {
-		s.snotice("[antirandom] would have refused %s (%s@%s) [%s], real name '%s': score %d", u.Nick, u.TrueIdent(), u.RealHost, u.IP, u.Realname, score)
+		s.sno('a', "[antirandom] would have refused %s (%s@%s) [%s], real name '%s': score %d", u.Nick, u.TrueIdent(), u.RealHost, u.IP, u.Realname, score)
 		return ""
 	}
-	s.snotice("[antirandom] refused %s (%s@%s) [%s], real name '%s': score %d", u.Nick, u.TrueIdent(), u.RealHost, u.IP, u.Realname, score)
+	s.sno('a', "[antirandom] refused %s (%s@%s) [%s], real name '%s': score %d", u.Nick, u.TrueIdent(), u.RealHost, u.IP, u.Realname, score)
 	return a.Message()
 }
 
@@ -213,7 +213,7 @@ func (s *Server) antiSpam(c *Client, ch *state.Channel, t *state.User, verb, tex
 	if m := s.cfg.AntiMixedUTF8; m.Enabled && hasText && !s.inAnyGroup(c.user, m.Except, now) {
 		if score := mixedScore(text); score >= m.Limit() {
 			u := c.user
-			s.snotice("[antimixedutf8] stopped a message of %s (%s@%s): alphabets mixed, score %d", u.Nick, u.TrueIdent(), u.RealHost, score)
+			s.sno('a', "[antimixedutf8] stopped a message of %s (%s@%s): alphabets mixed, score %d", u.Nick, u.TrueIdent(), u.RealHost, score)
 			return m.Message()
 		}
 	}

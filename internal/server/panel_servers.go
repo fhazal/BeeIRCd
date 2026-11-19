@@ -141,7 +141,7 @@ func (s *Server) panelLinkSave(po *control.PanelOper, ip string, b *control.Link
 		what = "added a link block for " + ls.Name
 	}
 	s.panelEvent(po.Account, ip, what)
-	s.snotice("Hive Panel: %s %s", po.Account, what)
+	s.sno('a', "Hive Panel: %s %s", po.Account, what)
 	text := "Saved and applied."
 	if ls.Autoconnect && !s.linkKnown(ls.Name) {
 		text += " It connects by itself."
@@ -166,7 +166,7 @@ func (s *Server) panelLinkDel(po *control.PanelOper, ip, name string) control.Re
 		return control.Response{Error: "Saved, but the rehash failed: " + err.Error()}
 	}
 	s.panelEvent(po.Account, ip, "removed the link block for "+n)
-	s.snotice("Hive Panel: %s removed the link block for %s", po.Account, n)
+	s.sno('a', "Hive Panel: %s removed the link block for %s", po.Account, n)
 	return control.Response{Done: &control.Done{Text: "The link block for " + n + " is removed."}}
 }
 

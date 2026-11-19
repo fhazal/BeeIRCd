@@ -170,7 +170,7 @@ func (s *Server) panelMailSave(po *control.PanelOper, ip string, f *control.Mail
 	now := describeMail(s.cfg.Mail)
 	if now != before {
 		s.panelEvent(po.Account, ip, "changed mail to "+now+" (was "+before+")")
-		s.snotice("Hive Panel: %s changed mail to %s (was %s)", po.Account, now, before)
+		s.sno('a', "Hive Panel: %s changed mail to %s (was %s)", po.Account, now, before)
 	}
 	return control.Response{Mail: s.panelMail()}
 }

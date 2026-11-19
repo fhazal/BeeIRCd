@@ -72,7 +72,7 @@ func (s *Server) operRelayTo(c *Client, name, pw string) {
 	}
 	if r == nil || r.via == nil || !r.via.peer.Bee {
 		s.reply(c, irc.ErrNoOperHost, "No oper entry for you from this host (the services server isn't linked right now)")
-		s.snotice("Failed /oper as %s from %s (%s@%s): services server not linked", name, u.Nick, u.Ident, u.RealHost)
+		s.sno('o', "Failed /oper as %s from %s (%s@%s): services server not linked", name, u.Nick, u.Ident, u.RealHost)
 		return
 	}
 	if c.operRelay != nil && time.Since(c.operRelay.at) < operRelayWait {
@@ -111,7 +111,7 @@ func (s *Server) remoteOper(l *linkConn, m irc.Message) {
 	}
 	fail := func(numeric, text, why string) {
 		s.operAnswer(uid, "FAIL "+numeric+" :"+text)
-		s.snotice("Failed /oper as %s from %s (%s@%s on %s): %s", name, u.Nick, u.TrueIdent(), u.RealHost, u.Server, why)
+		s.sno('O', "Failed /oper as %s from %s (%s@%s on %s): %s", name, u.Nick, u.TrueIdent(), u.RealHost, u.Server, why)
 	}
 	a, err := s.store.AccountByNick(name)
 	if err != nil {
@@ -132,7 +132,7 @@ func (s *Server) remoteOper(l *linkConn, m irc.Message) {
 			s.links.remoteOpers = map[string]remoteGrant{}
 		}
 		s.links.remoteOpers[uid] = remoteGrant{id: a.ID, class: v.class}
-		s.snotice("%s (%s@%s) is now an operator on %s as %s (entry checked here): %s", u.Nick, u.TrueIdent(), u.RealHost, u.Server, o.Account, v.flags)
+		s.sno('O', "%s (%s@%s) is now an operator on %s as %s (entry checked here): %s", u.Nick, u.TrueIdent(), u.RealHost, u.Server, o.Account, v.flags)
 	}
 	switch {
 	case o == nil || !operHostOK(o, u):
@@ -224,7 +224,7 @@ func (s *Server) recheckRemoteOpers(id int64, class string) {
 		if why != "" {
 			delete(s.links.remoteOpers, uid)
 			s.operAnswer(uid, "DEOPER :"+why)
-			s.snotice("%s on %s is no longer an operator: entry changed here", u.Nick, u.Server)
+			s.sno('O', "%s on %s is no longer an operator: entry changed here", u.Nick, u.Server)
 			continue
 		}
 		v := s.viewOf(o)
@@ -292,7 +292,7 @@ func (s *Server) operAnswered(l *linkConn, m irc.Message) {
 			numeric = irc.ErrNoOperHost
 		}
 		s.reply(c, numeric, text)
-		s.snotice("Failed /oper as %s from %s (%s@%s): %s (checked on the services server)", name, u.Nick, u.Ident, u.RealHost, text)
+		s.sno('o', "Failed /oper as %s from %s (%s@%s): %s (checked on the services server)", name, u.Nick, u.Ident, u.RealHost, text)
 	case m.Params[1] == "OK":
 		var g operGrant
 		if json.Unmarshal([]byte(text), &g) != nil || g.Flags == "" {

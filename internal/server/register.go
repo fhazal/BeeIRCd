@@ -319,7 +319,7 @@ func (s *Server) tryRegister(c *Client) {
 		// Over its IP's limit at connect; now the hostname is known.
 		c.sessionLate = false
 		if n, max := s.sessions(c.ip), s.svc.SessionLimitFor(c.ip, c.host); n > max {
-			s.snotice("Too many connections from %s (%d, the limit is %d)", c.ip, n, max)
+			s.sno('a', "Too many connections from %s (%d, the limit is %d)", c.ip, n, max)
 			s.quit(c, fmt.Sprintf("Too many connections from your IP (the limit is %d)", max))
 			return
 		}
@@ -366,7 +366,7 @@ func (s *Server) tryRegister(c *Client) {
 	k := s.svc.ConnectBan(c.ident, c.host, c.ip, c.realname, a != nil)
 	switch {
 	case k != nil && k.Soft():
-		s.snotice("%s %s holds %s (%s@%s) for a login", strings.ToUpper(k.Kind), k.Mask, c.nick, c.ident, c.host)
+		s.sno('x', "%s %s holds %s (%s@%s) for a login", strings.ToUpper(k.Kind), k.Mask, c.nick, c.ident, c.host)
 		s.authPrompt(c, k.Reason)
 		return
 	case k == nil && a == nil && c.softReason != "":
@@ -375,7 +375,7 @@ func (s *Server) tryRegister(c *Client) {
 	}
 	if k != nil {
 		s.reply(c, irc.ErrYoureBannedCreep, "You are banned from this network: "+k.Reason)
-		s.snotice("%s %s stopped %s (%s@%s)", strings.ToUpper(k.Kind), k.Mask, c.nick, c.ident, c.host)
+		s.sno('x', "%s %s stopped %s (%s@%s)", strings.ToUpper(k.Kind), k.Mask, c.nick, c.ident, c.host)
 		s.quit(c, "Banned: "+k.Reason)
 		return
 	}
@@ -412,7 +412,7 @@ func (s *Server) tryRegister(c *Client) {
 	if c.webirc != "" {
 		connect += " (WEBIRC " + c.webirc + ")"
 	}
-	s.snoticeOnly(connect)
+	s.snoOnly('c', connect)
 	s.svc.LogUserConnect(u)
 	s.welcome(c)
 	s.autoJoin(c)
@@ -443,7 +443,7 @@ func (s *Server) welcome(c *Client) {
 		s.reply(c, irc.RplHostHidden, u.Host, "is now your displayed host")
 	}
 	if m := s.cfg.Server.ConnectModes; m != "" {
-		s.setUserModes(c, c.uid, m)
+		s.setUserModeLine(c, c.uid, m)
 	}
 }
 

@@ -69,7 +69,7 @@ func (s *Services) os(c *Client, format string, a ...any) {
 // audit notes who changed what, for the log and opers with +s.
 func (s *Services) audit(c *Client, sv *service, format string, a ...any) {
 	c.logged = true // a change was made (the Hive Panel's stand-in reads it)
-	s.snotice("%s used %s: %s", c.user.Nick, sv.user.Nick, fmt.Sprintf(format, a...))
+	s.snotice('a', "%s used %s: %s", c.user.Nick, sv.user.Nick, fmt.Sprintf(format, a...))
 }
 
 func durWords(d time.Duration) string {

@@ -227,7 +227,7 @@ func (s *Server) remoteUser(l *linkConn, source string, in *link.User) {
 		// One server never has two users with one nick, so the one we
 		// hold is a ghost: we missed how it left. Drop it here; killing
 		// the real user over it would be wrong.
-		s.snotice("Dropped stale %s (%s): %s introduced the nick again as %s", ex.Nick, ex.UID, home.name, in.UID)
+		s.sno('l', "Dropped stale %s (%s): %s introduced the nick again as %s", ex.Nick, ex.UID, home.name, in.UID)
 		s.emitQuiet(&state.UserQuit{UID: ex.UID, Reason: "Gone (" + home.name + " has the nick again)"})
 	}
 	if ex := s.net.UserByNick(in.Nick); ex != nil {
@@ -295,11 +295,11 @@ func (s *Server) collide(l *linkConn, ex *state.User, in *link.User, inServer st
 	}
 	switch {
 	case exWins:
-		s.snotice("Nick collision on %s: %s (%s) keeps it, %s (%s) %s", in.Nick, ex.UID, exServer, in.UID, inServer, how)
+		s.sno('l', "Nick collision on %s: %s (%s) keeps it, %s (%s) %s", in.Nick, ex.UID, exServer, in.UID, inServer, how)
 	case inWins:
-		s.snotice("Nick collision on %s: %s (%s) keeps it, %s (%s) %s", in.Nick, in.UID, inServer, ex.UID, exServer, how)
+		s.sno('l', "Nick collision on %s: %s (%s) keeps it, %s (%s) %s", in.Nick, in.UID, inServer, ex.UID, exServer, how)
 	default:
-		s.snotice("Nick collision on %s: %s (%s) and %s (%s) both %s (same time)", in.Nick, ex.UID, exServer, in.UID, inServer, how)
+		s.sno('l', "Nick collision on %s: %s (%s) and %s (%s) both %s (same time)", in.Nick, ex.UID, exServer, in.UID, inServer, how)
 	}
 	if rename {
 		if !exWins {
@@ -454,7 +454,7 @@ func (s *Server) remoteSJoin(l *linkConn, source string, c *link.Channel) {
 	if ch != nil {
 		switch {
 		case c.TS < ch.TS:
-			s.snotice("Channel %s: %s has it from %s, older than ours; our modes and ranks are dropped", ch.Name, src.name, time.Unix(c.TS, 0).UTC().Format(time.DateTime))
+			s.sno('l', "Channel %s: %s has it from %s, older than ours; our modes and ranks are dropped", ch.Name, src.name, time.Unix(c.TS, 0).UTC().Format(time.DateTime))
 			s.clearChannel(l, ch, src.name)
 			s.emitFrom(l, src.sid, &state.ChannelTS{Channel: ch.Name, TS: c.TS})
 		case c.TS == ch.TS:

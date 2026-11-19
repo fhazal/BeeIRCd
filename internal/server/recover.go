@@ -49,6 +49,6 @@ func (s *Server) reportPanic(where string, r any) {
 	s.log.Printf("PANIC in %s: %v\n%s", where, r, debug.Stack())
 	func() {
 		defer func() { _ = recover() }() // never panic while reporting one
-		s.snotice("Internal error in %s: %v (the server kept running; see the log)", where, r)
+		s.sno('a', "Internal error in %s: %v (the server kept running; see the log)", where, r)
 	}()
 }

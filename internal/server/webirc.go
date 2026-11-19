@@ -36,20 +36,20 @@ func (s *Server) cmdWebirc(c *Client, m irc.Message) {
 	gw := c.ip
 	blocks := s.cfg.WebIRCFor(gw)
 	if len(blocks) == 0 {
-		s.snoticeEvery("webirc-host:"+gw, time.Minute, "WEBIRC from %s refused: not a [[webirc]] gateway host", gw)
+		s.snoticeEvery("webirc-host:"+gw, time.Minute, 'a', "WEBIRC from %s refused: not a [[webirc]] gateway host", gw)
 		s.quit(c, "WEBIRC: this address is not a trusted gateway")
 		return
 	}
 	pw, name, flags := m.Param(0), m.Param(1), m.Param(4)
 	ip, ok := webircIP(m.Param(3))
 	if !ok {
-		s.snoticeEvery("webirc-ip:"+gw, time.Minute, "WEBIRC from %s (%s) refused: %q is not an IP", gw, name, m.Param(3))
+		s.snoticeEvery("webirc-ip:"+gw, time.Minute, 'a', "WEBIRC from %s (%s) refused: %q is not an IP", gw, name, m.Param(3))
 		s.quit(c, "WEBIRC: the IP is not valid")
 		return
 	}
 	host := webircHost(m.Param(2), ip)
 	refuse := func() {
-		s.snoticeEvery("webirc-pw:"+gw, time.Minute, "WEBIRC from %s (%s) refused: wrong password", gw, name)
+		s.snoticeEvery("webirc-pw:"+gw, time.Minute, 'a', "WEBIRC from %s (%s) refused: wrong password", gw, name)
 		s.quit(c, "WEBIRC: wrong password")
 	}
 	var hashed []config.WebIRC
@@ -115,7 +115,7 @@ func (s *Server) webircApply(c *Client, name, ip, host, flags string) {
 	s.log.Printf("webirc %s: %s is %s (%s)", name, old, ip, host)
 
 	if z := s.svc.ZlineFor(ip); z != nil {
-		s.snotice("ZLINE %s stopped a connection from %s (WEBIRC %s)", z.Mask, ip, name)
+		s.sno('a', "ZLINE %s stopped a connection from %s (WEBIRC %s)", z.Mask, ip, name)
 		s.quit(c, "Z-lined: "+z.Reason)
 		return
 	}
@@ -124,7 +124,7 @@ func (s *Server) webircApply(c *Client, name, ip, host, flags string) {
 		return
 	}
 	if n, max := s.sessions(ip), s.svc.SessionLimit(ip); n > max {
-		s.snotice("Too many connections from %s (%d, the limit is %d, WEBIRC %s)", ip, n, max, name)
+		s.sno('a', "Too many connections from %s (%d, the limit is %d, WEBIRC %s)", ip, n, max, name)
 		s.quit(c, fmt.Sprintf("Too many connections from your IP (the limit is %d)", max))
 		return
 	}

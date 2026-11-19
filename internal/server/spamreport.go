@@ -148,10 +148,10 @@ func (s *Server) reportSpam(t spamTarget, only, reason string, auto bool, done f
 				if err != nil {
 					delete(s.spamRep.last, strings.ToLower(r.Name)+" "+t.ip)
 					lines[i] = "Reporting " + t.who() + " to " + r.Name + " failed: " + err.Error()
-					s.snotice("Spam report of %s to %s failed: %v", t.who(), r.Name, err)
+					s.sno('a', "Spam report of %s to %s failed: %v", t.who(), r.Name, err)
 				} else {
 					lines[i] = "Reported " + t.who() + " to " + r.Name + "."
-					s.snotice("Reported %s to %s (%s)", t.who(), r.Name, reason)
+					s.sno('a', "Reported %s to %s (%s)", t.who(), r.Name, reason)
 				}
 				if waiting--; waiting == 0 {
 					done(lines)

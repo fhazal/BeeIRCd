@@ -138,7 +138,7 @@ func (s *Server) spamDo(c *Client, r *spamfilter.Rule, t byte, to, text string) 
 	if to != "" {
 		where += " to " + to
 	}
-	s.snoticeEvery("spamfilter:"+r.Key(), spamNoticeEvery, "Spam filter %d caught %s (%s, %s): %s",
+	s.snoticeEvery("spamfilter:"+r.Key(), spamNoticeEvery, 'f', "Spam filter %d caught %s (%s, %s): %s",
 		r.ID, who, where, actionName(r.Filter), irc.Truncate(text, 120))
 	reason := r.Reason
 	switch r.Action {

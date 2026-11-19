@@ -102,7 +102,7 @@ func (s *Server) operExtras(c *Client) {
 		s.motdLike(c, "IRC Operator Message of the Day", "OPERMOTD", lines)
 	}
 	if m := s.cfg.Server.OperModes; m != "" {
-		s.setUserModes(c, c.uid, m)
+		s.setUserModeLine(c, c.uid, m)
 	}
 	for _, name := range s.operJoins(c.operFlags) {
 		if s.clients[c.uid] != c || c.closed {

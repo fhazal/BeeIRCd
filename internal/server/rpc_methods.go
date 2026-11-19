@@ -539,7 +539,7 @@ func (s *Server) rpcUserSetMode(rc *rpcConn, params json.RawMessage) (any, *rpcE
 		}
 	}
 	if tc := s.clientOf(u); tc != nil {
-		if s.setUserModes(tc, s.svcBotUID(), p.Modes) {
+		if s.setUserModeLine(tc, s.svcBotUID(), p.Modes) {
 			return nil, rpcErr(rpcInvalidParams, "Unknown user mode in '%s' (the known ones were applied)", p.Modes)
 		}
 		return true, nil

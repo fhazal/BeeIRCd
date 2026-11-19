@@ -438,7 +438,7 @@ func (s *Server) cmdKline(c *Client, m irc.Message) {
 	if life > 0 {
 		until = "for " + life.String()
 	}
-	s.snotice("%s added a K-line on %s %s: %s (%d disconnected)", c.user.Nick, strings.ToLower(mask), until, reason, hit)
+	s.sno('x', "%s added a K-line on %s %s: %s (%d disconnected)", c.user.Nick, strings.ToLower(mask), until, reason, hit)
 	s.notice(c, fmt.Sprintf("*** K-line on %s added %s.", strings.ToLower(mask), until))
 }
 
@@ -459,7 +459,7 @@ func (s *Server) cmdUnkline(c *Client, m irc.Message) {
 	case !gone:
 		s.stdReply(c, "FAIL", "UNKLINE", "NO_SUCH_KLINE", "There is no K-line on "+m.Params[0]+".", "", m.Params[0])
 	default:
-		s.snotice("%s removed the K-line on %s", c.user.Nick, strings.ToLower(m.Params[0]))
+		s.sno('x', "%s removed the K-line on %s", c.user.Nick, strings.ToLower(m.Params[0]))
 		s.notice(c, "*** K-line on "+strings.ToLower(m.Params[0])+" removed.")
 	}
 }

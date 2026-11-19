@@ -313,7 +313,7 @@ func (s *Server) linkPortFailed(addr net.Addr, why string) {
 	s.noticeAt[key] = now
 	text := fmt.Sprintf("Server connection from %s failed: %s", ip, why)
 	s.rpcLog(text, "link")
-	s.snoticeOpers(text)
+	s.snoticeOpers('l', text)
 }
 
 // isTimeout reports whether err is a dial or handshake running out of time.

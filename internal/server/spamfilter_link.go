@@ -80,6 +80,6 @@ func (s *Server) remoteSpam(l *linkConn, raw irc.Message, it *link.SpamFilter) {
 		if !it.Add {
 			how = "removed"
 		}
-		s.snotice("Spam filter %s %s by %s (from %s)", it.Match, how, it.SetBy, l.peer.Name)
+		s.sno('f', "Spam filter %s %s by %s (from %s)", it.Match, how, it.SetBy, l.peer.Name)
 	}
 }

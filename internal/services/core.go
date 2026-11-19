@@ -34,8 +34,9 @@ type Host interface {
 	Numeric(uid, code string, params ...string)
 	// ServerNotice sends a notice from the server to uid.
 	ServerNotice(uid, text string)
-	// Snotice tells opers with +s and writes to the log.
-	Snotice(text string)
+	// Snotice tells the opers whose snomask has letter and writes to the
+	// log.
+	Snotice(letter byte, text string)
 	// Disconnect closes uid's connection with reason as quit message.
 	Disconnect(uid, reason string)
 	// Kill is an oper-style KILL of uid by by.
@@ -426,8 +427,8 @@ func (s *Services) reply(c *Client, code string, params ...string) {
 }
 func (s *Services) notice(c *Client, text string) { s.host.ServerNotice(c.user.UID, text) }
 func (s *Services) quit(c *Client, reason string) { s.host.Disconnect(c.user.UID, reason) }
-func (s *Services) snotice(format string, a ...any) {
-	s.host.Snotice(fmt.Sprintf(format, a...))
+func (s *Services) snotice(letter byte, format string, a ...any) {
+	s.host.Snotice(letter, fmt.Sprintf(format, a...))
 }
 func (s *Services) killUser(u *state.User, by, reason string) { s.host.Kill(u.UID, by, reason) }
 func (s *Services) isAdminAccount(a *store.Account) bool      { return s.host.IsAdminAccount(a) }

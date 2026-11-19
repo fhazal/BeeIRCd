@@ -59,15 +59,16 @@ func (s *Server) userMode(c *Client, m irc.Message) {
 		s.replyBare(c, irc.RplUModeIs, u.ModeString())
 		return
 	}
-	if s.setUserModes(c, u.UID, m.Params[1]) {
+	if s.setUserModes(c, u.UID, m.Params[1], m.Params[2:]...) {
 		s.reply(c, irc.ErrUModeUnknownFlag, "Unknown MODE flag")
 	}
 }
 
 // setUserModes changes c's user modes as the MODE command allows (+o only
 // ever goes; +s needs an oper; +r is for services), sent by srcUID (the
-// user, or OperServ for UMODE). It reports an unknown mode letter.
-func (s *Server) setUserModes(c *Client, srcUID, modeStr string) bool {
+// user, or OperServ for UMODE). +s takes the snomask change from args
+// when there is one, like InspIRCd. It reports an unknown mode letter.
+func (s *Server) setUserModes(c *Client, srcUID, modeStr string, args ...string) bool {
 	u := c.user
 	// cur is the modes as they will be; the event changes the real ones.
 	cur := make(map[byte]bool, len(u.Modes))
@@ -75,6 +76,10 @@ func (s *Server) setUserModes(c *Client, srcUID, modeStr string) bool {
 		cur[k] = v
 	}
 	add, unknown, deopered := true, false, false
+	sno, snoSet := c.snomask, false // the snomask as it will be, and whether +s/-s touched it
+	if sno == "" && cur['s'] {
+		sno = snomaskDefault
+	}
 	var changes []state.ModeChange
 	flip := func(mc byte, on bool) {
 		setFlag(cur, mc, on)
@@ -127,8 +132,32 @@ func (s *Server) setUserModes(c *Client, srcUID, modeStr string) bool {
 		case 'z':
 			// Set by the server for TLS connections; nobody changes it.
 		case 's':
-			if c.isOper() && !deopered && cur['s'] != add {
-				flip('s', add)
+			// Server notices (snomask.go). +s without letters gives the
+			// default mask when none is set; +s <letters> changes the
+			// mask ("+cq-k", or "cqk" to add); an empty mask is -s.
+			if !add {
+				if cur['s'] {
+					flip('s', false)
+				}
+				sno, snoSet = "", true
+				continue
+			}
+			change, has := "", false
+			if len(args) > 0 {
+				change, has, args = args[0], true, args[1:]
+			}
+			if !c.isOper() || deopered {
+				continue
+			}
+			switch {
+			case has:
+				sno = applySnomask(sno, change)
+			case sno == "":
+				sno = snomaskDefault
+			}
+			snoSet = true
+			if (sno != "") != cur['s'] {
+				flip('s', sno != "")
 			}
 		case 'x':
 			if s.cfg.CloakEnabled() && cur['x'] != add {
@@ -146,10 +175,16 @@ func (s *Server) setUserModes(c *Client, srcUID, modeStr string) bool {
 	if deopered {
 		c.operFlags, c.operTitle, c.operAccount, c.operSwhois, c.operClass = "", "", 0, nil, ""
 		u.OperClass, u.OperName = "", ""
+		c.snomask = ""
 		delete(s.opers, c)
 		c.noLag.Store(false)
 		s.showOperVhost(c, "")
-		s.snotice("%s is no longer an operator", u.Nick)
+		s.sno('o', "%s is no longer an operator", u.Nick)
+	} else if snoSet {
+		c.snomask = sno
+		if sno != "" {
+			s.replySnomask(c)
+		}
 	}
 	if s.cfg.CloakEnabled() && !s.svc.VHostOn(c.uid) && c.operVhost == "" { // a HostServ or oper vhost stays over +x/-x
 		host := u.RealHost

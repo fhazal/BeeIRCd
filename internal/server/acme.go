@@ -94,7 +94,7 @@ func (s *Server) acmeLoop(cfg acmecert.Config) {
 				if l := s.certs.Leaf(); l != nil {
 					keep += ", valid until " + l.NotAfter.Format("2 Jan 2006")
 				}
-				s.snotice("Let's Encrypt failed for %s: %s; %s, next try in %s", names, msg, keep, fmtWait(wait))
+				s.sno('a', "Let's Encrypt failed for %s: %s; %s, next try in %s", names, msg, keep, fmtWait(wait))
 			})
 			continue
 		}
@@ -102,7 +102,7 @@ func (s *Server) acmeLoop(cfg acmecert.Config) {
 		s.post(func() {
 			s.acme.fails, s.acme.lastErr, s.acme.retryAt = 0, "", time.Time{}
 			s.certErr = ""
-			s.snotice("Let's Encrypt: new certificate for %s, valid until %s", names, leaf.NotAfter.Format("2 Jan 2006"))
+			s.sno('a', "Let's Encrypt: new certificate for %s, valid until %s", names, leaf.NotAfter.Format("2 Jan 2006"))
 		})
 	}
 }

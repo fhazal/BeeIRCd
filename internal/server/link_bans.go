@@ -148,7 +148,7 @@ func (s *Server) remoteBan(l *linkConn, raw irc.Message, b *link.Ban) {
 		if !b.Add {
 			how = "removed"
 		}
-		s.snotice("%s %s %s by %s (from %s): %s", strings.ToUpper(kind), nb.Mask, how, nb.SetBy, l.peer.Name, nb.Reason)
+		s.sno('X', "%s %s %s by %s (from %s): %s", strings.ToUpper(kind), nb.Mask, how, nb.SetBy, l.peer.Name, nb.Reason)
 	}
 }
 

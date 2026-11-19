@@ -239,7 +239,7 @@ func (s *Server) cmdChgname(c *Client, m irc.Message) {
 	if t == nil {
 		return
 	}
-	s.snotice("CHGNAME: %s changed the realname of %s to be %s", c.user.Nick, t.Nick, m.Params[1])
+	s.sno('a', "CHGNAME: %s changed the realname of %s to be %s", c.user.Nick, t.Nick, m.Params[1])
 	s.emit(&state.RealnameChange{UID: t.UID, Realname: m.Params[1]})
 }
 
@@ -323,7 +323,7 @@ func (s *Server) cmdSethost(c *Client, m irc.Message) {
 	}
 	s.changeHost(c, host, "")
 	s.notice(c, "Your nick!user@host-mask is now ("+c.user.Prefix()+")")
-	s.snotice("%s used SETHOST to change their displayed host to %s", c.user.Nick, host)
+	s.sno('a', "%s used SETHOST to change their displayed host to %s", c.user.Nick, host)
 }
 
 func (s *Server) cmdSetident(c *Client, m irc.Message) {
@@ -337,7 +337,7 @@ func (s *Server) cmdSetident(c *Client, m irc.Message) {
 	}
 	s.changeHost(c, "", id)
 	s.notice(c, "Your nick!user@host-mask is now ("+c.user.Prefix()+")")
-	s.snotice("%s used SETIDENT to change their username to %s", c.user.Nick, id)
+	s.sno('a', "%s used SETIDENT to change their username to %s", c.user.Nick, id)
 }
 
 func (s *Server) cmdChghost(c *Client, m irc.Message) {
@@ -354,7 +354,7 @@ func (s *Server) cmdChghost(c *Client, m irc.Message) {
 		return
 	}
 	s.chgHost(t, host, "")
-	s.snotice("CHGHOST: %s changed the virtual hostname of %s (%s@%s) to be %s", c.user.Nick, t.Nick, t.TrueIdent(), t.RealHost, host)
+	s.sno('a', "CHGHOST: %s changed the virtual hostname of %s (%s@%s) to be %s", c.user.Nick, t.Nick, t.TrueIdent(), t.RealHost, host)
 }
 
 func (s *Server) cmdChgident(c *Client, m irc.Message) {
@@ -371,7 +371,7 @@ func (s *Server) cmdChgident(c *Client, m irc.Message) {
 		return
 	}
 	s.chgHost(t, "", id)
-	s.snotice("CHGIDENT: %s changed the username of %s (%s@%s) to be %s", c.user.Nick, t.Nick, t.TrueIdent(), t.RealHost, id)
+	s.sno('a', "CHGIDENT: %s changed the username of %s (%s@%s) to be %s", c.user.Nick, t.Nick, t.TrueIdent(), t.RealHost, id)
 }
 
 // ---- SA commands (oper flag a) ----
@@ -402,7 +402,7 @@ func (s *Server) cmdSajoin(c *Client, m irc.Message) {
 	if len(joined) > 0 {
 		list := strings.Join(joined, ",")
 		s.notice(t, "*** You were forced to join "+list)
-		s.snotice("SAJOIN: %s used SAJOIN to make %s join %s", c.user.Nick, t.user.Nick, list)
+		s.sno('a', "SAJOIN: %s used SAJOIN to make %s join %s", c.user.Nick, t.user.Nick, list)
 	}
 }
 
@@ -435,10 +435,10 @@ func (s *Server) cmdSapart(c *Client, m irc.Message) {
 	list := strings.Join(parted, ",")
 	if reason != "" {
 		s.notice(t, "*** You were forced to part "+list+" ("+reason+")")
-		s.snotice("SAPART: %s used SAPART to make %s part %s (%s)", c.user.Nick, t.user.Nick, list, reason)
+		s.sno('a', "SAPART: %s used SAPART to make %s part %s (%s)", c.user.Nick, t.user.Nick, list, reason)
 	} else {
 		s.notice(t, "*** You were forced to part "+list)
-		s.snotice("SAPART: %s used SAPART to make %s part %s", c.user.Nick, t.user.Nick, list)
+		s.sno('a', "SAPART: %s used SAPART to make %s part %s", c.user.Nick, t.user.Nick, list)
 	}
 }
 
@@ -461,10 +461,10 @@ func (s *Server) cmdSanick(c *Client, m irc.Message) {
 	}
 	old := t.user.Nick
 	if err := s.emit(&state.NickChange{UID: t.uid, Nick: nick, TS: time.Now().Unix()}); err != nil {
-		s.snotice("%s failed SANICK (from %s to %s)", c.user.Nick, old, nick)
+		s.sno('a', "%s failed SANICK (from %s to %s)", c.user.Nick, old, nick)
 		return
 	}
-	s.snotice("%s used SANICK to change %s to %s", c.user.Nick, old, nick)
+	s.sno('a', "%s used SANICK to change %s to %s", c.user.Nick, old, nick)
 }
 
 func (s *Server) cmdSamode(c *Client, m irc.Message) {
@@ -481,8 +481,8 @@ func (s *Server) cmdSamode(c *Client, m irc.Message) {
 		if t == nil {
 			return
 		}
-		s.setUserModes(t, c.uid, m.Params[1])
-		s.snotice("%s used SAMODE: %s %s", c.user.Nick, t.user.Nick, text)
+		s.setUserModes(t, c.uid, m.Params[1], m.Params[2:]...)
+		s.sno('a', "%s used SAMODE: %s %s", c.user.Nick, t.user.Nick, text)
 		return
 	}
 	ch := s.net.Channel(m.Params[0])
@@ -491,7 +491,7 @@ func (s *Server) cmdSamode(c *Client, m irc.Message) {
 		return
 	}
 	s.applyChannelModes(c, c.user, ch, servicesRank, m.Params[1], m.Params[2:])
-	s.snotice("%s used SAMODE: %s %s", c.user.Nick, ch.Name, text)
+	s.sno('a', "%s used SAMODE: %s %s", c.user.Nick, ch.Name, text)
 }
 
 func (s *Server) cmdSatopic(c *Client, m irc.Message) {
@@ -510,5 +510,5 @@ func (s *Server) cmdSatopic(c *Client, m irc.Message) {
 		return
 	}
 	s.emit(&state.Topic{Source: c.uid, Channel: ch.Name, Text: topic, By: c.user.Nick, At: time.Now()})
-	s.snotice("%s used SATOPIC on %s, new topic: %s", c.user.Nick, ch.Name, topic)
+	s.sno('a', "%s used SATOPIC on %s, new topic: %s", c.user.Nick, ch.Name, topic)
 }

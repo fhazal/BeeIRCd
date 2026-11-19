@@ -194,15 +194,15 @@ func (s *Server) throttleNew(u *state.User, now time.Time) string {
 		n.refused++
 		if !n.refusing {
 			n.refusing = true
-			s.snotice("[ConnThrottle] Connection throttling has been ACTIVATED due to a HIGH CONNECTION RATE.")
-			s.snotice("[ConnThrottle] Users with IP addresses that have not been seen before will be rejected above the set connection rate. Known users can still get in.")
+			s.sno('a', "[ConnThrottle] Connection throttling has been ACTIVATED due to a HIGH CONNECTION RATE.")
+			s.sno('a', "[ConnThrottle] Users with IP addresses that have not been seen before will be rejected above the set connection rate. Known users can still get in.")
 		}
-		s.snoticeEvery("connthrottle-refused", time.Minute, "[ConnThrottle] %d new connections refused so far", n.refused)
+		s.snoticeEvery("connthrottle-refused", time.Minute, 'a', "[ConnThrottle] %d new connections refused so far", n.refused)
 		return t.Message()
 	}
 	if n.refusing && n.local == 0 && n.global == 0 {
 		n.refusing = false
-		s.snotice("[ConnThrottle] Connection throttling ended: %d people were refused.", n.refused)
+		s.sno('a', "[ConnThrottle] Connection throttling ended: %d people were refused.", n.refused)
 		n.refused = 0
 	}
 	n.local++
@@ -258,13 +258,13 @@ func (s *Server) cmdThrottle(c *Client, m irc.Message) {
 		}
 	case "OFF":
 		s.nut.off = true
-		s.snotice("%s turned the new-user throttle off", c.user.Nick)
+		s.sno('a', "%s turned the new-user throttle off", c.user.Nick)
 	case "ON":
 		s.nut.off = false
-		s.snotice("%s turned the new-user throttle on", c.user.Nick)
+		s.sno('a', "%s turned the new-user throttle on", c.user.Nick)
 	case "RESET":
 		s.nut = newUserThrottle{off: s.nut.off}
-		s.snotice("%s reset the new-user throttle counts", c.user.Nick)
+		s.sno('a', "%s reset the new-user throttle counts", c.user.Nick)
 	default:
 		s.notice(c, "THROTTLE [STATUS|ON|OFF|RESET]")
 	}

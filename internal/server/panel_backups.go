@@ -55,7 +55,7 @@ func (s *Server) panelBackupGet(req control.Request, done func(control.Response)
 		switch res {
 		case services.PwOK:
 			s.panelEvent(po.Account, req.IP, "downloaded backup "+name)
-			s.snotice("Hive Panel: %s downloaded backup %s from %s", po.Account, name, req.IP)
+			s.sno('a', "Hive Panel: %s downloaded backup %s from %s", po.Account, name, req.IP)
 			done(control.Response{Backup: &control.Backup{File: path, Bytes: fi.Size()}})
 		case services.PwLocked:
 			done(control.Response{Error: "Too many wrong passwords for this oper. Try again in " + services.RoundUp(s.lockedFor(key, req.IP)) + "."})
@@ -63,7 +63,7 @@ func (s *Server) panelBackupGet(req control.Request, done func(control.Response)
 			done(control.Response{Error: "The login server can't be reached right now. Try again in a moment."})
 		default:
 			s.panelEvent(po.Account, req.IP, "could not download backup "+name+": wrong password")
-			s.snotice("Hive Panel: wrong password for %s's backup download from %s", po.Account, req.IP)
+			s.sno('a', "Hive Panel: wrong password for %s's backup download from %s", po.Account, req.IP)
 			done(control.Response{Error: "Wrong password."})
 		}
 	})

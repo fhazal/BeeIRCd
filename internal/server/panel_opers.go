@@ -200,7 +200,7 @@ func (s *Server) panelOperSave(po *control.PanelOper, ip string, req control.Req
 		what = "made " + a.Name + " an oper"
 	}
 	s.panelEvent(po.Account, ip, what+" ("+orNone(newAll)+")")
-	s.snotice("Hive Panel: %s %s: class %s, flags %s, from %s", po.Account, what, orNone(o.Class), orNone(newAll), strings.Join(hosts, " "))
+	s.sno('a', "Hive Panel: %s %s: class %s, flags %s, from %s", po.Account, what, orNone(o.Class), orNone(newAll), strings.Join(hosts, " "))
 	return control.Response{Changed: &control.Changed{Name: a.Name, Old: oldAll, New: newAll, ID: id}}
 }
 
@@ -231,7 +231,7 @@ func (s *Server) panelOperDel(po *control.PanelOper, ip, name string) control.Re
 	id := s.recordBy(po.Account+" (Hive Panel)", "oper", a.Name, encodeOper(cur), "")
 	s.recheckOpers(a.ID)
 	s.panelEvent(po.Account, ip, "removed "+a.Name+" as an oper")
-	s.snotice("Hive Panel: %s removed %s as an oper", po.Account, a.Name)
+	s.sno('a', "Hive Panel: %s removed %s as an oper", po.Account, a.Name)
 	return control.Response{Changed: &control.Changed{Name: a.Name, Old: all, ID: id}}
 }
 

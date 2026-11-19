@@ -72,7 +72,7 @@ func osDefcon(s *Services, c *Client, args []string) {
 				s.host.Notice(s.global.user.UID, oc.user.UID, text)
 			}
 		}
-		s.snotice("%s changed the DEFCON level to %d (%s)", c.user.Nick, n, defconWords[n])
+		s.snotice('a', "%s changed the DEFCON level to %d (%s)", c.user.Nick, n, defconWords[n])
 	}
 }
 

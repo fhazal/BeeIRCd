@@ -133,7 +133,7 @@ func (s *Server) relayOper(c *Client, m irc.Message, beeOnly bool) bool {
 		case !irc.EqualFold(nick, t.Nick) && s.net.NickInUse(nick):
 			s.reply(c, irc.ErrNicknameInUse, nick, "Nickname is already in use")
 		case s.sendRemote(t.UID, &link.ForceNick{Source: s.svcSource(), UID: t.UID, Nick: nick, TS: time.Now().Unix()}):
-			s.snotice("%s used SANICK to change %s (on %s) to %s", c.user.Nick, t.Nick, t.Server, nick)
+			s.sno('a', "%s used SANICK to change %s (on %s) to %s", c.user.Nick, t.Nick, t.Server, nick)
 		}
 	case o.bridge != nil && m.Command != "SANICK":
 		// InspIRCd takes one channel in each SAJOIN or SAPART.
@@ -147,12 +147,12 @@ func (s *Server) relayOper(c *Client, m irc.Message, beeOnly bool) bool {
 			}
 			o.send(line)
 		}
-		s.snotice("%s used %s on %s (on %s): %s", c.user.Nick, m.Command, t.Nick, t.Server, strings.Join(m.Params[1:], " "))
+		s.sno('a', "%s used %s on %s (on %s): %s", c.user.Nick, m.Command, t.Nick, t.Server, strings.Join(m.Params[1:], " "))
 	default:
 		p := append([]string{}, m.Params...)
 		p[idx] = t.UID
 		o.send(":" + c.uid + " " + m.Command + " " + strings.Join(p[:len(p)-1], " ") + " :" + p[len(p)-1])
-		s.snotice("%s used %s on %s (on %s): %s", c.user.Nick, m.Command, t.Nick, t.Server, strings.Join(m.Params[1:], " "))
+		s.sno('a', "%s used %s on %s (on %s): %s", c.user.Nick, m.Command, t.Nick, t.Server, strings.Join(m.Params[1:], " "))
 	}
 	return true
 }
@@ -224,7 +224,7 @@ func (s *Server) farSanick(l *linkConn, m irc.Message) {
 	if err := s.emit(&state.NickChange{UID: t.UID, Nick: nick, TS: time.Now().Unix()}); err != nil {
 		return
 	}
-	s.snotice("%s used SANICK to change %s to %s", from.Nick, old, nick)
+	s.sno('a', "%s used SANICK to change %s to %s", from.Nick, old, nick)
 }
 
 // ---- SA commands ----
@@ -253,7 +253,7 @@ func (s *Server) cmdSakick(c *Client, m irc.Message) {
 	}
 	name, nick := ch.Name, t.Nick
 	s.emit(&state.Kick{UID: t.UID, Channel: name, Reason: reason})
-	s.snotice("%s used SAKICK to kick %s from %s (%s)", c.user.Nick, nick, name, reason)
+	s.sno('a', "%s used SAKICK to kick %s from %s (%s)", c.user.Nick, nick, name, reason)
 }
 
 // cmdSaquit is SAQUIT nick reason (oper flag a).
@@ -271,7 +271,7 @@ func (s *Server) cmdSaquit(c *Client, m irc.Message) {
 		return
 	}
 	if tc := s.clientOf(t); tc != nil {
-		s.snotice("%s used SAQUIT to make %s quit (%s)", c.user.Nick, t.Nick, reason)
+		s.sno('a', "%s used SAQUIT to make %s quit (%s)", c.user.Nick, t.Nick, reason)
 		s.quit(tc, reason)
 		return
 	}
@@ -312,7 +312,7 @@ func (s *Server) cmdClearchan(c *Client, m irc.Message) {
 	}
 	sort.Slice(targets, func(i, k int) bool { return targets[i].UID < targets[k].UID })
 	name, by := ch.Name, c.user.Nick
-	s.snotice("%s used CLEARCHAN %s on %s (%d to remove): %s", by, how, name, len(targets), reason)
+	s.sno('a', "%s used CLEARCHAN %s on %s (%d to remove): %s", by, how, name, len(targets), reason)
 	for _, t := range targets {
 		switch how {
 		case "KICK":
@@ -362,7 +362,7 @@ func (s *Server) cmdNicklock(c *Client, m irc.Message) {
 	t.nickLocked = true
 	s.reply(c, rplNickLockOn, nick, "Nickname now locked.")
 	s.notice(t, "*** Your nickname is now "+nick+" and locked: you can't change it until an IRC operator unlocks it.")
-	s.snotice("%s used NICKLOCK to change and hold the nick of %s to %s", c.user.Nick, old, nick)
+	s.sno('a', "%s used NICKLOCK to change and hold the nick of %s to %s", c.user.Nick, old, nick)
 }
 
 // cmdNickunlock is NICKUNLOCK nick (oper flag a).
@@ -381,7 +381,7 @@ func (s *Server) cmdNickunlock(c *Client, m irc.Message) {
 	t.nickLocked = false
 	s.reply(c, rplNickLockOff, t.user.Nick, "Nickname now unlocked.")
 	s.notice(t, "*** Your nickname is unlocked: you can change it again.")
-	s.snotice("%s used NICKUNLOCK on %s", c.user.Nick, t.user.Nick)
+	s.sno('a', "%s used NICKUNLOCK on %s", c.user.Nick, t.user.Nick)
 }
 
 // cmdSetidle is SETIDLE <seconds|30m|2h> (opers): your own idle time.
@@ -401,7 +401,7 @@ func (s *Server) cmdSetidle(c *Client, m irc.Message) {
 	}
 	c.lastMsg = time.Now().Add(-d)
 	s.reply(c, rplIdleTimeSet, "Idle time set.")
-	s.snotice("%s used SETIDLE to set their idle time to %s", c.user.Nick, d)
+	s.sno('a', "%s used SETIDLE to set their idle time to %s", c.user.Nick, d)
 }
 
 // ---- TRACE ----
@@ -685,7 +685,7 @@ func (s *Server) cmdSdesc(c *Client, m irc.Message) {
 	s.cfg.Server.Description = text
 	s.linkBroadcast(nil, ":"+c.uid+" SDESC :"+text)
 	s.notice(c, "*** The description of "+s.cfg.Server.Name+" is now: "+text)
-	s.snotice("Server description for %s is now '%s' (changed by %s)", s.cfg.Server.Name, text, c.user.Nick)
+	s.sno('a', "Server description for %s is now '%s' (changed by %s)", s.cfg.Server.Name, text, c.user.Nick)
 }
 
 // remoteSdesc is SDESC from an oper elsewhere: their server's new
@@ -759,7 +759,7 @@ func (s *Server) cmdJumpserver(c *Client, m irc.Message) {
 			return
 		}
 		s.jump = nil
-		s.snotice("%s turned JUMPSERVER off: people can connect here again", c.user.Nick)
+		s.sno('a', "%s turned JUMPSERVER off: people can connect here again", c.user.Nick)
 		s.notice(c, "*** JumpServer is now off.")
 		return
 	}
@@ -795,7 +795,7 @@ func (s *Server) cmdJumpserver(c *Client, m irc.Message) {
 	if all {
 		who = "everyone (and new connections)"
 	}
-	s.snotice("%s set JUMPSERVER: %s go to %s (%s)", c.user.Nick, who, j.String(), j.reason)
+	s.sno('a', "%s set JUMPSERVER: %s go to %s (%s)", c.user.Nick, who, j.String(), j.reason)
 	s.notice(c, "*** JumpServer is on: "+who+" go to "+j.String()+". JUMPSERVER OFF ends it.")
 	if !all {
 		return

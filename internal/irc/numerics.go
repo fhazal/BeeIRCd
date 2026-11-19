@@ -7,6 +7,7 @@ const (
 	RplCreated       = "003"
 	RplMyInfo        = "004"
 	RplISupport      = "005"
+	RplSnomask       = "008" // InspIRCd: the server notice mask
 	RplUModeIs       = "221"
 	RplLuserClient   = "251"
 	RplLuserOp       = "252"

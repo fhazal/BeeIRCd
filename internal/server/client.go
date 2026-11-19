@@ -102,6 +102,7 @@ type Client struct {
 	operSwhois  []string  // extra WHOIS lines (320) while opered
 	operVhost   string    // host shown because of the oper entry
 	operAccount int64     // the oper entry (account ID) c opered with
+	snomask     string    // server notice letters (snomask.go), "" = none set
 	confirm     string    // confirms AdminServ RESTART and DIE
 	confirmTill time.Time // confirm is valid until then
 
@@ -155,7 +156,7 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 	go c.writeLoop()
 	go c.readLoop()
 	if z := s.svc.ZlineFor(ip); z != nil {
-		s.snotice("ZLINE %s stopped a connection from %s", z.Mask, ip)
+		s.sno('a', "ZLINE %s stopped a connection from %s", z.Mask, ip)
 		s.quit(c, "Z-lined: "+z.Reason)
 		return
 	}
@@ -167,7 +168,7 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 		if s.cfg.ResolveHosts() && s.svc.HostExcepts() {
 			c.sessionLate = true // an exception on its hostname may still let it in
 		} else {
-			s.snotice("Too many connections from %s (%d, the limit is %d)", ip, n, max)
+			s.sno('a', "Too many connections from %s (%d, the limit is %d)", ip, n, max)
 			s.quit(c, fmt.Sprintf("Too many connections from your IP (the limit is %d)", max))
 			return
 		}
@@ -483,7 +484,7 @@ func (s *Server) quit(c *Client, reason string) {
 		s.emit(&state.UserQuit{UID: u.UID, Reason: reason})
 		s.log.Printf("quit %s (%s): %s", u.Nick, c.ip, reason)
 		quit := fmt.Sprintf("Quit: %s (%s@%s) [%s]", u.Nick, u.Ident, u.RealHost, reason)
-		s.snoticeOnly(quit)
+		s.snoOnly('q', quit)
 		s.svc.LogUserQuit(u, reason)
 	}
 	c.send("ERROR :Closing Link: " + c.host + " (" + reason + ")")

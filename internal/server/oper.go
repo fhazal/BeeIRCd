@@ -117,18 +117,20 @@ func (s *Server) operUpView(c *Client, o *store.Oper, v operView) {
 		s.linkOperInfo(nil, u.UID, v.class, v.flags, s.ownLook(v.title, v.swhois))
 		return
 	}
+	c.snomask = snomaskDefault
 	s.emit(&state.UserMode{UID: u.UID, Changes: umodes(true, "os")})
 	s.linkOperInfo(nil, u.UID, v.class, v.flags, s.ownLook(v.title, v.swhois))
 	s.reply(c, irc.RplYoureOper, "You are now an IRC operator")
+	s.replySnomask(c)
 	if v.class != "" {
 		s.notice(c, "*** Oper class "+v.class+": "+describeFlags(v.flags))
 	} else {
 		s.notice(c, "*** Oper flags: "+describeFlags(v.flags))
 	}
 	if v.class != "" {
-		s.snotice("%s (%s@%s) is now an operator as %s (class %s): %s", u.Nick, u.TrueIdent(), u.RealHost, o.Account, v.class, v.flags)
+		s.sno('o', "%s (%s@%s) is now an operator as %s (class %s): %s", u.Nick, u.TrueIdent(), u.RealHost, o.Account, v.class, v.flags)
 	} else {
-		s.snotice("%s (%s@%s) is now an operator as %s: %s", u.Nick, u.TrueIdent(), u.RealHost, o.Account, v.flags)
+		s.sno('o', "%s (%s@%s) is now an operator as %s: %s", u.Nick, u.TrueIdent(), u.RealHost, o.Account, v.flags)
 	}
 	s.svc.SendOperNews(c.uid)
 	s.operExtras(c)
@@ -143,6 +145,7 @@ func (s *Server) deoper(c *Client, why string) {
 	c.operFlags, c.operTitle, c.operAccount, c.operSwhois, c.operClass = "", "", 0, nil, ""
 	u.OperClass, u.OperName = "", ""
 	c.operVia = nil
+	c.snomask = ""
 	delete(s.opers, c)
 	c.noLag.Store(false)
 	s.showOperVhost(c, "")
@@ -157,7 +160,7 @@ func (s *Server) deoper(c *Client, why string) {
 	if why != "" {
 		s.notice(c, "*** "+why)
 	}
-	s.snotice("%s is no longer an operator", u.Nick)
+	s.sno('o', "%s is no longer an operator", u.Nick)
 }
 
 // recheckOpers runs after the oper entry of account id changed: everyone
@@ -186,35 +189,36 @@ func (s *Server) recheckOpers(id int64) {
 	s.recheckRemoteOpers(id, "")
 }
 
-// snotice sends a server notice to opers with +s and writes it to the log.
-func (s *Server) snotice(format string, a ...any) {
+// sno sends a server notice with letter to the opers whose snomask has
+// it, and writes it to the log.
+func (s *Server) sno(letter byte, format string, a ...any) {
 	text := fmt.Sprintf(format, a...)
 	s.log.Print(text)
-	s.snoticeOnly(text)
+	s.snoOnly(letter, text)
 }
 
-// snoticeOnly sends a server notice without logging it (for things the
-// log already has).
-func (s *Server) snoticeOnly(text string) {
-	s.rpcLog(text, "")
-	s.snoticeOpers(text)
+// snoOnly sends a server notice with letter without logging it (for
+// things the log already has).
+func (s *Server) snoOnly(letter byte, text string) {
+	s.rpcLog(text, snoSubsystem(letter))
+	s.snoticeOpers(letter, text)
 }
 
-// lnotice is a server notice about a server link, worded like InspIRCd
-// 4's, with server names in bold (\x02). The log and the admin API get it
-// without the bold, the admin API under its link subsystem.
+// lnotice is a server notice about a server link (letter l), worded like
+// InspIRCd 4's, with server names in bold (\x02). The log and the admin
+// API get it without the bold, the admin API under its link subsystem.
 func (s *Server) lnotice(format string, a ...any) {
 	text := fmt.Sprintf(format, a...)
 	plain := strings.ReplaceAll(text, "\x02", "")
 	s.log.Print(plain)
 	s.rpcLog(plain, "link")
-	s.snoticeOpers(text)
+	s.snoticeOpers('l', text)
 }
 
-// snoticeOpers sends text to opers with +s.
-func (s *Server) snoticeOpers(text string) {
+// snoticeOpers sends text to the opers with +s whose snomask has letter.
+func (s *Server) snoticeOpers(letter byte, text string) {
 	for c := range s.opers {
-		if c.user != nil && c.isOper() && c.user.Modes['s'] {
+		if c.wantsSno(letter) {
 			s.notice(c, "*** Notice -- "+text)
 		}
 	}
@@ -284,23 +288,23 @@ func (s *Server) cmdOper(c *Client, m irc.Message) {
 		// A fresh install: the admin from beeircd.conf has no account yet,
 		// and "from this host" sent people to check their hosts.
 		s.reply(c, irc.ErrNoOperHost, "No account "+s.cfg.Services.Admin+" yet: register it with NickServ (and log in), then /oper again")
-		s.snotice("Failed /oper as %s from %s (%s@%s): the admin account isn't registered yet", name, u.Nick, u.Ident, u.RealHost)
+		s.sno('o', "Failed /oper as %s from %s (%s@%s): the admin account isn't registered yet", name, u.Nick, u.Ident, u.RealHost)
 		return
 	}
 	if o == nil || !operHostOK(o, u) {
 		s.reply(c, irc.ErrNoOperHost, "No oper entry for you from this host")
-		s.snotice("Failed /oper as %s from %s (%s@%s): no matching oper entry", name, u.Nick, u.Ident, u.RealHost)
+		s.sno('o', "Failed /oper as %s from %s (%s@%s): no matching oper entry", name, u.Nick, u.Ident, u.RealHost)
 		return
 	}
 	if o.Disabled != "" {
 		s.reply(c, irc.ErrNoOperHost, "Your oper entry is disabled: "+o.Disabled)
-		s.snotice("Failed /oper as %s from %s (%s@%s): entry disabled", o.Account, u.Nick, u.TrueIdent(), u.RealHost)
+		s.sno('o', "Failed /oper as %s from %s (%s@%s): entry disabled", o.Account, u.Nick, u.TrueIdent(), u.RealHost)
 		return
 	}
 	if len(o.CertFPs) > 0 {
 		if !certMatches(o.CertFPs, u.CertFP) {
 			s.reply(c, irc.ErrNoOperHost, "No oper entry for you from this host")
-			s.snotice("Failed /oper as %s from %s (%s@%s): TLS certificate doesn't match", o.Account, u.Nick, u.TrueIdent(), u.RealHost)
+			s.sno('o', "Failed /oper as %s from %s (%s@%s): TLS certificate doesn't match", o.Account, u.Nick, u.TrueIdent(), u.RealHost)
 			return
 		}
 		if o.PassHash == "" { // the certificate alone, like UnrealIRCd's certfp blocks
@@ -322,10 +326,10 @@ func (s *Server) cmdOper(c *Client, m irc.Message) {
 			s.stdReply(c, "FAIL", "OPER", "TRY_AGAIN", "Still checking your last password. Try again in a moment.", "")
 		case services.PwDown:
 			s.reply(c, irc.ErrPasswdMismatch, "The login server can't be reached right now. Try again in a moment.")
-			s.snotice("Failed /oper as %s from %s (%s@%s): the login server can't be reached", o.Account, u.Nick, u.Ident, u.RealHost)
+			s.sno('o', "Failed /oper as %s from %s (%s@%s): the login server can't be reached", o.Account, u.Nick, u.Ident, u.RealHost)
 		default:
 			s.reply(c, irc.ErrPasswdMismatch, "Password incorrect")
-			s.snotice("Failed /oper as %s from %s (%s@%s): wrong password", o.Account, u.Nick, u.Ident, u.RealHost)
+			s.sno('o', "Failed /oper as %s from %s (%s@%s): wrong password", o.Account, u.Nick, u.Ident, u.RealHost)
 		}
 	})
 }
@@ -362,7 +366,7 @@ func (s *Server) firstOperPassword(c *Client, a *store.Account, o *store.Oper, p
 		s.notice(c, "*** Put the admin's oper password in beeircd.conf: [services] admin_password from `beeircd mkpasswd`, then rehash. "+
 			"(With admin_hosts set, a first /oper from those hosts may set it instead.)")
 		u := c.user
-		s.snotice("Failed /oper as %s from %s (%s@%s): admin_password is empty and admin_hosts is not set", o.Account, u.Nick, u.TrueIdent(), u.RealHost)
+		s.sno('o', "Failed /oper as %s from %s (%s@%s): admin_password is empty and admin_hosts is not set", o.Account, u.Nick, u.TrueIdent(), u.RealHost)
 		return
 	}
 	if s.accountID(c) != a.ID {
@@ -436,7 +440,7 @@ func (s *Server) killUser(u *state.User, by, reason string) {
 		return
 	}
 	tc.send(irc.Message{Source: by, Command: "KILL", Params: []string{u.Nick, reason}, Trailing: true}.String())
-	s.snotice("%s killed %s (%s@%s): %s", by, u.Nick, u.Ident, u.RealHost, reason)
+	s.sno('k', "%s killed %s (%s@%s): %s", by, u.Nick, u.Ident, u.RealHost, reason)
 	s.quit(tc, "Killed ("+by+" ("+reason+"))")
 }
 

@@ -782,7 +782,7 @@ func (s *Server) killRemote(u *state.User, by, reason string) {
 	if v := s.net.UserByNick(by); v != nil {
 		src = v.UID
 	}
-	s.snotice("%s killed %s (%s@%s) on %s: %s", by, u.Nick, u.Ident, u.RealHost, u.Server, reason)
+	s.sno('K', "%s killed %s (%s@%s) on %s: %s", by, u.Nick, u.Ident, u.RealHost, u.Server, reason)
 	s.linkBroadcastKill(nil, src, u.UID, reason)
 	s.emitQuiet(&state.UserQuit{UID: u.UID, Reason: fmt.Sprintf("Killed (%s (%s))", by, reason)})
 }

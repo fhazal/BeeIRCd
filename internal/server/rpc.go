@@ -334,7 +334,7 @@ func (s *Server) rpcLogin(name, pass string, ip net.IP) (rc *rpcConn, why string
 		s.post(note)
 		return nil, wrong
 	}
-	wrongPass := func() { s.snotice("RPC: wrong name or password for '%s' from %s", name, key) }
+	wrongPass := func() { s.sno('a', "RPC: wrong name or password for '%s' from %s", name, key) }
 	var u config.RPCUser
 	found := false
 	if !s.onLoop(func() {
@@ -351,7 +351,7 @@ func (s *Server) rpcLogin(name, pass string, ip net.IP) (rc *rpcConn, why string
 	}
 	if !u.From(ip) {
 		return fail(func() {
-			s.snoticeEvery("rpc-address:"+u.Name, time.Minute, "RPC: '%s' may not call from %s (see ips in its [[rpc.user]] block)", u.Name, key)
+			s.snoticeEvery("rpc-address:"+u.Name, time.Minute, 'a', "RPC: '%s' may not call from %s (see ips in its [[rpc.user]] block)", u.Name, key)
 		})
 	}
 	sum := sha256.Sum256([]byte(pass))
@@ -508,7 +508,7 @@ func (s *Server) rpcHandle(rc *rpcConn, body []byte) []byte {
 	}
 	if !s.onLoop(func() {
 		if m.changes {
-			s.snotice("RPC %s: %s %s", rc.by(), req.Method, irc.Truncate(string(params), 300))
+			s.sno('a', "RPC %s: %s %s", rc.by(), req.Method, irc.Truncate(string(params), 300))
 		}
 		resp.Result, resp.Error = m.run(s, rc, params)
 		if resp.Error == nil && resp.Result == nil {
@@ -565,9 +565,9 @@ func (s *Server) rpcLog(text, subsystem string) {
 	switch {
 	case subsystem == "link":
 		ev.Subsystem, ev.EventID = "link", "LINK"
-	case strings.HasPrefix(text, "Connect: "):
+	case subsystem == "connect", strings.HasPrefix(text, "Connect: "):
 		ev.Subsystem, ev.EventID = "connect", "LOCAL_CLIENT_CONNECT"
-	case strings.HasPrefix(text, "Quit: "):
+	case subsystem == "quit", strings.HasPrefix(text, "Quit: "):
 		ev.Subsystem, ev.EventID = "connect", "LOCAL_CLIENT_DISCONNECT"
 	case strings.HasPrefix(text, "Link "):
 		ev.Subsystem, ev.EventID = "link", "LINK"

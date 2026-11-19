@@ -429,7 +429,7 @@ func (s *Server) rehash(by string) (*control.Rehash, error) {
 			out.Applied = append(out.Applied, "certificate read again")
 		}
 	}
-	s.snotice("%s re-read beeircd.conf: %s", by, rehashSummary(out))
+	s.sno('r', "%s re-read beeircd.conf: %s", by, rehashSummary(out))
 	return out, nil
 }
 
@@ -449,7 +449,7 @@ func rehashSummary(r *control.Rehash) string {
 func (s *Server) Rehash() {
 	s.post(func() {
 		if _, err := s.rehash("SIGHUP"); err != nil {
-			s.snotice("SIGHUP: %v", err)
+			s.sno('r', "SIGHUP: %v", err)
 		}
 	})
 }
@@ -464,10 +464,10 @@ func (s *Server) certTick(now time.Time) {
 	switch {
 	case err != nil && s.certErr != err.Error():
 		s.certErr = err.Error()
-		s.snotice("The certificate file changed but doesn't load (%v); the old one stays", err)
+		s.sno('a', "The certificate file changed but doesn't load (%v); the old one stays", err)
 	case changed:
 		s.certErr = ""
-		s.snotice("New certificate loaded, valid until %s", s.certs.Leaf().NotAfter.Format("2 Jan 2006"))
+		s.sno('a', "New certificate loaded, valid until %s", s.certs.Leaf().NotAfter.Format("2 Jan 2006"))
 	}
 }
 

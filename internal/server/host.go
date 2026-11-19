@@ -79,7 +79,7 @@ func (h host) ServerNotice(uid, text string) {
 	h.s.sendRemote(uid, &link.Message{Source: h.s.cfg.Server.SID, Verb: "NOTICE", Target: uid, Text: text})
 }
 
-func (h host) Snotice(text string) { h.s.snotice("%s", text) }
+func (h host) Snotice(letter byte, text string) { h.s.sno(letter, "%s", text) }
 
 func (h host) Disconnect(uid, reason string) {
 	if c := h.s.clients[uid]; c != nil {
@@ -254,5 +254,5 @@ func (h host) SetUserModes(uid, srcUID, modes string) bool {
 	if c == nil || c.user == nil {
 		return false
 	}
-	return h.s.setUserModes(c, srcUID, modes)
+	return h.s.setUserModeLine(c, srcUID, modes)
 }

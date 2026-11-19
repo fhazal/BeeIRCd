@@ -215,7 +215,7 @@ func osJupe(s *Server, c *Client, args []string) {
 		delete(s.links.jupes, strings.ToLower(j.name))
 		s.linkBroadcast(nil, fmt.Sprintf(":%s SQUIT %s :Jupe removed by %s", s.cfg.Server.SID, j.name, c.user.Nick))
 		s.audit(c, bot, "JUPE DEL %s", j.name)
-		s.snotice("%s lifted the jupe on %s", c.user.Nick, j.name)
+		s.sno('a', "%s lifted the jupe on %s", c.user.Nick, j.name)
 		say("The jupe on %s is lifted.", j.name)
 		return
 	}
@@ -257,7 +257,7 @@ func osJupe(s *Server, c *Client, args []string) {
 	s.linkBroadcast(nil, fmt.Sprintf(":%s SID %s 2 %s :%s", s.cfg.Server.SID, j.name, j.sid, j.reason))
 	s.linkBroadcast(nil, ":"+j.sid+" EOS")
 	s.audit(c, bot, "JUPE %s %s", name, reason)
-	s.snotice("%s juped %s: %s", c.user.Nick, name, reason)
+	s.sno('a', "%s juped %s: %s", c.user.Nick, name, reason)
 	say("%s is juped.", name)
 }
 
@@ -279,7 +279,7 @@ func (s *Server) squitJupe(l *linkConn, target string) bool {
 	}
 	delete(s.links.jupes, strings.ToLower(j.name))
 	s.linkBroadcast(l, fmt.Sprintf(":%s SQUIT %s :Jupe removed", s.cfg.Server.SID, j.name))
-	s.snotice("The jupe on %s was removed from %s", j.name, l.peer.Name)
+	s.sno('a', "The jupe on %s was removed from %s", j.name, l.peer.Name)
 	return true
 }
 
@@ -329,13 +329,13 @@ func (s *Server) setNoop(on bool, by string) {
 	}
 	s.links.noop = on
 	if !on {
-		s.snotice("%s lifted NOOP: /oper works again on %s", by, s.cfg.Server.Name)
+		s.sno('a', "%s lifted NOOP: /oper works again on %s", by, s.cfg.Server.Name)
 		return
 	}
 	for c := range s.opers {
 		s.deoper(c, "NOOP: nobody may be an IRC operator on this server for now.")
 	}
-	s.snotice("%s set NOOP: nobody may be an IRC operator on %s", by, s.cfg.Server.Name)
+	s.sno('a', "%s set NOOP: nobody may be an IRC operator on %s", by, s.cfg.Server.Name)
 }
 
 // remoteNoop is SVSNOOP <server> +|-.
@@ -581,7 +581,7 @@ func (s *Server) serverEdit(c *Client, bot *state.User, sub string, args []strin
 		what += " " + strings.ToUpper(args[1])
 	}
 	s.audit(c, bot, "SERVER %s", what)
-	s.snotice("%s changed the link blocks: SERVER %s", c.user.Nick, what)
+	s.sno('l', "%s changed the link blocks: SERVER %s", c.user.Nick, what)
 	switch sub {
 	case "ADD":
 		say("Added the link block for %s. Saved to beeircd.conf.", b.Name)
@@ -724,7 +724,7 @@ func (s *Server) remoteAdmin(l *linkConn, m irc.Message) {
 	}
 	if !s.cfg.Link.RemoteAdmin {
 		say("This server doesn't take AdminServ commands from other servers ([link] remote_admin = false). Ask whoever runs it.")
-		s.snotice("Refused remote AdminServ from %s (%s on %s): %s", u.Nick, u.Account, u.Server, line)
+		s.sno('a', "Refused remote AdminServ from %s (%s on %s): %s", u.Nick, u.Account, u.Server, line)
 		return
 	}
 	c := s.standIn(u.UID)
@@ -732,7 +732,7 @@ func (s *Server) remoteAdmin(l *linkConn, m irc.Message) {
 		return
 	}
 	c.adminFrom = u.Server
-	s.snotice("Remote AdminServ from %s (%s on %s): %s", u.Nick, orStr(u.Account, "no account"), u.Server, line)
+	s.sno('a', "Remote AdminServ from %s (%s on %s): %s", u.Nick, orStr(u.Account, "no account"), u.Server, line)
 	s.log.Printf("remote AdminServ from %s (%s on %s): %s", u.Nick, u.Account, u.Server, line)
 	adminCommands()[cmd].run(s, c, args[1:])
 	c.adminFrom = ""

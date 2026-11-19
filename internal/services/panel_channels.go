@@ -36,7 +36,7 @@ func (s *Services) PanelChanNotice(by, channel, text string) string {
 		return channel + " is empty right now."
 	}
 	s.host.ChannelMessage(s.global.user.UID, live.Name, 0, false, "["+by+"] "+text)
-	s.snotice("%s (Hive Panel) sent a notice to %s", by, live.Name)
+	s.snotice('a', "%s (Hive Panel) sent a notice to %s", by, live.Name)
 	s.Flush()
 	return ""
 }
@@ -53,7 +53,7 @@ func (s *Services) PanelChanTopic(by, channel, text string) string {
 	if reg := s.RegChannel(live.Name); reg != nil {
 		s.csSaveTopic(reg, live)
 	}
-	s.snotice("%s (Hive Panel) set the topic of %s", by, live.Name)
+	s.snotice('a', "%s (Hive Panel) set the topic of %s", by, live.Name)
 	s.Flush()
 	return ""
 }
@@ -82,7 +82,7 @@ func (s *Services) PanelChanSuspend(by, channel, reason string, life time.Durati
 		return 0, "Something went wrong on the server. Please try again in a moment."
 	}
 	kicked = s.enforceKick(reg, func(u *state.User) bool { return !s.isOperUser(u) }, false, "This channel is suspended: "+reason)
-	s.snotice("%s (Hive Panel) suspended %s: %s", by, reg.Name, reason)
+	s.snotice('a', "%s (Hive Panel) suspended %s: %s", by, reg.Name, reason)
 	s.Flush()
 	return kicked, ""
 }
@@ -97,7 +97,7 @@ func (s *Services) PanelChanUnsuspend(by, channel string) string {
 		return reg.Name + " isn't suspended."
 	}
 	s.unsuspend(reg)
-	s.snotice("%s (Hive Panel) unsuspended %s", by, reg.Name)
+	s.snotice('a', "%s (Hive Panel) unsuspended %s", by, reg.Name)
 	s.Flush()
 	return ""
 }

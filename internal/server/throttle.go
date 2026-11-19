@@ -70,7 +70,7 @@ func (s *Server) admitConn(c *Client, now time.Time) string {
 			return "Too many connections from your IP still logging in"
 		}
 		if s.throttle.unregAll >= lim.MaxUnregistered {
-			s.snoticeEvery("unreg-full", time.Minute, "%d connections are logging in at once (max_unregistered); new ones are refused", s.throttle.unregAll)
+			s.snoticeEvery("unreg-full", time.Minute, 'a', "%d connections are logging in at once (max_unregistered); new ones are refused", s.throttle.unregAll)
 			return "The server is busy, try again in a moment"
 		}
 	}
@@ -91,14 +91,14 @@ func (s *Server) throttled(ip string, h *ipHits, n int, per time.Duration, now t
 	h.refused = append(keep, now)
 	s.safety().Throttled++
 	if len(h.refused) == 1 {
-		s.snotice("Throttled %s: more than %d connections in %d seconds", ip, n, int(per/time.Second))
+		s.sno('a', "Throttled %s: more than %d connections in %d seconds", ip, n, int(per/time.Second))
 	}
 	if len(h.refused) >= throttleStrikes {
 		h.refused = nil
 		s.svc.ThrottleBan(ip, "Reconnecting too fast", throttleBanTime)
 		s.safety().Zlined++
 		s.svc.LogThrottle(ip, throttleStrikes, throttleStrikeWindow, throttleBanTime)
-		s.snotice("ZLINE %s for %d minutes: throttled %d times in %d minutes", ip, int(throttleBanTime/time.Minute), throttleStrikes, int(throttleStrikeWindow/time.Minute))
+		s.sno('a', "ZLINE %s for %d minutes: throttled %d times in %d minutes", ip, int(throttleBanTime/time.Minute), throttleStrikes, int(throttleStrikeWindow/time.Minute))
 	}
 }
 
@@ -138,13 +138,13 @@ func (s *Server) throttleTick(now time.Time) {
 	}
 }
 
-// snoticeEvery sends a server notice at most once per every for key, so a
-// flood can't turn into a notice flood.
-func (s *Server) snoticeEvery(key string, every time.Duration, format string, args ...any) {
+// snoticeEvery sends a server notice with letter at most once per every
+// for key, so a flood can't turn into a notice flood.
+func (s *Server) snoticeEvery(key string, every time.Duration, letter byte, format string, args ...any) {
 	now := time.Now()
 	if last, ok := s.noticeAt[key]; ok && now.Sub(last) < every {
 		return
 	}
 	s.noticeAt[key] = now
-	s.snotice(format, args...)
+	s.sno(letter, format, args...)
 }

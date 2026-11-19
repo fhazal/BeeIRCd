@@ -91,7 +91,7 @@ func (s *Server) memberLogin(a *store.Account, nick, pw, ip string, done func(co
 		default:
 			if !s.cfg.Web.Members { // as before Members: a wrong panel password, told to opers
 				s.panelEvent(nick, ip, "could not sign in: wrong password")
-				s.snotice("Hive Panel: wrong password for %s from %s", nick, ip)
+				s.sno('a', "Hive Panel: wrong password for %s from %s", nick, ip)
 			} else {
 				s.panelEvent(nick, ip, "could not sign in as a member: wrong password")
 			}

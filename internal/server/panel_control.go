@@ -124,7 +124,7 @@ func (s *Server) panelLogin(req control.Request, done func(control.Response)) {
 			return
 		}
 		s.panelEvent(nick, ip, "could not sign in: "+problem)
-		s.snotice("Hive Panel: refused sign-in as %s from %s (%s)", nick, ip, problem)
+		s.sno('a', "Hive Panel: refused sign-in as %s from %s (%s)", nick, ip, problem)
 		// Answer as slowly as a real password check would, so the time
 		// taken doesn't tell which nicks are opers.
 		go func() {
@@ -147,7 +147,7 @@ func (s *Server) panelLogin(req control.Request, done func(control.Response)) {
 		switch res {
 		case services.PwOK:
 			s.panelEvent(po.Account, ip, "signed in")
-			s.snotice("Hive Panel: %s signed in from %s: %s", po.Account, ip, po.Flags)
+			s.sno('a', "Hive Panel: %s signed in from %s: %s", po.Account, ip, po.Flags)
 			done(control.Response{Oper: po})
 		case services.PwLocked:
 			locked := control.Response{Error: "Too many wrong passwords for this oper. Try again in " + services.RoundUp(s.lockedFor(key, ip)) + ".", Denied: "signin"}
@@ -177,7 +177,7 @@ func (s *Server) panelLogin(req control.Request, done func(control.Response)) {
 				return
 			}
 			s.panelEvent(nick, ip, "could not sign in: wrong password")
-			s.snotice("Hive Panel: wrong password for %s from %s", nick, ip)
+			s.sno('a', "Hive Panel: wrong password for %s from %s", nick, ip)
 			done(wrong)
 		}
 	})
@@ -250,7 +250,7 @@ func (s *Server) panelSet(po *control.PanelOper, ip, name, value string) control
 	}
 	if old != now {
 		s.panelEvent(po.Account, ip, fmt.Sprintf("changed %s from %s to %s", st.name, old, now))
-		s.snotice("Hive Panel: %s changed %s to %s (was %s)", po.Account, st.name, now, old)
+		s.sno('a', "Hive Panel: %s changed %s to %s (was %s)", po.Account, st.name, now, old)
 	}
 	return control.Response{Changed: &control.Changed{Name: st.name, Old: old, New: now, ID: id}}
 }

@@ -70,7 +70,7 @@ func (s *Server) updateResult(m *release.Manifest, err error) {
 	s.upd.latest = &control.UpdateInfo{Version: m.Version, Date: m.Date, How: UpdateCommand}
 	if s.upd.noticed != m.Version {
 		s.upd.noticed = m.Version
-		s.snotice("BeeIRCd %s is out (you run %s): %s installs it", m.Version, version.Version, UpdateCommand)
+		s.sno('a', "BeeIRCd %s is out (you run %s): %s installs it", m.Version, version.Version, UpdateCommand)
 	}
 }
 

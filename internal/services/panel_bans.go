@@ -145,7 +145,7 @@ func (s *Services) BanVia(by, via, kind, arg, reason string, life time.Duration)
 	if life > 0 {
 		how = "for " + durWords(life)
 	}
-	s.snotice("%s (%s) added a%s %s on %s %s (%s): %d %s", by, via, an(PanelKindName(kind)), PanelKindName(kind), mask, how, reason, hit, k.hit)
+	s.snotice('x', "%s (%s) added a%s %s on %s %s (%s): %d %s", by, via, an(PanelKindName(kind)), PanelKindName(kind), mask, how, reason, hit, k.hit)
 	s.Flush()
 	return mask, hit, ""
 }
@@ -192,7 +192,7 @@ func (s *Services) BanDelVia(by, via, kind, mask string) (removed string, proble
 		return "", "There is no " + PanelKindName(kind) + " on " + m + " (any more)."
 	}
 	s.reloadOperData()
-	s.snotice("%s (%s) removed the %s on %s", by, via, PanelKindName(kind), m)
+	s.snotice('x', "%s (%s) removed the %s on %s", by, via, PanelKindName(kind), m)
 	s.Flush()
 	return m, ""
 }
@@ -266,7 +266,7 @@ func (s *Services) NameBanVia(by, via, name, reason string, life time.Duration) 
 	if life > 0 {
 		how = "for " + durWords(life)
 	}
-	s.snotice("%s (%s) forbade the name %s %s (%s): %d moved", by, via, name, how, reason, hit)
+	s.snotice('x', "%s (%s) forbade the name %s %s (%s): %d moved", by, via, name, how, reason, hit)
 	s.Flush()
 	return hit, ""
 }
@@ -284,7 +284,7 @@ func (s *Services) NameBanDelVia(by, via, name string) (problem string) {
 		return name + " isn't forbidden."
 	}
 	s.reloadOperData()
-	s.snotice("%s (%s) lifted the forbid on the name %s", by, via, name)
+	s.snotice('x', "%s (%s) lifted the forbid on the name %s", by, via, name)
 	s.Flush()
 	return ""
 }

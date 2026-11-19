@@ -86,7 +86,7 @@ func (s *Services) Audit(uid string, bot *state.User, text string) {
 	if u := s.net.UserByUID(uid); u != nil {
 		nick = u.Nick
 	}
-	s.snotice("%s used %s: %s", nick, bot.Nick, text)
+	s.snotice('a', "%s used %s: %s", nick, bot.Nick, text)
 }
 
 // Login identifies uid to account a (after SASL, for example).
