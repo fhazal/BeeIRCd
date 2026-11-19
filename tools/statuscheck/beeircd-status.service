@@ -1,0 +1,21 @@
+# Live status for beeircd.org: see the notes at the top of main.go.
+[Unit]
+Description=BeeIRCd status check for beeircd.org
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=www-data
+ExecStart=/usr/local/bin/beeircd-status
+Restart=always
+RestartSec=5
+# History lives in /var/lib/beeircd-status (made and owned by www-data).
+StateDirectory=beeircd-status
+ReadWritePaths=/var/www/beeircd.org
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
