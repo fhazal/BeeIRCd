@@ -371,6 +371,7 @@ func (s *Server) renameToUID(u *state.User) {
 
 // killForCollision removes u (UnrealIRCd's rule) here and tells every link.
 func (s *Server) killForCollision(u *state.User, comment string) {
+	comment = unwrapKill(comment)
 	s.linkBroadcastKill(nil, s.cfg.Server.SID, u.UID, comment)
 	if c := s.clientOf(u); c != nil {
 		c.send(irc.Message{Source: s.cfg.Server.Name, Command: "KILL", Params: []string{u.Nick, comment}, Trailing: true}.String())
@@ -393,11 +394,12 @@ func (s *Server) remoteKill(l *linkConn, k *link.Kill) {
 	} else if v := s.net.UserByUID(by); v != nil {
 		by = v.Nick
 	}
-	reason := "Killed (" + by + " (" + k.Reason + "))"
-	s.sno('K', "Remote kill by %s: %s!%s@%s (%s)", by, u.Nick, u.TrueIdent(), u.RealHost, k.Reason)
-	s.linkBroadcastKill(l, k.Source, u.UID, k.Reason) // on to the rest of the network
+	why := unwrapKill(k.Reason)
+	reason := "Killed (" + by + " (" + why + "))"
+	s.sno('K', "Remote kill by %s: %s!%s@%s (%s)", by, u.Nick, u.TrueIdent(), u.RealHost, why)
+	s.linkBroadcastKill(l, k.Source, u.UID, why) // on to the rest of the network
 	if c := s.clientOf(u); c != nil {
-		c.send(irc.Message{Source: by, Command: "KILL", Params: []string{u.Nick, k.Reason}, Trailing: true}.String())
+		c.send(irc.Message{Source: by, Command: "KILL", Params: []string{u.Nick, why}, Trailing: true}.String())
 		s.origin = &linkOrigin{quiet: true}
 		s.quit(c, reason)
 		return

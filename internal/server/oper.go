@@ -431,7 +431,7 @@ func (s *Server) cmdKill(c *Client, m irc.Message) {
 // killUser disconnects u, as by is the oper or service doing it.
 func (s *Server) killUser(u *state.User, by, reason string) {
 	tc := s.clientOf(u)
-	reason = irc.Truncate(reason, s.cfg.Limits.KickLen)
+	reason = irc.Truncate(unwrapKill(reason), s.cfg.Limits.KickLen)
 	if tc == nil {
 		if s.linkOf(u.UID) != nil {
 			s.killRemote(u, by, reason)
@@ -441,6 +441,20 @@ func (s *Server) killUser(u *state.User, by, reason string) {
 	tc.send(irc.Message{Source: by, Command: "KILL", Params: []string{u.Nick, reason}, Trailing: true}.String())
 	s.sno('k', "Local kill by %s: %s!%s@%s (%s)", by, u.Nick, u.TrueIdent(), u.RealHost, reason)
 	s.quit(tc, "Killed ("+by+" ("+reason+"))")
+}
+
+// unwrapKill strips any "Killed (<by> (" ... "))" wrappers a KILL reason
+// already carries (InspIRCd sends them on), so it is wrapped only once.
+func unwrapKill(reason string) string {
+	for strings.HasPrefix(reason, "Killed (") && strings.HasSuffix(reason, "))") {
+		inner := reason[len("Killed (") : len(reason)-2]
+		i := strings.Index(inner, " (")
+		if i < 0 {
+			break
+		}
+		reason = inner[i+2:]
+	}
+	return reason
 }
 
 // /WALLOPS <text> goes to everyone with +w.

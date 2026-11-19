@@ -779,6 +779,7 @@ func (s *Server) sendRemote(uid string, item any) bool {
 
 // killRemote removes a user on another server: KILL to every link.
 func (s *Server) killRemote(u *state.User, by, reason string) {
+	reason = unwrapKill(reason)
 	src := s.cfg.Server.SID
 	if v := s.net.UserByNick(by); v != nil {
 		src = v.UID

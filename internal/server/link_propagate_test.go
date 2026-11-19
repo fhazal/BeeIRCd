@@ -221,3 +221,30 @@ func TestLinkKillRemote(t *testing.T) {
 	}
 	waitLink(t, "bob gone", func() bool { return leaf.user("bob") == nil && hub.user("bob") == nil })
 }
+
+// A KILL reason that already carries "Killed (src (...))" (InspIRCd sends
+// it on) is wrapped once, not twice.
+func TestUnwrapKill(t *testing.T) {
+	for in, want := range map[string]string{
+		"enough":                             "enough",
+		"Killed (wi (enough))":               "enough",
+		"Killed (wi (Killed (wi (enough))))": "enough",
+		"Killed (irc.x.net (a (b) c))":       "a (b) c",
+		"Killed (nospace)":                   "Killed (nospace)",
+		"not Killed (wi (x))":                "not Killed (wi (x))",
+	} {
+		if got := unwrapKill(in); got != want {
+			t.Errorf("unwrapKill(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestLinkKillRemoteNoDoubleWrap(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	bob := login(t, leaf.s, "bob")
+	hub.seen(t, "bob")
+	hub.s.onLoop(func() { hub.s.killUser(hub.s.net.UserByNick("bob"), "alice", "Killed (alice (enough))") })
+	if k := bob.expect("KILL bob"); strings.Contains(k, "Killed (") || !strings.Contains(k, "enough") {
+		t.Errorf("kill %q", k)
+	}
+}
