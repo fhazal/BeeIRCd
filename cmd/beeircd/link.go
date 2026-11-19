@@ -52,6 +52,9 @@ func cmdLinkInfo(args []string, stdout, stderr io.Writer) int {
 
 // inspInfoText is the block for an InspIRCd 4 server on the other end.
 // services is our services server's name ("" when services run elsewhere).
+// Only the services server is U-lined: a U-line on this server itself
+// would hide our users' connects and quits on InspIRCd and skip its
+// permission checks for everyone here.
 func inspInfoText(name string, port int, hash, services string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, `  On an InspIRCd 4 server, add to inspircd.conf, then: /REHASH
@@ -62,8 +65,7 @@ func inspInfoText(name string, port int, hash, services string) string {
           allowmask="*" sslprofile="Servers"
           sendpass="PASSWORD" recvpass="PASSWORD"
           fingerprint="%s">
-    <uline server="%s" silent="yes">
-`, name, name, port, hash, name)
+`, name, name, port, hash)
 	if services != "" {
 		fmt.Fprintf(&b, `    <uline server="%s" silent="yes">
     <module name="sasl">

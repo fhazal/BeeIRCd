@@ -47,7 +47,6 @@ func TestInspInfoText(t *testing.T) {
 	for _, want := range []string{
 		`<link name="hub.beenet.org" ipaddr="hub.beenet.org" port="7000"`,
 		`fingerprint="1e18ab">`,
-		`<uline server="hub.beenet.org" silent="yes">`,
 		`<uline server="services.beenet.org" silent="yes">`,
 		`<sasl target="services.beenet.org">`,
 		`protocol = "inspircd"`,
@@ -56,7 +55,10 @@ func TestInspInfoText(t *testing.T) {
 			t.Errorf("missing %q in %s", want, text)
 		}
 	}
-	if strings.Contains(inspInfoText("leaf.beenet.org", 7000, "ab", ""), "<sasl") {
-		t.Error("sasl block without services here")
+	if strings.Contains(text, `<uline server="hub.beenet.org"`) {
+		t.Error("the BeeIRCd server itself is U-lined")
+	}
+	if l := inspInfoText("leaf.beenet.org", 7000, "ab", ""); strings.Contains(l, "<sasl") || strings.Contains(l, "<uline") {
+		t.Error("sasl or uline block without services here")
 	}
 }

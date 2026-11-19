@@ -1746,9 +1746,12 @@ certificates. On the InspIRCd side load `ssl_openssl`, `spanningtree`,
           allowmask="*" sslprofile="Servers"
           sendpass="PASSWORD" recvpass="PASSWORD"
           fingerprint="hex SHA-256 of our certificate">
-    <uline server="bee.example.net" silent="yes">
     <uline server="services.example.net" silent="yes">
     <sasl target="services.example.net">
+
+Only the services server gets a `<uline>`, never the BeeIRCd server
+itself: that would hide our users' connects and quits on InspIRCd and
+skip its permission checks for everyone on our server.
 
 InspIRCd's `fingerprint` is the hex SHA-256 of the whole certificate
 (`link-info` prints ours). Ours is of its public key, base64; for the
