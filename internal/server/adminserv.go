@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/fhazal/beeircd/internal/config"
+	"github.com/fhazal/beeircd/internal/gate"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/services"
 	"github.com/fhazal/beeircd/internal/state"
@@ -733,8 +734,9 @@ func asPort(s *Server, c *Client, args []string) {
 				return
 			}
 			s.certs, s.certChecked, s.tlsConf = certs, time.Now(), certs.Config()
+			s.certFiles = &gate.TLSFiles{Cert: s.cfg.TLS.Cert, Key: s.cfg.TLS.Key, SelfSigned: s.cfg.TLS.SelfSigned, Host: s.cfg.Server.Name}
 		}
-		ln, err := net.Listen("tcp", addr)
+		l, err := s.openPort(config.Listen{Address: addr, TLS: useTLS})
 		if err != nil {
 			s.as(c, "Can't open %s: %v", addr, err)
 			return
@@ -744,17 +746,19 @@ func asPort(s *Server, c *Client, args []string) {
 			return nil
 		})
 		if err != nil {
-			ln.Close()
+			l.Close()
+			s.syncGate() // behind the gate: close it there
 			s.as(c, "Not saved, so the port stays closed: %v", err)
 			return
 		}
-		l := listener{Listener: ln, tls: useTLS, addr: addr, tlsConf: s.tlsConf}
 		s.lmu.Lock()
 		s.listeners = append(s.listeners, l)
 		s.lmu.Unlock()
 		s.cfg.Listen = fresh.Listen
-		s.wg.Add(1)
-		go s.acceptLoop(l)
+		if s.gate == nil {
+			s.wg.Add(1)
+			go s.acceptLoop(l)
+		}
 		kind := "plain"
 		if useTLS {
 			kind = "TLS"
@@ -806,6 +810,7 @@ func asPort(s *Server, c *Client, args []string) {
 		s.listeners = append(s.listeners[:at:at], s.listeners[at+1:]...)
 		s.lmu.Unlock()
 		l.Close()
+		s.syncGate() // behind the gate: close it there
 		s.cfg.Listen = fresh.Listen
 		s.audit(c, s.adminServ, "PORT DEL %s", l.addr)
 		s.record(c, "port", "DEL "+l.addr, l.addr, "")

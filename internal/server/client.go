@@ -3,9 +3,7 @@ package server
 import (
 	"bufio"
 	"context"
-	"crypto/sha256"
 	"crypto/tls"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/fhazal/beeircd/internal/gate"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
@@ -128,6 +127,10 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 	now := time.Now()
 	ip := remoteIP(conn)
 	_, ws := conn.(*wsConn)
+	certfp := ""
+	if gc, ok := conn.(*gate.Conn); ok { // TLS and WebSocket were done in the gate
+		ws, certfp = gc.Info.WebSocket, gc.Info.CertFP
+	}
 	port := 0
 	if a, ok := conn.LocalAddr().(*net.TCPAddr); ok {
 		port = a.Port
@@ -141,6 +144,7 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 		ip:          ip,
 		host:        irc.DisplayIP(ip),
 		tls:         isTLS,
+		certfp:      certfp,
 		connectedAt: now,
 		lastRecv:    now,
 		lastMsg:     now,
@@ -338,9 +342,7 @@ func (c *Client) readLoop() {
 	// A TLS client certificate is fingerprinted before any line is read,
 	// so the loop knows it when NICK and USER arrive.
 	if tc, ok := c.conn.(*tls.Conn); ok && tc.Handshake() == nil {
-		if certs := tc.ConnectionState().PeerCertificates; len(certs) > 0 {
-			sum := sha256.Sum256(certs[0].Raw)
-			fp := hex.EncodeToString(sum[:])
+		if fp := certFP(tc.ConnectionState()); fp != "" {
 			c.s.post(func() { c.certfp = fp })
 		}
 	}

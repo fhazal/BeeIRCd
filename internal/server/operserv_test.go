@@ -5,8 +5,6 @@ import (
 	"errors"
 	"github.com/fhazal/beeircd/internal/passwd"
 	"github.com/fhazal/beeircd/internal/store"
-	"io"
-	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -83,7 +81,7 @@ func fileServerWith(t *testing.T, extra string, setup func(*Server)) (*Server, s
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := New(cfg, log.New(io.Discard, "", 0))
+	s, stopGate, err := newTestServer(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,6 +99,7 @@ func fileServerWith(t *testing.T, extra string, setup func(*Server)) (*Server, s
 			select {
 			case err := <-result:
 				result <- err // still there for the caller
+				stopGate()
 				leakCheck()
 			case <-time.After(5 * time.Second):
 			}

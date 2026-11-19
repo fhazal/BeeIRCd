@@ -63,7 +63,7 @@ func testServerWith(t *testing.T, tweak func(*config.Config), setup func(*Server
 	if err := cfg.Check(); err != nil {
 		t.Fatal(err)
 	}
-	s, err := New(cfg, log.New(io.Discard, "", 0))
+	s, stopGate, err := newTestServer(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,6 +115,7 @@ func testServerWith(t *testing.T, tweak func(*config.Config), setup func(*Server
 		cancel()
 		select {
 		case <-stopped:
+			stopGate()
 			leakCheck()
 		case <-time.After(5 * time.Second):
 			t.Error("server did not stop")
@@ -127,6 +128,14 @@ func testServerWith(t *testing.T, tweak func(*config.Config), setup func(*Server
 		delete(stopFns, s)
 	})
 	return s
+}
+
+// newTestServer makes a test server; the func it returns stops what it
+// started besides the server, after the server stopped. With
+// BEEIRCD_TEST_GATE set, gate_linux_test.go puts the client ports in a gate.
+var newTestServer = func(cfg *config.Config) (*Server, func(), error) {
+	s, err := New(cfg, log.New(io.Discard, "", 0))
+	return s, func() {}, err
 }
 
 // stopFns stop test servers early; tests run one at a time.
@@ -627,10 +636,11 @@ func TestShutdownTellsEveryone(t *testing.T) {
 		GeoIP:    config.GeoIP{Enabled: &off},
 	}
 	cfg.SetDefaults()
-	s, err := New(cfg, log.New(io.Discard, "", 0))
+	s, stopGate, err := newTestServer(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(stopGate)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { s.Serve(ctx); close(done) }()

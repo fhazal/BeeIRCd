@@ -144,9 +144,9 @@ func (l listener) proxyAllowed(addr net.Addr) bool {
 }
 
 // acceptProxied reads the PROXY header off the loop, then hands the
-// connection to the loop like any other.
-func (s *Server) acceptProxied(conn net.Conn, l listener) {
-	defer s.wg.Done()
+// connection on like any other.
+func (a *acceptor) acceptProxied(conn net.Conn, l listener) {
+	defer a.wg.Done()
 	if !l.proxyAllowed(conn.RemoteAddr()) {
 		conn.Close() // not our proxy: nobody else may claim an address
 		return
@@ -163,9 +163,7 @@ func (s *Server) acceptProxied(conn net.Conn, l listener) {
 	if l.tls {
 		c = tls.Server(c, l.tlsConf)
 	}
-	select {
-	case s.events <- func() { s.newClient(c, l.tls) }:
-	case <-s.done:
+	if !a.hand(c, l.tls) {
 		conn.Close()
 	}
 }

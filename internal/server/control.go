@@ -428,8 +428,10 @@ func (s *Server) rehash(by string) (*control.Rehash, error) {
 			out.NeedsRestart = append(out.NeedsRestart, "certificate: "+err.Error()+" (the old one stays)")
 		case changed:
 			out.Applied = append(out.Applied, "certificate read again")
+			s.certGen++
 		}
 	}
+	s.syncGate() // the certificate and handshake time limit, behind the gate
 	s.sno('r', "Rehash done: %s", rehashSummary(out))
 	return out, nil
 }
@@ -468,6 +470,7 @@ func (s *Server) certTick(now time.Time) {
 		s.sno('a', "The certificate file changed but doesn't load (%v); the old one stays", err)
 	case changed:
 		s.certErr = ""
+		s.certsChanged()
 		s.sno('a', "New certificate loaded, valid until %s", s.certs.Leaf().NotAfter.Format("2 Jan 2006"))
 	}
 }
