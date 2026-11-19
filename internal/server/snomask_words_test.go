@@ -54,3 +54,30 @@ func TestGlobopsLetters(t *testing.T) {
 	s.do(func() { s.snoticeOpers('g', "From ab: text") })
 	b.expect("*** GLOBOPS: From ab: text")
 }
+
+// The oper-up notice names the oper type like InspIRCd 4: the rank in
+// bold, the account when known, and a full stop. UnrealIRCd's class
+// names map onto ours.
+func TestSnoOperUp(t *testing.T) {
+	who := "ann (~ann@h) [1.2.3.4]"
+	B := string(rune(2))
+	if got, want := snoOperUp(who, "Network Administrator", "ann"),
+		who+" is now a server operator of type "+B+"Network Administrator"+B+" (using account "+B+"ann"+B+")."; got != want {
+		t.Errorf("local: %q, want %q", got, want)
+	}
+	if got, want := snoOperUp(who, "IRC Operator", ""),
+		who+" is now a server operator of type "+B+"IRC Operator"+B+"."; got != want {
+		t.Errorf("remote: %q, want %q", got, want)
+	}
+	s, _, _ := fileServer(t, "")
+	for _, tt := range []struct{ class, title, want string }{
+		{"netadmin-with-override", "", "Network Administrator"},
+		{"locop", "", "Network Helper"},
+		{"netadmin", "is the Boss", "Boss"},
+		{"", "", "IRC Operator"},
+	} {
+		if got := s.operRank(tt.class, tt.title); got != tt.want {
+			t.Errorf("operRank(%q, %q) = %q, want %q", tt.class, tt.title, got, tt.want)
+		}
+	}
+}

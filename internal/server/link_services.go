@@ -167,7 +167,15 @@ func mdLine(src, uid, key, value string) string {
 // as the oper type ("Network Administrator").
 func (s *Server) operRank(class, title string) string {
 	if title == "" {
+		// UnrealIRCd's classes too: netadmin-with-override is a
+		// netadmin, locop a helper (as in flagsForClass).
+		base := strings.TrimSuffix(strings.ToLower(class), "-with-override")
+		if base == "locop" {
+			base = "helper"
+		}
 		if oc, ok := s.cfg.Class(class); ok {
+			title = oc.Title
+		} else if oc, ok := s.cfg.Class(base); ok {
 			title = oc.Title
 		}
 	}
@@ -246,7 +254,7 @@ func (s *Server) remoteOperMD(l *linkConn, m irc.Message) {
 		u.OperTitle, u.OperSwhois, u.OperTag = readOperLook(value)
 	}
 	if !wasOper && u.OperClass+u.OperFlags != "" && !u.Service && s.serverSynced(uidServer(uid)) {
-		s.sno('O', "From %s: %s is now a server operator of type %s", u.Server, snoWho(u), operType(u.OperClass, u.OperFlags))
+		s.sno('O', "From %s: %s", u.Server, snoOperUp(snoWho(u), s.operRank(u.OperClass, u.OperTitle), ""))
 	}
 	for o := range s.links.conns {
 		if o != l && o.up && !o.closed && (key == "operclass" || o.peer.Bee) {

@@ -173,13 +173,15 @@ func connClass(u *state.User) string {
 	return "unknown-users"
 }
 
-// operType is the "type" an oper-up notice names: the oper class, or the
-// flags for an entry without one.
-func operType(class, flags string) string {
-	if class != "" {
-		return class
+// snoOperUp is InspIRCd 4's oper-up notice after who (snoWho): "is now a
+// server operator of type <b>Network Administrator</b> (using account
+// <b>name</b>)." (core_oper.cpp), without the account part when there is
+// none (a remote oper, opertype.cpp without ~name).
+func snoOperUp(who, rank, account string) string {
+	if account == "" {
+		return who + " is now a server operator of type \x02" + rank + "\x02."
 	}
-	return flags
+	return who + " is now a server operator of type \x02" + rank + "\x02 (using account \x02" + account + "\x02)."
 }
 
 // operFail is the server notice for a failed /OPER as account by u,

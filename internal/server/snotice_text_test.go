@@ -75,7 +75,7 @@ func TestRemoteSnoticeTexts(t *testing.T) {
 	operEntryOn(t, hub, "carly", "gk", []string{"*@*"})
 	carl.send("OPER carly " + operPW)
 	carl.expect(" 381 carly :You are now an IRC operator")
-	w.expect("*** OPER: From leaf.test.local: carly (~carl@127.0.0.1) [127.0.0.1] is now a server operator of type gk")
+	w.expect("*** OPER: From leaf.test.local: carly (~carl@127.0.0.1) [127.0.0.1] is now a server operator of type \x02IRC Operator\x02.")
 
 	carl.send("QUIT :bye")
 	w.expect("*** REMOTEQUIT: Client exiting on server leaf.test.local: carly (~carl@127.0.0.1) [127.0.0.1] [Quit: bye]")

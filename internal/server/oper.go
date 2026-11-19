@@ -127,7 +127,7 @@ func (s *Server) operUpView(c *Client, o *store.Oper, v operView) {
 	} else {
 		s.notice(c, "*** Oper flags: "+describeFlags(v.flags))
 	}
-	s.sno('o', "%s is now a server operator of type %s", snoWho(u), operType(v.class, v.flags))
+	s.sno('o', "%s", snoOperUp(snoWho(u), s.operRank(v.class, v.title), o.Account))
 	s.svc.SendOperNews(c.uid)
 	s.operExtras(c)
 }

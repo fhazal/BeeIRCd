@@ -352,7 +352,7 @@ func TestOperEntries(t *testing.T) {
 	ember.send("OPER ember Ember-oper-1")
 	ember.expect(":irc.test.local MODE ember +os")
 	ember.expect(" 381 ember :You are now an IRC operator")
-	b.expect("OPER: ember (~ember@127.0.0.1) [127.0.0.1] is now a server operator of type gk")
+	b.expect("OPER: ember (~ember@127.0.0.1) [127.0.0.1] is now a server operator of type \x02Night Owl\x02 (using account \x02ember\x02).")
 
 	ember.send("AS SHOW")
 	ember.expect(asLine("ember", "AdminServ is for server admins (oper flag a)."))
