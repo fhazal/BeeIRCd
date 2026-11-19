@@ -1160,7 +1160,7 @@ func (s *Server) rpcBanAddKind(rc *rpcConn, params json.RawMessage, exception bo
 		}
 		for _, o := range s.clients {
 			if u := o.user; u != nil && !o.closed && !u.Service && !o.isOper() && irc.MatchUserHost(mask, u.TrueIdent(), u.RealHost, u.IP) {
-				s.reply(o, irc.ErrYoureBannedCreep, "You are banned from this server: "+p.Reason)
+				s.reply(o, irc.ErrYoureBannedCreep, s.cfg.Messages.BanText("You are banned from this server: "+p.Reason))
 				s.quit(o, "K-Lined: "+p.Reason)
 			}
 		}

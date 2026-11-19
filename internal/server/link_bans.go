@@ -183,7 +183,7 @@ func (s *Server) enforceBan(b store.NetBan) {
 		}
 	}
 	for _, c := range hit {
-		s.reply(c, irc.ErrYoureBannedCreep, "You are banned from this network: "+b.Reason)
+		s.reply(c, irc.ErrYoureBannedCreep, s.cfg.Messages.BanText("You are banned from this network: "+b.Reason))
 		s.quit(c, "Banned: "+b.Reason)
 	}
 }

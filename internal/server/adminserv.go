@@ -132,7 +132,73 @@ func servicesApply(dst, src *config.Config) { dst.Services = src.Services }
 var guestRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]{0,9}$`)
 
 func settings() []setting {
-	return append(append(baseSettings(), joinSettings()...), authSettings()...)
+	return append(append(append(baseSettings(), joinSettings()...), authSettings()...), messageSettings()...)
+}
+
+// messageSettings are the [messages] settings: quit, part and ban texts.
+// OFF switches each one off.
+func messageSettings() []setting {
+	ms := func(d, s *config.Config) { d.Messages = s.Messages }
+	orOff := func(f func(*config.Config) string) func(*config.Config) string {
+		return func(c *config.Config) string {
+			if v := f(c); v != "" {
+				return v
+			}
+			return "off"
+		}
+	}
+	oneLine := func(v string) string {
+		if strings.ContainsAny(v, "\r\n\x00") {
+			return "Write it on one line."
+		}
+		return ""
+	}
+	return []setting{
+		{name: "static-quit", table: "messages", key: "static_quit", help: "every quit reason people give becomes this text (OFF for their own)", kind: 't', hi: 300, offOK: true, apply: ms, check: oneLine,
+			get: orOff(func(c *config.Config) string { return c.Messages.StaticQuit })},
+		{name: "static-part", table: "messages", key: "static_part", help: "part reasons: YES drops them, other text replaces them (OFF for their own)", kind: 't', hi: 300, offOK: true, apply: ms, check: oneLine,
+			get: orOff(func(c *config.Config) string {
+				if strings.EqualFold(c.Messages.StaticPart, "no") {
+					return ""
+				}
+				return c.Messages.StaticPart
+			}),
+			enc: func(_ *config.Config, v string) (string, string) {
+				v = strings.TrimSpace(v)
+				switch {
+				case strings.EqualFold(v, "off"), strings.EqualFold(v, "no"):
+					return `""`, ""
+				case strings.EqualFold(v, "yes"):
+					return `"yes"`, ""
+				case v == "" || len(v) > 300:
+					return "", "static-part takes YES, a text of up to 300 characters, or OFF."
+				}
+				if p := oneLine(v); p != "" {
+					return "", p
+				}
+				return config.Quote(v), ""
+			}},
+		{name: "quit-message-min-time", table: "messages", key: "quit_message_min_time", help: "people connected for less than this quit with plain \"Quit\" (OFF for no limit)", kind: 'd', lo: 0, hi: 3600, apply: ms,
+			get: func(c *config.Config) string {
+				if d := c.Messages.QuitMessageMinTime.Duration; d > 0 {
+					return config.FormatDuration(d)
+				}
+				return "off"
+			},
+			enc: func(_ *config.Config, v string) (string, string) {
+				v = strings.ToLower(strings.TrimSpace(v))
+				if v == "off" || v == "0" {
+					return `"0s"`, ""
+				}
+				d, err := config.ParseDuration(v)
+				if err != nil || d < 0 || d > time.Hour {
+					return "", "quit-message-min-time takes a time up to 1h, like 30s or 5m, or OFF."
+				}
+				return config.Quote(config.FormatDuration(d)), ""
+			}},
+		{name: "ban-contact", table: "messages", key: "ban_contact", help: "an email added to \"You are banned\" so people know whom to ask (OFF for none)", kind: 't', hi: 300, offOK: true, apply: ms, check: oneLine,
+			get: orOff(func(c *config.Config) string { return c.Messages.BanContact })},
+	}
 }
 
 // authSettings are the [authprompt] settings: the login prompt people a

@@ -91,7 +91,8 @@ can change things; every oper can look.
 `log-connects`, `flood-profile`, `find-place-by-ip`, `members`,
 `registration`, `unconfirmed-expire`, `default-language`, `ircv3-drafts`,
 `auto-join`, `auto-join-skip`, `oper-join`, `oper-join-flag`,
-`auth-prompt`, `auth-prompt-text`, `auth-prompt-fail`, `auth-prompt-time`.
+`auth-prompt`, `auth-prompt-text`, `auth-prompt-fail`, `auth-prompt-time`,
+`static-quit`, `static-part`, `quit-message-min-time`, `ban-contact`.
 
 ### Opers
 
@@ -443,6 +444,30 @@ in the Hive Panel under Settings → Login prompt & spam reports.
 
 Soft AKILLs travel to UnrealIRCd servers with their `%`. InspIRCd has no
 soft bans, so a soft AKILL is not sent to InspIRCd servers.
+
+### Quit, part and ban texts
+
+`[messages]` sets texts of your own, like UnrealIRCd's static-quit,
+static-part, anti-spam-quit-message-time and kline-address. All are off
+by default, and opers always keep their own quit and part reasons.
+
+- `static_quit`: every quit people make themselves shows this text, word
+  for word. Quits the server makes (ping timeout, kill, ban) don't change.
+- `static_part`: `"yes"` drops part reasons, any other text replaces them.
+- `quit_message_min_time`: people connected for less than this quit with
+  plain "Quit", so a spammer can't connect, quit with an ad and leave.
+- `ban_contact`: an email added to "You are banned", like "You are banned
+  from this network: spam. Email kline@example.net for more information."
+
+```toml
+[messages]
+static_quit = "Client exited"
+ban_contact = "kline@example.net"
+```
+
+Change them live with `/as set static-quit Client exited`, `static-part
+yes`, `quit-message-min-time 5m` or `ban-contact kline@example.net`; `off`
+switches one off.
 
 ### Spam reports
 
@@ -1301,6 +1326,15 @@ One block per DNS blocklist.
 | `message` | "This network asks people from your address to log in to a registered nick." | The first notice (at most 300 characters) |
 | `fail_message` | "Login failed. Check the nick and password and try /AUTH again." | The notice after a wrong password |
 | `timeout` | `60s` | How long they have to log in (10s to 10m) |
+
+### [messages]
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `static_quit` | off | Every quit reason people give themselves becomes this text, word for word (opers keep theirs) |
+| `static_part` | off | `"yes"` drops part reasons, other text replaces them, `"no"` = off (opers keep theirs) |
+| `quit_message_min_time` | `0` (off) | People connected for less than this quit with plain "Quit" (up to `1h`; not used with `static_quit`) |
+| `ban_contact` | off | An email added to "You are banned...": "Email <this> for more information." |
 
 ### [[spamreport]]
 

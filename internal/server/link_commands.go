@@ -455,7 +455,7 @@ func (s *Server) cmdKline(c *Client, m irc.Message) {
 		}
 		u := o.user
 		if irc.MatchUserHost(strings.ToLower(match), u.TrueIdent(), u.RealHost, u.IP) {
-			s.reply(o, irc.ErrYoureBannedCreep, "You are banned from this server: "+reason)
+			s.reply(o, irc.ErrYoureBannedCreep, s.cfg.Messages.BanText("You are banned from this server: "+reason))
 			s.quit(o, "K-Lined: "+reason)
 			hit++
 		}

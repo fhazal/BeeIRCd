@@ -224,7 +224,7 @@ func (s *Server) dnsblHit(c *Client, r dnsblResult) bool {
 		s.svc.DnsblBan(store.BanShun, c.ip, reason, d.BanTime.Duration)
 		return false // they may connect, but can't say anything
 	}
-	s.reply(c, irc.ErrYoureBannedCreep, "You are banned from this network: "+reason)
+	s.reply(c, irc.ErrYoureBannedCreep, s.cfg.Messages.BanText("You are banned from this network: "+reason))
 	s.quit(c, "Banned: "+reason)
 	return true
 }

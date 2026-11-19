@@ -294,6 +294,16 @@ func (s *Server) cmdQuit(c *Client, m irc.Message) {
 	if r := m.Param(0); r != "" {
 		reason = "Quit: " + irc.Truncate(r, s.cfg.Limits.KickLen)
 	}
+	// [messages]: the owner's text, or plain "Quit" for someone who just
+	// came. Opers keep their own.
+	if mc := &s.cfg.Messages; c.registered && c.user != nil && !c.isOper() {
+		switch {
+		case mc.StaticQuit != "":
+			reason = mc.StaticQuit
+		case mc.QuitMessageMinTime.Duration > 0 && time.Since(c.user.SignOn) < mc.QuitMessageMinTime.Duration:
+			reason = "Quit"
+		}
+	}
 	s.quit(c, reason)
 }
 
@@ -374,7 +384,7 @@ func (s *Server) tryRegister(c *Client) {
 		return
 	}
 	if k != nil {
-		s.reply(c, irc.ErrYoureBannedCreep, "You are banned from this network: "+k.Reason)
+		s.reply(c, irc.ErrYoureBannedCreep, s.cfg.Messages.BanText("You are banned from this network: "+k.Reason))
 		s.sno('x', "%s %s stopped %s (%s@%s)", store.BanWord(k.Kind), k.Mask, c.nick, c.ident, c.host)
 		s.quit(c, "Banned: "+k.Reason)
 		return

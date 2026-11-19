@@ -86,6 +86,8 @@ type Config struct {
 	AntiMixedUTF8 AntiMixedUTF8 `toml:"antimixedutf8"`
 	TargetFlood   TargetFlood   `toml:"targetfloodprot"`
 	BlockAmsg     BlockAmsg     `toml:"blockamsg"`
+	// Messages are owner-set quit, part and ban texts (messages.go).
+	Messages Messages `toml:"messages"`
 	// AuthPrompt holds soft-banned people to log in (spamreport.go).
 	AuthPrompt AuthPrompt `toml:"authprompt"`
 	// SpamReports are where /SPAMREPORT sends spammers' IPs.
@@ -758,6 +760,9 @@ func (c *Config) Check() error {
 		return err
 	}
 	if err := c.checkAntiSpam(); err != nil {
+		return err
+	}
+	if err := c.checkMessages(); err != nil {
 		return err
 	}
 	if err := c.CheckRPC(); err != nil {
