@@ -124,7 +124,7 @@ func (s *Server) webircApply(c *Client, name, ip, host, flags string) {
 		return
 	}
 	if n, max := s.sessions(ip), s.svc.SessionLimit(ip); n > max {
-		s.sno('a', "Client %s with IP %s rejected: maxperip limit exceeded (%d local, max %d) (WEBIRC %s)", orStr(c.nick, "*"), ip, n, max, name)
+		s.sno('a', "Client %s with IP %s rejected: maxperip limit exceeded (%d local, max %d) (WEBIRC %s)", orStr(c.nick, "[Unknown user]"), ip, n, max, name)
 		s.quit(c, fmt.Sprintf("Too many connections from your IP (the limit is %d)", max))
 		return
 	}

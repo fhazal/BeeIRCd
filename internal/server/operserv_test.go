@@ -505,7 +505,7 @@ func TestSessionLimit(t *testing.T) {
 	login(t, s, "three")
 	fourth := raw(t, s)
 	fourth.expect("ERROR :Closing Link: 127.0.0.1 (Too many connections from your IP (the limit is 3))")
-	b.expect("with IP 127.0.0.1 rejected: maxperip limit exceeded (4 local, max 3)")
+	b.expect("Client [Unknown user] with IP 127.0.0.1 rejected: maxperip limit exceeded (4 local, max 3)")
 
 	b.send("OS EXCEPTION ADD 127.0.0.* 5 test box")
 	b.expect(osLine("Boss", "127.0.0.* may now have 5 connections."))
