@@ -3135,7 +3135,8 @@
         const btn = h('button', { type: 'button', class: 'rowbtn', 'aria-expanded': r.account === open ? 'true' : 'false' },
           r.account, r.owner ? icon('lock', 'lock') : null);
         const tr = h('tr', { class: 'person' + (r.account === open ? ' open' : '') },
-          h('td', {}, btn, r.disabled ? [' ', h('span', { class: 'tag', text: 'disabled' })] : null),
+          h('td', {}, btn, r.reach === 'network' ? [' ', h('span', { class: 'tag', text: 'network' })] : null,
+            r.disabled ? [' ', h('span', { class: 'tag', text: 'disabled' })] : null),
           h('td', { text: r.class || '—' }),
           h('td', {}, chips(r.all || '')),
           h('td', { class: 'mono', text: (r.hosts || []).join(' ') }),
@@ -3187,6 +3188,22 @@
       drawPicks();
       const hosts = h('input', { class: 'in mono', id: 'op-hosts', type: 'text', autocomplete: 'off', value: r.hosts.join(' '), placeholder: '*@192.168.50.* or *@*' });
       const pw = h('input', { class: 'in', id: 'op-pw', type: 'password', autocomplete: 'new-password', placeholder: adding ? 'At least 8 characters' : (r.password ? 'Leave empty to keep' : 'None set yet: set one') });
+      const ownerView = !!data.owner_view;
+      const reachNow = r.reach === 'network' ? 'network' : 'home';
+      const reachRadios = {};
+      const reachField = h('fieldset', { class: 'f plain' }, h('legend', { class: 'lbl', text: 'Reach' }));
+      if (ownerView) {
+        reachField.append(h('div', { class: 'picks' }, [['home', 'Home server only'], ['network', 'Whole network']].map(([v, t]) => {
+          const rb = h('input', { type: 'radio', name: 'op-reach', value: v });
+          rb.checked = v === reachNow;
+          reachRadios[v] = rb;
+          return h('label', { class: 'pk' }, rb, ' ' + t);
+        })),
+        h('span', { class: 'note', text: 'Whole network: their admin commands work on every server that takes outside admins.' }));
+      } else {
+        reachField.append(h('p', { text: reachNow === 'network' ? 'Whole network' : 'Home server only' }),
+          h('span', { class: 'note', text: 'Only the network owner can change this.' }));
+      }
       const err = h('span', { class: 'err', role: 'alert' });
       const save = h('button', { type: 'button', class: 'btn main', text: adding ? 'Add oper' : 'Save' });
       save.addEventListener('click', () => busy(save, async () => {
@@ -3198,7 +3215,9 @@
         if (!hosts.value.trim()) { err.textContent = 'Say where they may /oper from, like *@*'; hosts.focus(); return; }
         if (pw.value && pw.value.length < 8) { err.textContent = 'The oper password needs at least 8 characters.'; pw.focus(); return; }
         try {
-          const d = await api('POST', '/api/oper-save', { name, class: cls.value, flags: own, hosts: hosts.value, password: pw.value, new: adding });
+          const body = { name, class: cls.value, flags: own, hosts: hosts.value, password: pw.value, new: adding };
+          if (ownerView) body.reach = reachRadios.network.checked ? 'network' : 'home';
+          const d = await api('POST', '/api/oper-save', body);
           pw.value = '';
           const c = d.changed;
           open = c.name;
@@ -3226,6 +3245,7 @@
         h('label', { class: 'f', for: 'op-class' }, 'Class', cls),
         h('fieldset', { class: 'f plain' }, h('legend', { class: 'lbl', text: 'Flags' }), picks),
         h('span', { class: 'note', text: 'You can give and take only the flags you have.' }),
+        reachField,
         h('label', { class: 'f', for: 'op-hosts' }, 'Allowed from', hosts),
         h('label', { class: 'f', for: 'op-pw' }, adding ? 'Oper password' : 'New oper password', pw),
         err,
