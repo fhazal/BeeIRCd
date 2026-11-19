@@ -233,7 +233,7 @@ func panelLife(v string) (time.Duration, bool) {
 	case "0":
 		return 0, true
 	}
-	d, err := config.ParseDuration(v)
+	d, err := config.ParseBanDuration(v)
 	if err != nil || d < time.Minute || d > 3650*24*time.Hour {
 		return 0, false
 	}

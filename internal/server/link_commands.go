@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/store"
 	"github.com/fhazal/beeircd/internal/version"
@@ -461,7 +462,7 @@ func (s *Server) cmdKline(c *Client, m irc.Message) {
 	}
 	until := "until removed"
 	if life > 0 {
-		until = "for " + life.String()
+		until = "for " + config.DurationWords(life)
 	}
 	var expires time.Time
 	if life > 0 {
@@ -507,21 +508,7 @@ func (s *Server) removeKline(c *Client, cmd, mask string) {
 	}
 }
 
-// parseLife reads 30m, 12h, 7d (and 0).
+// parseLife reads a ban time: 30m, 12h, 7d, 2m30s, 90 (seconds), 0.
 func parseLife(v string) (time.Duration, error) {
-	if v == "0" {
-		return 0, nil
-	}
-	if strings.HasSuffix(v, "d") {
-		n, err := strconv.Atoi(strings.TrimSuffix(v, "d"))
-		if err != nil || n < 0 {
-			return 0, fmt.Errorf("bad time")
-		}
-		return time.Duration(n) * 24 * time.Hour, nil
-	}
-	d, err := time.ParseDuration(v)
-	if err != nil || d < 0 {
-		return 0, fmt.Errorf("bad time")
-	}
-	return d, nil
+	return config.ParseBanDuration(v)
 }

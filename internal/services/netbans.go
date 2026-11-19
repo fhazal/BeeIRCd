@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
@@ -380,7 +381,7 @@ func (s *Services) netBanCommand(c *Client, k banKind, args []string) {
 		s.reloadOperData()
 		how := "until removed"
 		if life > 0 {
-			how = "for " + durWords(life)
+			how = "for " + config.DurationWords(life)
 		}
 		s.audit(c, s.operServ, "%s ADD %s %s (%s)", k.name, mask, how, b.Reason)
 		n := 0

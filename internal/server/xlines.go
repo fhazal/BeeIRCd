@@ -63,20 +63,18 @@ func (s *Server) cmdXline(c *Client, m irc.Message) {
 	s.svc.MessageAlias(c.uid, "os", strings.Join(strings.Fields(text), " "))
 }
 
-// xlineDuration reads UnrealIRCd's durations (1d, 2h30m, 3600 = seconds,
-// 0 = until removed) as an OperServ +expiry. Without one, OperServ's
-// ban_expiry applies (30 days).
+// xlineDuration reads UnrealIRCd's durations (1d, 2h30m, 5s, 3600 =
+// seconds, 0 = until removed) as an OperServ +expiry in seconds. Without
+// one, OperServ's ban_expiry applies (30 days).
 func xlineDuration(arg string) (string, bool) {
-	if arg == "0" {
+	d, err := config.ParseBanDuration(arg)
+	if err != nil {
+		return "", false
+	}
+	if d == 0 {
 		return "+0", true
 	}
-	if n, err := strconv.Atoi(arg); err == nil && n > 0 {
-		return "+" + strconv.Itoa(max(1, n/60)) + "m", true
-	}
-	if d, err := config.ParseDuration(arg); err == nil && d >= time.Minute {
-		return "+" + arg, true
-	}
-	return "", false
+	return "+" + strconv.FormatInt(max(1, int64(d/time.Second)), 10) + "s", true
 }
 
 // shunAllowed are the commands a shunned person may still use

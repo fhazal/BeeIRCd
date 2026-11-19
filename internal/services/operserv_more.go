@@ -113,7 +113,7 @@ func osChanKill(s *Services, c *Client, args []string) {
 	}
 	how := "until removed"
 	if life > 0 {
-		how = "for " + durWords(life)
+		how = "for " + config.DurationWords(life)
 	}
 	s.audit(c, s.operServ, "CHANKILL %s %s (%s): %s removed", ch.Name, how, reason, plural(n, "person"))
 	s.osLog(c, "on %s (%s)", ch.Name, reason)

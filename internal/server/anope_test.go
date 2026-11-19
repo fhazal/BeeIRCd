@@ -173,7 +173,7 @@ func TestOperServAnope(t *testing.T) {
 
 	// SNLINE in Anope's mask:reason form; a bare number of days; +0.
 	b.send("OS SNLINE ADD +1h free bitcoin:crypto spam")
-	b.expect(osLine("Boss", "SNLINE added: free bitcoin for 60 minutes (crypto spam)."))
+	b.expect(osLine("Boss", "SNLINE added: free bitcoin for 1 hour (crypto spam)."))
 	b.send("OS SNLINE ADD nothing:")
 	b.expect(osLine("Boss", "Syntax: SNLINE ADD [+expiry] <mask>:<reason>"))
 	b.send("OS AKILL ADD +2 *@198.51.100.50 two days")

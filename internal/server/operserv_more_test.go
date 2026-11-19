@@ -198,7 +198,7 @@ func TestChanKill(t *testing.T) {
 	b.send("OS CHANKILL +1d #spamhole drone channel")
 	d1.expect("ERROR :Closing Link: 127.0.0.1 (Banned: drone channel)")
 	d2.expect("ERROR :Closing Link: 127.0.0.1 (Banned: drone channel)")
-	b.expect(osLine("Boss", "AKILLed everyone in #spamhole for 24 hours (drone channel): 2 people removed."))
+	b.expect(osLine("Boss", "AKILLed everyone in #spamhole for 1 day (drone channel): 2 people removed."))
 	b.send("OS AKILL LIST")
 	b.expect("*@127.0.0.1  by Boss")
 }

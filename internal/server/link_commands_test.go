@@ -177,7 +177,7 @@ func TestKlineInspForms(t *testing.T) {
 	s, _, _ := fileServer(t, "")
 	op := boss(t, s)
 	op.send("KLINE *@x.example 1h :spamming")
-	op.expect("K-line on *@x.example added for 1h0m0s.")
+	op.expect("K-line on *@x.example added for 1 hour.")
 	var exp time.Time
 	s.onLoop(func() {
 		for _, b := range s.svc.Klines() {

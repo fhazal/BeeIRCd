@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/store"
 )
@@ -143,7 +144,7 @@ func (s *Services) BanVia(by, via, kind, arg, reason string, life time.Duration)
 	}
 	how := "until removed"
 	if life > 0 {
-		how = "for " + durWords(life)
+		how = "for " + config.DurationWords(life)
 	}
 	s.snotice('x', "%s (%s) added a%s %s on %s %s (%s): %d %s", by, via, an(PanelKindName(kind)), PanelKindName(kind), mask, how, reason, hit, k.hit)
 	s.Flush()
@@ -264,7 +265,7 @@ func (s *Services) NameBanVia(by, via, name, reason string, life time.Duration) 
 	hit = s.enforceForbid(kind, name, reason)
 	how := "until removed"
 	if life > 0 {
-		how = "for " + durWords(life)
+		how = "for " + config.DurationWords(life)
 	}
 	s.snotice('x', "%s (%s) forbade the name %s %s (%s): %d moved", by, via, name, how, reason, hit)
 	s.Flush()

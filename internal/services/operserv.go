@@ -204,7 +204,8 @@ func osGlobal(s *Services, c *Client, args []string) {
 }
 
 // parseExpiry reads Anope's "+7d" ("+0" for until removed; a bare number
-// is days, as in Anope).
+// is days, as in Anope). After the + it takes every unit
+// config.ParseBanDuration does: +5s, +2m30s, +1y2w3d4h5m6s.
 func parseExpiry(arg string) (time.Duration, bool) {
 	if !strings.HasPrefix(arg, "+") {
 		return 0, false
@@ -216,8 +217,8 @@ func parseExpiry(arg string) (time.Duration, bool) {
 	if n, err := strconv.Atoi(num); err == nil && n > 0 {
 		num += "d"
 	}
-	d, err := config.ParseDuration(num)
-	if err != nil || d < time.Minute {
+	d, err := config.ParseBanDuration(num)
+	if err != nil || d <= 0 {
 		return 0, false
 	}
 	return d, true
@@ -457,7 +458,7 @@ func osForbidAdd(s *Services, c *Client, kind, name, reason string, life time.Du
 	s.reloadOperData()
 	how := ""
 	if life > 0 {
-		how = " for " + durWords(life)
+		how = " for " + config.DurationWords(life)
 	}
 	s.audit(c, s.operServ, "FORBID ADD %s %s%s (%s)", strings.ToUpper(kind), name, how, reason)
 	if c.cmdName == "SQLINE" {
