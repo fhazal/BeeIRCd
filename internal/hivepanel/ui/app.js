@@ -1668,6 +1668,163 @@
     };
   }
 
+  // Messages ([messages]): fixed quit/part texts, quit hiding and the ban contact.
+  function messagesCard() {
+    const count = h('span');
+    const undoBtn = h('button', { type: 'button', class: 'btn ghost', text: 'Undo' });
+    const saveBtn = h('button', { type: 'button', class: 'btn main', text: 'Save' });
+    const bar = h('div', { class: 'unsaved', hidden: true }, count, h('div', { class: 'row-btns' }, undoBtn, ' ', saveBtn));
+    const body = h('div');
+    const el = h('section', { class: 'card', hidden: true }, h('h2', { text: 'Messages' }),
+      h('p', { class: 'note', text: 'Fixed texts that stop spam in quit and part messages. Opers keep their own. Empty means off.' }),
+      body, bar);
+    let set = {}, fields = [], load = async () => {};
+
+    // "10s", "1m30s", "1h", a bare number of seconds, "off" or "0": seconds, or -1.
+    function secsOf(v) {
+      v = v.trim().toLowerCase();
+      if (v === 'off' || v === '0') return 0;
+      if (/^\d+$/.test(v)) return Number(v);
+      const m = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/.exec(v);
+      return m && v !== '' ? Number(m[1] || 0) * 3600 + Number(m[2] || 0) * 60 + Number(m[3] || 0) : -1;
+    }
+    const isOff = v => v === '' || v.toLowerCase() === 'off';
+    const textRow = (id, label, max, cls) => {
+      const input = h('input', { class: 'in', id, type: 'text', autocomplete: 'off', maxlength: String(max), 'aria-describedby': id + '-hint' });
+      const hint = h('span', { class: 'hint', id: id + '-hint' });
+      return { input, hint, row: h('label', { class: cls || 'f ap-row', for: id }, label, input, hint) };
+    };
+    const mk = (name, label, loaded) => ({ name, label, loaded, ok: true, dirty: false, now: () => '', draw() {}, reset() {} });
+
+    function build() {
+      fields = [];
+      if (set['static-quit']) {
+        const s = set['static-quit'];
+        const f = mk('static-quit', 'Quit message for everyone', isOff(s.value) ? 'off' : s.value);
+        const t = textRow('msg-static-quit', f.label, 300);
+        f.row = t.row; f.input = t.input; f.hint = t.hint;
+        f.reset = () => { t.input.value = f.loaded === 'off' ? '' : f.loaded; };
+        f.now = () => t.input.value.trim() || 'off';
+        f.draw = () => {
+          f.ok = t.input.value.trim().length <= 300;
+          f.err = 'At most 300 characters.';
+          f.was = f.loaded === 'off' ? 'off' : f.loaded;
+          f.base = 'Empty is off. Everyone\'s quit reason becomes this text.';
+        };
+        fields.push(f);
+      }
+      if (set['static-part']) {
+        const s = set['static-part'];
+        const v = s.value.trim();
+        const mode0 = isOff(v) || v.toLowerCase() === 'no' ? 'keep' : v.toLowerCase() === 'yes' ? 'remove' : 'replace';
+        const f = mk('static-part', 'Part messages', mode0 === 'keep' ? 'off' : mode0 === 'remove' ? 'yes' : v);
+        let mode = mode0;
+        const t = textRow('msg-static-part', 'Text people see instead', 300, 'f');
+        const btns = [['keep', 'Keep'], ['remove', 'Remove'], ['replace', 'Replace with text']].map(([m, lab]) =>
+          h('button', { type: 'button', text: lab, 'aria-pressed': 'false', 'data-mode': m }));
+        const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Part messages' }, ...btns);
+        const hint = h('span', { class: 'hint', id: 'msg-static-part-hint' });
+        f.row = h('div', { class: 'f ap-row' }, 'Part messages', seg, t.row, hint);
+        f.input = t.input; f.hint = hint;
+        t.hint.hidden = true;
+        f.reset = () => { mode = mode0; t.input.value = mode0 === 'replace' ? v : ''; };
+        f.now = () => mode === 'keep' ? 'off' : mode === 'remove' ? 'yes' : t.input.value.trim();
+        f.draw = () => {
+          btns.forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === mode ? 'true' : 'false'));
+          t.row.hidden = mode !== 'replace';
+          f.ok = mode !== 'replace' || (t.input.value.trim() !== '' && t.input.value.trim().length <= 300);
+          f.err = t.input.value.trim() === '' ? 'Write the text people will see instead.' : 'At most 300 characters.';
+          f.was = mode0 === 'keep' ? 'Keep' : mode0 === 'remove' ? 'Remove' : 'Replace with "' + v + '"';
+          f.base = 'Remove drops the reason from every part.';
+        };
+        btns.forEach(b => b.addEventListener('click', () => { mode = b.dataset.mode; check(f); if (mode === 'replace') t.input.focus(); }));
+        fields.push(f);
+      }
+      if (set['quit-message-min-time']) {
+        const s = set['quit-message-min-time'];
+        const f = mk('quit-message-min-time', 'Hide quit messages of people online less than', isOff(s.value) ? 'off' : s.value);
+        const t = textRow('msg-quit-min', f.label, 12);
+        t.input.classList.add('mono');
+        f.row = t.row; f.input = t.input; f.hint = t.hint;
+        f.reset = () => { t.input.value = f.loaded === 'off' ? '0' : f.loaded; };
+        f.now = () => secsOf(t.input.value) === 0 ? 'off' : t.input.value.trim().toLowerCase();
+        f.dirtyNow = () => secsOf(t.input.value) !== secsOf(f.loaded);
+        f.draw = () => {
+          const n = secsOf(t.input.value);
+          f.ok = n >= 0 && n <= 3600;
+          f.err = 'Use a time like 10s or 1m, up to 1h. 0 is off.';
+          f.was = f.loaded === 'off' ? '0' : f.loaded;
+          f.base = '0 for off. Up to 1h. Not used when a quit message for everyone is set.';
+        };
+        fields.push(f);
+      }
+      if (set['ban-contact']) {
+        const s = set['ban-contact'];
+        const f = mk('ban-contact', 'Ban contact', isOff(s.value) ? 'off' : s.value);
+        const t = textRow('msg-ban-contact', f.label, 300);
+        f.row = t.row; f.input = t.input; f.hint = t.hint;
+        f.reset = () => { t.input.value = f.loaded === 'off' ? '' : f.loaded; };
+        f.now = () => t.input.value.trim() || 'off';
+        f.draw = () => {
+          const v = t.input.value.trim();
+          f.ok = v.length <= 300;
+          f.err = 'At most 300 characters.';
+          f.was = f.loaded === 'off' ? 'off' : f.loaded;
+          f.base = v ? 'Banned people see: "… Email ' + v + ' for more information."' : 'Off';
+        };
+        fields.push(f);
+      }
+      for (const f of fields) {
+        f.reset();
+        f.input.addEventListener('input', () => check(f));
+        f.input.addEventListener('keydown', e => { if (e.key === 'Enter' && !saveBtn.disabled) saveBtn.click(); });
+      }
+      put(body, ...fields.map(f => f.row));
+      fields.forEach(check);
+      if (!fields.length) bar.hidden = true;
+    }
+    function check(f) {
+      f.draw();
+      f.dirty = f.dirtyNow ? f.dirtyNow() : f.now().toLowerCase() !== f.loaded.toLowerCase();
+      f.row.classList.toggle('changed', f.ok && f.dirty);
+      f.input.classList.toggle('wrong', !f.ok);
+      f.hint.classList.toggle('wrong', !f.ok);
+      f.hint.textContent = !f.ok ? f.err : f.dirty ? 'was ' + f.was : f.base;
+      const n = fields.filter(x => x.dirty).length;
+      bar.hidden = n === 0;
+      count.textContent = n === 1 ? '1 unsaved change' : n + ' unsaved changes';
+      saveBtn.disabled = fields.some(x => x.dirty && !x.ok);
+    }
+    undoBtn.addEventListener('click', build);
+    saveBtn.addEventListener('click', () => busy(saveBtn, async () => {
+      const done = [];
+      for (const f of fields.filter(x => x.dirty && x.ok)) {
+        try {
+          const d = await api('POST', '/api/set', { name: f.name, value: f.now() });
+          done.push(d.changed);
+          set[f.name].value = d.changed.new;
+        } catch (e) { toastErr(f.label + ' was not saved: ' + e.message); }
+      }
+      build();
+      if (!done.length) return;
+      toast(['Messages saved and applied'], async () => {
+        for (const c of done.slice().reverse()) if (c.id) await api('POST', '/api/undo', { id: c.id });
+        await load();
+        toast(['Put back as it was']);
+      });
+    }));
+    return {
+      el,
+      fill(byName, reload) {
+        load = reload;
+        set = {};
+        for (const n of ['static-quit', 'static-part', 'quit-message-min-time', 'ban-contact']) if (byName[n]) set[n] = Object.assign({}, byName[n]);
+        el.hidden = !Object.keys(set).length;
+        if (!el.hidden) build();
+      },
+    };
+  }
+
   function settingsPage() {
     const aj = autoJoinCard();
     const grid = h('div', { class: 'grid2' }, h('p', { class: 'empty', text: 'Loading…' }));
@@ -1699,6 +1856,7 @@
         if (byName.members) { membersCard.hidden = false; membersBox.checked = byName.members.value === 'on'; }
         aj.fill(byName, load);
         ls.fill(byName, load);
+        ms.fill(byName, load);
         fields.length = 0;
         put(grid, ...LIMITS.filter(l => byName[l.name]).map(l => {
           const s = byName[l.name];
@@ -1769,6 +1927,7 @@
     const backups = me.owner ? backupsCard() : null;
     const mailBox = me.owner ? mailCard() : null;
     const ls = loginSpamCard();
+    const ms = messagesCard();
 
     // Member sign-in: people with a registered nick get their own pages
     // (Home, Chat, My nick, My channels, Memos), never the admin ones.
@@ -1798,6 +1957,7 @@
         h('section', { class: 'card' }, h('h2', { text: 'Server actions' }), actions)),
       aj.el,
       ls.el,
+      ms.el,
       membersCard,
       mailBox && mailBox.el,
       backups && backups.el);
