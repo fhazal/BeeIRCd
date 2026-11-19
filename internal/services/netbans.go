@@ -422,6 +422,7 @@ func (s *Services) netBanCommand(c *Client, k banKind, args []string) {
 			n++
 			switch k.kind {
 			case store.BanAkill, store.BanZline, store.BanSNLine:
+				s.logNetBanHit(&b, ou)
 				s.reply(oc, irc.ErrYoureBannedCreep, "You are banned from this network: "+b.Reason)
 				s.quit(oc, "Banned: "+b.Reason)
 			}

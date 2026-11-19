@@ -134,14 +134,9 @@ func (s *Services) logTo(sv *service, text string) {
 // anopeMask is Anope's User::GetMask(): nick!ident@realhost.
 func anopeMask(u *state.User) string { return u.Nick + "!" + u.TrueIdent() + "@" + u.RealHost }
 
-// logUsersOn reports whether USERS lines go to the log channel.
-func (s *Services) logUsersOn() bool {
-	return s.logChannel() != "" && s.cfg.Services.LogConnectsOn()
-}
-
 // LogUserConnect posts Anope's connect line (users.cpp).
 func (s *Services) LogUserConnect(u *state.User) {
-	if !s.logUsersOn() || u.Service {
+	if !s.logEventOn("connect") || u.Service {
 		return
 	}
 	text := "USERS: " + anopeMask(u) + " "
@@ -157,7 +152,7 @@ func (s *Services) LogUserConnect(u *state.User) {
 
 // LogUserQuit posts Anope's disconnect line (users.cpp).
 func (s *Services) LogUserQuit(u *state.User, _ string) {
-	if !s.logUsersOn() || u.Service {
+	if !s.logEventOn("quit") || u.Service {
 		return
 	}
 	s.logTo(s.global, "USERS: "+anopeMask(u)+" ("+u.Realname+") disconnected from the network ("+u.Server+")")
@@ -165,7 +160,7 @@ func (s *Services) LogUserQuit(u *state.User, _ string) {
 
 // logNick posts Anope's nick change line (users.cpp).
 func (s *Services) logNick(e *state.NickChange) {
-	if !s.logUsersOn() || e.Old == "" {
+	if !s.logEventOn("nick") || e.Old == "" {
 		return
 	}
 	u := s.net.UserByUID(e.UID)

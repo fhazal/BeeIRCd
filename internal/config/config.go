@@ -547,6 +547,11 @@ type Services struct {
 	// users = "connect disconnect nick"). On by default; off for busy
 	// networks.
 	LogConnects *bool `toml:"log_connects"`
+	// LogEvents picks which events go to the log channel besides the
+	// command lines (see LogEventNames; "*" = all). Unset: every event
+	// but umode, host and channel, and without connect, quit and nick
+	// when log_connects = false.
+	LogEvents []string `toml:"log_events"`
 
 	// MaxLogins is how many connections may be identified to one account
 	// at once (Anope's maxlogins, 10).
@@ -624,6 +629,42 @@ func (s Services) RegDelayOr() time.Duration {
 // LogConnectsOn reports whether connects, quits and nick changes are
 // logged in the log channel (default on).
 func (s Services) LogConnectsOn() bool { return s.LogConnects == nil || *s.LogConnects }
+
+// LogEventNames are the events log_events takes.
+var LogEventNames = []string{"connect", "quit", "nick", "oper", "kill", "server", "bans", "other", "umode", "host", "channel"}
+
+// logEventsDefault are the events logged when log_events is unset.
+var logEventsDefault = []string{"connect", "quit", "nick", "oper", "kill", "server", "bans", "other"}
+
+// LogEventOn reports whether event (one of LogEventNames) goes to the log
+// channel.
+func (s Services) LogEventOn(event string) bool {
+	if s.LogEvents == nil {
+		switch event {
+		case "connect", "quit", "nick":
+			if !s.LogConnectsOn() {
+				return false // an old config with log_connects = false
+			}
+		}
+		return slices.Contains(logEventsDefault, event)
+	}
+	for _, e := range s.LogEvents {
+		if e == "*" || strings.EqualFold(e, event) {
+			return true
+		}
+	}
+	return false
+}
+
+// checkLogEvents reports a log_events name that isn't one.
+func (s Services) checkLogEvents() error {
+	for _, e := range s.LogEvents {
+		if e != "*" && !slices.Contains(LogEventNames, strings.ToLower(e)) {
+			return fmt.Errorf("services log_events %q is not an event; use %s or \"*\"", e, strings.Join(LogEventNames, ", "))
+		}
+	}
+	return nil
+}
 
 func setDur(d *Duration, v time.Duration) {
 	if d.Duration <= 0 {
@@ -717,6 +758,9 @@ func (c *Config) Check() error {
 		return fmt.Errorf("services log_channel %q must be a channel like \"#services\" (or empty for none)", c.Services.LogChannel)
 	case len(c.Listen) == 0:
 		return fmt.Errorf("add at least one [[listen]] port")
+	}
+	if err := c.Services.checkLogEvents(); err != nil {
+		return err
 	}
 	for _, l := range c.Listen {
 		if l.Address == "" {

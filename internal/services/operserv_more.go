@@ -108,6 +108,7 @@ func osChanKill(s *Services, c *Client, args []string) {
 			continue
 		}
 		n++
+		s.logNetBanHit(s.firstBan(store.BanAkill, t.user.TrueIdent(), t.user.RealHost, t.user.IP, t.user.Realname), t.user)
 		s.reply(t, irc.ErrYoureBannedCreep, "You are banned from this network: "+reason)
 		s.quit(t, "Banned: "+reason)
 	}

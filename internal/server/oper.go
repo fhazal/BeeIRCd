@@ -443,10 +443,12 @@ func (s *Server) killUser(u *state.User, by, reason string) {
 	reason = irc.Truncate(unwrapKill(reason), s.cfg.Limits.KickLen)
 	if tc == nil {
 		if s.linkOf(u.UID) != nil {
+			s.svc.LogKill(u, by, reason)
 			s.killRemote(u, by, reason)
 		}
 		return
 	}
+	s.svc.LogKill(u, by, reason)
 	src, shown := by, s.killedBy(by)
 	if shown != by {
 		src = s.cfg.Server.Name // [messages] hide_killed_by: not the oper

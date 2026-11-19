@@ -22,6 +22,7 @@ type fakeHost struct {
 	notices []string // "to: text"
 	posts   chan func()
 	opers   map[string]string // UID -> oper flags
+	said    []string          // channel messages: "Bot #chan: text"
 }
 
 func (h *fakeHost) Emit(ev state.Event) error {
@@ -36,11 +37,17 @@ func (h *fakeHost) Notice(from, to, text string) {
 		h.notices = append(h.notices, u.Nick+": "+text)
 	}
 }
-func (h *fakeHost) Numeric(uid, code string, params ...string)                                  {}
-func (h *fakeHost) DefaultHost(uid string) string                                               { return "" }
-func (h *fakeHost) ChannelMessage(from, channel string, status byte, privmsg bool, text string) {}
-func (h *fakeHost) ServerNotice(uid, text string)                                               {}
-func (h *fakeHost) Snotice(letter byte, text string)                                            {}
+func (h *fakeHost) Numeric(uid, code string, params ...string) {}
+func (h *fakeHost) DefaultHost(uid string) string              { return "" }
+func (h *fakeHost) ChannelMessage(from, channel string, status byte, privmsg bool, text string) {
+	nick := from
+	if u := h.net.UserByUID(from); u != nil {
+		nick = u.Nick
+	}
+	h.said = append(h.said, nick+" "+channel+": "+text)
+}
+func (h *fakeHost) ServerNotice(uid, text string)    {}
+func (h *fakeHost) Snotice(letter byte, text string) {}
 func (h *fakeHost) Disconnect(uid, reason string) {
 	h.Emit(&state.UserQuit{UID: uid, Reason: reason})
 }

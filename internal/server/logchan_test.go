@@ -168,3 +168,26 @@ func TestLogChannelAtStart(t *testing.T) {
 	u.send("JOIN #services")
 	u.expect(" 520 user #services :Cannot join channel (+O)")
 }
+
+// Event lines from the server's side: a kill and a K-line hit.
+func TestLogChannelEvents(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	b.send("AS SET log-channel #services")
+	b.expect("log-channel is now #services")
+	joinAll("#services", b)
+	gl := ":Global!services@irc.test.local " + logSrc
+	osl := ":OperServ!services@irc.test.local " + logSrc
+
+	g := login(t, s, "guest")
+	b.expect(gl + "USERS: guest!~guest@127.0.0.1 (guest Real) connected to the network (irc.test.local)")
+	b.send("KILL guest :flooding")
+	b.expect(gl + "USERS: guest!~guest@127.0.0.1 was killed by Boss (Reason: flooding)")
+	g.expect("KILL guest")
+
+	v := login(t, s, "victim")
+	b.expect(gl + "USERS: victim!~victim@127.0.0.1 (victim Real) connected")
+	b.send("KLINE +1h victim go away")
+	b.expect(osl + "KLINE: *@127.0.0.1 hit victim!~victim@127.0.0.1 (set by Boss: go away)")
+	v.expect("ERROR")
+}

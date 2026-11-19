@@ -114,6 +114,7 @@ func (s *Server) webircApply(c *Client, name, ip, host, flags string) {
 	s.log.Printf("webirc %s: %s is %s (%s)", name, old, ip, host)
 
 	if z := s.svc.ZlineFor(ip); z != nil {
+		s.svc.LogBanHit(z.Kind, z.Mask, ip, z.SetBy, z.Reason)
 		s.sno('x', "Z-line %s stopped a connection from %s (WEBIRC %s)", z.Mask, ip, name)
 		s.quit(c, "Z-lined: "+z.Reason)
 		return
@@ -123,6 +124,7 @@ func (s *Server) webircApply(c *Client, name, ip, host, flags string) {
 		return
 	}
 	if n, max := s.sessions(ip), s.svc.SessionLimit(ip); n > max {
+		s.svc.LogSessionLimit(ip, max, c.logMask(c.nick))
 		s.sno('a', "Client %s with IP %s rejected: maxperip limit exceeded (%d local, max %d) (WEBIRC %s)", orStr(c.nick, "[Unknown user]"), ip, n, max, name)
 		s.quit(c, s.cfg.Messages.TooManyText())
 		return

@@ -48,6 +48,7 @@ type Client struct {
 	webirc                string       // the [[webirc]] gateway this person came through, "" = none
 	webircBusy            bool         // a hashed WEBIRC password is being checked
 	tempShun              bool         // a spam filter shunned this connection (until it reconnects)
+	shunLogged            bool         // a SHUN hit went to the services log once
 	closed                bool
 	caps                  map[string]bool      // IRCv3 capabilities this client asked for
 	preAway               string               // AWAY sent before registration (draft/pre-away)
@@ -156,6 +157,7 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 	go c.writeLoop()
 	go c.readLoop()
 	if z := s.svc.ZlineFor(ip); z != nil {
+		s.svc.LogBanHit(z.Kind, z.Mask, ip, z.SetBy, z.Reason)
 		s.sno('x', "Z-line %s stopped a connection from %s", z.Mask, ip)
 		s.quit(c, "Z-lined: "+z.Reason)
 		return
@@ -168,6 +170,7 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 		if s.cfg.ResolveHosts() && s.svc.HostExcepts() {
 			c.sessionLate = true // an exception on its hostname may still let it in
 		} else {
+			s.svc.LogSessionLimit(ip, max, c.logMask(c.nick))
 			s.sno('a', "Client %s with IP %s rejected: maxperip limit exceeded (%d local, max %d)", orStr(c.nick, "[Unknown user]"), ip, n, max)
 			s.quit(c, s.cfg.Messages.TooManyText())
 			return

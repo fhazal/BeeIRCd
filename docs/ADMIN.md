@@ -1298,6 +1298,7 @@ difference is a warning to opers, not a refusal.
 | `admin_vhost` | – | Host the admin shows once opered |
 | `log_channel` | – | Services log every command and oper event here, like `#services` |
 | `log_connects` | `true` | Also log connects, quits and nick changes there |
+| `log_events` | see below | Which events go to the log channel besides the command lines; `["*"]` all |
 | `nick_expire` | `90d` | Accounts unused this long are dropped |
 | `chan_expire` | `60d` | Channels no access-list member joined this long are dropped |
 | `identify_within` | `60s` | Time to identify on a protected nick |
@@ -1316,6 +1317,34 @@ difference is a warning to opers, not a refusal.
 | `unconfirmed_expire` | `1d` | Unconfirmed accounts are dropped this long after REGISTER (`0s` never) |
 | `max_memos` | `20` | Memo limit of a new account |
 | `memo_send_delay` | `3s` | Wait between two memos (`0s` off; opers don't wait) |
+
+**What the log channel shows.** Every services command goes to
+`log_channel`. `log_events` adds network events, like Anope 2.0's log
+block. The names:
+
+| Event | Lines |
+|---|---|
+| `connect`, `quit`, `nick` | `USERS:` someone on this server connects, quits or changes nick |
+| `oper` | `USERS:` someone becomes an IRC operator (rank and oper account) or stops being one |
+| `kill` | `USERS:` someone was killed, by whom and why (oper `/KILL`, services, other servers) |
+| `server` | `SERVER:` a server links to the network or splits off, with its uplink and the reason |
+| `bans` | `AKILL:`, `ZLINE:`, `SNLINE:`, `SHUN:`, `KLINE:`, `SQLINE:` or `SPAMFILTER:` a ban caught someone |
+| `other` | `SESSION:` an IP hit its session limit |
+| `umode` | `USERS:` someone's user modes change |
+| `host` | `USERS:` someone's shown host changes |
+| `channel` | `CHANNEL:` joins, parts, a channel created and a channel left empty (not the log channel itself) |
+
+Unset, every event but `umode`, `host` and `channel` is on; an older
+config with `log_connects = false` also leaves out `connect`, `quit` and
+`nick`. A list you set replaces that default. Ban and session lines stop
+at 5 per ban mask (or IP) in 10 seconds, then one `... and N more hits`
+line. An unknown name is a config error.
+
+```toml
+[services]
+log_channel = "#services"
+log_events  = ["connect", "quit", "oper", "kill", "server", "bans", "channel"]
+```
 
 ### [limits]
 

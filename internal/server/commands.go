@@ -233,6 +233,7 @@ func (s *Server) runCommand(c *Client, m irc.Message) {
 	case c.registered && !shunAllowed[m.Command] && (c.tempShun || s.svc.Shunned(c.user)):
 		// Shunned: dropped without a word (UnrealIRCd), unknown commands
 		// and missing parameters too.
+		s.logShun(c)
 	case !ok:
 		s.reply(c, irc.ErrUnknownCommand, m.Command, "Unknown command")
 	case !c.registered && !cmd.preReg:
@@ -266,4 +267,16 @@ func utf8Params(m irc.Message) bool {
 		}
 	}
 	return true
+}
+
+// logShun posts the SHUN that holds c to the services log, once per
+// connection.
+func (s *Server) logShun(c *Client) {
+	if c.shunLogged {
+		return
+	}
+	c.shunLogged = true
+	if b := s.svc.ShunBan(c.user); b != nil {
+		s.svc.LogBanHit(b.Kind, b.Mask, c.logMask(c.nick), b.SetBy, b.Reason)
+	}
 }

@@ -167,6 +167,9 @@ type Services struct {
 	mailer      Mailer              // how mail goes out (tests replace it)
 	resets      map[int64]resetInfo // NickServ RESETPASS codes by account
 	webMemoSent map[int64]time.Time // Hive Panel memo SEND per account (senddelay), webhome.go
+
+	now     func() time.Time   // the clock for log flood caps (tests replace it)
+	hitCaps map[string]*hitCap // log channel flood caps by ban mask / IP, logevents.go
 }
 
 // Client is services' record of one person on the network.
@@ -226,6 +229,8 @@ func New(host Host, cfg *config.Config, logger *log.Logger, net *state.Network, 
 		seenDirty:  make(map[string]bool),
 		seenSaved:  time.Now(),
 		off:        !cfg.Services.On(),
+		now:        time.Now,
+		hitCaps:    make(map[string]*hitCap),
 	}
 	if err := s.loadOperData(); err != nil {
 		return nil, err
@@ -289,6 +294,7 @@ func (s *Services) handle(ev state.Event) {
 			}
 		}
 	case *state.UserMode:
+		s.logUserMode(e)
 		if c := s.clients[e.UID]; c != nil && !c.closed {
 			s.saveModes(c)
 			if on := c.user.HasMode('h'); on != c.helpOn {
@@ -311,7 +317,10 @@ func (s *Services) handle(ev state.Event) {
 		if c := s.clients[e.UID]; c != nil && !c.closed {
 			s.nickCheck(c)
 		}
+	case *state.HostChange:
+		s.logHost(e)
 	case *state.Join:
+		s.logJoin(e)
 		c := s.clients[e.UID]
 		ch := s.net.Channel(e.Channel)
 		if c != nil && !c.closed && ch != nil && ch.Member(c.user) != nil {
@@ -334,9 +343,11 @@ func (s *Services) handle(ev state.Event) {
 			s.csTopicChanged(ch)
 		}
 	case *state.Part:
+		s.logPart(e.UID, e.Channel, true)
 		s.bsForget(e.UID, e.Channel)
 		s.bsTidy(e.Channel)
 	case *state.Kick:
+		s.logPart(e.UID, e.Channel, false)
 		s.bsForget(e.UID, e.Channel)
 		s.bsTidy(e.Channel)
 	}
@@ -383,6 +394,7 @@ func (s *Services) Tick(now time.Time) {
 	if now.Sub(s.seenSaved) >= seenSaveEach {
 		s.SaveSeen()
 	}
+	s.flushHitCaps(now)
 	s.Flush()
 }
 

@@ -191,10 +191,12 @@ func (s *Server) cmdNick(c *Client, m irc.Message) {
 		return
 	}
 	if f, ok := s.svc.Forbidden(store.ForbidNick, nick); ok && !c.isOper() {
+		s.svc.LogBanHit("sqline", f.Name, c.logMask(nick), f.SetBy, f.Reason)
 		s.reply(c, irc.ErrErroneusNickname, nick, "Forbidden by the network: "+f.Reason)
 		return
 	}
 	if q, ok := s.qlineFor(nick); ok && !c.isOper() {
+		s.svc.LogBanHit("sqline", q.mask, c.logMask(nick), q.setBy, q.reason)
 		s.reply(c, irc.ErrErroneusNickname, nick, "Forbidden by the network: "+q.reason)
 		return
 	}
@@ -329,6 +331,7 @@ func (s *Server) tryRegister(c *Client) {
 		// Over its IP's limit at connect; now the hostname is known.
 		c.sessionLate = false
 		if n, max := s.sessions(c.ip), s.svc.SessionLimitFor(c.ip, c.host); n > max {
+			s.svc.LogSessionLimit(c.ip, max, c.logMask(c.nick))
 			s.sno('a', "Client %s with IP %s rejected: maxperip limit exceeded (%d local, max %d)", c.nick, c.ip, n, max)
 			s.quit(c, s.cfg.Messages.TooManyText())
 			return
@@ -384,6 +387,7 @@ func (s *Server) tryRegister(c *Client) {
 		return
 	}
 	if k != nil {
+		s.svc.LogBanHit(k.Kind, k.Mask, c.logMask(c.nick), k.SetBy, k.Reason)
 		s.reply(c, irc.ErrYoureBannedCreep, s.cfg.Messages.BanText("You are banned from this network: "+k.Reason))
 		s.sno('x', "%s %s stopped %s (%s@%s)", store.BanWord(k.Kind), k.Mask, c.nick, c.ident, c.host)
 		s.banQuit(c, "Banned", k.Reason)
@@ -665,4 +669,16 @@ func (s *Server) motd(c *Client) {
 		s.reply(c, irc.RplMotd, "- "+l)
 	}
 	s.reply(c, irc.RplEndOfMotd, "End of /MOTD command.")
+}
+
+// logMask is c as nick!ident@realhost for a services log line, with nick
+// for one not registered yet ("" when that is "" too).
+func (c *Client) logMask(nick string) string {
+	if c.user != nil {
+		return c.user.Nick + "!" + c.user.TrueIdent() + "@" + c.user.RealHost
+	}
+	if nick == "" {
+		return ""
+	}
+	return nick + "!" + orStar(c.ident) + "@" + c.host
 }

@@ -173,6 +173,7 @@ func (s *Server) enforceBan(b store.NetBan) {
 		return
 	}
 	var hit []*Client
+	var bans []*store.NetBan
 	for _, c := range s.clients {
 		if c.user == nil || c.closed || c.user.Service {
 			continue
@@ -180,9 +181,12 @@ func (s *Server) enforceBan(b store.NetBan) {
 		u := c.user
 		if k := s.svc.ConnectBan(u.TrueIdent(), u.RealHost, u.IP, u.Realname, u.Account != ""); k != nil {
 			hit = append(hit, c)
+			bans = append(bans, k)
 		}
 	}
-	for _, c := range hit {
+	for i, c := range hit {
+		k := bans[i]
+		s.svc.LogBanHit(k.Kind, k.Mask, c.logMask(c.nick), k.SetBy, k.Reason)
 		s.reply(c, irc.ErrYoureBannedCreep, s.cfg.Messages.BanText("You are banned from this network: "+b.Reason))
 		s.banQuit(c, "Banned", b.Reason)
 	}

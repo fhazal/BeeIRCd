@@ -138,6 +138,7 @@ func (s *Services) BanVia(by, via, kind, arg, reason string, life time.Duration)
 		hit++
 		switch kind {
 		case store.BanAkill, store.BanZline, store.BanSNLine:
+			s.logNetBanHit(&b, ou)
 			s.host.Numeric(ou.UID, irc.ErrYoureBannedCreep, "You are banned from this network: "+reason)
 			s.quit(oc, "Banned: "+reason)
 		}
