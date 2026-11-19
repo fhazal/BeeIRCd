@@ -1,8 +1,10 @@
 package server
 
 import (
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fhazal/beeircd/internal/irc"
 )
@@ -93,4 +95,24 @@ func TestChgOnRemoteUser(t *testing.T) {
 	if l := op.expect(" 401 "); !strings.Contains(l, "nobody") {
 		t.Errorf("got %q", l)
 	}
+}
+
+// A ban from another server: the notice names the setter's nick (UnrealIRCd
+// sends nick!user@host), the time is the ban's own length (expiry less set
+// time, InspIRCd's ADDLINE duration), and a removal without a reason
+// (InspIRCd's DELLINE has none) names the reason of the ban we keep.
+func TestRemoteBanNotice(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	op := login(t, hub.s, "op")
+	netadminOn(t, hub, op, "op")
+	op.send("MODE op +s +X")
+	op.send("PING :umode")
+	op.expect(" :umode")
+	setAt := time.Now().Add(-time.Hour).Unix()
+	hub.fromLink(t, fmt.Sprintf(":%s TKL + G * bad.example r5cu!r5cu@QA-1.example %d %d :spam", leaf.sid, setAt+7200, setAt))
+	if l := op.expect("*** XLINE: r5cu added a timed G-line on *@bad.example, expires in 2 hours (on "); !strings.HasSuffix(l, "): spam") {
+		t.Errorf("added %q", l)
+	}
+	hub.fromLink(t, ":"+leaf.sid+" TKL - G * bad.example insp")
+	op.expect("*** XLINE: insp removed G-line on *@bad.example: spam")
 }

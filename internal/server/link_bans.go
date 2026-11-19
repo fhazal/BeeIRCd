@@ -140,15 +140,27 @@ func (s *Server) remoteBan(l *linkConn, raw irc.Message, b *link.Ban) {
 	if b.Expires > 0 {
 		nb.Expires = time.Unix(b.Expires, 0)
 	}
+	if !b.Add && nb.Reason == "" {
+		// InspIRCd's DELLINE has no reason: the ban we keep has it.
+		for _, have := range s.svc.LinkedBans() {
+			if have.Kind == kind && strings.EqualFold(have.Mask, mask) {
+				nb.Reason = have.Reason
+				break
+			}
+		}
+	}
 	s.banFrom = l
 	changed := s.svc.RemoteBan(nb, b.Add)
 	s.banFrom = nil
 	if changed && l.eos {
+		// UnrealIRCd names the setter nick!user@host; the notice, like
+		// InspIRCd's, names the nick.
+		by, _, _ := strings.Cut(nb.SetBy, "!")
 		switch {
 		case !b.Add:
-			s.snoBanRemoved('X', nb.SetBy, kind, nb.Mask, nb.Reason)
+			s.snoBanRemoved('X', by, kind, nb.Mask, nb.Reason)
 		default:
-			s.snoBanAdded('X', nb.SetBy, kind, nb.Mask, nb.Reason, nb.Expires)
+			s.snoBanAdded('X', by, kind, nb.Mask, nb.Reason, nb.SetAt, nb.Expires)
 		}
 	}
 }

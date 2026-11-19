@@ -219,15 +219,16 @@ func (s *Server) serverSynced(sid string) bool {
 
 // snoBanAdded is InspIRCd's notice for a new ban: "nick added a timed
 // G-line on mask, expires in 1 hour (on <date>): reason", or "a permanent
-// G-line" when expires is zero.
-func (s *Server) snoBanAdded(letter byte, by, kind, mask, reason string, expires time.Time) {
+// G-line" when expires is zero. The time it names is the ban's own length,
+// expires less setAt, like InspIRCd's ADDLINE duration.
+func (s *Server) snoBanAdded(letter byte, by, kind, mask, reason string, setAt, expires time.Time) {
 	if !expires.IsZero() {
-		left := time.Until(expires).Round(time.Second)
-		if left < time.Second {
-			left = time.Second
+		life := expires.Sub(setAt).Round(time.Second)
+		if life < time.Second {
+			life = time.Second
 		}
 		s.sno(letter, "%s added a timed %s on %s, expires in %s (on %s): %s",
-			by, store.BanWord(kind), mask, longDuration(left), snoDate(expires), reason)
+			by, store.BanWord(kind), mask, longDuration(life), snoDate(expires), reason)
 		return
 	}
 	s.sno(letter, "%s added a permanent %s on %s: %s", by, store.BanWord(kind), mask, reason)

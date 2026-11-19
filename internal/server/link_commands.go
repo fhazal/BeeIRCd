@@ -464,11 +464,12 @@ func (s *Server) cmdKline(c *Client, m irc.Message) {
 	if life > 0 {
 		until = "for " + config.DurationWords(life)
 	}
+	now := time.Now()
 	var expires time.Time
 	if life > 0 {
-		expires = time.Now().Add(life)
+		expires = now.Add(life)
 	}
-	s.snoBanAdded('x', c.user.Nick, store.BanKline, strings.ToLower(mask), reason, expires)
+	s.snoBanAdded('x', c.user.Nick, store.BanKline, strings.ToLower(mask), reason, now, expires)
 	s.notice(c, fmt.Sprintf("*** K-line on %s added %s.", strings.ToLower(mask), until))
 }
 
