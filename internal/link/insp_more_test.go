@@ -104,3 +104,31 @@ func TestInspGlobops(t *testing.T) {
 		t.Errorf("in from a user %q", got)
 	}
 }
+
+// InspIRCd names an ADDLINE's or DELLINE's source in its notice
+// (addline.cpp, delline.cpp: usr->nick), so a ban set or removed by
+// someone online goes from their UID (UnrealIRCd's setter is
+// nick!user@host); from anyone else it stays the server's.
+func TestInspBanSourceIsSetter(t *testing.T) {
+	b := testBridge(t)
+	b.Out(":0BE EOS")
+	b.Out(":0BE UID bee 1 1700000000 ~bee host.example 0BEAAAAAA Bee +iox * cloak.example fwAAAQ== :The Bee")
+	cases := []struct{ in, want string }{
+		{":0BE TKL + G ~bot *.example bee 1700003600 1700000000 :no bots", ":0BEAAAAAA ADDLINE G ~bot@*.example bee 1700000000 3600 :no bots"},
+		{":0BE TKL + G ~bot *.example bee!~bee@host.example 1700003600 1700000000 :no bots", ":0BEAAAAAA ADDLINE G ~bot@*.example bee!~bee@host.example 1700000000 3600 :no bots"},
+		{":0BE TKL - G ~bot *.example Bee", ":0BEAAAAAA DELLINE G ~bot@*.example"},
+		{":0BE TKL + G ~bot *.example oper 1700003600 1700000000 :no bots", ":0BE ADDLINE G ~bot@*.example oper 1700000000 3600 :no bots"},
+		{":0BE TKL - G ~bot *.example oper", ":0BE DELLINE G ~bot@*.example"},
+	}
+	for _, c := range cases {
+		if got := b.Out(c.in); !has(got, c.want) {
+			t.Errorf("%s\n  sent %q\n  want %q", c.in, got, c.want)
+		}
+	}
+	// One of theirs with the setter's nick is not ours to speak for.
+	b.In(":1IN ENDBURST")
+	b.In(":1IN UID 1INAAAAAC 1700000000 carol h h carol carol 192.0.2.3 1700000000 + :x")
+	if got := b.Out(":0BE TKL - G ~bot *.example carol"); !has(got, ":0BE DELLINE G ~bot@*.example") {
+		t.Errorf("their nick: %q", got)
+	}
+}

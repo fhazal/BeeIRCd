@@ -906,6 +906,13 @@ func (b *inspBridge) outTKL(src string, p []string) []string {
 	case BanGZline, BanQline:
 		mask = p[3]
 	}
+	// InspIRCd names the line's source in its notice ("<nick> added a
+	// timed G-line ..."), so a ban set or removed by someone online goes
+	// from them, not from the server.
+	nick, _, _ := strings.Cut(p[4], "!")
+	if uid := b.ourUID(nick); uid != "" {
+		src = uid
+	}
 	if p[0] == "-" {
 		return []string{line(nil, src, "DELLINE", false, typ, mask)}
 	}
@@ -1242,9 +1249,18 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 
 // theirUID is the UID of the person on their side with nick, "" when
 // there is none.
-func (b *inspBridge) theirUID(nick string) string {
+func (b *inspBridge) theirUID(nick string) string { return b.uidByNick(nick, true) }
+
+// ourUID is the UID of the person on our side with nick, "" when there is
+// none.
+func (b *inspBridge) ourUID(nick string) string { return b.uidByNick(nick, false) }
+
+func (b *inspBridge) uidByNick(nick string, theirs bool) string {
+	if nick == "" {
+		return ""
+	}
 	for uid, n := range b.nicks {
-		if b.behind[sourceSID(uid)] && irc.Fold(n) == irc.Fold(nick) {
+		if len(uid) == 9 && b.behind[sourceSID(uid)] == theirs && irc.Fold(n) == irc.Fold(nick) {
 			return uid
 		}
 	}
