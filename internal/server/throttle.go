@@ -130,6 +130,12 @@ func (s *Server) throttleTick(now time.Time) {
 			delete(t.hits, ip)
 		}
 	}
+	// snoticeEvery keys (some per address) wait a minute at most.
+	for k, at := range s.noticeAt {
+		if now.Sub(at) >= 10*time.Minute {
+			delete(s.noticeAt, k)
+		}
+	}
 }
 
 // snoticeEvery sends a server notice at most once per every for key, so a

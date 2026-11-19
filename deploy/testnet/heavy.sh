@@ -27,7 +27,7 @@ done
 sleep $((N / 100 + 30))
 if ./netagree -addrs "$ADDRS" >>"$LOG" 2>&1; then say "before any cut: AGREE"; else say "before any cut: DISAGREE (see above)"; fi
 
-syncs() { docker logs bee-hub 2>&1 | grep -c "leaf2.beenet.test: sync done"; }
+syncs() { docker logs bee-hub 2>&1 | grep -c "Received end of netburst from leaf2.beenet.test ("; }
 end=$(($(date +%s) + DUR))
 cycle=0 ok=0 bad=0 norelink=0
 while [ "$(date +%s)" -lt "$end" ]; do

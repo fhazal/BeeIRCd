@@ -241,7 +241,7 @@ func osJupe(s *Server, c *Client, args []string) {
 			r.via.send(fmt.Sprintf(":%s SQUIT %s :%s", s.cfg.Server.SID, r.name, why))
 			gone, users := s.splitOff(r.sid, s.links.servers[r.uplink].nameOr(r.uplink), r.name)
 			s.linkBroadcast(r.via, fmt.Sprintf(":%s SQUIT %s :%s", r.uplink, r.name, why))
-			s.snotice("Server %s split (%s)%s", r.name, why, splitCount(gone, users))
+			s.remoteSplit(r.name, s.links.servers[r.uplink].nameOr(r.uplink), why, gone, users)
 		}
 	}
 	sid := s.freeSID()

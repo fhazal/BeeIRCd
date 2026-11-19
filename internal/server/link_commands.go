@@ -175,7 +175,7 @@ func (s *Server) linkNowBy(who, name string) string {
 	r.dialing, r.next = true, time.Now().Add(linkRetryMin)
 	s.wg.Add(1)
 	go s.dialLink(*b)
-	s.snotice("%s asked to connect to %s (%s:%d)", who, b.Name, b.Host, b.Port)
+	s.lnotice("CONNECT: Connecting to server \x02%s\x02 (%s:%d), asked by %s", b.Name, b.Host, b.Port, who)
 	return fmt.Sprintf("Connecting to %s (%s:%d). Opers with +s see how it goes.", b.Name, b.Host, b.Port)
 }
 
@@ -214,7 +214,7 @@ func (s *Server) squitBy(who, source, name, reason string) (text string, ok bool
 	if r == nil || r.via == nil {
 		return "", false
 	}
-	s.snotice("%s used SQUIT on %s (%s)", who, r.name, reason)
+	s.lnotice("SQUIT: Server \x02%s\x02 removed from network by %s", r.name, who)
 	if r.sid == r.via.peer.SID {
 		s.dropLink(r.via, reason)
 		return "", true
@@ -222,7 +222,7 @@ func (s *Server) squitBy(who, source, name, reason string) (text string, ok bool
 	r.via.send(fmt.Sprintf(":%s SQUIT %s :%s", source, r.name, reason))
 	gone, users := s.splitOff(r.sid, s.links.servers[r.uplink].nameOr(r.uplink), r.name)
 	s.linkBroadcast(r.via, fmt.Sprintf(":%s SQUIT %s :%s", r.uplink, r.name, reason))
-	s.snotice("Server %s split (%s)%s", r.name, reason, splitCount(gone, users))
+	s.remoteSplit(r.name, s.links.servers[r.uplink].nameOr(r.uplink), reason, gone, users)
 	return "", true
 }
 

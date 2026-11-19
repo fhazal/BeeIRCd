@@ -178,7 +178,8 @@ func TestLinkHubLeaf(t *testing.T) {
 		t.Errorf("hub knows %v", hub.servers())
 	}
 	waitLink(t, "sync notices", func() bool {
-		return hub.logHas("Link with leaf.test.local (0LF") && hub.logHas("sync done") && leaf.logHas("Link with hub.test.local (0HB") && leaf.logHas("we connected")
+		return hub.logHas("Verified server connection leaf.test.local (") && hub.logHas("Received end of netburst from leaf.test.local") &&
+			leaf.logHas("Connection to hub.test.local[127.0.0.1] started.") && leaf.logHas("Bursting to hub.test.local (Authentication: TLS certificate fingerprint and plaintext password, TLS 1.3 ") && leaf.logHas("we connected")
 	})
 	if !hub.logHas("BeeIRCd-") {
 		t.Errorf("hub log doesn't name the software:\n%s", hub.log)
@@ -216,7 +217,9 @@ func TestLinkHubLeaf(t *testing.T) {
 	// would bring it back
 	stopServer(leaf.s)
 	waitLink(t, "the split", func() bool { return len(hub.servers()) == 0 })
-	waitLink(t, "lost notice", func() bool { return hub.logHas("Link with leaf.test.local lost after") })
+	waitLink(t, "lost notice", func() bool {
+		return hub.logHas("Server leaf.test.local split: ") && hub.logHas("Netsplit complete, lost ") && hub.logHas("Connection to 'leaf.test.local' was established for ")
+	})
 }
 
 func TestLinkRefusals(t *testing.T) {
@@ -230,7 +233,7 @@ func TestLinkRefusals(t *testing.T) {
 		hub.start(t)
 		leaf.start(t)
 		waitLink(t, "refusal", func() bool {
-			return hub.logHas("Link with leaf.test.local refused: Link denied: certificate fingerprint does not match")
+			return hub.logHas("denied, Link denied: certificate fingerprint does not match")
 		})
 		if len(hub.servers()) != 0 {
 			t.Errorf("hub linked anyway: %v", hub.servers())
@@ -245,9 +248,9 @@ func TestLinkRefusals(t *testing.T) {
 		hub.start(t)
 		leaf.start(t)
 		waitLink(t, "refusal", func() bool {
-			return leaf.logHas("Link with hub.test.local refused: its certificate fingerprint")
+			return leaf.logHas("CONNECT: Error connecting hub.test.local: its certificate fingerprint")
 		})
-		if hub.logHas("wrong password") || hub.logHas("established") {
+		if hub.logHas("wrong password") || hub.logHas("Verified server connection") || hub.logHas("Bursting to") {
 			t.Errorf("hub got further than TLS:\n%s", hub.log)
 		}
 	})
@@ -258,7 +261,7 @@ func TestLinkRefusals(t *testing.T) {
 		leaf.expects(hub, true, "wrong")
 		hub.start(t)
 		leaf.start(t)
-		waitLink(t, "refusal", func() bool { return hub.logHas("refused: Link denied: wrong password") })
+		waitLink(t, "refusal", func() bool { return hub.logHas("denied, Link denied: wrong password") })
 		waitLink(t, "the leaf hears why", func() bool { return leaf.logHas("wrong password") })
 	})
 	t.Run("plain TCP on the link port", func(t *testing.T) {
@@ -296,7 +299,7 @@ func TestLinkTree(t *testing.T) {
 	b.start(t)
 	waitLink(t, "b knows a", func() bool { return b.servers()["0AA"] == "a.test.local" && b.servers()["0HB"] == "hub.test.local" })
 	waitLink(t, "a knows b", func() bool { return a.servers()["0BB"] == "b.test.local" })
-	waitLink(t, "joined notice", func() bool { return a.logHas("Server b.test.local (0BB) joined the network behind hub.test.local") })
+	waitLink(t, "joined notice", func() bool { return a.logHas("Server hub.test.local introduced server b.test.local (") })
 	var hops int
 	a.s.onLoop(func() { hops = a.s.links.servers["0BB"].hops })
 	if hops != 2 {
@@ -307,7 +310,9 @@ func TestLinkTree(t *testing.T) {
 	if _, ok := a.servers()["0HB"]; !ok {
 		t.Error("a lost the hub too")
 	}
-	waitLink(t, "split notice", func() bool { return a.logHas("Server b.test.local split from hub.test.local") })
+	waitLink(t, "split notice", func() bool {
+		return a.logHas("Server b.test.local split from server hub.test.local with reason: ") && a.logHas("Netsplit complete, lost ")
+	})
 }
 
 // Three hubs in a ring: the link that would close the loop is refused.
@@ -361,7 +366,7 @@ func TestLinkSendQ(t *testing.T) {
 	})
 	waitLink(t, "sendq drop", func() bool { return hub.logHas("SendQ exceeded") })
 	// the leaf dials again by itself
-	waitLink(t, "relink", func() bool { return strings.Count(hub.log.String(), "established") >= 2 })
+	waitLink(t, "relink", func() bool { return strings.Count(hub.log.String(), "Finished bursting to leaf.test.local.") >= 2 })
 }
 
 func itoa(n int) string { return strconv.Itoa(n) }

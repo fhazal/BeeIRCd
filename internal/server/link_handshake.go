@@ -44,15 +44,17 @@ import (
 
 // Link timings. UnrealIRCd's servers class usually pings every 60-90 s.
 const (
-	linkHandshakeTimeout = 30 * time.Second
-	linkPingIdle         = 60 * time.Second // PING after this long without a line
-	linkPingTimeout      = 90 * time.Second // drop when the PONG takes longer
-	linkPingWarn         = 30 * time.Second // tell opers the link is lagging
-	linkDialTimeout      = 15 * time.Second
-	linkRetryMin         = 30 * time.Second // after a failed connect, doubling
-	linkRetryMax         = 5 * time.Minute
-	linkMaxPending       = 32       // TLS handshakes in progress on the link port
-	linkMaxLine          = 64 << 10 // BIGLINES lines plus tags fit easily
+	linkHandshakeTimeout  = 30 * time.Second
+	linkPingIdle          = 60 * time.Second // PING after this long without a line
+	linkPingTimeout       = 90 * time.Second // drop when the PONG takes longer
+	linkPingWarn          = 30 * time.Second // tell opers the link is lagging
+	linkDialTimeout       = 15 * time.Second
+	linkRetryMin          = 30 * time.Second // after a failed connect, doubling
+	linkRetryMax          = 5 * time.Minute
+	linkMaxPending        = 32               // TLS handshakes in progress on the link port
+	linkPortNoticeEvery   = 10 * time.Second // one failed-connection notice per address
+	linkHandshakeTimedOut = "handshake timed out"
+	linkMaxLine           = 64 << 10 // BIGLINES lines plus tags fit easily
 	// linkMaxPreLines: lines a server may send before its handshake is
 	// done (PASS, a few PROTOCTL, SERVER: about 10 in real use).
 	linkMaxPreLines = 64
@@ -154,6 +156,7 @@ type linkConn struct {
 	eos       bool                  // their burst is complete
 	netjoin   *netjoinBatch         // JOINs of their burst, for batch clients
 	preLines  int                   // lines before the handshake was done
+	denied    bool                  // the handshake refused it (not a broken connection)
 
 	mu      sync.Mutex
 	queue   []string
@@ -246,6 +249,11 @@ func (s *Server) linkAcceptLoop(ln net.Listener) {
 			if err != nil {
 				s.log.Printf("link port: TLS with %s failed: %v", conn.RemoteAddr(), err)
 				conn.Close()
+				why := "TLS handshake failed: " + shortNetErr(err)
+				if isTimeout(err) {
+					why = fmt.Sprintf("TLS handshake timed out (%d seconds)", int(linkDialTimeout.Seconds()))
+				}
+				s.post(func() { s.linkPortFailed(conn.RemoteAddr(), why) })
 				return
 			}
 			fp := peerFingerprint(tc)
@@ -289,6 +297,31 @@ func (s *Server) dialLink(b config.LinkServer) {
 	s.post(func() { s.linkDialFailed(b.Name, err) })
 }
 
+// linkPortFailed tells opers that a connection on the link port failed
+// before its handshake started (TLS, or too many waiting), at most once per
+// address every 10 seconds; the log has each one.
+func (s *Server) linkPortFailed(addr net.Addr, why string) {
+	ip := addr.String()
+	if h, _, err := net.SplitHostPort(ip); err == nil {
+		ip = h
+	}
+	key := "linkport:" + ip
+	now := time.Now()
+	if last, ok := s.noticeAt[key]; ok && now.Sub(last) < linkPortNoticeEvery {
+		return
+	}
+	s.noticeAt[key] = now
+	text := fmt.Sprintf("Server connection from %s failed: %s", ip, why)
+	s.rpcLog(text, "link")
+	s.snoticeOpers(text)
+}
+
+// isTimeout reports whether err is a dial or handshake running out of time.
+func isTimeout(err error) bool {
+	var ne net.Error
+	return errors.Is(err, context.DeadlineExceeded) || errors.As(err, &ne) && ne.Timeout()
+}
+
 func (s *Server) linkDialFailed(name string, err error) {
 	r := s.links.retry[strings.ToLower(name)]
 	if r == nil {
@@ -296,10 +329,10 @@ func (s *Server) linkDialFailed(name string, err error) {
 	}
 	r.dialing = false
 	msg := err.Error()
-	if r.lastErr != msg {
-		s.snotice("Link to %s failed: %s (trying again every few minutes)", name, msg)
+	if isTimeout(err) {
+		s.lnotice("CONNECT: Error connecting \x02%s\x02 (timeout of %d seconds)", name, int(linkDialTimeout.Seconds()))
 	} else {
-		s.log.Printf("link to %s failed again: %s", name, msg)
+		s.lnotice("CONNECT: Error connecting \x02%s\x02: %s.", name, strings.TrimSuffix(shortNetErr(err), "."))
 	}
 	r.lastErr = msg
 	r.wait = min(max(linkRetryMin, r.wait*2), linkRetryMax)
@@ -326,6 +359,7 @@ func (s *Server) newLink(conn net.Conn, outgoing bool, b *config.LinkServer, fp 
 		if waiting >= linkMaxPending {
 			s.log.Printf("link port: refused %s, %d handshakes are waiting already", conn.RemoteAddr(), waiting)
 			conn.Close()
+			s.linkPortFailed(conn.RemoteAddr(), fmt.Sprintf("%d handshakes are waiting already", waiting))
 			return
 		}
 	}
@@ -356,6 +390,13 @@ func (s *Server) newLink(conn net.Conn, outgoing bool, b *config.LinkServer, fp 
 		// one pinned in the block.
 		s.dropLink(l, "its certificate fingerprint "+orStr(fp, "(none)")+" does not match the link block")
 		return
+	}
+	if outgoing {
+		ip := l.addr
+		if h, _, err := net.SplitHostPort(ip); err == nil {
+			ip = h
+		}
+		s.lnotice("Connection to \x02%s\x02[%s] started.", b.Name, ip)
 	}
 	go l.readLoop()
 	for _, line := range l.hs.Start() {
@@ -493,6 +534,7 @@ func (s *Server) handleLinkLine(l *linkConn, line string) {
 			l.send(o)
 		}
 		if err != nil {
+			l.denied = true
 			s.dropLink(l, err.Error())
 			return
 		}
@@ -524,6 +566,7 @@ func (s *Server) linkUp(l *linkConn) {
 	if s.cfg.Link.Role == "leaf" {
 		for o := range s.links.conns {
 			if o != l && o.up {
+				l.denied = true
 				s.dropLink(l, fmt.Sprintf("%s is a leaf and is linked to %s already", s.cfg.Server.Name, o.peer.Name))
 				return
 			}
@@ -540,6 +583,14 @@ func (s *Server) linkUp(l *linkConn) {
 	if r := s.links.retry[strings.ToLower(p.Name)]; r != nil {
 		r.wait, r.lastErr = 0, ""
 	}
+	dir := "they connected"
+	if l.out {
+		dir = "we connected"
+	} else {
+		s.lnotice("Verified server connection %s (%s)", p.Name, p.Description)
+	}
+	s.log.Printf("link with %s (%s, %s) is up: %s, %s", p.Name, p.SID, l.addr, orStr(p.Software, "unknown software"), dir)
+	s.lnotice("Bursting to \x02%s\x02 (Authentication: %s).", p.Name, linkAuth(l.conn, p.Block.Password != ""))
 	for _, line := range l.hs.Burst(others, s.burstBody(l)) {
 		l.send(line)
 	}
@@ -557,12 +608,8 @@ func (s *Server) linkUp(l *linkConn) {
 			l.send(":" + r.sid + " MD client " + r.name + " saslmechlist :" + s.links.saslMechs)
 		}
 	}
+	s.lnotice("Finished bursting to \x02%s\x02.", p.Name)
 	s.linkBroadcast(l, fmt.Sprintf(":%s SID %s 2 %s :%s", s.cfg.Server.SID, p.Name, p.SID, p.Description))
-	dir := "they connected"
-	if l.out {
-		dir = "we connected"
-	}
-	s.snotice("Link with %s (%s, %s) established%s: %s, %s", p.Name, p.SID, l.addr, tlsInfo(l.conn), orStr(p.Software, "unknown software"), dir)
 }
 
 // burstServers lists the servers to introduce to l: everyone not behind
@@ -637,7 +684,7 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 			l.pingSent, l.lastPong = time.Time{}, time.Now()
 			if l.lagWarned {
 				l.lagWarned = false
-				s.snotice("Link with %s answers again (lag %s)", l.peer.Name, l.lag.Round(time.Millisecond))
+				s.lnotice("Server \x02%s\x02 is responding to PING again (lag %d ms)", l.peer.Name, l.lag.Milliseconds())
 			}
 		}
 	case "SID":
@@ -652,7 +699,7 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 			l.eos = true
 			l.netjoin.end()
 			l.synced = time.Since(l.since)
-			s.snotice("Link with %s: sync done in %s%s", r.name, l.synced.Round(time.Millisecond), s.burstSize(l))
+			s.lnotice("Received end of netburst from \x02%s\x02 (burst time: %d ms)", r.name, l.synced.Milliseconds())
 			s.sendPlaces(l)
 			s.sendExcepts(l)
 		}
@@ -777,7 +824,7 @@ func (s *Server) linkSID(l *linkConn, m irc.Message) {
 	r := &remoteServer{name: name, sid: sid, desc: desc, uplink: up.sid, hops: up.hops + 1, via: l}
 	s.links.servers[sid] = r
 	s.linkBroadcast(l, fmt.Sprintf(":%s SID %s %d %s :%s", up.sid, name, r.hops+1, sid, desc))
-	s.snotice("Server %s (%s) joined the network behind %s", name, sid, up.name)
+	s.lnotice("Server \x02%s\x02 introduced server \x02%s\x02 (%s)", up.name, name, desc)
 }
 
 // linkSQUIT is ":source SQUIT name :reason".
@@ -808,7 +855,7 @@ func (s *Server) linkSQUIT(l *linkConn, m irc.Message) {
 	}
 	gone, users := s.splitOff(r.sid, s.links.servers[r.uplink].nameOr(r.uplink), r.name)
 	s.linkBroadcast(l, fmt.Sprintf(":%s SQUIT %s :%s", r.uplink, r.name, reason))
-	s.snotice("Server %s split from %s (%s)%s", r.name, s.links.servers[r.uplink].nameOr(r.uplink), reason, splitCount(gone, users))
+	s.remoteSplit(r.name, s.links.servers[r.uplink].nameOr(r.uplink), reason, gone, users)
 }
 
 func (r *remoteServer) nameOr(fallback string) string {
@@ -818,18 +865,24 @@ func (r *remoteServer) nameOr(fallback string) string {
 	return r.name
 }
 
-func splitCount(servers, users int) string {
-	var p []string
-	if users > 0 {
-		p = append(p, countOf(users, "user"))
+// netsplitDone is InspIRCd's line after a split: how many users and
+// servers went (the split server counts).
+func (s *Server) netsplitDone(servers, users int) {
+	s.lnotice("Netsplit complete, lost \x02%d\x02 %s on \x02%d\x02 %s.", users, pluralS(users, "user"), servers, pluralS(servers, "server"))
+}
+
+// remoteSplit tells opers that name, behind uplink, split off.
+func (s *Server) remoteSplit(name, uplink, reason string, servers, users int) {
+	s.lnotice("Server \x02%s\x02 split from server \x02%s\x02 with reason: %s", name, uplink, reason)
+	s.netsplitDone(servers, users)
+}
+
+// pluralS is "user" for 1, else "users" (the word alone).
+func pluralS(n int, what string) string {
+	if n == 1 {
+		return what
 	}
-	if servers > 1 {
-		p = append(p, countOf(servers, "server"))
-	}
-	if len(p) == 0 {
-		return ""
-	}
-	return ", lost " + strings.Join(p, " on ")
+	return what + "s"
 }
 
 // countOf is "1 user", "86 users".
@@ -884,7 +937,7 @@ func (s *Server) linkNetinfo(l *linkConn, m irc.Message) {
 	}
 	if len(why) > 0 {
 		l.warned = true
-		s.snotice("Warning, link with %s: %s", l.peer.Name, strings.Join(why, "; "))
+		s.lnotice("\x02WARNING\x02: link with \x02%s\x02: %s", l.peer.Name, strings.Join(why, "; "))
 	}
 }
 
@@ -906,7 +959,7 @@ func (s *Server) dropLink(l *linkConn, reason string) {
 		r.next, r.wait = time.Now().Add(linkRetryFirst), 0
 	}
 	if !l.up {
-		s.snotice("Link with %s refused: %s", name, reason)
+		s.linkFailed(l, name, reason)
 		return
 	}
 	behind := map[string]bool{}
@@ -921,7 +974,34 @@ func (s *Server) dropLink(l *linkConn, reason string) {
 	}
 	gone := len(behind)
 	s.linkBroadcast(nil, fmt.Sprintf(":%s SQUIT %s :%s", s.cfg.Server.SID, l.peer.Name, reason))
-	s.snotice("Link with %s lost after %s: %s%s", l.peer.Name, since(time.Since(l.since)), reason, splitCount(gone, users))
+	s.lnotice("Server \x02%s\x02 split: %s", l.peer.Name, reason)
+	s.netsplitDone(gone, users)
+	s.lnotice("Connection to '\x02%s\x02' was established for %s", l.peer.Name, longDuration(time.Since(l.since)))
+}
+
+// linkFailed tells opers why a link ended before its handshake was done:
+// our try to connect failed, they were refused, or their connection broke.
+func (s *Server) linkFailed(l *linkConn, name, reason string) {
+	switch {
+	case l.out && reason == linkHandshakeTimedOut:
+		s.lnotice("CONNECT: Error connecting \x02%s\x02 (timeout of %d seconds)", name, int(linkHandshakeTimeout.Seconds()))
+	case l.out:
+		s.lnotice("CONNECT: Error connecting \x02%s\x02: %s.", name, strings.TrimSuffix(reason, "."))
+	case name == l.addr: // no server name yet: only the address
+		ip := l.addr
+		if h, _, err := net.SplitHostPort(ip); err == nil {
+			ip = h
+		}
+		if l.denied {
+			s.lnotice("Server connection from %s denied, %s", ip, reason)
+		} else {
+			s.lnotice("Server connection from %s failed: %s", ip, reason)
+		}
+	case l.denied:
+		s.lnotice("Server connection from \x02%s\x02 denied, %s", name, reason)
+	default:
+		s.lnotice("Server connection from \x02%s\x02 failed: %s", name, reason)
+	}
 }
 
 // orStr is a unless it is empty, else b.
@@ -932,17 +1012,31 @@ func orStr(a, b string) string {
 	return b
 }
 
-// since writes a duration the short way: 45s, 12m, 3h20m, 2d4h.
-func since(d time.Duration) string {
-	switch {
-	case d < time.Minute:
-		return fmt.Sprintf("%ds", int(d.Seconds()))
-	case d < time.Hour:
-		return fmt.Sprintf("%dm", int(d.Minutes()))
-	case d < 48*time.Hour:
-		return fmt.Sprintf("%dh%02dm", int(d.Hours()), int(d.Minutes())%60)
+// longDuration writes a duration the way InspIRCd's
+// Duration::ToLongString does, to the two biggest units: "45 seconds",
+// "15 minutes, 3 seconds", "4 days, 2 hours", "1 week, 2 days".
+func longDuration(d time.Duration) string {
+	secs := int64(d / time.Second)
+	if secs <= 0 {
+		return "0 seconds"
 	}
-	return fmt.Sprintf("%dd%dh", int(d.Hours())/24, int(d.Hours())%24)
+	units := []struct {
+		n    int64
+		name string
+	}{{365 * 24 * 3600, "year"}, {7 * 24 * 3600, "week"}, {24 * 3600, "day"}, {3600, "hour"}, {60, "minute"}, {1, "second"}}
+	for i, u := range units {
+		if secs < u.n {
+			continue
+		}
+		out := countOf(int(secs/u.n), u.name)
+		if i+1 < len(units) {
+			if next := secs % u.n / units[i+1].n; next > 0 {
+				out += ", " + countOf(int(next), units[i+1].name)
+			}
+		}
+		return out
+	}
+	return "0 seconds"
 }
 
 // linkTick handles handshake timeouts, pings and autoconnect.
@@ -950,7 +1044,7 @@ func (s *Server) linkTick(now time.Time) {
 	for l := range s.links.conns {
 		switch {
 		case !l.up && now.Sub(l.started) > linkHandshakeTimeout:
-			s.dropLink(l, "handshake timed out")
+			s.dropLink(l, linkHandshakeTimedOut)
 		case l.up && l.pingSent.IsZero() && (now.Sub(l.lastRecv) > linkPingIdle ||
 			// Lag: measured as soon as the link is synced, then every
 			// linkPingIdle even when the link is busy, so it stays current.
@@ -961,8 +1055,7 @@ func (s *Server) linkTick(now time.Time) {
 			s.dropLink(l, fmt.Sprintf("Ping timeout: %d seconds", int(now.Sub(l.lastRecv).Seconds())))
 		case l.up && !l.pingSent.IsZero() && !l.lagWarned && now.Sub(l.pingSent) > linkPingWarn:
 			l.lagWarned = true
-			s.snotice("Link with %s hasn't answered a PING for %d seconds: it is lagging (dropped after %d)",
-				l.peer.Name, int(now.Sub(l.pingSent).Seconds()), int(linkPingTimeout.Seconds()))
+			s.lnotice("Server \x02%s\x02 has not responded to PING for %d seconds, high latency.", l.peer.Name, int(now.Sub(l.pingSent).Seconds()))
 		}
 	}
 	s.autoconnect(now)
@@ -999,9 +1092,7 @@ func (s *Server) autoconnect(now time.Time) {
 		}
 		r.dialing, busy = true, true
 		r.next = now.Add(linkRetryMin)
-		if r.lastErr == "" { // while it keeps failing, only the log has each try
-			s.snotice("Connecting to %s (%s:%d)", b.Name, b.Host, b.Port)
-		}
+		s.lnotice("AUTOCONNECT: Auto-connecting server \x02%s\x02", b.Name)
 		s.wg.Add(1)
 		go s.dialLink(b)
 	}
@@ -1209,30 +1300,18 @@ func shortNetErr(err error) string {
 	return err.Error()
 }
 
-// tlsInfo is " over TLS 1.3 (TLS_AES_128_GCM_SHA256)" for a link's
-// connection; links are always TLS with the certificate pinned.
-func tlsInfo(conn net.Conn) string {
-	tc, ok := conn.(*tls.Conn)
-	if !ok {
-		return ""
+// linkAuth is how a link was checked, for the "Bursting to" notice:
+// "TLS certificate fingerprint and plaintext password, TLS 1.3
+// TLS_AES_128_GCM_SHA256". Links are always TLS with the certificate
+// pinned; the password is checked when the block has one.
+func linkAuth(conn net.Conn, password bool) string {
+	auth := "TLS certificate fingerprint"
+	if password {
+		auth += " and plaintext password"
 	}
-	st := tc.ConnectionState()
-	return fmt.Sprintf(" over %s (%s), certificate pinned", tls.VersionName(st.Version), tls.CipherSuiteName(st.CipherSuite))
-}
-
-// burstSize is ": 86 users on 2 servers", what l's side of the network
-// brought in.
-func (s *Server) burstSize(l *linkConn) string {
-	servers, users := 0, 0
-	for _, r := range s.links.servers {
-		if r.via == l {
-			servers++
-		}
+	if tc, ok := conn.(*tls.Conn); ok {
+		st := tc.ConnectionState()
+		auth += ", " + tls.VersionName(st.Version) + " " + tls.CipherSuiteName(st.CipherSuite)
 	}
-	for _, u := range s.net.Users() {
-		if s.behind(l, uidServer(u.UID)) && !u.Service {
-			users++
-		}
-	}
-	return ": " + countOf(users, "user") + " on " + countOf(servers, "server")
+	return auth
 }

@@ -40,7 +40,9 @@ func TestSpamfilterOverLinks(t *testing.T) {
 	leaf.start(t)
 	addSpam(t, hub, spamfilter.Filter{Type: spamfilter.Simple, Match: "*free nitro*", Targets: "cp", Action: spamfilter.Block, Reason: "No nitro_spam"})
 	leaf.linkNow()
-	waitLink(t, "sync", func() bool { return hub.logHas("sync done") && leaf.logHas("sync done") })
+	waitLink(t, "sync", func() bool {
+		return hub.logHas("Received end of netburst from") && leaf.logHas("Received end of netburst from")
+	})
 	waitLink(t, "burst rule", func() bool { return hasSpam(leaf, "*free nitro*") })
 
 	// The leaf checks its own people with the hub's rule, reason intact.

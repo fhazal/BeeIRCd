@@ -508,7 +508,8 @@ func TestRPCServerDisconnect(t *testing.T) {
 	if _, e := call(`{"link":"leaf.test.local","reason":"moving it"}`); e != nil {
 		t.Fatalf("disconnect: %+v", e)
 	}
-	op.expect("RPC Belon used SQUIT on leaf.test.local (moving it)")
+	op.expect("SQUIT: Server \x02leaf.test.local\x02 removed from network by RPC Belon")
+	op.expect("Server \x02leaf.test.local\x02 split: moving it")
 	waitLink(t, "leaf split", func() bool {
 		var gone bool
 		hub.s.onLoop(func() { gone = hub.s.serverByName("leaf.test.local") == nil })

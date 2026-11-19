@@ -124,8 +124,8 @@ up() {
 		docker start bee-$n >/dev/null
 	done
 	for i in $(seq 1 30); do
-		if docker logs bee-hub 2>&1 | grep -q "leaf1.beenet.test: sync done" &&
-			docker logs bee-hub 2>&1 | grep -q "leaf2.beenet.test: sync done"; then
+		if docker logs bee-hub 2>&1 | grep -q "Received end of netburst from leaf1.beenet.test (" &&
+			docker logs bee-hub 2>&1 | grep -q "Received end of netburst from leaf2.beenet.test ("; then
 			echo "test network up: hub + leaf1 + leaf2 linked"
 			return 0
 		fi

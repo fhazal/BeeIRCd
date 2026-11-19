@@ -86,8 +86,8 @@ BEEIRCD_LINK_DEBUG=1 setsid nohup ./beeircd run -config "$B/beeircd.conf" >"$B/b
 echo $! >"$B/pid"
 sleep 2
 su ircsand -s /bin/sh -c "cd $S && ./bin/services --confdir=$S/conf --dbdir=$S/data --logdir=$S/logs --modulesdir=$S/lib --localedir=$S/locale" >"$S/logs/start.out" 2>&1 || true
-for i in $(seq 1 30); do grep -q "services.sandbee.local: sync done" "$B/bee.log" && break; sleep 1; done
-if ! grep -q "services.sandbee.local: sync done" "$B/bee.log"; then
+for i in $(seq 1 30); do grep -q "Received end of netburst from services.sandbee.local (" "$B/bee.log" && break; sleep 1; done
+if ! grep -q "Received end of netburst from services.sandbee.local (" "$B/bee.log"; then
 	echo "FAIL Anope did not link; BeeIRCd log:"
 	grep -v " -> \| <- " "$B/bee.log" | tail -15
 	echo "Anope:"

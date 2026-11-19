@@ -1820,15 +1820,30 @@ ports, restarts and link blocks are changed in that server's shell). Each
 remote change is logged on both servers with who and what.
 
 **Link notices.** IRC operators (user mode `+s`) see each step of a
-link as a server notice: `Connecting to <server> (host:port)` (once
-while it keeps failing; the log has every try), `Link to <server>
-failed: <why>`, `Link with <server> (SID, ip:port) established over TLS
-1.3 (cipher), certificate pinned: <software>, we connected`, `Link with
-<server>: sync done in 178ms: 86 users on 1 server`, `Server <name>
-joined the network behind <server>`, a warning when a link hasn't
-answered a PING for 30 seconds (and when it answers again), `Link with
-<server> lost after 3h40m: <reason>, lost 86 users on 2 servers`, and
-refusals (wrong password or fingerprint, unknown server).
+link as a server notice, in InspIRCd's words, with server names in bold:
+`AUTOCONNECT: Auto-connecting server <server>` (each try) or `CONNECT:
+Connecting to server <server> (host:port), asked by <oper>`, `Connection
+to <server>[ip] started.`, `CONNECT: Error connecting <server>: <why>.`
+(each failed try; `(timeout of 15 seconds)` when it timed out), `Verified
+server connection <server> (<description>)` (a server that connected to
+us), `Bursting to <server> (Authentication: TLS certificate fingerprint
+and plaintext password, TLS 1.3 <cipher>).`, `Finished bursting to
+<server>.`, `Received end of netburst from <server> (burst time: 178 ms)`,
+`Server <uplink> introduced server <name> (<description>)`, `Server
+<server> has not responded to PING for 30 seconds, high latency.` (and
+`is responding to PING again (lag 12 ms)`), `WARNING: link with <server>:
+<why>`, `SQUIT: Server <server> removed from network by <oper>`, and when
+a link goes three lines: `Server <server> split: <reason>`, `Netsplit
+complete, lost 86 users on 2 servers.`, `Connection to '<server>' was
+established for 3 hours, 40 minutes`. A server further away splitting
+shows `Server <name> split from server <uplink> with reason: <reason>`
+and the Netsplit line. Refusals read `Server connection from <server>
+denied, <why>` (wrong password or fingerprint, unknown server) or `Server
+connection from <ip> failed: <why>` (a broken handshake; a failed TLS
+handshake on the link port is told once per address every 10 seconds).
+The log has the same lines without the bold, and a `link with <server>
+(SID, ip:port) is up: <software>` line; `beeircd status` shows the
+software too.
 
 **Splits and rejoins.** When a link goes, everyone behind it quits with
 "near-server far-server" (or `*.net *.split`, see `hide_split`), inside an
@@ -1856,6 +1871,6 @@ services server or the server it is linked behind; CHGHOST, SAJOIN and
 the like sent by a user only from an IRC operator. A network ban or
 Q-line from another server that matches everyone (`*@*`, `*`, `::/0`) is
 refused, as OperServ refuses it here.
-Opers with `+s` see every link event (established, refused and why, sync
+Opers with `+s` see every link event (connected, refused and why, burst
 time, split). `BEEIRCD_LINK_DEBUG=1` in the environment logs every line
 sent and received on links.

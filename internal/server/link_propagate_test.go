@@ -18,7 +18,9 @@ func linkedPair(t *testing.T) (hub, leaf *linkNode) {
 	leaf.expects(hub, true, "")
 	hub.start(t)
 	leaf.start(t)
-	waitLink(t, "sync", func() bool { return hub.logHas("sync done") && leaf.logHas("sync done") })
+	waitLink(t, "sync", func() bool {
+		return hub.logHas("Received end of netburst from") && leaf.logHas("Received end of netburst from")
+	})
 	return hub, leaf
 }
 
@@ -175,7 +177,9 @@ func TestLinkBans(t *testing.T) {
 	leaf.start(t)
 	hub.s.onLoop(func() { hub.s.svc.DnsblBan(store.BanZline, "192.0.2.1", "old zline", time.Hour) })
 	leaf.linkNow()
-	waitLink(t, "sync", func() bool { return hub.logHas("sync done") && leaf.logHas("sync done") })
+	waitLink(t, "sync", func() bool {
+		return hub.logHas("Received end of netburst from") && leaf.logHas("Received end of netburst from")
+	})
 	has := func(n *linkNode, kind, mask string) bool {
 		found := false
 		n.s.onLoop(func() {

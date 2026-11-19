@@ -196,7 +196,23 @@ func (s *Server) snotice(format string, a ...any) {
 // snoticeOnly sends a server notice without logging it (for things the
 // log already has).
 func (s *Server) snoticeOnly(text string) {
-	s.rpcLog(text)
+	s.rpcLog(text, "")
+	s.snoticeOpers(text)
+}
+
+// lnotice is a server notice about a server link, worded like InspIRCd
+// 4's, with server names in bold (\x02). The log and the admin API get it
+// without the bold, the admin API under its link subsystem.
+func (s *Server) lnotice(format string, a ...any) {
+	text := fmt.Sprintf(format, a...)
+	plain := strings.ReplaceAll(text, "\x02", "")
+	s.log.Print(plain)
+	s.rpcLog(plain, "link")
+	s.snoticeOpers(text)
+}
+
+// snoticeOpers sends text to opers with +s.
+func (s *Server) snoticeOpers(text string) {
 	for c := range s.opers {
 		if c.user != nil && c.isOper() && c.user.Modes['s'] {
 			s.notice(c, "*** Notice -- "+text)

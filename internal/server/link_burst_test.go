@@ -115,7 +115,9 @@ func TestLinkBurst(t *testing.T) {
 
 	leaf.linkNow()
 	waitLink(t, "burst", func() bool { return hub.user("dave") != nil && leaf.user("bob") != nil })
-	waitLink(t, "sync", func() bool { return hub.logHas("sync done") && leaf.logHas("sync done") })
+	waitLink(t, "sync", func() bool {
+		return hub.logHas("Received end of netburst from") && leaf.logHas("Received end of netburst from")
+	})
 
 	if u := hub.user("carol"); u.Server != "leaf.test.local" || u.Away != "lunch" || u.Ident != "~carol" {
 		t.Errorf("hub sees carol %+v", u)
@@ -200,7 +202,9 @@ func TestLinkNickCollision(t *testing.T) {
 	old := hub.user("dup")
 	newUID := leaf.user("dup").UID
 	leaf.linkNow()
-	waitLink(t, "both synced", func() bool { return hub.logHas("sync done") && leaf.logHas("sync done") })
+	waitLink(t, "both synced", func() bool {
+		return hub.logHas("Received end of netburst from") && leaf.logHas("Received end of netburst from")
+	})
 	young.expect("collided")
 	young.expect("NICK " + newUID)
 	for _, n := range []*linkNode{hub, leaf} {

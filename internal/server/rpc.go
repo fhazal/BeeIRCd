@@ -554,14 +554,17 @@ type rpcLogEvent struct {
 const rpcRecentLog = 500
 
 // rpcLog hands a server notice to the API: kept for log.list and sent to
-// everyone who subscribed. On the loop.
-func (s *Server) rpcLog(text string) {
+// everyone who subscribed; subsystem "link" files a link notice there. On
+// the loop.
+func (s *Server) rpcLog(text, subsystem string) {
 	r := &s.rpc
 	if r.subs == nil {
 		return // the API is off
 	}
 	ev := rpcLogEvent{Timestamp: rpcTime(time.Now()), Level: "info", Subsystem: "server", EventID: "NOTICE", LogSource: s.cfg.Server.Name, Msg: text}
 	switch {
+	case subsystem == "link":
+		ev.Subsystem, ev.EventID = "link", "LINK"
 	case strings.HasPrefix(text, "Connect: "):
 		ev.Subsystem, ev.EventID = "connect", "LOCAL_CLIENT_CONNECT"
 	case strings.HasPrefix(text, "Quit: "):
