@@ -482,7 +482,7 @@ func (s *Server) quit(c *Client, reason string) {
 		u := c.user
 		s.emit(&state.UserQuit{UID: u.UID, Reason: reason})
 		s.log.Printf("quit %s (%s): %s", u.Nick, c.ip, reason)
-		s.snoOnly('q', "Client exiting: "+snoWho(u)+" ["+reason+"]")
+		s.snoOnly('q', "Client exiting: "+snoMaskIP(u)+" ["+reason+"]")
 		s.svc.LogUserQuit(u, reason)
 	}
 	c.send("ERROR :Closing Link: " + c.host + " (" + reason + ")")

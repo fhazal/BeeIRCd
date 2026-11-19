@@ -1,6 +1,10 @@
 package server
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/fhazal/beeircd/internal/state"
+)
 
 // Every notice letter has InspIRCd 4's category word; anything else is an
 // ANNOUNCEMENT.
@@ -79,5 +83,18 @@ func TestSnoOperUp(t *testing.T) {
 		if got := s.operRank(tt.class, tt.title); got != tt.want {
 			t.Errorf("operRank(%q, %q) = %q, want %q", tt.class, tt.title, got, tt.want)
 		}
+	}
+}
+
+// Connect, quit and kill notices name a user by real mask like InspIRCd 4
+// (GetRealMask): the real ident and host, not the cloak; connects and quits
+// add the IP in brackets.
+func TestSnoRealMask(t *testing.T) {
+	u := &state.User{Nick: "ann", Ident: "~ann", RealIdent: "~ann", Host: "cloak.example", RealHost: "h.example", IP: "1.2.3.4"}
+	if got := snoRealMask(u); got != "ann!~ann@h.example" {
+		t.Errorf("snoRealMask = %q", got)
+	}
+	if got := snoMaskIP(u); got != "ann!~ann@h.example (1.2.3.4)" {
+		t.Errorf("snoMaskIP = %q", got)
 	}
 }

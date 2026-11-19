@@ -31,7 +31,7 @@ func TestLocalSnoticeTexts(t *testing.T) {
 	b.sync()
 
 	dave := login(t, s, "dave")
-	l := b.expect("): dave (~dave@127.0.0.1) [127.0.0.1] [")
+	l := b.expect("): dave!~dave@127.0.0.1 (127.0.0.1) [")
 	if !strings.Contains(l, "*** CONNECT: Client connecting on port ") || !strings.Contains(l, " (class ") || !strings.HasSuffix(l, "\x0F]") {
 		t.Errorf("connect notice %q", l)
 	}
@@ -45,7 +45,7 @@ func TestLocalSnoticeTexts(t *testing.T) {
 	b.expect("*** STATS: Stats 'u' requested by davey (~dave@127.0.0.1)")
 
 	dave.send("QUIT :bye")
-	b.expect("*** QUIT: Client exiting: davey (~dave@127.0.0.1) [127.0.0.1] [Quit: bye]")
+	b.expect("*** QUIT: Client exiting: davey!~dave@127.0.0.1 (127.0.0.1) [Quit: bye]")
 }
 
 // Users on other servers: C, N, Q and O once the link is synced.
@@ -61,7 +61,7 @@ func TestRemoteSnoticeTexts(t *testing.T) {
 	w.expect(" 008 watch +acdfgkloqrxCGKLNOQX ")
 
 	carl := login(t, leaf.s, "carl")
-	l := w.expect("*** REMOTECONNECT: Client connecting at leaf.test.local: carl (~carl@127.0.0.1) [127.0.0.1] [")
+	l := w.expect("*** REMOTECONNECT: Client connecting at leaf.test.local: carl!~carl@127.0.0.1 (127.0.0.1) [")
 	if !strings.HasSuffix(l, "\x0F]") {
 		t.Errorf("remote connect notice %q", l)
 	}
@@ -78,5 +78,5 @@ func TestRemoteSnoticeTexts(t *testing.T) {
 	w.expect("*** OPER: From leaf.test.local: carly (~carl@127.0.0.1) [127.0.0.1] is now a server operator of type \x02IRC Operator\x02.")
 
 	carl.send("QUIT :bye")
-	w.expect("*** REMOTEQUIT: Client exiting on server leaf.test.local: carly (~carl@127.0.0.1) [127.0.0.1] [Quit: bye]")
+	w.expect("*** REMOTEQUIT: Client exiting on server leaf.test.local: carly!~carl@127.0.0.1 (127.0.0.1) [Quit: bye]")
 }

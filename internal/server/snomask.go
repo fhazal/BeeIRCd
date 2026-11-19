@@ -157,6 +157,18 @@ func snoWho(u *state.User) string {
 	return u.Nick + " (" + u.TrueIdent() + "@" + u.RealHost + ") [" + u.IP + "]"
 }
 
+// snoRealMask is u's real mask, "nick!ident@host", the way InspIRCd 4's
+// connect, quit and kill notices name a user (GetRealMask).
+func snoRealMask(u *state.User) string {
+	return u.Nick + "!" + u.TrueIdent() + "@" + u.RealHost
+}
+
+// snoMaskIP is the real mask and IP, "nick!ident@host (ip)", as InspIRCd 4's
+// connect and quit notices give them.
+func snoMaskIP(u *state.User) string {
+	return snoRealMask(u) + " (" + u.IP + ")"
+}
+
 // snoDate is a time the way InspIRCd 4's notices give it ("Thu 19 Nov 2026
 // 11:00:00"), in UTC.
 func snoDate(t time.Time) string {
@@ -263,11 +275,11 @@ func (s *Server) snoNick(u *state.User, old string) {
 }
 
 // snoRemoteQuit is InspIRCd's notice for someone elsewhere leaving,
-// "Client exiting on server X: nick (ident@host) [ip] [reason]". Netsplits
+// "Client exiting on server X: nick!ident@host (ip) [reason]". Netsplits
 // don't come here; neither do services bots or servers still bursting.
 func (s *Server) snoRemoteQuit(u *state.User, reason string) {
 	if u.Service || s.ours(u.UID) || !s.serverSynced(uidServer(u.UID)) {
 		return
 	}
-	s.snoOnly('Q', "Client exiting on server "+u.Server+": "+snoWho(u)+" ["+reason+"]")
+	s.snoOnly('Q', "Client exiting on server "+u.Server+": "+snoMaskIP(u)+" ["+reason+"]")
 }

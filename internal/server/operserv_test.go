@@ -409,7 +409,7 @@ func TestKillWallopsGlobalNews(t *testing.T) {
 	b.send("KILL victim :go away")
 	victim.expect(":Boss KILL victim :go away")
 	victim.expect("ERROR :Closing Link: 127.0.0.1 (Killed (Boss (go away)))")
-	b.expect("KILL: Local kill by Boss: victim (~victim@127.0.0.1) [127.0.0.1] (go away)")
+	b.expect("KILL: Local kill by Boss: victim!~victim@127.0.0.1 (go away)")
 
 	b.send("WALLOPS :opers meeting at nine")
 	watcher.expect(":Boss!~boss@127.0.0.1 WALLOPS :opers meeting at nine")

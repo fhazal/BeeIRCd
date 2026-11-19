@@ -409,7 +409,7 @@ func (s *Server) tryRegister(c *Client) {
 	s.notePeakGlobal()
 	s.log.Printf("connect %s (%s@%s) %s", u.Nick, u.Ident, u.RealHost, c.ip)
 	connect := fmt.Sprintf("Client connecting on port %d (class %s): %s [%s\x0F]",
-		c.port, connClass(u), snoWho(u), u.Realname)
+		c.port, connClass(u), snoMaskIP(u), u.Realname)
 	if c.webirc != "" {
 		connect += " (WEBIRC " + c.webirc + ")"
 	}

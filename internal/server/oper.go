@@ -439,7 +439,7 @@ func (s *Server) killUser(u *state.User, by, reason string) {
 		return
 	}
 	tc.send(irc.Message{Source: by, Command: "KILL", Params: []string{u.Nick, reason}, Trailing: true}.String())
-	s.sno('k', "Local kill by %s: %s (%s)", by, snoWho(u), reason)
+	s.sno('k', "Local kill by %s: %s (%s)", by, snoRealMask(u), reason)
 	s.quit(tc, "Killed ("+by+" ("+reason+"))")
 }
 
