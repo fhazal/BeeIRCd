@@ -239,4 +239,9 @@ func TestNetBanDelByNick(t *testing.T) {
 	b.expect(osLine("Boss", "SHUN on *@192.0.2.7 removed."))
 	b.send("SHUN -noisy")
 	b.expect(osLine("Boss", "No SHUN on noisy."))
+	// A nick that is gone (a G-line disconnects them) can't be resolved.
+	b.send("GLINE -ghost")
+	b.expect(osLine("Boss", "No AKILL on ghost. ghost isn't online, so remove it by its mask. See them all: /os akill list"))
+	b.send("GLINE -*@198.51.100.9")
+	b.expect(osLine("Boss", "No AKILL on *@198.51.100.9. See them all: /os akill list"))
 }

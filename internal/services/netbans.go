@@ -451,6 +451,12 @@ func (s *Services) netBanCommand(c *Client, k banKind, args []string) {
 			}
 		}
 		if len(gone) == 0 {
+			// A nick only resolves while its owner is online (as in
+			// InspIRCd), and a G-line or Z-line usually disconnected them.
+			if !strings.ContainsAny(arg, "@*?.:/$%") && s.net.UserByNick(arg) == nil && irc.ValidNick(arg, 64) {
+				s.os(c, "No %s on %s. %s isn't online, so remove it by its mask. See them all: /os %s list", k.name, arg, arg, strings.ToLower(k.cmd))
+				return
+			}
 			s.os(c, "No %s on %s. See them all: /os %s list", k.name, arg, strings.ToLower(k.cmd))
 			return
 		}
