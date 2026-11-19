@@ -66,6 +66,18 @@ func TestReachLeafOperOnHub(t *testing.T) {
 	lop.send("AS OPER lop SET REACH NETWORK") // every hub command is refused
 	lop.expect("Your admin reach is leaf.test.local only.")
 
+	// A leaf that claims network reach its hub never gave is not believed.
+	var faked string
+	u := hub.user("lop")
+	hub.s.onLoop(func() {
+		u.OperReach = store.ReachNetwork
+		faked = hub.s.reachOf(u.UID)
+		u.OperReach = ""
+	})
+	if faked != "" {
+		t.Fatalf("hub believed a faked network reach: %q", faked)
+	}
+
 	k.send("AS OPER lop SET REACH NETWORK")
 	k.expect("reach network.")
 	lop.expect("Your admin reach is now the whole network")

@@ -54,10 +54,19 @@ func (s *Server) reachOf(uid string) string {
 	if u == nil || !u.Modes['o'] {
 		return ""
 	}
-	if u.OperReach == store.ReachNetwork {
-		return store.ReachNetwork
+	if s.svc.Off() {
+		// A leaf trusts what the services server's side says.
+		return cleanReach(u.OperReach)
 	}
-	if !s.svc.Off() && strings.IndexByte(u.OperFlags, 'a') >= 0 {
+	// The services server gave every network reach there is, so it
+	// trusts only its own records, never what another server claims: the
+	// oper entry it granted them, or the owner's account.
+	if g, ok := s.links.remoteOpers[uid]; ok {
+		if o, err := s.store.OperByAccount(g.id); err == nil && o.Network() {
+			return store.ReachNetwork
+		}
+	}
+	if strings.IndexByte(u.OperFlags, 'a') >= 0 {
 		if id := s.svc.AccountID(uid); id != 0 {
 			if a, err := s.store.AccountByID(id); err == nil && a != nil && s.isAdminAccount(a) {
 				return store.ReachNetwork
