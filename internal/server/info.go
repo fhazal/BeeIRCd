@@ -189,7 +189,7 @@ var umodesHelp = []string{
 	"Opers:",
 	" H hide that I'm an oper                  W see who WHOISes me",
 	" q can't be kicked (flag a)               s server notices (snomask)",
-	"   +s alone gives the default letters acdfkloqrxKLOX; +s +cq-k adds c, q",
+	"   +s alone gives the default letters acdfgkloqrxGKLOX; +s +cq-k adds c, q",
 	"   and takes k away. Letters (lowercase here, uppercase other servers):",
 	"   a everything else, c/C connects, q/Q quits, k/K kills, o/O opers,",
 	"   x/X bans, f spam filter, d DNSBL, l/L links, r rehash,",

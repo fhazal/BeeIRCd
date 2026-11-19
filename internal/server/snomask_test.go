@@ -6,7 +6,7 @@ func TestApplySnomask(t *testing.T) {
 	for _, tt := range []struct{ cur, change, want string }{
 		{"", "+cq-k", "cq"},
 		{"", "cqk", "ckq"},
-		{snomaskDefault, "+nN-k", "acdflnoqrxKLNOX"},
+		{snomaskDefault, "+nN-k", "acdfglnoqrxGKLNOX"},
 		{snomaskDefault, "-" + snomaskDefault, ""},
 		{"ck", "+zZ!?Cq", "ckqC"}, // unknown letters are left out
 		{"Kk", "", "kK"},          // lowercase first
@@ -44,8 +44,8 @@ func TestSnomaskMode(t *testing.T) {
 		echo       string // the MODE echo, "" = none expected
 		want       string // the snomask after, "" = none (and no +s)
 	}{
-		{"add and take away", "+s +nN-k", "", "acdflnoqrxKLNOX"},
-		{"letters without a sign add", "+s cqkX", "", "acdfklnoqrxKLNOX"},
+		{"add and take away", "+s +nN-k", "", "acdfglnoqrxGKLNOX"},
+		{"letters without a sign add", "+s cqkX", "", "acdfgklnoqrxGKLNOX"},
 		{"-s clears", "-s", ":Boss MODE Boss -s", ""},
 		{"+s alone gives the default", "+s", ":Boss MODE Boss +s", snomaskDefault},
 		{"+s again keeps the mask", "+s", "", snomaskDefault},
@@ -103,7 +103,7 @@ func TestSnoticeOpersByLetter(t *testing.T) {
 	ember.expect(" 008 ember +" + snomaskDefault + " :Server notice mask")
 
 	ember.send("MODE ember +s +t-c")
-	ember.expect(" 008 ember +adfkloqrtxKLOX :Server notice mask")
+	ember.expect(" 008 ember +adfgkloqrtxGKLOX :Server notice mask")
 	ember.sync()
 
 	s.do(func() { s.snoticeOpers('t', "letter t") })

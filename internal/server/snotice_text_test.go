@@ -58,7 +58,7 @@ func TestRemoteSnoticeTexts(t *testing.T) {
 	w.send("OPER watch " + operPW)
 	w.expect(" 381 watch :You are now an IRC operator")
 	w.send("MODE watch +s +CNQO")
-	w.expect(" 008 watch +acdfkloqrxCKLNOQX ")
+	w.expect(" 008 watch +acdfgkloqrxCGKLNOQX ")
 
 	carl := login(t, leaf.s, "carl")
 	l := w.expect("*** REMOTECONNECT: Client connecting at leaf.test.local: carl (~carl@127.0.0.1) [127.0.0.1] [")

@@ -25,7 +25,7 @@ const (
 	snomaskLetters = "acdfgklnoqrtvxCGKLNOQX"
 	// snomaskDefault is what +s without letters gives: everything opers
 	// got before snomasks, so n, N, t, C, Q and v are off.
-	snomaskDefault = "acdfkloqrxKLOX"
+	snomaskDefault = "acdfgkloqrxGKLOX"
 )
 
 // snoCategory is the word that starts a server notice with letter, like
