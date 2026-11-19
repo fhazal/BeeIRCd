@@ -17,6 +17,7 @@ import (
 	"syscall"
 
 	"github.com/fhazal/beeircd/internal/config"
+	"github.com/fhazal/beeircd/internal/gate"
 	"github.com/fhazal/beeircd/internal/hivepanel"
 	"github.com/fhazal/beeircd/internal/passwd"
 	"github.com/fhazal/beeircd/internal/server"
@@ -159,10 +160,26 @@ func runServer(args []string, stderr io.Writer) int {
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	path := fs.String("config", defaultConfig, "config file")
+	noGate := fs.Bool("no-gate", false, "run as one process, without the gate that keeps the client ports (Linux)")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	logger := log.New(stderr, "", log.LstdFlags)
+	// On Linux this process becomes the gate (internal/gate): it holds the
+	// client ports and runs the server as a child process, this same
+	// program again, which finds itself here as child.
+	child, err := gate.ChildFromEnv()
+	if errors.Is(err, gate.ErrRegate) {
+		logger.Print(err)
+		return gate.ExitRegate
+	}
+	if err != nil {
+		logger.Print(err)
+		return 1
+	}
+	if child == nil && !*noGate && gate.Supported {
+		return gate.Run(logger, func(d gate.Deliver) gate.Front { return server.NewFront(logger, d) })
+	}
 	startProfile(logger)
 	startMemStats(logger)
 	cfg, err := config.Load(*path)
@@ -170,7 +187,12 @@ func runServer(args []string, stderr io.Writer) int {
 		logger.Print(err)
 		return 1
 	}
-	srv, err := server.New(cfg, logger)
+	var srv *server.Server
+	if child != nil {
+		srv, err = server.NewBehindGate(cfg, logger, child)
+	} else {
+		srv, err = server.New(cfg, logger)
+	}
 	if err != nil {
 		logger.Print(err)
 		return 1
@@ -178,12 +200,25 @@ func runServer(args []string, stderr io.Writer) int {
 	logger.Printf("%s starting as %s", version.String(), cfg.Server.Name)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if child != nil {
+		go func() {
+			select {
+			case <-child.Gone():
+				logger.Printf("the gate is gone; stopping")
+				stop()
+			case <-ctx.Done():
+			}
+		}()
+	}
 	stopHUP := onHangup(srv.Rehash) // SIGHUP re-reads beeircd.conf
 	defer stopHUP()
 	err = srv.Serve(ctx)
 	if errors.Is(err, server.ErrRestart) {
 		stop()
 		logger.Printf("restarting")
+		if child != nil {
+			return gate.ExitRestart // the gate starts the server again
+		}
 		if err := reexec(); err != nil {
 			logger.Printf("restart failed: %v", err)
 			return 3
