@@ -23,6 +23,45 @@ func (n *linkNode) fromLink(t *testing.T, line string) {
 	})
 }
 
+// hide_killed_by covers SVSKILL too: a kill-shaped reason shows the hidden
+// name, to the victim and to the other side; other reasons stay.
+func TestLinkSvsKillHideKilledBy(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	leaf.s.onLoop(func() { leaf.s.cfg.Messages.HideKilledBy = "OperServ" })
+	bob := login(t, leaf.s, "bob")
+	carl := login(t, leaf.s, "carl")
+	watch := login(t, leaf.s, "watch")
+	for _, c := range []*tc{bob, carl, watch} {
+		c.send("JOIN #k")
+		c.send("PING :j")
+		c.expect(" :j")
+	}
+	hub.seen(t, "carl")
+	leaf.fromLink(t, ":"+hub.sid+" SVSKILL "+leaf.user("bob").UID+" :Killed (NickServ (GHOST command used by bob2))")
+	if e := bob.expect("ERROR"); !strings.Contains(e, "Killed (OperServ (GHOST command used by bob2))") {
+		t.Errorf("bob got %q", e)
+	}
+	if q := watch.expect(" QUIT "); !strings.Contains(q, "Killed (OperServ (GHOST") {
+		t.Errorf("watch saw %q", q)
+	}
+	leaf.fromLink(t, ":"+hub.sid+" SVSKILL "+leaf.user("carl").UID+" :Session limit exceeded")
+	if q := watch.expect(" QUIT "); !strings.Contains(q, ":Session limit exceeded") {
+		t.Errorf("watch saw %q", q)
+	}
+	for in, want := range map[string]string{
+		"Killed (a b (x))":     "Killed (a b (x))",
+		"Killed (NickServ)":    "Killed (NickServ)",
+		"Killed ( (x))":        "Killed ( (x))",
+		"Killed (Svc (a (b)))": "Killed (OperServ (a (b)))",
+	} {
+		var got string
+		leaf.s.onLoop(func() { got = leaf.s.hideKillerIn(in) })
+		if got != want {
+			t.Errorf("hideKillerIn(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 // SVSKILL (Anope on UnrealIRCd) removes a user with the reason as the
 // quit message, for our own users and for remote ones. Before, it was
 // skipped and the user stayed as a ghost (prod link test 11-12).

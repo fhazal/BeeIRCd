@@ -474,7 +474,8 @@ by default, and opers always keep their own quit and part reasons.
   whole reason. The banned person and the opers still see the real one.
 - `hide_killed_by`: shows this name instead of the oper in "Killed (<name>
   (reason))", like InspIRCd's hidekills, for everyone including the person
-  killed. Opers' kill notices keep the real oper; kills the server makes
+  killed. Services' SVSKILL with a "Killed (who (reason))" text is shown the
+  same way. Opers' kill notices keep the real oper; kills the server makes
   (nick collisions) keep the server's name.
 
 ```toml

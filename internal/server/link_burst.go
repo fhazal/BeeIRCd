@@ -422,13 +422,29 @@ func (s *Server) remoteSvsKill(l *linkConn, k *link.SvsKill) {
 	for _, o := range s.upLinks(l) {
 		o.send(":" + k.Source + " SVSKILL " + u.UID + " :" + k.Reason)
 	}
+	reason := s.hideKillerIn(k.Reason)
 	if c := s.clientOf(u); c != nil {
 		s.origin = &linkOrigin{quiet: true} // every link has the SVSKILL
-		s.quit(c, k.Reason)
+		s.quit(c, reason)
 		return
 	}
-	s.snoRemoteQuit(u, k.Reason)
-	s.emitQuiet(&state.UserQuit{UID: u.UID, Reason: k.Reason})
+	s.snoRemoteQuit(u, reason)
+	s.emitQuiet(&state.UserQuit{UID: u.UID, Reason: reason})
+}
+
+// hideKillerIn applies [messages] hide_killed_by to a quit reason shaped
+// like a kill, "Killed (who (why))", as services send in SVSKILL; any
+// other text stays as it is.
+func (s *Server) hideKillerIn(reason string) string {
+	if s.cfg.Messages.HideKilledBy == "" || !strings.HasPrefix(reason, "Killed (") || !strings.HasSuffix(reason, "))") {
+		return reason
+	}
+	rest := reason[len("Killed ("):]
+	i := strings.Index(rest, " (")
+	if i <= 0 || strings.ContainsAny(rest[:i], " ()") {
+		return reason
+	}
+	return "Killed (" + s.killedBy(rest[:i]) + rest[i:]
 }
 
 // supportedRank turns a rank letter from another server into one this
