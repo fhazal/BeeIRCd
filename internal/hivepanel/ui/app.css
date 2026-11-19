@@ -869,6 +869,8 @@ select.aj-in{width:auto}
 .ap-row{padding:8px 12px;margin:0;border-left:3px solid transparent;border-radius:0}
 .ap-row:focus-within,.ap-row.changed{border-left-color:var(--honey);background:var(--honey-tint)}
 .card .sr-head{margin:18px 0 4px;font-size:15px}
+.msg-grp{margin-top:16px;padding:0 12px 4px}
+.msg-grp:first-child{margin-top:4px}
 .sr-place{grid-template-columns:minmax(0,1fr)}
 .sr-key{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .sr-key .in{flex:1 1 220px;min-width:0}

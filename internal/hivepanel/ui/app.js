@@ -1676,7 +1676,7 @@
     const bar = h('div', { class: 'unsaved', hidden: true }, count, h('div', { class: 'row-btns' }, undoBtn, ' ', saveBtn));
     const body = h('div');
     const el = h('section', { class: 'card', hidden: true }, h('h2', { text: 'Messages' }),
-      h('p', { class: 'note', text: 'Fixed texts that stop spam in quit and part messages. Opers keep their own. Empty means off.' }),
+      h('p', { class: 'note', text: 'Texts people see when they quit, part, get turned away or banned. Empty means the built-in text.' }),
       body, bar);
     let set = {}, fields = [], load = async () => {};
 
@@ -1689,6 +1689,12 @@
       return m && v !== '' ? Number(m[1] || 0) * 3600 + Number(m[2] || 0) * 60 + Number(m[3] || 0) : -1;
     }
     const isOff = v => v === '' || v.toLowerCase() === 'off';
+    const NAMES = ['static-quit', 'static-part', 'quit-message-min-time', 'quit-prefix', 'reject-full', 'reject-too-many', 'reject-password',
+      'ban-notice', 'ban-contact', 'ban-quit', 'hide-killed-by'];
+    const GROUP = {};
+    for (const n of NAMES.slice(0, 4)) GROUP[n] = 'Quit and part';
+    for (const n of NAMES.slice(4, 7)) GROUP[n] = 'Turned away';
+    for (const n of NAMES.slice(7)) GROUP[n] = 'Bans and kills';
     const textRow = (id, label, max, cls) => {
       const input = h('input', { class: 'in', id, type: 'text', autocomplete: 'off', maxlength: String(max), 'aria-describedby': id + '-hint' });
       const hint = h('span', { class: 'hint', id: id + '-hint' });
@@ -1758,10 +1764,54 @@
         };
         fields.push(f);
       }
-      if (set['ban-contact']) {
-        const s = set['ban-contact'];
-        const f = mk('ban-contact', 'Ban contact', isOff(s.value) ? 'off' : s.value);
-        const t = textRow('msg-ban-contact', f.label, 300);
+      if (set['quit-prefix']) {
+        // The server sends "Quit: " in quotes (or none); a typed prefix goes back in quotes so a trailing space stays.
+        const s = set['quit-prefix'];
+        let raw = s.value;
+        if (raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"')) raw = raw.slice(1, -1);
+        const norm = v => v.trim().toLowerCase() === 'none' ? 'none' : v.trim() === '' || v === 'Quit: ' ? '' : v;
+        const f = mk('quit-prefix', 'Quit prefix', norm(raw));
+        const t = textRow('msg-quit-prefix', f.label, 300);
+        t.input.placeholder = 'Quit: ';
+        f.row = t.row; f.input = t.input; f.hint = t.hint;
+        f.reset = () => { t.input.value = f.loaded; };
+        f.now = () => { const v = norm(t.input.value); return v === '' ? 'default' : v === 'none' ? 'none' : '"' + t.input.value + '"'; };
+        f.dirtyNow = () => norm(t.input.value) !== f.loaded;
+        f.draw = () => {
+          f.ok = t.input.value.length <= 300;
+          f.err = 'At most 300 characters.';
+          f.was = f.loaded === '' ? 'Quit: ' : f.loaded === 'none' ? 'none' : '"' + f.loaded + '"';
+          f.base = 'Shown before a quit reason. Empty is "Quit: ". Write none for no prefix.';
+        };
+        fields.push(f);
+      }
+      // A text with a built-in default: empty puts the built-in text back ("default" for the server).
+      const builtin = (name, label, dflt) => {
+        if (!set[name]) return;
+        const v = set[name].value.trim();
+        const f = mk(name, label, v === '' || v.toLowerCase() === 'default' || v === dflt ? 'default' : v);
+        const t = textRow('msg-' + name, label, 300);
+        t.input.placeholder = dflt;
+        f.row = t.row; f.input = t.input; f.hint = t.hint;
+        f.reset = () => { t.input.value = f.loaded === 'default' ? '' : f.loaded; };
+        f.now = () => t.input.value.trim() || 'default';
+        f.draw = () => {
+          f.ok = t.input.value.trim().length <= 300;
+          f.err = 'At most 300 characters.';
+          f.was = f.loaded === 'default' ? 'the built-in text' : f.loaded;
+          f.base = 'Empty uses the built-in text shown in grey.';
+        };
+        fields.push(f);
+      };
+      builtin('reject-full', 'Server full', 'This server is full. Please try again later.');
+      builtin('reject-too-many', 'Too many from one IP', 'Too many connections from your IP');
+      builtin('reject-password', 'Wrong password', 'Password incorrect');
+      // A text where empty is off.
+      const offText = (name, label, base) => {
+        if (!set[name]) return;
+        const s = set[name];
+        const f = mk(name, label, isOff(s.value) ? 'off' : s.value);
+        const t = textRow('msg-' + name, label, 300);
         f.row = t.row; f.input = t.input; f.hint = t.hint;
         f.reset = () => { t.input.value = f.loaded === 'off' ? '' : f.loaded; };
         f.now = () => t.input.value.trim() || 'off';
@@ -1770,16 +1820,56 @@
           f.ok = v.length <= 300;
           f.err = 'At most 300 characters.';
           f.was = f.loaded === 'off' ? 'off' : f.loaded;
-          f.base = v ? 'Banned people see: "… Email ' + v + ' for more information."' : 'Off';
+          f.base = base(v);
         };
         fields.push(f);
+      };
+      offText('ban-notice', 'Notice to banned people', () => 'Sent to a banned person just before they are disconnected. Empty is off.');
+      offText('ban-contact', 'Ban contact', v => v ? 'Banned people see: "… Email ' + v + ' for more information."' : 'Off');
+      if (set['ban-quit']) {
+        const s = set['ban-quit'];
+        const v = s.value.trim();
+        const mode0 = isOff(v) || v.toLowerCase() === 'no' ? 'keep' : v.toLowerCase() === 'yes' ? 'remove' : 'replace';
+        const f = mk('ban-quit', 'Others see a ban as', mode0 === 'keep' ? 'off' : mode0 === 'remove' ? 'yes' : v);
+        let mode = mode0;
+        const t = textRow('msg-ban-quit', 'Text others see instead', 300, 'f');
+        const btns = [['keep', 'Banned: reason'], ['remove', 'Banned'], ['replace', 'Own text']].map(([m, lab]) =>
+          h('button', { type: 'button', text: lab, 'aria-pressed': 'false', 'data-mode': m }));
+        const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Others see a ban as' }, ...btns);
+        const hint = h('span', { class: 'hint', id: 'msg-ban-quit-hint' });
+        f.row = h('div', { class: 'f ap-row' }, 'Others see a ban as', seg, t.row, hint);
+        f.input = t.input; f.hint = hint;
+        t.hint.hidden = true;
+        f.reset = () => { mode = mode0; t.input.value = mode0 === 'replace' ? v : ''; };
+        f.now = () => mode === 'keep' ? 'off' : mode === 'remove' ? 'yes' : t.input.value.trim();
+        f.draw = () => {
+          btns.forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === mode ? 'true' : 'false'));
+          t.row.hidden = mode !== 'replace';
+          const own = t.input.value.trim();
+          const clash = ['yes', 'no', 'off'].includes(own.toLowerCase());
+          f.ok = mode !== 'replace' || (own !== '' && own.length <= 300 && !clash);
+          f.err = own === '' ? 'Write the text others will see instead.' : clash ? 'Write a different text.' : 'At most 300 characters.';
+          f.was = mode0 === 'keep' ? 'Banned: reason' : mode0 === 'remove' ? 'Banned' : 'Own text "' + v + '"';
+          f.base = 'What everyone else sees as the quit reason of a banned person.';
+        };
+        btns.forEach(b => b.addEventListener('click', () => { mode = b.dataset.mode; check(f); if (mode === 'replace') t.input.focus(); }));
+        fields.push(f);
       }
+      offText('hide-killed-by', 'Show kills as done by', () => 'Empty shows the real oper. Opers always see who really did it.');
       for (const f of fields) {
         f.reset();
         f.input.addEventListener('input', () => check(f));
         f.input.addEventListener('keydown', e => { if (e.key === 'Enter' && !saveBtn.disabled) saveBtn.click(); });
       }
-      put(body, ...fields.map(f => f.row));
+      const rows = [];
+      let last = '';
+      for (const f of fields) {
+        const g = GROUP[f.name];
+        if (g !== last) rows.push(h('div', { class: 'grp msg-grp', text: g }));
+        last = g;
+        rows.push(f.row);
+      }
+      put(body, ...rows);
       fields.forEach(check);
       if (!fields.length) bar.hidden = true;
     }
@@ -1818,7 +1908,7 @@
       fill(byName, reload) {
         load = reload;
         set = {};
-        for (const n of ['static-quit', 'static-part', 'quit-message-min-time', 'ban-contact']) if (byName[n]) set[n] = Object.assign({}, byName[n]);
+        for (const n of NAMES) if (byName[n]) set[n] = Object.assign({}, byName[n]);
         el.hidden = !Object.keys(set).length;
         if (!el.hidden) build();
       },

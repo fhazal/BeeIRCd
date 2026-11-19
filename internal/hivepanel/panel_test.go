@@ -226,7 +226,8 @@ func TestLoginSessionAndCSRF(t *testing.T) {
 		t.Errorf("POST from the panel: %d %s", w.Code, w.Body)
 	}
 	// The Messages card settings go through like any other setting.
-	for _, c := range []struct{ name, value string }{{"static-part", "yes"}, {"ban-contact", "ops@example.org"}, {"static-quit", "off"}, {"quit-message-min-time", "1m"}} {
+	for _, c := range []struct{ name, value string }{{"static-part", "yes"}, {"ban-contact", "ops@example.org"}, {"static-quit", "off"}, {"quit-message-min-time", "1m"},
+		{"quit-prefix", "none"}, {"ban-quit", "yes"}, {"hide-killed-by", "OperServ"}, {"reject-full", "default"}, {"ban-notice", "off"}} {
 		body := `{"name":"` + c.name + `","value":"` + c.value + `"}`
 		if w := rg.do("POST", "/api/set", body, tok, map[string]string{"Origin": "http://127.0.0.1:8787"}); w.Code != 200 || !strings.Contains(w.Body.String(), `"new":"`+c.value+`"`) {
 			t.Errorf("set %s: %d %s", c.name, w.Code, w.Body)
