@@ -114,7 +114,7 @@ func (s *Server) webircApply(c *Client, name, ip, host, flags string) {
 	s.log.Printf("webirc %s: %s is %s (%s)", name, old, ip, host)
 
 	if z := s.svc.ZlineFor(ip); z != nil {
-		s.sno('a', "ZLINE %s stopped a connection from %s (WEBIRC %s)", z.Mask, ip, name)
+		s.sno('x', "Z-line %s stopped a connection from %s (WEBIRC %s)", z.Mask, ip, name)
 		s.quit(c, "Z-lined: "+z.Reason)
 		return
 	}

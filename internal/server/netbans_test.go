@@ -30,7 +30,7 @@ func TestZlineAndEline(t *testing.T) {
 	addBan(s, store.NetBan{Kind: store.BanZline, Mask: "127.0.0.0/8", Reason: "flood"})
 	c := raw(t, s)
 	c.expect("ERROR :Closing Link: 127.0.0.1 (Z-lined: flood)")
-	b.expect("ZLINE 127.0.0.0/8 stopped a connection from 127.0.0.1")
+	b.expect("*** XLINE: Z-line 127.0.0.0/8 stopped a connection from 127.0.0.1")
 
 	b.send("OS EXCEPTION BAN ADD *@127.0.0.1 the test box")
 	b.expect(osLine("Boss", "ELINE added: *@127.0.0.1 until removed (the test box). 1 person exempt online now."))
@@ -71,7 +71,7 @@ func TestAkillCIDRShunSNLine(t *testing.T) {
 	again.send("NICK bad")
 	again.send("USER bad 0 * :bad Real")
 	again.expect(" 465 bad :You are banned from this network: bots")
-	b.expect("AKILL ~bad@127.0.0.0/8 stopped bad")
+	b.expect("*** XLINE: G-line ~bad@127.0.0.0/8 stopped bad")
 
 	// SHUN: still connected, but only PART, QUIT and PING work.
 	b.send("OS SHUN ADD ~sh@* noisy")

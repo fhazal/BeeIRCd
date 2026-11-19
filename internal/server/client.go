@@ -155,7 +155,7 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 	go c.writeLoop()
 	go c.readLoop()
 	if z := s.svc.ZlineFor(ip); z != nil {
-		s.sno('a', "ZLINE %s stopped a connection from %s", z.Mask, ip)
+		s.sno('x', "Z-line %s stopped a connection from %s", z.Mask, ip)
 		s.quit(c, "Z-lined: "+z.Reason)
 		return
 	}

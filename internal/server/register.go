@@ -366,7 +366,7 @@ func (s *Server) tryRegister(c *Client) {
 	k := s.svc.ConnectBan(c.ident, c.host, c.ip, c.realname, a != nil)
 	switch {
 	case k != nil && k.Soft():
-		s.sno('x', "%s %s holds %s (%s@%s) for a login", strings.ToUpper(k.Kind), k.Mask, c.nick, c.ident, c.host)
+		s.sno('x', "%s %s holds %s (%s@%s) for a login", store.BanWord(k.Kind), k.Mask, c.nick, c.ident, c.host)
 		s.authPrompt(c, k.Reason)
 		return
 	case k == nil && a == nil && c.softReason != "":
@@ -375,7 +375,7 @@ func (s *Server) tryRegister(c *Client) {
 	}
 	if k != nil {
 		s.reply(c, irc.ErrYoureBannedCreep, "You are banned from this network: "+k.Reason)
-		s.sno('x', "%s %s stopped %s (%s@%s)", strings.ToUpper(k.Kind), k.Mask, c.nick, c.ident, c.host)
+		s.sno('x', "%s %s stopped %s (%s@%s)", store.BanWord(k.Kind), k.Mask, c.nick, c.ident, c.host)
 		s.quit(c, "Banned: "+k.Reason)
 		return
 	}
