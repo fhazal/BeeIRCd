@@ -86,7 +86,12 @@ func (s *Server) remoteSvsPart(l *linkConn, m irc.Message, p *link.SvsPart) {
 // operMD writes uid's oper class (UnrealIRCd MD operclass) and, for
 // BeeIRCd, the flags; empty values clear them.
 func operMD(o *linkConn, src, uid, class, flags, look string) []string {
-	out := []string{mdLine(src, uid, "operclass", class)}
+	var out []string
+	if o.bridge != nil && class != "" { // InspIRCd: the rank for OPERTYPE
+		title, _, _ := readOperLook(look)
+		out = append(out, mdLine(src, uid, "bee-opertype", o.s.operRank(class, title)))
+	}
+	out = append(out, mdLine(src, uid, "operclass", class))
 	if o.peer.Bee {
 		out = append(out, mdLine(src, uid, "bee-operflags", flags), mdLine(src, uid, "bee-operlook", look))
 	}
@@ -157,6 +162,27 @@ func mdLine(src, uid, key, value string) string {
 	return ":" + src + " MD client " + uid + " " + key + " :" + value
 }
 
+// operRank is an oper's rank as WHOIS words it, without "is a": their
+// own title, else their class's, else "IRC Operator". InspIRCd gets it
+// as the oper type ("Network Administrator").
+func (s *Server) operRank(class, title string) string {
+	if title == "" {
+		if oc, ok := s.cfg.Class(class); ok {
+			title = oc.Title
+		}
+	}
+	for _, a := range []string{"is a ", "is an ", "is the "} {
+		if len(title) > len(a) && strings.EqualFold(title[:len(a)], a) {
+			title = title[len(a):]
+			break
+		}
+	}
+	if title = strings.TrimSpace(title); title == "" {
+		return "IRC Operator"
+	}
+	return title
+}
+
 // linkOperInfo tells every link but except about uid's oper status.
 func (s *Server) linkOperInfo(except *linkConn, uid, class, flags, look string) {
 	for o := range s.links.conns {
@@ -224,6 +250,9 @@ func (s *Server) remoteOperMD(l *linkConn, m irc.Message) {
 	}
 	for o := range s.links.conns {
 		if o != l && o.up && !o.closed && (key == "operclass" || o.peer.Bee) {
+			if o.bridge != nil && key == "operclass" && value != "" {
+				o.send(mdLine(s.cfg.Server.SID, uid, "bee-opertype", s.operRank(value, u.OperTitle)))
+			}
 			o.send(m.String())
 		}
 	}

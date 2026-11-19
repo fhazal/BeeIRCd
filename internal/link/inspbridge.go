@@ -39,6 +39,10 @@ type inspBridge struct {
 	behind    map[string]bool   // SIDs on their side of the link
 	names     map[string]string // SID -> server name (both sides)
 	pending   *inspUID          // a UID held back for its account METADATA
+	// operWait is opers whose OPERTYPE waits for MD operclass, so it can
+	// carry their rank; operRank is that rank (MD bee-opertype).
+	operWait map[string]bool
+	operRank map[string]string
 	// theirExt is the extbans they have, from CAPAB EXTBANS (name ->
 	// "acting" or "matching"); nil when they sent none.
 	theirExt map[string]string
@@ -255,6 +259,7 @@ func newInspBridge(me Local, peer Peer, chanModes, userModes string) *inspBridge
 		ours: ourModes(me.ChanModes, me.Prefix), theirs: parseInspModes(chanModes),
 		ourU: ourUserModes(me.UserModes), theirU: parseInspModes(userModes),
 		chanTS: map[string]int64{}, nicks: map[string]string{}, nickTS: map[string]int64{},
+		operWait: map[string]bool{}, operRank: map[string]string{},
 		behind: map[string]bool{peer.SID: true}, names: map[string]string{peer.SID: peer.Name, me.SID: me.Name},
 	}
 	return b
@@ -378,6 +383,7 @@ func (b *inspBridge) out(m irc.Message) []string {
 	case "QUIT":
 		delete(b.nicks, src)
 		delete(b.nickTS, src)
+		b.forgetOper(src)
 		return []string{line(nil, src, "QUIT", true, last())}
 	case "KILL":
 		if len(p) < 1 {
@@ -468,6 +474,9 @@ func (b *inspBridge) out(m irc.Message) []string {
 			b.saslAgent = sourceSID(src)
 			return []string{line(nil, src, "METADATA", true, "*", "saslmechlist", last())}
 		}
+		if len(p) >= 3 && p[0] == "client" {
+			return b.outOperMD(p[1], p[2], arg(3))
+		}
 		return nil
 	case "SASL": // :src SASL target uid mode data...
 		return b.outSASL(src, p)
@@ -496,6 +505,7 @@ func (b *inspBridge) validTS(ts string) string {
 func (b *inspBridge) gone(uid string) {
 	delete(b.nicks, uid)
 	delete(b.nickTS, uid)
+	b.forgetOper(uid)
 }
 
 // sidOf is a server's SID by name or SID.
@@ -545,7 +555,7 @@ func (b *inspBridge) outUID(src string, p []string) []string {
 		out = append(out, line(nil, sourceSID(uid), "METADATA", true, uid, "accountname", account))
 	}
 	if oper {
-		out = append(out, line(nil, uid, "OPERTYPE", true, "IRC_Operator"))
+		b.operWait[uid] = true // OPERTYPE goes out with MD operclass
 	}
 	return out
 }
@@ -697,6 +707,34 @@ func (b *inspBridge) outChanMode(src, ch, modes string, args []string) []string 
 	return out
 }
 
+// outOperMD turns MD operclass into InspIRCd's OPERTYPE for an oper
+// waiting for it. The type is their rank as BeeIRCd's WHOIS words it
+// ("Network Administrator", from MD bee-opertype just before); InspIRCd
+// shows it in its oper-up notice and WHOIS. Only a label: no rights.
+func (b *inspBridge) outOperMD(uid, key, value string) []string {
+	switch key {
+	case "bee-opertype":
+		if value != "" {
+			b.operRank[uid] = value
+		}
+	case "operclass":
+		rank, wait := b.operRank[uid], b.operWait[uid]
+		b.forgetOper(uid)
+		if wait && value != "" {
+			if rank == "" {
+				rank = "IRC Operator"
+			}
+			return []string{line(nil, uid, "OPERTYPE", true, rank)}
+		}
+	}
+	return nil
+}
+
+func (b *inspBridge) forgetOper(uid string) {
+	delete(b.operWait, uid)
+	delete(b.operRank, uid)
+}
+
 func (b *inspBridge) outUserMode(src, uid, modes string) []string {
 	var cs []modeChange
 	var out []string
@@ -705,8 +743,11 @@ func (b *inspBridge) outUserMode(src, uid, modes string) []string {
 			continue
 		}
 		if c.l == 'o' && c.add {
-			out = append(out, line(nil, uid, "OPERTYPE", true, "IRC_Operator"))
+			b.operWait[uid] = true // OPERTYPE goes out with MD operclass
 			continue
+		}
+		if c.l == 'o' {
+			b.forgetOper(uid)
 		}
 		if c.l == 'o' && src != uid {
 			// Deoper goes from the user, or InspIRCd says "<server> logged

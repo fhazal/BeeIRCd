@@ -153,7 +153,6 @@ func TestInspBridgeOut(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{":0BE EOS", ":0BE ENDBURST"},
 		{":0BE UID bee 1 1700000000 ~bee host.example 0BEAAAAAA Bee +iox * cloak.example fwAAAQ== :The Bee", "UID 0BEAAAAAA 1700000000 bee host.example cloak.example ~bee ~bee 127.0.0.1 "},
-		{":0BE UID bee 1 1700000000 ~bee host.example 0BEAAAAAA Bee +iox * cloak.example fwAAAQ== :The Bee", "OPERTYPE"},
 		{":0BE UID bee 1 1700000000 ~bee host.example 0BEAAAAAA Bee +iox * cloak.example fwAAAQ== :The Bee", "METADATA 0BEAAAAAA accountname :Bee"},
 		{":0BE SJOIN 1700000000 #hive +ntk key :@0BEAAAAAA +0BEAAAAAB &*!*@spam", "FJOIN #hive 1700000000 +ntk key :o,0BEAAAAAA v,0BEAAAAAB"},
 		{":0BE SJOIN 1700000000 #hive +ntk key :@0BEAAAAAA +0BEAAAAAB &*!*@spam", "LMODE #hive 1700000000 b *!*@spam"},
@@ -309,5 +308,37 @@ func TestInspDeoperFromUser(t *testing.T) {
 	out := b.outUserMode("0BE", "0LFAAAAAB", "-o")
 	if len(out) != 1 || out[0] != ":0LFAAAAAB MODE 0LFAAAAAB -o" {
 		t.Fatalf("deoper out %q", out)
+	}
+}
+
+// An oper's OPERTYPE waits for MD operclass and carries their rank
+// (MD bee-opertype), with spaces like WHOIS: not always "IRC_Operator".
+func TestInspOperRank(t *testing.T) {
+	b := testBridge(t)
+	b.Out(":0BE SID leaf.test 2 0LF :a leaf")
+	if out := b.Out(":0BE UID bee 1 1700000000 ~bee host.example 0BEAAAAAA Bee +iox * cloak.example fwAAAQ== :The Bee"); has(out, "OPERTYPE") {
+		t.Fatalf("OPERTYPE before MD: %q", out)
+	}
+	if out := b.Out(":0BE MD client 0BEAAAAAA bee-opertype :Network Administrator"); len(out) != 0 {
+		t.Fatalf("bee-opertype went out: %q", out)
+	}
+	if out := b.Out(":0BE MD client 0BEAAAAAA operclass :netadmin"); !has(out, ":0BEAAAAAA OPERTYPE :Network Administrator") {
+		t.Fatalf("oper up out %q", out)
+	}
+	// Title change only (no +o): no second OPERTYPE.
+	b.Out(":0BE MD client 0BEAAAAAA bee-opertype :Hive Keeper")
+	if out := b.Out(":0BE MD client 0BEAAAAAA operclass :netadmin"); len(out) != 0 {
+		t.Fatalf("second OPERTYPE %q", out)
+	}
+	// MODE +o; no rank (an UnrealIRCd oper relayed): "IRC Operator".
+	b.Out(":0BEAAAAAB MODE 0BEAAAAAB +o")
+	if out := b.Out(":0BE MD client 0BEAAAAAB operclass :globop"); !has(out, ":0BEAAAAAB OPERTYPE :IRC Operator") {
+		t.Fatalf("no rank out %q", out)
+	}
+	// Deoper before MD: nothing.
+	b.Out(":0BEAAAAAC MODE 0BEAAAAAC +o")
+	b.Out(":0BEAAAAAC MODE 0BEAAAAAC -o")
+	if out := b.Out(":0BE MD client 0BEAAAAAC operclass :globop"); has(out, "OPERTYPE") {
+		t.Fatalf("OPERTYPE after deoper %q", out)
 	}
 }
