@@ -1,0 +1,148 @@
+// Package gate is BeeIRCd's door keeper. On Linux `beeircd run` starts as a
+// small, long-lived gate process that owns the client ports and runs the
+// real server as a child process (the same program, marked by the
+// BEEIRCD_GATE environment variable). The gate accepts each client, does
+// the TLS, WebSocket and PROXY steps (the Front, which lives in
+// internal/server), then hands the plain IRC byte stream to the child with
+// what it learned about the client (Info). Links, the control socket and
+// the panel stay in the child.
+//
+// Two SOCK_SEQPACKET socket pairs join gate and child, inherited as fd 3
+// and fd 4:
+//
+//   - fd 3, gate to child: one message per client, Info as JSON plus one
+//     file descriptor (SCM_RIGHTS). A plain port sends the client's own TCP
+//     socket, so nothing sits between client and server. TLS, WebSocket and
+//     PROXY ports send one end of a fresh socket pair; the gate copies bytes
+//     between the client and the other end (pump).
+//   - fd 4, child to gate: Sync requests (Spec, the whole client-facing
+//     setup) and their answers (Result). Separate from fd 3, so a Sync from
+//     the server's loop never waits behind a client hand-over.
+//
+// Life cycle: the child exits with ExitRestart to be started again (clients
+// drop; keeping them is the next step), with ExitRegate when this gate is
+// from another version (the gate then executes itself again), and with any
+// other code to make the gate exit with it. SIGTERM and SIGINT go on to the
+// child; the gate keeps copying until the child has said goodbye to
+// everyone, then exits. SIGHUP goes on to the child (rehash).
+//
+// A bug here hits every user, so this package stays small and plain.
+package gate
+
+import (
+	"errors"
+	"io"
+	"net"
+	"net/netip"
+	"time"
+
+	"github.com/fhazal/beeircd/internal/config"
+)
+
+const (
+	// Proto is the gate/child protocol version. A child that finds another
+	// one exits with ExitRegate, so an upgraded binary never talks to an
+	// old gate.
+	Proto = "1"
+	// ExitRestart: the child asks to be started again (an admin's RESTART).
+	ExitRestart = 120
+	// ExitRegate: the child is newer than the gate; the gate re-executes.
+	ExitRegate = 121
+
+	envKey = "BEEIRCD_GATE"
+)
+
+// ErrRegate is what ChildFromEnv returns when the gate speaks another
+// protocol version.
+var ErrRegate = errors.New("the gate in front of this server is from another BeeIRCd version; starting it again")
+
+// ErrReset is what a Conn's Read returns when the gate dropped the client
+// after a read error, so the server says "Read error" as it did when it
+// read from the client itself. A clean close by the client stays io.EOF.
+var ErrReset = errors.New("connection reset")
+
+// Info is what the gate knows about one client.
+type Info struct {
+	Remote    string `json:"r"`           // the client, after PROXY or X-Forwarded-For
+	Local     string `json:"l"`           // our address it connected to
+	TLS       bool   `json:"t,omitempty"` // TLS here, or at the proxy in front of a WebSocket port
+	Cipher    string `json:"c,omitempty"`
+	CertFP    string `json:"f,omitempty"` // SHA-256 of the client certificate, hex
+	WebSocket bool   `json:"w,omitempty"`
+	Pipe      bool   `json:"p,omitempty"` // set by the gate: the fd is a pipe, not the client's socket
+}
+
+// TLSFiles is the certificate the client ports use, as the server loads it.
+type TLSFiles struct {
+	Cert, Key  string
+	SelfSigned bool // make a self-signed pair when the files are missing
+	Host       string
+}
+
+// Spec is the whole client-facing setup. Each Sync replaces the last one:
+// ports in it are opened or kept, ports not in it are closed.
+type Spec struct {
+	Ports   []config.Listen
+	TLS     *TLSFiles     // nil: no TLS port
+	CertGen int           // the server bumps it after reloading the certificate
+	Wait    time.Duration // how long a TLS handshake may take
+}
+
+// Result answers a Sync: per port in Spec order, the bound address or the
+// error text (the same text net.Listen gives).
+type Result struct {
+	Addrs  []string
+	Errors []string
+	Err    string // the certificate didn't load (ports untouched)
+}
+
+// Deliver hands one ready client to the child. False: it couldn't (no
+// child, or the child went away); the caller closes conn.
+type Deliver func(conn net.Conn, info Info) bool
+
+// Front owns the client ports inside the gate (internal/server.Front).
+type Front interface {
+	Apply(Spec) Result
+	Close() // stop accepting; connected clients stay
+}
+
+// Conn is a client that reaches the child through a pipe from the gate (a
+// TLS, WebSocket or PROXY port). Its addresses are the client's, not the
+// pipe's.
+type Conn struct {
+	*net.UnixConn
+	Info          Info
+	remote, local net.Addr
+}
+
+func newConn(u *net.UnixConn, info Info) *Conn {
+	return &Conn{UnixConn: u, Info: info, remote: tcpAddr(info.Remote), local: tcpAddr(info.Local)}
+}
+
+func (c *Conn) RemoteAddr() net.Addr { return c.remote }
+func (c *Conn) LocalAddr() net.Addr  { return c.local }
+
+// Read reads the client's bytes. At the end it tells a clean close
+// (io.EOF: the gate shut only its writing side) from a dropped connection
+// (ErrReset: the gate closed the pipe completely).
+func (c *Conn) Read(b []byte) (int, error) {
+	n, err := c.UnixConn.Read(b)
+	if err == io.EOF && peerClosed(c.UnixConn) {
+		err = ErrReset
+	}
+	return n, err
+}
+
+// tcpAddr turns "ip:port" back into a *net.TCPAddr, as the server expects
+// from a client socket. Anything else keeps its text.
+func tcpAddr(s string) net.Addr {
+	if ap, err := netip.ParseAddrPort(s); err == nil {
+		return net.TCPAddrFromAddrPort(ap)
+	}
+	return textAddr(s)
+}
+
+type textAddr string
+
+func (a textAddr) Network() string { return "tcp" }
+func (a textAddr) String() string  { return string(a) }
