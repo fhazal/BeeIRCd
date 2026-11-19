@@ -1136,6 +1136,12 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 		if len(p) >= 1 && p[0] == b.me.SID {
 			return nil, []string{line(nil, b.me.SID, "PONG", false, src)}
 		}
+		if len(p) >= 1 && b.names[p[0]] != "" && !b.behind[p[0]] {
+			// InspIRCd measures the lag of every server with PING. A server
+			// behind us can't be reached through this bridge, so we answer
+			// for it, or InspIRCd warns of a ping timeout and splits it.
+			return nil, []string{line(nil, p[0], "PONG", false, src)}
+		}
 		return nil, nil
 	case "PONG": // :src PONG us
 		return one(line(nil, src, "PONG", true, b.names[src], b.me.Name))

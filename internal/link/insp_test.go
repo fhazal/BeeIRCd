@@ -287,3 +287,16 @@ func FuzzInspLine(f *testing.F) {
 		}
 	})
 }
+
+// InspIRCd PINGs every server to time its lag. One behind us is answered
+// for here; before, the PING got no PONG at all.
+func TestInspPingServerBehindUs(t *testing.T) {
+	b := testBridge(t)
+	b.Out(":0BE SID leaf.test 2 0LF :a leaf")
+	if _, rep := b.In(":1IN PING 0LF"); len(rep) != 1 || rep[0] != ":0LF PONG 1IN" {
+		t.Errorf("PING for a server behind us: %q", rep)
+	}
+	if _, rep := b.In(":1IN PING 2ZZ"); len(rep) != 0 {
+		t.Errorf("PING for an unknown server answered: %q", rep)
+	}
+}
