@@ -431,6 +431,13 @@ func (s *Services) netBanCommand(c *Client, k banKind, args []string) {
 				}
 			}
 			masks = []string{m}
+			// The nick of someone online: the mask ADD would have made
+			// for them (SHUN -nick, GLINE -nick).
+			if u := s.net.UserByNick(arg); u != nil && !u.Service {
+				if nm, problem := s.netbanMask(k.kind, arg); problem == "" && nm != m {
+					masks = append(masks, nm)
+				}
+			}
 		}
 		var gone []string
 		for _, m := range masks {

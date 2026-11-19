@@ -224,3 +224,19 @@ func TestBanExpiresPromptly(t *testing.T) {
 	b.expect("AKILL added: *@soon.example for 1 second")
 	b.expect("Removing an expired G-line on *@soon.example (set by Boss")
 }
+
+// SHUN -nick (and GLINE/ZLINE -nick) remove the ban that adding by that
+// nick made.
+func TestNetBanDelByNick(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	login(t, s, "noisy")
+	// Not the oper's own address, or the ban would cover them too.
+	s.onLoop(func() { s.net.UserByNick("noisy").IP = "192.0.2.7" })
+	b.send("SHUN noisy 1h too loud")
+	b.expect(osLine("Boss", "SHUN added: *@192.0.2.7 for 1 hour (too loud)."))
+	b.send("SHUN -noisy")
+	b.expect(osLine("Boss", "SHUN on *@192.0.2.7 removed."))
+	b.send("SHUN -noisy")
+	b.expect(osLine("Boss", "No SHUN on noisy."))
+}
