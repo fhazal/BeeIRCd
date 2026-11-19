@@ -746,7 +746,9 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		s.linkSINFO(l, m)
 	case "GLOBOPS":
 		s.remoteGlobops(l, m)
-	case "SMOD", "SENDUMODE", "SENDSNO", "SLOG", "SWHOIS", "BOTMOTD":
+	case "SENDUMODE":
+		s.remoteSendUmode(l, m)
+	case "SMOD", "SENDSNO", "SLOG", "SWHOIS", "BOTMOTD":
 		// Server info, module lists and notices for opers: nothing to do,
 		// and nothing worth a log line.
 	default:

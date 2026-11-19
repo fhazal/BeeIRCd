@@ -450,7 +450,55 @@ func (s *Server) remoteGlobops(l *linkConn, m irc.Message) {
 		text = "From " + u.Nick + ": " + text
 	}
 	s.sno('G', "%s", text)
-	s.linkBroadcast(l, m.String())
+	for _, o := range s.upLinks(l) {
+		if u == nil && !o.peer.Bee && o.bridge == nil {
+			o.send(s.unrealGlobops(m.Source, text))
+			continue
+		}
+		o.send(m.String())
+	}
+}
+
+// unrealGlobops is a server's GLOBOPS "From nick: text" the way UnrealIRCd
+// sends one: from the person (":uid GLOBOPS :text", shown there as "from
+// nick: text") when nick is someone known, else ":sid SENDUMODE o :from
+// nick: text"; a line without a nick goes as it is.
+func (s *Server) unrealGlobops(src, text string) string {
+	rest, ok := strings.CutPrefix(text, "From ")
+	nick, msg, ok2 := strings.Cut(rest, ": ")
+	if !ok || !ok2 || nick == "" || strings.ContainsAny(nick, " ") {
+		return irc.Message{Source: src, Command: "GLOBOPS", Params: []string{text}, Trailing: true}.String()
+	}
+	if u := s.net.UserByNick(nick); u != nil {
+		return irc.Message{Source: u.UID, Command: "GLOBOPS", Params: []string{msg}, Trailing: true}.String()
+	}
+	return irc.Message{Source: src, Command: "SENDUMODE", Params: []string{"o", "from " + nick + ": " + msg}, Trailing: true}.String()
+}
+
+// remoteSendUmode is UnrealIRCd's ":sid SENDUMODE o :from nick: text", how
+// a GLOBOPS crosses its links. Only that form, from an oper (or a server or
+// services bot) behind l, is oper chat; every other SENDUMODE is left alone.
+func (s *Server) remoteSendUmode(l *linkConn, m irc.Message) {
+	if l.peer.Bee || l.bridge != nil || len(m.Params) != 2 || m.Params[0] != "o" {
+		return
+	}
+	rest, ok := strings.CutPrefix(m.Params[1], "from ")
+	if !ok {
+		return
+	}
+	name, text, ok := strings.Cut(rest, ": ")
+	if !ok || name == "" || text == "" || strings.ContainsAny(name, " ") {
+		return
+	}
+	if srv, u, ok := s.linkSource(l, name); ok && (srv != nil || u != nil) {
+		if u != nil && u.Modes['o'] {
+			s.remoteGlobops(l, irc.Message{Source: u.UID, Command: "GLOBOPS", Params: []string{text}, Trailing: true})
+			return
+		}
+		if u == nil || u.Service {
+			s.remoteGlobops(l, irc.Message{Source: uidServer(m.Source), Command: "GLOBOPS", Params: []string{"From " + name + ": " + text}, Trailing: true})
+		}
+	}
 }
 
 // linkBroadcastKill tells every link but one that uid was killed.

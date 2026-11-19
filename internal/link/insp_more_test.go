@@ -97,4 +97,10 @@ func TestInspGlobops(t *testing.T) {
 	if got, _ := b.In(":1IN SNONOTICE A :announcement"); len(got) != 0 {
 		t.Errorf("another letter came in: %q", got)
 	}
+	// From one of their people it comes in from that person, so
+	// UnrealIRCd shows "from r5ci: hi", not the InspIRCd server.
+	b.In(":1IN UID 1INAAAAAC 1700000000 r5ci h h r5ci r5ci 192.0.2.3 1700000000 +o :x")
+	if got, _ := b.In(":1IN SNONOTICE G :From r5ci: hi"); !has(got, ":1INAAAAAC GLOBOPS :hi") {
+		t.Errorf("in from a user %q", got)
+	}
 }

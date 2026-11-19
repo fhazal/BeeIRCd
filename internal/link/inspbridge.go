@@ -1006,6 +1006,15 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 		if len(p) < 2 || (p[0] != "G" && p[0] != "g") {
 			return nil, nil
 		}
+		// "From nick: text" from one of their opers goes on from that
+		// person, so UnrealIRCd shows "from nick: text", not the server.
+		if rest, ok := strings.CutPrefix(p[1], "From "); ok {
+			if nick, text, ok := strings.Cut(rest, ": "); ok {
+				if uid := b.theirUID(nick); uid != "" {
+					return one(line(nil, uid, "GLOBOPS", true, text))
+				}
+			}
+		}
 		return one(line(nil, src, "GLOBOPS", true, p[1]))
 	case "BURST", "SINFO", "RSQUIT", "RESYNC", "SVSHOLD", "SVSOPER", "SVSCMODE", "MAP", "RCONNECT":
 		return nil, nil
@@ -1229,6 +1238,17 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 		return one(line(nil, src, "TSCTL", false, "alltime"))
 	}
 	return nil, nil
+}
+
+// theirUID is the UID of the person on their side with nick, "" when
+// there is none.
+func (b *inspBridge) theirUID(nick string) string {
+	for uid, n := range b.nicks {
+		if b.behind[sourceSID(uid)] && irc.Fold(n) == irc.Fold(nick) {
+			return uid
+		}
+	}
+	return ""
 }
 
 // who names a source for people: a nick or a server name.
