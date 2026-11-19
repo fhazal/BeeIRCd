@@ -119,14 +119,15 @@ func TestLinkPortFailedThrottle(t *testing.T) {
 
 func TestLongDuration(t *testing.T) {
 	for d, want := range map[time.Duration]string{
-		0:                              "0 seconds",
-		time.Second:                    "1 second",
-		45 * time.Second:               "45 seconds",
-		15*time.Minute + 3*time.Second: "15 minutes, 3 seconds",
-		time.Hour + 30*time.Second:     "1 hour",
-		4*24*time.Hour + 2*time.Hour:   "4 days, 2 hours",
-		9 * 24 * time.Hour:             "1 week, 2 days",
-		400 * 24 * time.Hour:           "1 year, 5 weeks",
+		0:                                 "0 seconds",
+		time.Second:                       "1 second",
+		45 * time.Second:                  "45 seconds",
+		15*time.Minute + 3*time.Second:    "15 minutes, 3 seconds",
+		time.Hour + 30*time.Second:        "1 hour, 30 seconds",
+		4*24*time.Hour + 2*time.Hour:      "4 days, 2 hours",
+		9 * 24 * time.Hour:                "1 week, 2 days",
+		400 * 24 * time.Hour:              "1 year, 5 weeks",
+		400*24*time.Hour + 61*time.Second: "1 year, 5 weeks, 1 minute, 1 second",
 	} {
 		if got := longDuration(d); got != want {
 			t.Errorf("longDuration(%v) = %q, want %q", d, got, want)
