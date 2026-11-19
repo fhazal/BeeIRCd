@@ -336,10 +336,10 @@ func (b *inspBridge) out(m irc.Message) []string {
 			return nil
 		}
 		b.names[p[2]] = p[0]
-		// Its own BURST, so InspIRCd times its ENDBURST (EOS) from now
-		// and not from 0 (QA: "burst time: 1795037518 secs").
-		return []string{line(nil, src, "SERVER", true, p[0], p[2], last()),
-			line(nil, p[2], "BURST", false, strconv.FormatInt(b.now(), 10))}
+		// InspIRCd 4 starts the burst timer of a server behind a link only
+		// from SERVER's burst=<ms> property (a BURST line is dropped once
+		// connected), else ENDBURST (EOS) reports "burst time: <epoch> secs".
+		return []string{line(nil, src, "SERVER", true, p[0], p[2], "burst="+strconv.FormatInt(b.now()*1000, 10), last())}
 	case "EOS":
 		return []string{line(nil, src, "ENDBURST", false)}
 	case "NETINFO", "PROTOCTL", "PASS", "BEESESS", "BEEOPER", "BEEOPERR", "BEEADMIN", "BEEPLACE", "REPUTATION",
@@ -706,6 +706,16 @@ func (b *inspBridge) outUserMode(src, uid, modes string) []string {
 		}
 		if c.l == 'o' && c.add {
 			out = append(out, line(nil, uid, "OPERTYPE", true, "IRC_Operator"))
+			continue
+		}
+		if c.l == 'o' && src != uid {
+			// Deoper goes from the user, or InspIRCd says "<server> logged
+			// <nick> out of their server operator account".
+			if t, ok := b.theirUser(c.l); ok {
+				c.l = t
+				ms, _ := writeModes([]modeChange{c})
+				out = append(out, line(nil, uid, "MODE", false, uid, ms))
+			}
 			continue
 		}
 		if t, ok := b.theirUser(c.l); ok {

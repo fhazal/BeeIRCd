@@ -147,7 +147,7 @@ func has(lines []string, want string) bool {
 func TestInspBridgeOut(t *testing.T) {
 	b := testBridge(t)
 	first := b.Out(":0BE SID leaf.test 2 0LF :a leaf")
-	if len(first) == 0 || !strings.HasPrefix(first[0], ":0BE BURST ") || !has(first, "SINFO rawversion") || !has(first, ":0BE SERVER leaf.test 0LF :a leaf") || !has(first, ":0LF BURST ") {
+	if len(first) == 0 || !strings.HasPrefix(first[0], ":0BE BURST ") || !has(first, "SINFO rawversion") || !has(first, ":0BE SERVER leaf.test 0LF burst=") || has(first, ":0LF BURST ") {
 		t.Fatalf("first out %q", first)
 	}
 	cases := []struct{ in, want string }{
@@ -298,5 +298,16 @@ func TestInspPingServerBehindUs(t *testing.T) {
 	}
 	if _, rep := b.In(":1IN PING 2ZZ"); len(rep) != 0 {
 		t.Errorf("PING for an unknown server answered: %q", rep)
+	}
+}
+
+// A deoper relayed by a server goes out from the user, so InspIRCd's
+// REMOTEOPER notice names the user, not the server (QA rc3 #12).
+func TestInspDeoperFromUser(t *testing.T) {
+	b := testBridge(t)
+	b.Out(":0BE SID leaf.test 2 0LF :a leaf")
+	out := b.outUserMode("0BE", "0LFAAAAAB", "-o")
+	if len(out) != 1 || out[0] != ":0LFAAAAAB MODE 0LFAAAAAB -o" {
+		t.Fatalf("deoper out %q", out)
 	}
 }
