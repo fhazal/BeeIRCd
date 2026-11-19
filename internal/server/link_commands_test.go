@@ -170,3 +170,39 @@ func TestLinkRejoinSettles(t *testing.T) {
 	waitLink(t, "rejoin", func() bool { return hub.user("beta") != nil && leaf.user("alpha") != nil })
 	waitLink(t, "same state on both", func() bool { return hub.netState() == leaf.netState() })
 }
+
+// KLINE takes InspIRCd's forms: KLINE <mask> <duration> :<reason> sets a
+// timed K-line, KLINE <mask> alone and KLINE -<mask> remove it.
+func TestKlineInspForms(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	op := boss(t, s)
+	op.send("KLINE *@x.example 1h :spamming")
+	op.expect("K-line on *@x.example added for 1h0m0s.")
+	var exp time.Time
+	s.onLoop(func() {
+		for _, b := range s.svc.Klines() {
+			if b.Mask == "*@x.example" {
+				exp = b.Expires
+				if b.Reason != "spamming" {
+					t.Errorf("reason %q", b.Reason)
+				}
+			}
+		}
+	})
+	if d := time.Until(exp); d < 59*time.Minute || d > time.Hour {
+		t.Errorf("expires in %v, want about 1h", d)
+	}
+	op.send("KLINE *@x.example")
+	op.expect("K-line on *@x.example removed.")
+	op.send("KLINE *@y.example")
+	op.expect("No such K-line: *@y.example.")
+	op.send("KLINE *@z.example 0 :forever")
+	op.expect("K-line on *@z.example added until removed.")
+	op.send("KLINE -*@z.example")
+	op.expect("K-line on *@z.example removed.")
+	s.onLoop(func() {
+		if n := len(s.svc.Klines()); n != 0 {
+			t.Errorf("%d K-lines left: %v", n, s.svc.Klines())
+		}
+	})
+}

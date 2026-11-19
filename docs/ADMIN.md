@@ -424,7 +424,7 @@ channel_privmsg = "60:5"
 
 A soft ban stops only people who aren't logged in to an account, like
 UnrealIRCd's soft bans. Write a `%` before the mask: `/os akill add
-%*@203.0.113.0/24 spam from this range` or `/KLINE %*@*.example.net`. In
+%*@203.0.113.0/24 spam from this range` or `/KLINE %*@*.example.net 0 :log in first`. In
 the Hive Panel tick "Logged-in people may pass" when adding an AKILL; the
 list shows those with a "soft" tag. A DNS blocklist can do the same with
 `action = "soft-reject"`.
@@ -1855,9 +1855,11 @@ copy of each mask wins. A leaf with `autoconnect` comes back by itself.
 **Oper commands.** `/LINKS [mask]`, `/MAP`, `/CONNECT <server>` and
 `/SQUIT <server> [reason]` (flag c), `/STATS l|c|k|u [server]`,
 `/ADMIN`, `/MOTD`, `/VERSION`, `/TIME` with a server name ask that
-server. `/KLINE [+time] <nick|user@host> [reason]` and `/UNKLINE` ban
-from this server only (flag k; never sent over links; `STATS k` lists
-them).
+server. `/KLINE <nick|user@host> [time] [:reason]` (time like 30m, 12h,
+7d; none or 0 = until removed; `+time` before the mask works too) and
+`/UNKLINE` ban from this server only (flag k; never sent over links;
+`STATS k` lists them). As on InspIRCd, `/KLINE <user@host>` alone or
+`/KLINE -<user@host>` removes a K-line.
 
 `beeircd link-info` prints this server's fingerprint and the blocks the
 other side needs. Links use TLS 1.2+ only; plain links are never accepted.

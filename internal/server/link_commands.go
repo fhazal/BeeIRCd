@@ -380,25 +380,46 @@ func (s *Server) remoteQuery(l *linkConn, m irc.Message) {
 
 // ---- K-lines ----
 
-// cmdKline is KLINE [+time] <nick|user@host> [reason] (oper flag k):
-// a ban on this server only; whoever it covers here is disconnected.
+// cmdKline is KLINE [+time] <nick|user@host> [duration] [reason] (oper
+// flag k): a ban on this server only; whoever it covers here is
+// disconnected. Like InspIRCd, KLINE <mask> alone (or KLINE -<mask>)
+// removes the K-line, and a duration after the mask (0 = until removed)
+// sets how long it lasts.
 func (s *Server) cmdKline(c *Client, m irc.Message) {
 	if !s.needFlag(c, nil, 'k') {
 		return
 	}
 	args := append([]string{}, m.Params...)
 	var life time.Duration
+	timed := false
 	if len(args) > 0 && strings.HasPrefix(args[0], "+") {
 		d, err := parseLife(args[0][1:])
 		if err != nil {
 			s.stdReply(c, "FAIL", "KLINE", "INVALID_DURATION", args[0]+" isn't a time. Use +30m, +12h, +7d, or +0 for until removed.", "", args[0])
 			return
 		}
-		life, args = d, args[1:]
+		life, args, timed = d, args[1:], true
 	}
 	if len(args) == 0 {
 		s.reply(c, irc.ErrNeedMoreParams, "KLINE", "Not enough parameters")
 		return
+	}
+	if rest, ok := strings.CutPrefix(args[0], "-"); ok || len(args) == 1 && !timed {
+		if !ok {
+			rest = args[0]
+		}
+		if rest == "" {
+			s.reply(c, irc.ErrNeedMoreParams, "KLINE", "Not enough parameters")
+			return
+		}
+		s.removeKline(c, "KLINE", rest)
+		return
+	}
+	if !timed && len(args) > 1 {
+		if d, err := parseLife(args[1]); err == nil {
+			life, timed = d, true
+			args = append(args[:1:1], args[2:]...)
+		}
 	}
 	mask := args[0]
 	// A % before the mask makes a soft K-line: logged-in people pass.
@@ -459,22 +480,30 @@ func (s *Server) cmdUnkline(c *Client, m irc.Message) {
 		s.reply(c, irc.ErrNeedMoreParams, "UNKLINE", "Not enough parameters")
 		return
 	}
+	s.removeKline(c, "UNKLINE", m.Params[0])
+}
+
+// removeKline takes the K-line on mask away for UNKLINE, KLINE -mask and
+// KLINE mask.
+func (s *Server) removeKline(c *Client, cmd, mask string) {
 	why := ""
 	for _, b := range s.svc.Klines() {
-		if b.Mask == strings.ToLower(m.Params[0]) {
+		if b.Mask == strings.ToLower(mask) {
 			why = b.Reason
 		}
 	}
-	gone, err := s.svc.DelKline(m.Params[0])
+	gone, err := s.svc.DelKline(mask)
 	switch {
 	case err != nil:
 		s.log.Printf("services database: %v", err)
-		s.stdReply(c, "FAIL", "UNKLINE", "INTERNAL_ERROR", "The K-line couldn't be removed.", "")
+		s.stdReply(c, "FAIL", cmd, "INTERNAL_ERROR", "The K-line couldn't be removed.", "")
+	case !gone && cmd == "KLINE":
+		s.notice(c, "*** No such K-line: "+strings.ToLower(mask)+".")
 	case !gone:
-		s.stdReply(c, "FAIL", "UNKLINE", "NO_SUCH_KLINE", "There is no K-line on "+m.Params[0]+".", "", m.Params[0])
+		s.stdReply(c, "FAIL", cmd, "NO_SUCH_KLINE", "There is no K-line on "+mask+".", "", mask)
 	default:
-		s.snoBanRemoved('x', c.user.Nick, store.BanKline, strings.ToLower(m.Params[0]), why)
-		s.notice(c, "*** K-line on "+strings.ToLower(m.Params[0])+" removed.")
+		s.snoBanRemoved('x', c.user.Nick, store.BanKline, strings.ToLower(mask), why)
+		s.notice(c, "*** K-line on "+strings.ToLower(mask)+" removed.")
 	}
 }
 

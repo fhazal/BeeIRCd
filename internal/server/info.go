@@ -92,7 +92,7 @@ var helpTopics = map[string][]string{
 	"KILL":         {"KILL <nick> <reason>", "Disconnects someone (opers)."},
 	"SPAMREPORT":   {"SPAMREPORT <nick|ip> [place]", "Reports a spammer's IP to the [[spamreport]] places, like DroneBL (opers, flag k). LAN addresses, opers and EXCEPTION BAN masks are never reported."},
 	"AUTH":         {"AUTH <nick>:<password>", "Logs in while connecting, when the server asks you to (a soft ban). Same as SASL."},
-	"KLINE":        {"KLINE [+time] [%]<nick|user@host> [reason]", "Bans someone from this server only (opers, flag k). +30m, +12h, +7d; none = until removed. A % before the mask is a soft ban: people logged in to services pass."},
+	"KLINE":        {"KLINE [%]<nick|user@host> [time] [reason]", "Bans someone from this server only (opers, flag k). Time: 30m, 12h, 7d (or +time before the mask); none or 0 = until removed. A % before the mask is a soft ban: people logged in to services pass. KLINE <user@host> alone or KLINE -<user@host> removes it."},
 	"UNKLINE":      {"UNKLINE <user@host>", "Lifts a K-line (opers, flag k)."},
 	"LINKS":        {"LINKS [mask]", "Lists the servers on the network."},
 	"MAP":          {"MAP", "Shows the server tree and how many people are on each server."},
