@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/fhazal/beeircd/internal/irc"
+	"github.com/fhazal/beeircd/internal/store"
 	"github.com/fhazal/beeircd/internal/version"
 )
 
@@ -240,6 +241,9 @@ func (s *Server) cmdStats(c *Client, m irc.Message) {
 }
 
 func (s *Server) statsHere(c *Client, letter string) {
+	if u := c.user; u != nil {
+		s.snoOnly('t', "Stats '"+letter+"' requested by "+u.Nick+" ("+u.TrueIdent()+"@"+u.RealHost+")")
+	}
 	switch letter {
 	case "l", "L":
 		if !c.isOper() {
@@ -438,7 +442,11 @@ func (s *Server) cmdKline(c *Client, m irc.Message) {
 	if life > 0 {
 		until = "for " + life.String()
 	}
-	s.sno('x', "%s added a K-line on %s %s: %s (%d disconnected)", c.user.Nick, strings.ToLower(mask), until, reason, hit)
+	var expires time.Time
+	if life > 0 {
+		expires = time.Now().Add(life)
+	}
+	s.snoBanAdded('x', c.user.Nick, store.BanKline, strings.ToLower(mask), reason, expires)
 	s.notice(c, fmt.Sprintf("*** K-line on %s added %s.", strings.ToLower(mask), until))
 }
 
@@ -451,6 +459,12 @@ func (s *Server) cmdUnkline(c *Client, m irc.Message) {
 		s.reply(c, irc.ErrNeedMoreParams, "UNKLINE", "Not enough parameters")
 		return
 	}
+	why := ""
+	for _, b := range s.svc.Klines() {
+		if b.Mask == strings.ToLower(m.Params[0]) {
+			why = b.Reason
+		}
+	}
 	gone, err := s.svc.DelKline(m.Params[0])
 	switch {
 	case err != nil:
@@ -459,7 +473,7 @@ func (s *Server) cmdUnkline(c *Client, m irc.Message) {
 	case !gone:
 		s.stdReply(c, "FAIL", "UNKLINE", "NO_SUCH_KLINE", "There is no K-line on "+m.Params[0]+".", "", m.Params[0])
 	default:
-		s.sno('x', "%s removed the K-line on %s", c.user.Nick, strings.ToLower(m.Params[0]))
+		s.snoBanRemoved('x', c.user.Nick, store.BanKline, strings.ToLower(m.Params[0]), why)
 		s.notice(c, "*** K-line on "+strings.ToLower(m.Params[0])+" removed.")
 	}
 }

@@ -30,7 +30,7 @@ func TestSpamfilterBlocksChannelText(t *testing.T) {
 	v.send("PRIVMSG #lobby :hello all")
 	a.expect("PRIVMSG #lobby :hello all")
 	a.quiet("nitro")
-	b.expect("Spam filter 1 caught Vic!~vic@127.0.0.1 (chan to #lobby, Block): get FREE \x02nitro\x02 here")
+	b.expect("Notice -- Vic had their message to #lobby filtered as it matched *free nitro* (No nitro spam)")
 
 	// Several targets: only the caught one is dropped.
 	spamRule(t, b, "p block - No_dms_with_links *bit.ly/*")
@@ -51,7 +51,7 @@ func TestSpamfilterWarnLetsThrough(t *testing.T) {
 	}
 	v.send("PRIVMSG #lobby :best crypto doubler ever")
 	a.expect("PRIVMSG #lobby :best crypto doubler ever")
-	b.expect("Spam filter 1 caught Vic!~vic@127.0.0.1 (chan to #lobby, Warn opers)")
+	b.expect("Notice -- WARNING: Vic's message to #lobby matched *crypto doubler* (Trying out)")
 	v.quiet("blocked")
 }
 

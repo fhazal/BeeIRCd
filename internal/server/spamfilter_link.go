@@ -5,6 +5,7 @@ import (
 
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/link"
+	"github.com/fhazal/beeircd/internal/services"
 	"github.com/fhazal/beeircd/internal/spamfilter"
 )
 
@@ -76,10 +77,10 @@ func (s *Server) remoteSpam(l *linkConn, raw irc.Message, it *link.SpamFilter) {
 		}
 	}
 	if l.eos {
-		how := "added"
-		if !it.Add {
-			how = "removed"
+		if it.Add {
+			s.sno('f', "%s added filter %s", f.SetBy, services.Describe(f))
+		} else {
+			s.sno('f', "%s removed filter '%s': %s", f.SetBy, f.Match, f.Reason)
 		}
-		s.sno('f', "Spam filter %s %s by %s (from %s)", it.Match, how, it.SetBy, l.peer.Name)
 	}
 }

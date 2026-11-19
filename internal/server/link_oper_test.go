@@ -104,7 +104,7 @@ func TestLeafOperRelay(t *testing.T) {
 	pearl.expect(" 491 pearl :No oper entry for you from this host")
 	pearl.send("OPER nosuch " + operPW)
 	pearl.expect(" 491 pearl :No oper entry")
-	if !hub.logHas("Failed /oper as pearl from pearl") {
+	if !hub.logHas("oper account because they are connecting from the wrong user@host") {
 		t.Error("the services server did not log the failed /oper")
 	}
 	if leaf.logHas(operPW) || hub.logHas(operPW) {

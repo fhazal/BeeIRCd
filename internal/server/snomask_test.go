@@ -112,8 +112,8 @@ func TestSnoticeOpersByLetter(t *testing.T) {
 
 	// Connects (c) reach Boss only.
 	login(t, s, "dave")
-	b.expect("Notice -- Connect: dave")
-	ember.quiet("Connect: dave")
+	b.expect("Notice -- Client connecting to irc.test.local on port ")
+	ember.quiet("dave!~dave")
 
 	// Both have o.
 	s.do(func() { s.snoticeOpers('o', "letter o") })

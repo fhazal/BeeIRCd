@@ -112,7 +112,7 @@ func TestLogChannel(t *testing.T) {
 	b.send("AS SET max-users 500")
 	b.expect(asl + "ADMIN: Boss!~boss@127.0.0.1 (Boss) used SET to change the configuration value of limits:max_users to 500")
 	u.send("OPER user nope") // a server notice, not an Anope log line
-	b.quiet(logSrc + "Failed /oper")
+	b.quiet(logSrc + "failed to log into")
 
 	// Deopping a bot puts it back.
 	b.send("OS MODE #services -o NickServ")

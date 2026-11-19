@@ -144,11 +144,12 @@ func (s *Server) remoteBan(l *linkConn, raw irc.Message, b *link.Ban) {
 	changed := s.svc.RemoteBan(nb, b.Add)
 	s.banFrom = nil
 	if changed && l.eos {
-		how := "added"
-		if !b.Add {
-			how = "removed"
+		switch {
+		case !b.Add:
+			s.snoBanRemoved('X', nb.SetBy, kind, nb.Mask, nb.Reason)
+		default:
+			s.snoBanAdded('X', nb.SetBy, kind, nb.Mask, nb.Reason, nb.Expires)
 		}
-		s.sno('X', "%s %s %s by %s (from %s): %s", strings.ToUpper(kind), nb.Mask, how, nb.SetBy, l.peer.Name, nb.Reason)
 	}
 }
 

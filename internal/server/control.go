@@ -387,6 +387,7 @@ func (s *Server) rehash(by string) (*control.Rehash, error) {
 	if s.cfg.Path == "" {
 		return nil, errors.New("this server wasn't started from a config file")
 	}
+	s.sno('r', "%s is rehashing beeircd.conf on %s", by, s.cfg.Server.Name)
 	fresh, err := config.Load(s.cfg.Path)
 	if err != nil {
 		return nil, fmt.Errorf("beeircd.conf not used: %w", err)
@@ -429,7 +430,7 @@ func (s *Server) rehash(by string) (*control.Rehash, error) {
 			out.Applied = append(out.Applied, "certificate read again")
 		}
 	}
-	s.sno('r', "%s re-read beeircd.conf: %s", by, rehashSummary(out))
+	s.sno('r', "Rehash done: %s", rehashSummary(out))
 	return out, nil
 }
 

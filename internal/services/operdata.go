@@ -125,7 +125,7 @@ func (s *Services) expireBans(now time.Time) {
 	if len(gone) > 0 {
 		s.reloadOperData()
 		for _, e := range gone {
-			s.snotice('x', "%s ran out", expiredWords(e))
+			s.snotice('x', "%s", expiredNotice(e, now))
 			s.logTo(s.operServ, anopeExpired(e))
 		}
 	}

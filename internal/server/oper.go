@@ -127,11 +127,7 @@ func (s *Server) operUpView(c *Client, o *store.Oper, v operView) {
 	} else {
 		s.notice(c, "*** Oper flags: "+describeFlags(v.flags))
 	}
-	if v.class != "" {
-		s.sno('o', "%s (%s@%s) is now an operator as %s (class %s): %s", u.Nick, u.TrueIdent(), u.RealHost, o.Account, v.class, v.flags)
-	} else {
-		s.sno('o', "%s (%s@%s) is now an operator as %s: %s", u.Nick, u.TrueIdent(), u.RealHost, o.Account, v.flags)
-	}
+	s.sno('o', "%s is now a server operator of type \x02%s\x02 (using account \x02%s\x02).", snoWho(u), operType(v.class, v.flags), o.Account)
 	s.svc.SendOperNews(c.uid)
 	s.operExtras(c)
 }
@@ -160,7 +156,7 @@ func (s *Server) deoper(c *Client, why string) {
 	if why != "" {
 		s.notice(c, "*** "+why)
 	}
-	s.sno('o', "%s is no longer an operator", u.Nick)
+	s.sno('o', "%s logged out of their server operator account.", snoWho(u))
 }
 
 // recheckOpers runs after the oper entry of account id changed: everyone
@@ -288,23 +284,27 @@ func (s *Server) cmdOper(c *Client, m irc.Message) {
 		// A fresh install: the admin from beeircd.conf has no account yet,
 		// and "from this host" sent people to check their hosts.
 		s.reply(c, irc.ErrNoOperHost, "No account "+s.cfg.Services.Admin+" yet: register it with NickServ (and log in), then /oper again")
-		s.sno('o', "Failed /oper as %s from %s (%s@%s): the admin account isn't registered yet", name, u.Nick, u.Ident, u.RealHost)
+		s.operFail('o', u, name, "no account with that name exists")
 		return
 	}
 	if o == nil || !operHostOK(o, u) {
 		s.reply(c, irc.ErrNoOperHost, "No oper entry for you from this host")
-		s.sno('o', "Failed /oper as %s from %s (%s@%s): no matching oper entry", name, u.Nick, u.Ident, u.RealHost)
+		if o == nil {
+			s.operFail('o', u, name, "no account with that name exists")
+		} else {
+			s.operFail('o', u, o.Account, "they are connecting from the wrong user@host")
+		}
 		return
 	}
 	if o.Disabled != "" {
 		s.reply(c, irc.ErrNoOperHost, "Your oper entry is disabled: "+o.Disabled)
-		s.sno('o', "Failed /oper as %s from %s (%s@%s): entry disabled", o.Account, u.Nick, u.TrueIdent(), u.RealHost)
+		s.operFail('o', u, o.Account, "their oper account is disabled")
 		return
 	}
 	if len(o.CertFPs) > 0 {
 		if !certMatches(o.CertFPs, u.CertFP) {
 			s.reply(c, irc.ErrNoOperHost, "No oper entry for you from this host")
-			s.sno('o', "Failed /oper as %s from %s (%s@%s): TLS certificate doesn't match", o.Account, u.Nick, u.TrueIdent(), u.RealHost)
+			s.operFail('o', u, o.Account, "they are using the wrong TLS client certificate")
 			return
 		}
 		if o.PassHash == "" { // the certificate alone, like UnrealIRCd's certfp blocks
@@ -326,10 +326,10 @@ func (s *Server) cmdOper(c *Client, m irc.Message) {
 			s.stdReply(c, "FAIL", "OPER", "TRY_AGAIN", "Still checking your last password. Try again in a moment.", "")
 		case services.PwDown:
 			s.reply(c, irc.ErrPasswdMismatch, "The login server can't be reached right now. Try again in a moment.")
-			s.sno('o', "Failed /oper as %s from %s (%s@%s): the login server can't be reached", o.Account, u.Nick, u.Ident, u.RealHost)
+			s.operFail('o', u, o.Account, "the login server can't be reached")
 		default:
 			s.reply(c, irc.ErrPasswdMismatch, "Password incorrect")
-			s.sno('o', "Failed /oper as %s from %s (%s@%s): wrong password", o.Account, u.Nick, u.Ident, u.RealHost)
+			s.operFail('o', u, o.Account, "they specified the wrong password")
 		}
 	})
 }
@@ -365,8 +365,7 @@ func (s *Server) firstOperPassword(c *Client, a *store.Account, o *store.Oper, p
 		s.reply(c, irc.ErrNoOperHost, "No oper password is set for "+o.Account+" yet")
 		s.notice(c, "*** Put the admin's oper password in beeircd.conf: [services] admin_password from `beeircd mkpasswd`, then rehash. "+
 			"(With admin_hosts set, a first /oper from those hosts may set it instead.)")
-		u := c.user
-		s.sno('o', "Failed /oper as %s from %s (%s@%s): admin_password is empty and admin_hosts is not set", o.Account, u.Nick, u.TrueIdent(), u.RealHost)
+		s.operFail('o', c.user, o.Account, "admin_password is empty and admin_hosts is not set")
 		return
 	}
 	if s.accountID(c) != a.ID {
@@ -440,7 +439,7 @@ func (s *Server) killUser(u *state.User, by, reason string) {
 		return
 	}
 	tc.send(irc.Message{Source: by, Command: "KILL", Params: []string{u.Nick, reason}, Trailing: true}.String())
-	s.sno('k', "%s killed %s (%s@%s): %s", by, u.Nick, u.Ident, u.RealHost, reason)
+	s.sno('k', "Local kill by %s: %s!%s@%s (%s)", by, u.Nick, u.TrueIdent(), u.RealHost, reason)
 	s.quit(tc, "Killed ("+by+" ("+reason+"))")
 }
 

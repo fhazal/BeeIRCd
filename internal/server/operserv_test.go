@@ -282,7 +282,7 @@ func TestOperUpAndWhois(t *testing.T) {
 	ember.expect(" 221 ember +i")
 	ember.send("OPER Boss guess-the-pass")
 	ember.expect(" 464 ember :Password incorrect")
-	b.expect("Notice -- Failed /oper as Boss from ember (~ember@127.0.0.1): wrong password")
+	b.expect("Notice -- ember!~ember@127.0.0.1 (127.0.0.1) failed to log into the \x02Boss\x02 oper account because they specified the wrong password.")
 	ember.send("OPER nobody " + operPW)
 	ember.expect(" 491 ember :No oper entry for you from this host")
 
@@ -348,11 +348,11 @@ func TestOperEntries(t *testing.T) {
 	// identifying isn't needed.
 	ember.send("OPER ember " + pw)
 	ember.expect(" 464 ember :Password incorrect")
-	b.expect("Notice -- Failed /oper as ember from ember (~ember@127.0.0.1): wrong password")
+	b.expect("Notice -- ember!~ember@127.0.0.1 (127.0.0.1) failed to log into the \x02ember\x02 oper account because they specified the wrong password.")
 	ember.send("OPER ember Ember-oper-1")
 	ember.expect(":irc.test.local MODE ember +os")
 	ember.expect(" 381 ember :You are now an IRC operator")
-	b.expect("Notice -- ember (~ember@127.0.0.1) is now an operator as ember: gk")
+	b.expect("Notice -- ember!~ember@127.0.0.1 (127.0.0.1) is now a server operator of type \x02gk\x02 (using account \x02ember\x02).")
 
 	ember.send("AS SHOW")
 	ember.expect(asLine("ember", "AdminServ is for server admins (oper flag a)."))
@@ -409,7 +409,7 @@ func TestKillWallopsGlobalNews(t *testing.T) {
 	b.send("KILL victim :go away")
 	victim.expect(":Boss KILL victim :go away")
 	victim.expect("ERROR :Closing Link: 127.0.0.1 (Killed (Boss (go away)))")
-	b.expect("Notice -- Boss killed victim (~victim@127.0.0.1): go away")
+	b.expect("Notice -- Local kill by Boss: victim!~victim@127.0.0.1 (go away)")
 
 	b.send("WALLOPS :opers meeting at nine")
 	watcher.expect(":Boss!~boss@127.0.0.1 WALLOPS :opers meeting at nine")
@@ -493,7 +493,7 @@ func TestAkill(t *testing.T) {
 		close(done)
 	})
 	<-done
-	b.expect("AKILL on ~old@127.0.0.* ran out")
+	b.expect("Removing an expired G-line on ~old@127.0.0.* (set by Boss 2 minutes")
 	login(t, s, "old")
 }
 
@@ -505,7 +505,7 @@ func TestSessionLimit(t *testing.T) {
 	login(t, s, "three")
 	fourth := raw(t, s)
 	fourth.expect("ERROR :Closing Link: 127.0.0.1 (Too many connections from your IP (the limit is 3))")
-	b.expect("Notice -- Too many connections from 127.0.0.1 (4, the limit is 3)")
+	b.expect("with IP 127.0.0.1 rejected: maxperip limit exceeded (4 local, max 3)")
 
 	b.send("OS EXCEPTION ADD 127.0.0.* 5 test box")
 	b.expect(osLine("Boss", "127.0.0.* may now have 5 connections."))

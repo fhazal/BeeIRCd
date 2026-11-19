@@ -19,6 +19,26 @@ const (
 // BanKinds are all kinds, in the order lists show them.
 var BanKinds = []string{BanAkill, BanZline, BanSNLine, BanShun, BanEline, BanKline}
 
+// BanWord is InspIRCd's name for a ban kind in server notices: "G-line",
+// "Z-line", "K-line", "SHUN" and so on.
+func BanWord(kind string) string {
+	switch kind {
+	case BanAkill:
+		return "G-line"
+	case BanZline:
+		return "Z-line"
+	case BanSNLine:
+		return "SN-line"
+	case BanShun:
+		return "SHUN"
+	case BanEline:
+		return "E-line"
+	case BanKline:
+		return "K-line"
+	}
+	return strings.ToUpper(kind)
+}
+
 // NetBan is one network ban.
 type NetBan struct {
 	Kind    string
@@ -132,6 +152,11 @@ type Expired struct {
 	What string // "netban", "forbid" or "exception"
 	Kind string // ban kind (BanAkill, ...) or forbid kind; "" for exceptions
 	Mask string
+	// Reason, SetBy and SetAt tell who set it, when and why, for the
+	// expiry notice.
+	Reason string
+	SetBy  string
+	SetAt  time.Time
 }
 
 // PurgeExpired removes network bans, forbids and session exceptions that
@@ -139,9 +164,9 @@ type Expired struct {
 func (s *Store) PurgeExpired(now time.Time) ([]Expired, error) {
 	var gone []Expired
 	for _, q := range []struct{ what, sel, del string }{
-		{"netban", "SELECT kind, mask FROM netbans WHERE expires > 0 AND expires <= ?", "DELETE FROM netbans WHERE expires > 0 AND expires <= ?"},
-		{"forbid", "SELECT kind, name FROM forbids WHERE expires > 0 AND expires <= ?", "DELETE FROM forbids WHERE expires > 0 AND expires <= ?"},
-		{"exception", "SELECT '', mask FROM session_excepts WHERE expires > 0 AND expires <= ?", "DELETE FROM session_excepts WHERE expires > 0 AND expires <= ?"},
+		{"netban", "SELECT kind, mask, reason, set_by, set_at FROM netbans WHERE expires > 0 AND expires <= ?", "DELETE FROM netbans WHERE expires > 0 AND expires <= ?"},
+		{"forbid", "SELECT kind, name, reason, set_by, set_at FROM forbids WHERE expires > 0 AND expires <= ?", "DELETE FROM forbids WHERE expires > 0 AND expires <= ?"},
+		{"exception", "SELECT '', mask, reason, set_by, set_at FROM session_excepts WHERE expires > 0 AND expires <= ?", "DELETE FROM session_excepts WHERE expires > 0 AND expires <= ?"},
 	} {
 		rows, err := s.db.Query(q.sel, now.Unix())
 		if err != nil {
@@ -150,10 +175,12 @@ func (s *Store) PurgeExpired(now time.Time) ([]Expired, error) {
 		n := len(gone)
 		for rows.Next() {
 			e := Expired{What: q.what}
-			if err := rows.Scan(&e.Kind, &e.Mask); err != nil {
+			var setAt int64
+			if err := rows.Scan(&e.Kind, &e.Mask, &e.Reason, &e.SetBy, &setAt); err != nil {
 				rows.Close()
 				return gone, err
 			}
+			e.SetAt = zeroOrTime(setAt)
 			gone = append(gone, e)
 		}
 		rows.Close()

@@ -148,7 +148,7 @@ func (s *Services) AddSpamFilter(f spamfilter.Filter, by string, force bool) (sp
 	if s.spam.hook != nil {
 		s.spam.hook(f, true)
 	}
-	s.snotice('f', "%s added spam filter %d: %s", by, f.ID, Describe(f))
+	s.snotice('f', "%s added filter %s", by, Describe(f))
 	s.logTo(s.operServ, fmt.Sprintf("%s added spam filter %s", by, Describe(f)))
 	return f, nil
 }
@@ -187,7 +187,7 @@ func (s *Services) DelSpamFilter(id int64, by string) (spamfilter.Filter, error)
 	if s.spam.hook != nil {
 		s.spam.hook(f, false)
 	}
-	s.snotice('f', "%s removed spam filter %d: %s", by, f.ID, Describe(f))
+	s.snotice('f', "%s removed filter '%s': %s", by, f.Match, f.Reason)
 	s.logTo(s.operServ, fmt.Sprintf("%s removed spam filter %s", by, Describe(f)))
 	return f, nil
 }
@@ -246,7 +246,7 @@ func (s *Services) expireSpamFilters(now time.Time) {
 	}
 	for _, f := range gone {
 		delete(s.spam.hits, f.ID)
-		s.snotice('f', "Spam filter %d ran out: %s", f.ID, Describe(f))
+		s.snotice('f', "%s", expiryLine("filter", "'"+f.Match+"'", f.SetBy, f.SetAt, f.Reason, now))
 	}
 	if err := s.loadSpamFilters(); err != nil {
 		s.log.Printf("services database: %v", err)

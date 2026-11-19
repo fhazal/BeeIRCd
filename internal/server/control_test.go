@@ -129,7 +129,8 @@ func TestRehash(t *testing.T) {
 	if !strings.Contains(applied, "session_limit 100 → 50") || !strings.Contains(applied, "connect_rate 5:60 → 10:60") || restart != "ports" {
 		t.Errorf("applied %q, restart %q", applied, restart)
 	}
-	b.expect("re-read beeircd.conf: applied")
+	b.expect("is rehashing beeircd.conf on irc.test.local")
+	b.expect("Rehash done: applied")
 	limit, ports := 0, 0
 	s.onLoop(func() { limit, ports = s.cfg.Limits.SessionLimit, len(s.cfg.Listen) })
 	if limit != 50 || ports != 2 {

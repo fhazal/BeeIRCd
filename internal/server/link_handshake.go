@@ -707,7 +707,7 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 	case "SQUIT":
 		s.linkSQUIT(l, m)
 	case "ERROR":
-		s.dropLink(l, "they closed the link: "+param(len(m.Params)-1))
+		s.dropLink(l, closingReason(param(len(m.Params)-1)))
 	case "NETINFO":
 		s.linkNetinfo(l, m)
 	case "MD":
@@ -1002,6 +1002,25 @@ func (s *Server) linkFailed(l *linkConn, name, reason string) {
 	default:
 		s.lnotice("Server connection from \x02%s\x02 failed: %s", name, reason)
 	}
+}
+
+// closingReason is the reason in a peer's ERROR line without the
+// "Closing Link: name (" wrapper, so the split notice reads "Server X
+// split: Server updating" as InspIRCd's does. Other ERROR texts stay as
+// they are; an empty one reads "closed the link".
+func closingReason(text string) string {
+	const prefix = "closing link:"
+	if len(text) > len(prefix) && strings.EqualFold(text[:len(prefix)], prefix) {
+		rest := strings.TrimSpace(text[len(prefix):])
+		if i := strings.IndexByte(rest, '('); i >= 0 && strings.HasSuffix(rest, ")") {
+			rest = rest[i+1 : len(rest)-1]
+		}
+		text = rest
+	}
+	if text = strings.TrimSpace(text); text == "" {
+		return "closed the link"
+	}
+	return text
 }
 
 // orStr is a unless it is empty, else b.

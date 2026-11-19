@@ -1418,6 +1418,11 @@ func asStop(action int) func(*Server, *Client, []string) {
 		c.confirm = ""
 		s.audit(c, s.adminServ, "%s %s", word, reason)
 		s.svc.LogAdmin(c.uid, s.adminServ, "") // os_shutdown
+		if action == stopDie {
+			s.sno('a', "DIE command from %s!%s@%s, shutting down server.", c.user.Nick, c.user.TrueIdent(), c.user.RealHost)
+		} else {
+			s.sno('a', "RESTART command from %s!%s@%s, restarting server.", c.user.Nick, c.user.TrueIdent(), c.user.RealHost)
+		}
 		s.as(c, "Going now.")
 		s.stopAfter, s.stopReason = action, irc.Truncate(reason, 200)
 	}

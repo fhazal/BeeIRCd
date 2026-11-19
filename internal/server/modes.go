@@ -179,7 +179,7 @@ func (s *Server) setUserModes(c *Client, srcUID, modeStr string, args ...string)
 		delete(s.opers, c)
 		c.noLag.Store(false)
 		s.showOperVhost(c, "")
-		s.sno('o', "%s is no longer an operator", u.Nick)
+		s.sno('o', "%s logged out of their server operator account.", snoWho(u))
 	} else if snoSet {
 		c.snomask = sno
 		if sno != "" {

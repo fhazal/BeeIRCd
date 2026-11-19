@@ -72,7 +72,7 @@ func (s *Server) operRelayTo(c *Client, name, pw string) {
 	}
 	if r == nil || r.via == nil || !r.via.peer.Bee {
 		s.reply(c, irc.ErrNoOperHost, "No oper entry for you from this host (the services server isn't linked right now)")
-		s.sno('o', "Failed /oper as %s from %s (%s@%s): services server not linked", name, u.Nick, u.Ident, u.RealHost)
+		s.operFail('o', u, name, "the services server isn't linked")
 		return
 	}
 	if c.operRelay != nil && time.Since(c.operRelay.at) < operRelayWait {
@@ -111,7 +111,7 @@ func (s *Server) remoteOper(l *linkConn, m irc.Message) {
 	}
 	fail := func(numeric, text, why string) {
 		s.operAnswer(uid, "FAIL "+numeric+" :"+text)
-		s.sno('O', "Failed /oper as %s from %s (%s@%s on %s): %s", name, u.Nick, u.TrueIdent(), u.RealHost, u.Server, why)
+		s.operFail('O', u, name, why)
 	}
 	a, err := s.store.AccountByNick(name)
 	if err != nil {
@@ -132,23 +132,26 @@ func (s *Server) remoteOper(l *linkConn, m irc.Message) {
 			s.links.remoteOpers = map[string]remoteGrant{}
 		}
 		s.links.remoteOpers[uid] = remoteGrant{id: a.ID, class: v.class}
-		s.sno('O', "%s (%s@%s) is now an operator on %s as %s (entry checked here): %s", u.Nick, u.TrueIdent(), u.RealHost, u.Server, o.Account, v.flags)
 	}
 	switch {
 	case o == nil || !operHostOK(o, u):
-		fail(irc.ErrNoOperHost, "No oper entry for you from this host", "no matching oper entry")
+		why := "they are connecting from the wrong user@host"
+		if o == nil {
+			why = "no account with that name exists"
+		}
+		fail(irc.ErrNoOperHost, "No oper entry for you from this host", why)
 		return
 	case o.Disabled != "":
-		fail(irc.ErrNoOperHost, "Your oper entry is disabled: "+o.Disabled, "entry disabled")
+		fail(irc.ErrNoOperHost, "Your oper entry is disabled: "+o.Disabled, "their oper account is disabled")
 		return
 	case len(o.CertFPs) > 0 && !certMatches(o.CertFPs, certfp):
-		fail(irc.ErrNoOperHost, "No oper entry for you from this host", "TLS certificate doesn't match")
+		fail(irc.ErrNoOperHost, "No oper entry for you from this host", "they are using the wrong TLS client certificate")
 		return
 	case len(o.CertFPs) > 0 && o.PassHash == "":
 		grant() // the certificate alone
 		return
 	case o.PassHash == "" && !s.outsideOpers():
-		fail(irc.ErrNoOperHost, "No oper password is set for "+o.Account+" yet (/oper once on "+s.cfg.Server.Name+")", "no oper password yet")
+		fail(irc.ErrNoOperHost, "No oper password is set for "+o.Account+" yet (/oper once on "+s.cfg.Server.Name+")", "no oper password is set yet")
 		return
 	}
 	if s.links.operBusy == nil {
@@ -168,13 +171,13 @@ func (s *Server) remoteOper(l *linkConn, m irc.Message) {
 		case services.PwOK:
 			grant()
 		case services.PwLocked:
-			fail(irc.ErrPasswdMismatch, "Too many wrong passwords. Try again in "+services.RoundUp(s.lockedFor(operLockKey(a.ID), u.IP)), "locked out")
+			fail(irc.ErrPasswdMismatch, "Too many wrong passwords. Try again in "+services.RoundUp(s.lockedFor(operLockKey(a.ID), u.IP)), "they tried too many wrong passwords")
 		case services.PwBusy:
 			s.operAnswer(uid, "FAIL NOTICE :Still checking your last password. Try again in a moment.")
 		case services.PwDown:
 			fail(irc.ErrPasswdMismatch, "The login server can't be reached right now. Try again in a moment.", "the login server can't be reached")
 		default:
-			fail(irc.ErrPasswdMismatch, "Password incorrect", "wrong password")
+			fail(irc.ErrPasswdMismatch, "Password incorrect", "they specified the wrong password")
 		}
 	})
 }
@@ -292,7 +295,7 @@ func (s *Server) operAnswered(l *linkConn, m irc.Message) {
 			numeric = irc.ErrNoOperHost
 		}
 		s.reply(c, numeric, text)
-		s.sno('o', "Failed /oper as %s from %s (%s@%s): %s (checked on the services server)", name, u.Nick, u.Ident, u.RealHost, text)
+		s.operFail('o', u, name, operFailWhy(text))
 	case m.Params[1] == "OK":
 		var g operGrant
 		if json.Unmarshal([]byte(text), &g) != nil || g.Flags == "" {

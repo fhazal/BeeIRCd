@@ -260,6 +260,10 @@ func (s *Server) remoteUser(l *linkConn, source string, in *link.User) {
 	s.geoFill(u) // every server looks them up itself: nothing extra on the link
 	if err := s.emitFrom(l, source, &state.UserAdd{User: u}); err != nil {
 		s.dropLink(l, fmt.Sprintf("could not add %s (%s): %v", in.Nick, in.UID, err))
+		return
+	}
+	if !u.Service && s.serverSynced(uidServer(u.UID)) {
+		s.snoOnly('C', "Client connecting to "+u.Server+": "+snoWho(u)+" ["+u.Realname+"\x0F]")
 	}
 }
 
@@ -397,6 +401,7 @@ func (s *Server) remoteKill(l *linkConn, k *link.Kill) {
 		s.quit(c, reason)
 		return
 	}
+	s.snoRemoteQuit(u, reason)
 	s.emitQuiet(&state.UserQuit{UID: u.UID, Reason: reason})
 }
 
@@ -416,6 +421,7 @@ func (s *Server) remoteSvsKill(l *linkConn, k *link.SvsKill) {
 		s.quit(c, k.Reason)
 		return
 	}
+	s.snoRemoteQuit(u, k.Reason)
 	s.emitQuiet(&state.UserQuit{UID: u.UID, Reason: k.Reason})
 }
 

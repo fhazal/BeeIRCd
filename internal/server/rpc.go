@@ -565,15 +565,15 @@ func (s *Server) rpcLog(text, subsystem string) {
 	switch {
 	case subsystem == "link":
 		ev.Subsystem, ev.EventID = "link", "LINK"
-	case subsystem == "connect", strings.HasPrefix(text, "Connect: "):
+	case subsystem == "connect":
 		ev.Subsystem, ev.EventID = "connect", "LOCAL_CLIENT_CONNECT"
-	case subsystem == "quit", strings.HasPrefix(text, "Quit: "):
+	case subsystem == "quit":
 		ev.Subsystem, ev.EventID = "connect", "LOCAL_CLIENT_DISCONNECT"
 	case strings.HasPrefix(text, "Link "):
 		ev.Subsystem, ev.EventID = "link", "LINK"
 	case strings.HasPrefix(text, "RPC"):
 		ev.Subsystem, ev.EventID = "rpc", "RPC_CALL"
-	case strings.Contains(text, "is now an operator"), strings.HasPrefix(text, "Failed /oper"):
+	case strings.Contains(text, "is now a server operator of type"), strings.Contains(text, " oper account because "):
 		ev.Subsystem, ev.EventID = "oper", "OPER"
 	}
 	r.recent = append(r.recent, ev)

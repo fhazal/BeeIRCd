@@ -310,7 +310,7 @@ func TestSmallServerOptionsRehash(t *testing.T) {
 	}
 	os.WriteFile(path, []byte(text), 0o600)
 	o.send("REHASH")
-	if l := o.expect("re-read beeircd.conf"); strings.Contains(l, "restart") {
+	if l := o.expect("Rehash done:"); strings.Contains(l, "restart") {
 		t.Fatalf("a restart is asked for: %q", l)
 	}
 	c := raw(t, s)

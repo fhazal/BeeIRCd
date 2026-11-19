@@ -168,7 +168,7 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 		if s.cfg.ResolveHosts() && s.svc.HostExcepts() {
 			c.sessionLate = true // an exception on its hostname may still let it in
 		} else {
-			s.sno('a', "Too many connections from %s (%d, the limit is %d)", ip, n, max)
+			s.sno('a', "Client * with IP %s rejected: maxperip limit exceeded (%d local, max %d)", ip, n, max)
 			s.quit(c, fmt.Sprintf("Too many connections from your IP (the limit is %d)", max))
 			return
 		}
@@ -483,8 +483,7 @@ func (s *Server) quit(c *Client, reason string) {
 		u := c.user
 		s.emit(&state.UserQuit{UID: u.UID, Reason: reason})
 		s.log.Printf("quit %s (%s): %s", u.Nick, c.ip, reason)
-		quit := fmt.Sprintf("Quit: %s (%s@%s) [%s]", u.Nick, u.Ident, u.RealHost, reason)
-		s.snoOnly('q', quit)
+		s.snoOnly('q', "Client exiting: "+snoWho(u)+" ["+reason+"]")
 		s.svc.LogUserQuit(u, reason)
 	}
 	c.send("ERROR :Closing Link: " + c.host + " (" + reason + ")")

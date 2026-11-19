@@ -1,11 +1,11 @@
 package server
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/fhazal/beeircd/internal/irc"
-	"github.com/fhazal/beeircd/internal/services"
 	"github.com/fhazal/beeircd/internal/spamfilter"
 	"github.com/fhazal/beeircd/internal/store"
 )
@@ -130,16 +130,7 @@ func (s *Server) spamAct(c *Client, t byte, to, text string) spamOutcome {
 func (s *Server) spamDo(c *Client, r *spamfilter.Rule, t byte, to, text string) spamOutcome {
 	now := time.Now()
 	s.svc.SpamHit(r.ID, now)
-	who := c.nick
-	if c.user != nil {
-		who = c.user.Nick + "!" + c.user.TrueIdent() + "@" + c.user.RealHost
-	}
-	where := spamfilter.TargetWords[t]
-	if to != "" {
-		where += " to " + to
-	}
-	s.snoticeEvery("spamfilter:"+r.Key(), spamNoticeEvery, 'f', "Spam filter %d caught %s (%s, %s): %s",
-		r.ID, who, where, actionName(r.Filter), irc.Truncate(text, 120))
+	s.snoticeEvery("spamfilter:"+r.Key(), spamNoticeEvery, 'f', "%s", spamNotice(c, r, t, to, now))
 	reason := r.Reason
 	switch r.Action {
 	case spamfilter.Kill, spamfilter.TempShun, spamfilter.Shun, spamfilter.Gline, spamfilter.Kline, spamfilter.Gzline, spamfilter.Zline:
@@ -206,9 +197,52 @@ func (s *Server) spamUser(c *Client, nick string) bool {
 	return false
 }
 
-// actionName is a rule's action for oper notices: "AKILL 1d", "Block".
-func actionName(f spamfilter.Filter) string {
-	return services.ActionWords(f)
+// spamNotice is InspIRCd's filter notice for rule r catching c: "nick
+// had their message to #chat filtered as it matched <pattern> (<reason>)",
+// "WARNING: nick's message to #chat matched ...", "nick was killed because
+// ...", "nick!ident@host (ip) was G-lined for 1 hour (expires on <date>)
+// because ...".
+func spamNotice(c *Client, r *spamfilter.Rule, t byte, to string, now time.Time) string {
+	nick := orStr(c.nick, "*")
+	who := nick + "!" + orStr(c.ident, "*") + "@" + c.host + " (" + c.ip + ")"
+	if c.user != nil {
+		nick, who = c.user.Nick, snoWho(c.user)
+	}
+	msg := "message to " + to
+	switch t {
+	case spamfilter.Channel, spamfilter.Private, spamfilter.ChannelNotice, spamfilter.PrivateNotice:
+	case spamfilter.User:
+		msg = "NICK message"
+	default:
+		msg = strings.ToUpper(spamfilter.TargetWords[t]) + " message"
+	}
+	matched := fmt.Sprintf("matched %s (%s)", r.Match, r.Reason)
+	banned := func(word string) string {
+		if r.BanTime <= 0 {
+			return fmt.Sprintf("%s was %s permanently because their %s %s", who, word, msg, matched)
+		}
+		return fmt.Sprintf("%s was %s for %s (expires on %s) because their %s %s",
+			who, word, longDuration(r.BanTime), snoDate(now.Add(r.BanTime)), msg, matched)
+	}
+	switch r.Action {
+	case spamfilter.Warn:
+		return fmt.Sprintf("WARNING: %s's %s %s", nick, msg, matched)
+	case spamfilter.Block:
+		return fmt.Sprintf("%s had their %s filtered as it %s", nick, msg, matched)
+	case spamfilter.Kill:
+		return fmt.Sprintf("%s was killed because their %s %s", nick, msg, matched)
+	case spamfilter.TempShun:
+		return fmt.Sprintf("%s was shunned until they reconnect because their %s %s", who, msg, matched)
+	case spamfilter.Shun:
+		return banned("shunned")
+	case spamfilter.Gline:
+		return banned("G-lined")
+	case spamfilter.Kline:
+		return banned("K-lined")
+	case spamfilter.Gzline, spamfilter.Zline:
+		return banned("Z-lined")
+	}
+	return fmt.Sprintf("%s's %s %s", nick, msg, matched)
 }
 
 // spamCommand is the command a spam filter target letter comes from.

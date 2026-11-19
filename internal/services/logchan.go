@@ -285,15 +285,49 @@ func (s *Services) logDeniedUnreg(c *Client, sv *service) {
 	s.logTo(sv, "Access denied for unregistered user "+anopeMask(c.user)+" with command "+c.cmdName)
 }
 
-// expiredWords says what ran out, for the server notice.
-func expiredWords(e store.Expired) string {
+// expiredNotice is InspIRCd's server notice for a ban that ran out:
+// "Removing an expired G-line on mask (set by nick 2 hours ago): reason".
+// Forbids and session exceptions read the same way.
+func expiredNotice(e store.Expired, now time.Time) string {
+	word := "session exception"
 	switch e.What {
 	case "netban":
-		return strings.ToUpper(e.Kind) + " on " + e.Mask
+		word = store.BanWord(e.Kind)
 	case "forbid":
-		return "FORBID " + strings.ToUpper(e.Kind) + " on " + e.Mask
+		word = "FORBID " + strings.ToUpper(e.Kind)
 	}
-	return "EXCEPTION on " + e.Mask
+	return expiryLine(word, e.Mask, e.SetBy, e.SetAt, e.Reason, now)
+}
+
+// expiryLine is InspIRCd's XLine DisplayExpiry text.
+func expiryLine(word, mask, setBy string, setAt time.Time, reason string, now time.Time) string {
+	return fmt.Sprintf("Removing an expired %s on %s (set by %s %s ago): %s",
+		word, mask, setBy, longDuration(now.Sub(setAt)), reason)
+}
+
+// longDuration writes a duration the way InspIRCd's
+// Duration::ToLongString does (the same as the server's): every non-zero
+// unit, "1 week, 2 days, 3 hours, 5 minutes".
+func longDuration(d time.Duration) string {
+	secs := int64(d / time.Second)
+	if secs <= 0 {
+		return "0 seconds"
+	}
+	var parts []string
+	for _, u := range []struct {
+		n    int64
+		name string
+	}{{365 * 24 * 3600, "year"}, {7 * 24 * 3600, "week"}, {24 * 3600, "day"}, {3600, "hour"}, {60, "minute"}, {1, "second"}} {
+		if n := secs / u.n; n > 0 {
+			name := u.name
+			if n != 1 {
+				name += "s"
+			}
+			parts = append(parts, fmt.Sprintf("%d %s", n, name))
+			secs -= n * u.n
+		}
+	}
+	return strings.Join(parts, ", ")
 }
 
 // anopeExpired is Anope's line for something that ran out (operserv.cpp,

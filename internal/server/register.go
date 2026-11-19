@@ -319,7 +319,7 @@ func (s *Server) tryRegister(c *Client) {
 		// Over its IP's limit at connect; now the hostname is known.
 		c.sessionLate = false
 		if n, max := s.sessions(c.ip), s.svc.SessionLimitFor(c.ip, c.host); n > max {
-			s.sno('a', "Too many connections from %s (%d, the limit is %d)", c.ip, n, max)
+			s.sno('a', "Client %s with IP %s rejected: maxperip limit exceeded (%d local, max %d)", c.nick, c.ip, n, max)
 			s.quit(c, fmt.Sprintf("Too many connections from your IP (the limit is %d)", max))
 			return
 		}
@@ -408,7 +408,8 @@ func (s *Server) tryRegister(c *Client) {
 	s.notePeak(n)
 	s.notePeakGlobal()
 	s.log.Printf("connect %s (%s@%s) %s", u.Nick, u.Ident, u.RealHost, c.ip)
-	connect := fmt.Sprintf("Connect: %s (%s@%s) [%s]", u.Nick, u.Ident, u.RealHost, c.ip)
+	connect := fmt.Sprintf("Client connecting to %s on port %d (class %s): %s [%s\x0F]",
+		s.cfg.Server.Name, c.port, connClass(u), snoWho(u), u.Realname)
 	if c.webirc != "" {
 		connect += " (WEBIRC " + c.webirc + ")"
 	}
