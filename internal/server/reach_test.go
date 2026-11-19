@@ -241,3 +241,48 @@ func accountIDOf(t *testing.T, s *Server, nick string) int64 {
 	}
 	return a.ID
 }
+
+// A leaf can't give its own admins network reach: the hub keeps and
+// passes on only the reach its own records give, and a leaf takes reach
+// only from the services server.
+func TestReachClaimFromLeafNotTrusted(t *testing.T) {
+	hub := newLinkNode(t, "hub.test.local", "0HB", "hub")
+	a := newLinkNode(t, "a.test.local", "0AA", "leaf")
+	b := newLinkNode(t, "b.test.local", "0BB", "leaf")
+	hub.expects(a, false, "")
+	hub.expects(b, false, "")
+	a.expects(hub, true, "")
+	b.expects(hub, true, "")
+	hub.start(t)
+	a.start(t)
+	b.start(t)
+	waitLink(t, "tree", func() bool { return len(a.servers()) == 3 && len(b.servers()) == 3 })
+	login(t, a.s, "mal")
+	hub.seen(t, "mal")
+	b.seen(t, "mal")
+	uid := hub.user("mal").UID
+	reach := func(n *linkNode) (r string) {
+		n.s.onLoop(func() { r = n.s.net.UserByUID(uid).OperReach })
+		return
+	}
+
+	// a (modified) says mal has network reach; the hub gave none.
+	hub.fromLinkTo(t, "a.test.local", ":0AA MD client "+uid+` bee-operlook :{"t":"boss","r":"network"}`)
+	waitLink(t, "b gets mal's title", func() bool {
+		u := b.user("mal")
+		ok := false
+		b.s.onLoop(func() { ok = u != nil && u.OperTitle == "boss" })
+		return ok
+	})
+	if r := reach(hub); r != "" {
+		t.Errorf("the hub took mal's reach %q from a", r)
+	}
+	if r := reach(b); r != "" {
+		t.Errorf("b got mal's reach %q through the hub", r)
+	}
+	// From the services server, b takes it.
+	b.fromLinkTo(t, "hub.test.local", ":0HB MD client "+uid+` bee-operlook :{"t":"boss","r":"network"}`)
+	if r := reach(b); r != store.ReachNetwork {
+		t.Errorf("b refused reach from the services server: %q", r)
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/fhazal/beeircd/internal/config"
+	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
 )
 
@@ -79,12 +80,33 @@ func (s *Server) reachOf(uid string) string {
 		return ""
 	}
 	if s.svc.Off() {
-		// A leaf trusts what the services server's side says.
+		// A leaf has only what the services server sent (trustedReach).
 		return cleanReach(u.OperReach)
 	}
-	// The services server gave every network reach there is, so it
-	// trusts only its own records, never what another server claims: the
-	// oper entry it granted them, or the owner's account.
+	return s.grantedReach(u)
+}
+
+// trustedReach is the reach to keep for u from a bee-operlook value
+// that came in on l. The services server gave every network reach there
+// is, so it trusts only its own records (grantedReach); a leaf takes the
+// reach only from a services server linked to it, which sends what its
+// records say. From anywhere else it is home, so a modified server can't
+// give its own admins network reach.
+func (s *Server) trustedReach(l *linkConn, u *state.User, value string) string {
+	if !s.svc.Off() {
+		return s.grantedReach(u)
+	}
+	if l.peer.Bee && l.peer.Tokens["BEESVC"] == "1" {
+		return readOperReach(value)
+	}
+	return ""
+}
+
+// grantedReach is u's reach by the services server's own records, never
+// what another server claims: the oper entry it granted them, or the
+// owner's account.
+func (s *Server) grantedReach(u *state.User) string {
+	uid := u.UID
 	if g, ok := s.links.remoteOpers[uid]; ok {
 		if o, err := s.store.OperByAccount(g.id); err == nil && o.Network() {
 			return store.ReachNetwork

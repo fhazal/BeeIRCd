@@ -272,7 +272,13 @@ func (s *Server) remoteOperMD(l *linkConn, m irc.Message) {
 		u.OperFlags, _ = cleanFlags(value)
 	case "bee-operlook":
 		u.OperTitle, u.OperSwhois, u.OperTag = readOperLook(value)
-		u.OperReach = readOperReach(value)
+		u.OperReach = s.trustedReach(l, u, value)
+		// Passed on with the reach we trust, never the one we were sent.
+		m = irc.Message{Source: m.Source, Command: m.Command, Params: []string{"client", uid, key,
+			operLookReach(u.OperTitle, u.OperSwhois, u.OperTag, u.OperReach)}}
+		if m.Params[3] == "" {
+			m.Params = m.Params[:3]
+		}
 	}
 	if !wasOper && u.OperClass+u.OperFlags != "" && !u.Service && s.serverSynced(uidServer(uid)) {
 		s.sno('O', "From %s: %s", u.Server, snoOperUp(snoWho(u), s.operRank(u.OperClass, u.OperTitle), ""))
