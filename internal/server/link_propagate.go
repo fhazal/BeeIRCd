@@ -479,7 +479,7 @@ func (s *Server) unrealGlobops(src, text string) string {
 // a GLOBOPS crosses its links. Only that form, from an oper (or a server or
 // services bot) behind l, is oper chat; every other SENDUMODE is left alone.
 func (s *Server) remoteSendUmode(l *linkConn, m irc.Message) {
-	if l.peer.Bee || l.bridge != nil || len(m.Params) != 2 || m.Params[0] != "o" {
+	if l.peer.Bee || l.bridge != nil || len(m.Params) != 2 || strings.TrimPrefix(m.Params[0], "+") != "o" {
 		return
 	}
 	rest, ok := strings.CutPrefix(m.Params[1], "from ")

@@ -104,13 +104,21 @@ func TestGlobopsFromUnrealSendUmode(t *testing.T) {
 		return hub.logHas("link b.test.local -> :" + ann + " GLOBOPS :hello opers")
 	})
 
+	// UnrealIRCd 6 really sends the mode as "+o" (seen live by QA).
+	hub.fromLinkTo(t, "a.test.local", ":0AA SENDUMODE +o :from ann: r6 wire check")
+	hop.expect("*** GLOBOPS: From ann: r6 wire check")
+	waitLink(t, "sent on +o from ann", func() bool {
+		return hub.logHas("link b.test.local -> :" + ann + " GLOBOPS :r6 wire check")
+	})
+
+	hub.fromLinkTo(t, "a.test.local", ":0AA SENDUMODE +s :from ann: wrong plus mode")
 	hub.fromLinkTo(t, "a.test.local", ":0AA SENDUMODE o :from bob: not an oper")
 	hub.fromLinkTo(t, "a.test.local", ":0AA SENDUMODE o :Link a.test.local is now synced")
 	hub.fromLinkTo(t, "a.test.local", ":0AA SENDUMODE s :from ann: wrong mode")
 	hub.fromLinkTo(t, "a.test.local", ":0AA SENDSNO s :from ann: a snomask notice")
 	hub.fromLinkTo(t, "a.test.local", ":0AA SENDUMODE o :from a.test.local: from the server")
 	hop.expect("*** GLOBOPS: From a.test.local: from the server")
-	for _, bad := range []string{"not an oper", "is now synced", "wrong mode", "a snomask notice"} {
+	for _, bad := range []string{"not an oper", "is now synced", "wrong mode", "wrong plus mode", "a snomask notice"} {
 		if hub.logHas("GLOBOPS: "+bad) || hub.logHas("GLOBOPS :"+bad) {
 			t.Errorf("%q became a GLOBOPS", bad)
 		}
