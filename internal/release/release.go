@@ -56,6 +56,10 @@ type Manifest struct {
 	Date    string            `json:"date"`
 	Notes   string            `json:"notes,omitempty"`
 	Files   map[string]string `json:"files"` // program name -> SHA-256 hex
+	// Gate is the door keeper protocol the programs speak (gate.Proto), so
+	// `beeircd update` can say before downloading whether people stay
+	// connected. Empty in releases from before the hand-over.
+	Gate string `json:"gate,omitempty"`
 }
 
 // AssetName is the program for a system, like beeircd-linux-amd64.

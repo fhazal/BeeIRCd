@@ -30,6 +30,7 @@ import (
 	"golang.org/x/crypto/scrypt"
 	"golang.org/x/term"
 
+	"github.com/fhazal/beeircd/internal/gate"
 	"github.com/fhazal/beeircd/internal/release"
 )
 
@@ -256,6 +257,9 @@ func manifest(version, dir, notesFile string) error {
 		return errors.New("-version is needed")
 	}
 	m := release.Manifest{Version: strings.TrimPrefix(version, "v"), Date: time.Now().UTC().Format("2006-01-02"), Files: map[string]string{}}
+	if product == "beeircd" {
+		m.Gate = gate.Proto
+	}
 	if notesFile != "" {
 		b, err := os.ReadFile(notesFile)
 		if err != nil {
