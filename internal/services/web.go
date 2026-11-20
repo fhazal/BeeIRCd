@@ -18,6 +18,9 @@ var webSetOptions = map[string]bool{"KILL": true, "HIDE": true, "AUTOOP": true, 
 // WebSet runs NickServ SET option args for account id, for the Hive Panel
 // at ip. It returns whether something changed and NickServ's answers.
 func (s *Services) WebSet(id int64, ip, option string, args []string) (bool, []string) {
+	if s.readonly {
+		return false, []string{readonlyRefusal}
+	}
 	option = strings.ToUpper(option)
 	if !webSetOptions[option] {
 		return false, []string{"That can't be changed here."}

@@ -147,3 +147,19 @@ func TestNoExpire(t *testing.T) {
 		t.Errorf("#hive did not expire with NOEXPIRE off")
 	}
 }
+
+func TestReadonlyWeb(t *testing.T) {
+	svc := &Services{readonly: true}
+	if ok, msg := svc.WebSet(1, "", "EMAIL", nil); ok || len(msg) != 1 || msg[0] != readonlyRefusal {
+		t.Fatalf("WebSet = %v %v", ok, msg)
+	}
+	if ok, msg := svc.WebChanServ(1, "", "TOPIC", "#bee", nil); ok || msg != readonlyRefusal {
+		t.Fatalf("WebChanServ = %v %q", ok, msg)
+	}
+	if msg := svc.WebMemoDel(1, 1, ""); msg != readonlyRefusal {
+		t.Fatalf("WebMemoDel = %q", msg)
+	}
+	if ok, msg := svc.WebMemoSend(1, "", "x", "y"); ok || msg != readonlyRefusal {
+		t.Fatalf("WebMemoSend = %v %q", ok, msg)
+	}
+}

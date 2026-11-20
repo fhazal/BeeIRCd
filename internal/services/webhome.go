@@ -91,6 +91,9 @@ func (s *Services) WebMemoRead(id, memoID int64) string {
 
 // WebMemoDel deletes memo memoID, like /ms del <num>, and logs it the same.
 func (s *Services) WebMemoDel(id, memoID int64, ip string) string {
+	if s.readonly {
+		return readonlyRefusal
+	}
 	a, why := s.webAccount(id)
 	if a == nil {
 		return why
@@ -111,6 +114,9 @@ func (s *Services) WebMemoDel(id, memoID int64, ip string) string {
 // WebMemoSend runs MemoServ SEND to (a nick or #channel) with text for
 // account id. It returns whether the memo went and MemoServ's answer.
 func (s *Services) WebMemoSend(id int64, ip, to, text string) (bool, string) {
+	if s.readonly {
+		return false, readonlyRefusal
+	}
 	a, why := s.webAccount(id)
 	if a == nil {
 		return false, why
