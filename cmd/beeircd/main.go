@@ -122,6 +122,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdUpdate(args[1:], stdout, stderr)
 	case cmd == "upgrade-config":
 		return cmdUpgradeConfig(args[1:], stdout, stderr)
+	case cmd == "gate-proto":
+		// Run on the NEW program during an update: can it take people
+		// over from the door keeper running now?
+		fmt.Fprintln(stdout, gateProto())
+		return 0
 	case cmd == "install":
 		return cmdInstall(args[1:], stdout, stderr)
 	case cmd == "uninstall":

@@ -176,11 +176,12 @@ func (u *updater) update(checkOnly, yes, rc bool) int {
 		u.c.bad("run it as root (sudo beeircd update): it replaces " + u.exe)
 		return 1
 	}
-	running := false
+	var running *control.Status // nil: not running
+	var plan switchPlan
 	if st, err := u.ask(control.CmdStatus, "", 5*time.Second); err == nil && st.Status != nil {
-		running = true
-		fmt.Fprintf(u.out, "\n  The server restarts: %s online %s disconnected for a\n  few seconds; their clients reconnect by themselves.\n",
-			people(st.Status.Online), map[bool]string{true: "is", false: "are"}[st.Status.Online == 1])
+		running = st.Status
+		plan = planSwitch(running, m.Gate, m.Version)
+		fmt.Fprint(u.out, switchNote(plan, running, m.Version))
 	} else {
 		fmt.Fprintln(u.out, "\n  BeeIRCd isn't running: the program is updated and stays stopped.")
 	}
@@ -195,12 +196,12 @@ func (u *updater) update(checkOnly, yes, rc bool) int {
 		}
 	}
 	fmt.Fprintln(u.out)
-	return u.install(ctx, base, m, running)
+	return u.install(ctx, base, m, running, plan)
 }
 
 // install does the checked swap; the old program and config stay next to
 // the new ones until the new one answers.
-func (u *updater) install(ctx context.Context, base string, m *release.Manifest, running bool) int {
+func (u *updater) install(ctx context.Context, base string, m *release.Manifest, running *control.Status, plan switchPlan) int {
 	u.c.ok("signature checked: this is a BeeIRCd release")
 	prog, err := release.Download(ctx, u.client, base, m, u.asset)
 	if err != nil {
@@ -214,6 +215,15 @@ func (u *updater) install(ctx context.Context, base string, m *release.Manifest,
 	}
 	if out, err := u.run(newExe, "version"); err != nil || !strings.Contains(out, m.Version) {
 		return u.stop(fmt.Sprintf("the downloaded program doesn't run here (%s)", or(out, fmt.Sprint(err))))
+	}
+	if running != nil {
+		// The program itself says whether it can take people over (the
+		// release file said so before the download).
+		was := plan.handover
+		plan = planSwitch(running, u.newGateProto(newExe), m.Version)
+		if was && !plan.handover {
+			u.c.warn("this update reconnects everyone once after all (" + plan.why + ")")
+		}
 	}
 	// The new program upgrades a copy of the config and checks it.
 	newCfg := u.cfgPath + ".new"
@@ -271,16 +281,17 @@ func (u *updater) install(ctx context.Context, base string, m *release.Manifest,
 		os.Rename(newCfg, u.cfgPath)
 	}
 	u.c.ok(fmt.Sprintf("program swapped; %s kept as %s", u.current, oldExe))
-	if !running {
+	if running == nil {
 		os.Remove(prevOld)
 		fmt.Fprintf(u.out, "\n  BeeIRCd %s is installed. Start it with:  beeircd start\n\n", m.Version)
 		return 0
 	}
-	u.ask(control.CmdQuitReason, "Server updating to BeeIRCd "+m.Version+", back in a few seconds", 5*time.Second)
 	started := time.Now()
-	if _, err := u.run("systemctl", "restart", serviceName); err == nil && u.waitFor(m.Version) {
+	if ok, handed := u.switchTo(m.Version, running, plan, "Server updating to BeeIRCd "+m.Version+", back in a few seconds"); ok {
 		os.Remove(prevOld)
-		u.c.ok(fmt.Sprintf("restarted · %s answering after %s", m.Version, secs(time.Since(started))))
+		if !handed {
+			u.c.ok(fmt.Sprintf("restarted · %s answering after %s", m.Version, secs(time.Since(started))))
+		}
 		u.restartPanel(m.Version)
 		fmt.Fprintf(u.out, "\n  BeeIRCd %s is running.   Go back with:  beeircd update --rollback\n\n", m.Version)
 		return 0
@@ -350,13 +361,18 @@ func (u *updater) rollback(yes bool) int {
 		oldVer = f[1] // "BeeIRCd 1.0.0 (abc1234)"
 	}
 	fi, _ := os.Stat(oldExe)
-	running := false
+	var running *control.Status // nil: not running
+	var plan switchPlan
 	if st, err := u.ask(control.CmdStatus, "", 5*time.Second); err == nil && st.Status != nil {
-		running = true
+		running = st.Status
+		plan = planSwitch(running, u.newGateProto(oldExe), oldVer)
 	}
 	fmt.Fprintf(u.out, "\n  Back from %s to %s (kept since %s).", u.current, oldVer, fi.ModTime().Format("2 Jan"))
-	if running {
-		fmt.Fprint(u.out, " The server restarts.")
+	switch {
+	case running != nil && plan.handover:
+		fmt.Fprint(u.out, " The server switches without disconnecting anyone.")
+	case running != nil:
+		fmt.Fprintf(u.out, " The server restarts: everyone reconnects once\n  (%s).", plan.why)
 	}
 	fmt.Fprintln(u.out)
 	if !yes {
@@ -376,18 +392,19 @@ func (u *updater) rollback(yes bool) int {
 	}
 	os.Rename(oldExe, u.exe)
 	os.Rename(tmp, oldExe) // so going forward again is one more --rollback
-	if !running {
+	if running == nil {
 		u.c.ok("program swapped back to " + oldVer + "; start it with beeircd start")
 		return 0
 	}
-	u.ask(control.CmdQuitReason, "Server going back to BeeIRCd "+oldVer+", back in a few seconds", 5*time.Second)
 	started := time.Now()
-	u.run("systemctl", "restart", serviceName)
-	if !u.waitFor(oldVer) {
+	ok, handed := u.switchTo(oldVer, running, plan, "Server going back to BeeIRCd "+oldVer+", back in a few seconds")
+	if !ok {
 		u.c.bad(oldVer + " didn't answer within " + secs(u.waitUp) + ": see beeircd status")
 		return 1
 	}
-	u.c.ok(fmt.Sprintf("program swapped back · %s answering after %s", oldVer, secs(time.Since(started))))
+	if !handed {
+		u.c.ok(fmt.Sprintf("program swapped back · %s answering after %s", oldVer, secs(time.Since(started))))
+	}
 	u.restartPanel(oldVer)
 	return 0
 }
