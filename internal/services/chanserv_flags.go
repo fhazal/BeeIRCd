@@ -183,6 +183,9 @@ func (s *Services) flagsModify(c *Client, name, nick, changes string) {
 		}
 		return
 	}
+	if s.neverOpBlocks(c, target, onList) {
+		return
+	}
 	if err := s.store.SetFlags(reg, target, flags, s.flagsRank(reg, flags), c.user.Account, time.Now()); err != nil {
 		s.dbErr(c, s.chanServ, err)
 		return

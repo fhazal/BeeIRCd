@@ -381,6 +381,16 @@ connected now, except opers. A second address is for TLS connections:
 `/JUMPSERVER` alone shows the setting and `/JUMPSERVER OFF` ends it; a
 restart ends it too. It applies to the server you type it on.
 
+### Services switches
+
+- **NickServ `SET NEVEROP ON`** (Anope's NEVEROP): nobody can put that
+  account on a channel access list. ChanServ ACCESS ADD, FLAGS and the
+  xOP lists (QOP, SOP, AOP, HOP, VOP) refuse with "Bee has NEVEROP on and
+  can't be added to access lists." Entries the account has already stay
+  and may still be changed or removed. Off by default; opers change it
+  for someone with `SASET NEVEROP <nick> ON|OFF`. INFO shows it to the
+  owner and opers.
+
 ### For everyone
 
 - **Caller ID.** `/MODE yournick +g` lets only people on your accept list
