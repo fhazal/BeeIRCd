@@ -80,7 +80,7 @@ can change things; every oper can look.
 | `HISTORY`, `DIFF <n>`, `UNDO <n>` | The last 200 changes, one change before and after, and putting one back |
 | `DNSBL LIST\|CHECK <ip>\|ENABLE\|DISABLE <name>` | The DNS blocklists and their hits |
 | `SPAMREPORT LIST`, `SPAMREPORT KEY <name> <rpckey\|OFF>`, `SPAMREPORT STAGING <name> ON\|OFF` | The spam report places; save a DroneBL key (it is never shown again) |
-| `RESTART`, `DIE` | Restart or stop the server (you repeat it with a code first) |
+| `RESTART`, `DIE` | Restart or stop the server (you repeat it with a code first). Behind the [door keeper](#staying-connected-through-updates) `RESTART` disconnects nobody |
 
 **Settings for `SET`:** `description`, `max-users`, `session-limit`,
 `connect-rate`, `max-unregistered`, `max-unregistered-per-ip`,
@@ -778,14 +778,43 @@ your server is sent). Updates are never installed by themselves.
 3. lets the new program check your config (and add new settings if a release
    needs them) on a copy first;
 4. makes a backup;
-5. swaps the program (the old one is kept as `beeircd.old`), tells everyone
-   online "Server updating to BeeIRCd X, back in a few seconds", restarts;
-6. waits up to 30 seconds for the new version to answer. If it doesn't, the
-   old program goes back by itself and the journal says why.
+5. swaps the program (the old one is kept as `beeircd.old`) and switches the
+   server to it: by a hand-over when it can (see below), otherwise it tells
+   everyone online "Server updating to BeeIRCd X, back in a few seconds" and
+   restarts;
+6. waits for the new version to answer. If it doesn't, the old program goes
+   back by itself and the journal says why.
 
 Options: `--yes` asks no questions (for scripts), `--rc` also takes test
 versions (release candidates), `--rollback` goes back to the kept
-`beeircd.old`.
+`beeircd.old` (it hands over too when it can).
+
+### Staying connected through updates
+
+On Linux, `beeircd run` (the service) starts a small door keeper first. It
+holds the client ports and runs the server behind it. For an update, the
+door keeper starts the new program and hands everyone over to it: nobody is
+disconnected. The update ends with a line like:
+
+```
+✓ switched to 1.3.0 · 97 of 98 people stayed connected
+```
+
+Before the question, `beeircd update` says which way it goes. Everyone
+reconnects once (as in a normal restart) when:
+
+- the server runs without the door keeper (`-no-gate`, or not on Linux);
+- the server running now, or the program you switch to (say with
+  `--rollback`), is older than the hand-over;
+- the door keeper itself changed in the new release (it can't hand over to
+  a different door keeper).
+
+If a hand-over fails half-way, the update says so ("the hand-over failed;
+people reconnected as in a normal restart") and still finishes; `--rollback`
+stays there.
+
+`/as restart` behind the door keeper hands everyone over in the same way.
+`/as die` and `beeircd restart` stop or restart as before.
 
 ## Hive Panel (web admin)
 
