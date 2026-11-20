@@ -656,6 +656,10 @@
     else out.push({ lvl: 1, label: 'Last backup', text: 'none yet' });
     if (s.update) out.push({ lvl: 1, label: 'Update', text: s.update.version + ' is out' });
     else out.push({ lvl: 0, label: 'Update', text: 'up to date' });
+    if (s.handover) {
+      if (s.handover.problem) out.push({ lvl: 1, label: 'Last switch', text: 'hand-over failed, people reconnected (details in the journal)' });
+      else out.push({ lvl: 0, label: 'Last switch', text: s.handover.kept + ' of ' + s.handover.of + ' people stayed connected' });
+    }
     const sf = s.safety || {}, guards = (sf.throttled || 0) + (sf.zlined || 0) + (sf.dnsbl_hits || 0);
     // One calm line on a quiet day; the three guards each get a row once one caught something.
     if (!guards) out.push({ lvl: 0, label: 'Guards today', text: 'quiet' });
@@ -2058,8 +2062,11 @@
         if (backups) backups.status(s);
         if (s.update) {
           updateRow.hidden = false;
+          const kept = s.gate && s.gate !== 'off' ? 'Nobody gets disconnected: the door keeper hands everyone over.'
+            : s.gate === 'off' ? 'Everyone reconnects once, as in a restart.' : '';
           put(updateRow, h('div', { class: 'act-text' }, h('b', { text: 'Update' }),
-            h('span', { class: 'lbl', text: s.update.version + ' is out. Run ' + (s.update.how || 'beeircd update') + ' on the server.' })));
+            h('span', { class: 'lbl', text: s.update.version + ' is out. Run ' + (s.update.how || 'beeircd update') + ' on the server.' }),
+            kept ? h('span', { class: 'lbl', text: kept }) : null));
         } else updateRow.hidden = true;
       },
     };
