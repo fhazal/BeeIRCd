@@ -17,7 +17,7 @@ import (
 
 // logEventOn reports whether lines of event ev go to the log channel.
 func (s *Services) logEventOn(ev string) bool {
-	return !s.off && s.logChannel() != "" && s.cfg.Services.LogEventOn(ev)
+	return !s.off && (s.logChannel() != "" || s.logFileOn()) && s.cfg.Services.LogEventOn(ev)
 }
 
 // Flood cap for ban and session hits: at most hitMax lines per ban mask
@@ -156,7 +156,7 @@ func (s *Services) LogServerSplit(name, desc, uplink, reason string) {
 // logUserMode posts oper up/down (event oper) and the mode change itself
 // (event umode).
 func (s *Services) logUserMode(e *state.UserMode) {
-	if len(e.Changes) == 0 || s.logChannel() == "" {
+	if len(e.Changes) == 0 || (s.logChannel() == "" && !s.logFileOn()) {
 		return
 	}
 	u := s.net.UserByUID(e.UID)

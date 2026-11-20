@@ -410,7 +410,7 @@ func Load(path string) (*Config, error) {
 	if c.TLS.ACME && c.TLS.Cert == "" && c.TLS.Key == "" {
 		c.TLS.Cert, c.TLS.Key = filepath.Join("tls", "cert.pem"), filepath.Join("tls", "key.pem")
 	}
-	for _, p := range []*string{&c.TLS.Cert, &c.TLS.Key, &c.MOTD.File, &c.Services.Database, &c.History.File, &c.Control.Socket, &c.Backup.Dir} {
+	for _, p := range []*string{&c.TLS.Cert, &c.TLS.Key, &c.MOTD.File, &c.Services.Database, &c.Services.LogFile, &c.History.File, &c.Control.Socket, &c.Backup.Dir} {
 		if *p != "" && !filepath.IsAbs(*p) {
 			*p = filepath.Join(dir, *p)
 		}
@@ -471,6 +471,7 @@ func (c *Config) SetDefaults() {
 	setDur(&sv.BanExpiry, 30*24*time.Hour)
 	setDur(&sv.ChanExpire, 60*24*time.Hour)
 	setInt(&sv.MaxLogins, 10)
+	setInt(&sv.LogFileMaxMB, 10)
 	setInt(&sv.CertMax, 5)
 	setInt(&sv.AjoinMax, 10)
 	setInt(&sv.ListMax, 50)
@@ -543,6 +544,13 @@ type Services struct {
 	// oper events (like Anope's log { target = "#services" }). The bots sit
 	// in it with op and keep it +O (opers only). Empty: no log channel.
 	LogChannel string `toml:"log_channel"`
+	// LogFile also keeps every log channel line in this file (relative to
+	// beeircd.conf), with the time and the service in front, even with no
+	// log channel. Empty: no file. OperServ LOGSEARCH searches it.
+	LogFile string `toml:"log_file"`
+	// LogFileMaxMB is how big LogFile may grow (10): then it becomes
+	// <file>.1 (replacing the older one) and a new file starts.
+	LogFileMaxMB int `toml:"log_file_max_mb"`
 	// LogConnects logs connects, quits and nick changes there (Anope's
 	// users = "connect disconnect nick"). On by default; off for busy
 	// networks.
@@ -756,6 +764,10 @@ func (c *Config) Check() error {
 		return fmt.Errorf("server prefixes %q must be \"@+\" or \"~&@%%+\"", c.Server.Prefixes)
 	case c.Services.LogChannel != "" && (!strings.HasPrefix(c.Services.LogChannel, "#") || len(c.Services.LogChannel) > 50 || strings.ContainsAny(c.Services.LogChannel, " ,\a")):
 		return fmt.Errorf("services log_channel %q must be a channel like \"#services\" (or empty for none)", c.Services.LogChannel)
+	case c.Services.LogFileMaxMB < 1 || c.Services.LogFileMaxMB > 100000:
+		return fmt.Errorf("services log_file_max_mb %d must be 1 to 100000", c.Services.LogFileMaxMB)
+	case strings.ContainsAny(c.Services.LogFile, "\x00\r\n"):
+		return fmt.Errorf("services log_file %q is not a file name", c.Services.LogFile)
 	case len(c.Listen) == 0:
 		return fmt.Errorf("add at least one [[listen]] port")
 	}

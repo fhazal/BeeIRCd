@@ -1352,6 +1352,8 @@ difference is a warning to opers, not a refusal.
 | `log_channel` | – | Services log every command and oper event here, like `#services` |
 | `log_connects` | `true` | Also log connects, quits and nick changes there |
 | `log_events` | see below | Which events go to the log channel besides the command lines; `["*"]` all |
+| `log_file` | – | Also keep every log channel line in this file (relative to `beeircd.conf`, like `database`), even with no `log_channel`. `OperServ LOGSEARCH` searches it |
+| `log_file_max_mb` | `10` | When `log_file` grows past this it becomes `<file>.1` (replacing the older one) and a new file starts |
 | `nick_expire` | `90d` | Accounts unused this long are dropped |
 | `chan_expire` | `60d` | Channels no access-list member joined this long are dropped |
 | `identify_within` | `60s` | Time to identify on a protected nick |
@@ -1403,10 +1405,25 @@ log-events default` (back to the default; removes the key). `/as show`
 lists the events that are on now. `log-connects` still works for older
 setups, but the panel no longer shows it.
 
+**The log file.** With `log_file` set, every line the bots post to the
+log channel is also written to that file, one per line, like
+`2026-11-20 01:31:05 OperServ: ADMIN: Boss!boss@host (Boss) used RELOAD`
+(the server's local time, the service that wrote it, colours and bold
+taken out). It is written even when `log_channel` is empty or the bot
+isn't in it. The file is made with mode 0600 and only appended to; past
+`log_file_max_mb` it is renamed to `<file>.1` and a new one starts, so
+at most twice that is kept. Writing happens beside the server, never
+holding it up: if the disk falls behind by more than 1024 lines, the
+newest are dropped (the count goes to the server log at shutdown). If
+the file can't be opened or written, opers with the `a` snomask and the
+server log are told once, and the next rehash tries again. A rehash
+with a new `log_file` closes the old file and opens the new one.
+
 ```toml
 [services]
 log_channel = "#services"
 log_events  = ["connect", "quit", "oper", "kill", "server", "bans", "channel"]
+log_file    = "services.log"
 ```
 
 ### [limits]

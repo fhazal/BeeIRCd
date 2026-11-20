@@ -22,6 +22,7 @@ func (s *Services) Start() {
 	}
 	s.startBots()
 	s.startPersist()
+	s.SyncLogFile()
 	s.Flush()
 }
 

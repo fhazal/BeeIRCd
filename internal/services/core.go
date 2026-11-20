@@ -180,6 +180,7 @@ type Services struct {
 
 	now     func() time.Time   // the clock for log flood caps (tests replace it)
 	hitCaps map[string]*hitCap // log channel flood caps by ban mask / IP, logevents.go
+	logw    *logWriter         // [services] log_file, nil when off (logfile.go)
 }
 
 // Client is services' record of one person on the network.

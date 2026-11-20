@@ -118,8 +118,10 @@ func (s *Services) logModes(e *state.ChannelMode) {
 	}
 }
 
-// logTo posts text to the log channel as sv.
+// logTo posts text to the log channel as sv, and writes it to the log
+// file when there is one.
 func (s *Services) logTo(sv *service, text string) {
+	s.logFileLine(sv, text)
 	name := s.logChannel()
 	if name == "" || sv == nil {
 		return
@@ -194,7 +196,7 @@ func (s *Services) logCmd(c *Client, sv *service, kind, channel, text string) {
 	if c != nil {
 		c.logged = true
 	}
-	if s.logChannel() == "" || c == nil || c.user == nil {
+	if (s.logChannel() == "" && !s.logFileOn()) || c == nil || c.user == nil {
 		return
 	}
 	line := kind + ": " + anopeMask(c.user)
