@@ -2,11 +2,13 @@ package server
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
 	"io"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -122,6 +124,29 @@ type Client struct {
 	closing bool
 	notify  chan struct{}
 	over    bool
+	// Hand-over to the next server process (handover.go). handoff stops
+	// the writer where it is: it leaves the queue alone and puts what a
+	// started write didn't get out in outRest. A writer that ended on a
+	// write error sets writeErr.
+	handoff  bool
+	outRest  []byte
+	writeErr bool
+
+	// frozen stops the reader between two lines. What it had read from
+	// the connection but not handed to the loop is in inRest once
+	// readDone is closed (inSkip: that is the rest of a line that was too
+	// long, to be dropped); inFrozen tells that stop from one for an
+	// error. floodAhead is how far the flood clock ran ahead.
+	frozen     atomic.Bool
+	readDone   chan struct{} // closed when readLoop returned
+	writeDone  chan struct{} // closed when writeLoop returned
+	inRest     []byte
+	inSkip     bool
+	inFrozen   bool
+	floodAhead time.Duration
+	// What the last server process left for this reader to start with.
+	in0    []byte
+	ahead0 time.Duration
 }
 
 func (s *Server) newClient(conn net.Conn, isTLS bool) {
@@ -150,10 +175,18 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 		lastRecv:    now,
 		lastMsg:     now,
 		notify:      make(chan struct{}, 1),
+		readDone:    make(chan struct{}),
+		writeDone:   make(chan struct{}),
 		caps:        make(map[string]bool),
 		floodBurst:  s.cfg.Limits.FloodBurst,
 		floodRate:   s.cfg.Limits.FloodRate,
 		greetWait:   s.cfg.Server.WebRedirect != "" && !ws,
+	}
+	if s.hand.started {
+		// Too late for this server: it is handing its clients over (only
+		// without the gate, which holds new clients back itself).
+		conn.Close()
+		return
 	}
 	s.clients[c.uid] = c
 	s.perIP[c.ip]++
@@ -300,12 +333,17 @@ func clip(line string) string {
 
 func (c *Client) writeLoop() {
 	defer c.s.wg.Done()
+	defer close(c.writeDone)
 	for {
 		c.mu.Lock()
-		for len(c.queue) == 0 && !c.closing {
+		for len(c.queue) == 0 && !c.closing && !c.handoff {
 			c.mu.Unlock()
 			<-c.notify
 			c.mu.Lock()
+		}
+		if c.handoff {
+			c.mu.Unlock()
+			return // the queue goes to the next server process
 		}
 		q := c.queue
 		c.queue, c.queued = nil, 0
@@ -320,10 +358,25 @@ func (c *Client) writeLoop() {
 			buf = append(buf, l...)
 		}
 		c.conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
-		_, err := c.conn.Write(buf)
+		n, err := c.conn.Write(buf)
+		handed := false
+		if err != nil {
+			c.mu.Lock()
+			if c.handoff && errors.Is(err, os.ErrDeadlineExceeded) {
+				// Cut short by the hand-over: the rest of this write
+				// goes out from the next server process.
+				c.outRest, handed = append([]byte(nil), buf[n:]...), true
+			} else {
+				c.writeErr = true
+			}
+			c.mu.Unlock()
+		}
 		if cap(buf) <= maxPooledWrite {
 			*bp = buf
 			writeBufs.Put(bp)
+		}
+		if handed {
+			return
 		}
 		if err != nil {
 			c.conn.Close()
@@ -342,6 +395,7 @@ func (c *Client) writeLoop() {
 }
 
 func (c *Client) readLoop() {
+	defer close(c.readDone)
 	// A TLS client certificate is fingerprinted before any line is read,
 	// so the loop knows it when NICK and USER arrive.
 	if tc, ok := c.conn.(*tls.Conn); ok && tc.Handshake() == nil {
@@ -349,13 +403,34 @@ func (c *Client) readLoop() {
 			c.s.post(func() { c.certfp = fp })
 		}
 	}
-	r := bufio.NewReaderSize(c.conn, readBufSize)
+	var src io.Reader = c.conn
+	if len(c.in0) > 0 {
+		// Taken over from the last server process: what it had read
+		// already comes first.
+		src = io.MultiReader(bytes.NewReader(c.in0), c.conn)
+		c.in0 = nil
+	}
+	lr := lineReader{r: bufio.NewReaderSize(src, readBufSize)}
 	gap := time.Second / time.Duration(c.floodRate)
 	allow := time.Duration(c.floodBurst) * gap
 	var clock time.Time
+	if c.ahead0 > 0 {
+		clock = time.Now().Add(c.ahead0)
+	}
 	var batch mlRead
 	for {
-		line, err := readLine(r)
+		// A hand-over stops the reader here, between two lines: either
+		// right after one was handed in, or woken from a read that had no
+		// full line yet (the loop sets a read deadline in the past).
+		if c.frozen.Load() {
+			c.freeze(&lr, clock)
+			return
+		}
+		line, err := lr.read()
+		if err != nil && c.frozen.Load() && errors.Is(err, os.ErrDeadlineExceeded) {
+			c.freeze(&lr, clock)
+			return
+		}
 		var lines []string
 		if err == nil {
 			lines = irc.SplitFraming(line)
@@ -381,7 +456,7 @@ func (c *Client) readLoop() {
 			if c.noLag.Load() {
 				clock = now // opers aren't slowed down (UnrealIRCd, InspIRCd)
 			} else if ahead := clock.Sub(now); ahead > allow {
-				time.Sleep(ahead - allow)
+				c.s.floodSleep(ahead - allow)
 			}
 		}
 		switch {
@@ -430,21 +505,40 @@ func inputTooLong(line string) bool {
 }
 
 func readLine(r *bufio.Reader) (string, error) {
-	var long []byte // a line longer than the read buffer, put together here
-	tooLong := false
+	lr := lineReader{r: r}
+	return lr.read()
+}
+
+// lineReader reads a connection line by line. Between two calls of read
+// it can say what it took from the connection but hasn't returned as a
+// line yet (rest), so another reader can go on from there.
+type lineReader struct {
+	r       *bufio.Reader
+	long    []byte // the line being read, as far as it left the read buffer
+	tooLong bool   // that line is over the limit: the rest of it is dropped
+}
+
+func (lr *lineReader) read() (string, error) {
 	for {
-		b, err := r.ReadSlice('\n')
+		b, err := lr.r.ReadSlice('\n')
 		if errors.Is(err, bufio.ErrBufferFull) {
-			if !tooLong {
-				if long = append(long, b...); len(long) > maxInput {
-					long, tooLong = nil, true
+			if !lr.tooLong {
+				if lr.long = append(lr.long, b...); len(lr.long) > maxInput {
+					lr.long, lr.tooLong = nil, true
 				}
 			}
 			continue
 		}
 		if err != nil {
+			// ReadSlice gave the start of a line with the error and took
+			// it out of its buffer: keep it for rest.
+			if !lr.tooLong && len(b) > 0 {
+				lr.long = append(lr.long, b...)
+			}
 			return "", err
 		}
+		long, tooLong := lr.long, lr.tooLong
+		lr.long, lr.tooLong = nil, false
 		if tooLong || len(long)+len(b) > maxInput {
 			return "", errTooLong
 		}
@@ -453,6 +547,28 @@ func readLine(r *bufio.Reader) (string, error) {
 		}
 		return strings.TrimRight(string(b), "\r\n"), nil
 	}
+}
+
+// rest returns a copy of the bytes read from the connection that no line
+// returned by read covers: the start of a line and whole lines behind it.
+// skip: they begin inside a line that was too long.
+func (lr *lineReader) rest() (b []byte, skip bool) {
+	b = append(b, lr.long...)
+	if n := lr.r.Buffered(); n > 0 {
+		p, _ := lr.r.Peek(n)
+		b = append(b, p...)
+	}
+	return b, lr.tooLong
+}
+
+// freeze ends readLoop for a hand-over: it notes what the next server
+// process's reader starts with.
+func (c *Client) freeze(lr *lineReader, clock time.Time) {
+	c.inRest, c.inSkip = lr.rest()
+	if ahead := time.Until(clock); ahead > 0 {
+		c.floodAhead = ahead
+	}
+	c.inFrozen = true
 }
 
 // readBufSize is each connection's read buffer: normal lines fit, longer

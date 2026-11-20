@@ -22,6 +22,7 @@ import (
 
 	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/gate"
+	"github.com/fhazal/beeircd/internal/history"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/services"
 	"github.com/fhazal/beeircd/internal/state"
@@ -110,6 +111,7 @@ type Server struct {
 	origin      *linkOrigin                 // where the next emitted event came from
 	banFrom     *linkConn                   // the link a ban change came from, while it is applied
 	wg          sync.WaitGroup
+	hand        handState // passing the clients on to the next server process (handover.go)
 
 	// Services. The store is shared: the server reads oper entries and
 	// SASL accounts from it, services own the rest.
@@ -171,8 +173,9 @@ func newListener(conf config.Listen, ln net.Listener, tlsConf *tls.Config) liste
 }
 
 const (
-	stopRestart = 1
-	stopDie     = 2
+	stopRestart  = 1
+	stopDie      = 2
+	stopHandover = 3 // the clients went to the next server process (handover.go)
 )
 
 // ErrRestart is returned by Serve when an admin asked for a restart.
@@ -180,18 +183,26 @@ var ErrRestart = errors.New("restart requested")
 
 // New opens the configured ports. Call Serve to start answering.
 func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
-	return newServer(cfg, logger, nil)
+	return newServer(cfg, logger, nil, nil)
 }
 
 // NewBehindGate is New for the server process the gate runs: the gate
-// (child's other end) holds the client ports, this process the rest.
+// (child's other end) holds the client ports, this process the rest. When
+// the gate passes on the clients of the server process before this one,
+// they are taken over (handover.go); ErrHandoverBroken means that broke
+// half-way and the process should end.
 func NewBehindGate(cfg *config.Config, logger *log.Logger, child *gate.Child) (*Server, error) {
-	return newServer(cfg, logger, child)
+	var r *resume
+	if h := child.Handover(); h != nil {
+		r = resumeFromGate(child, h)
+	}
+	return newServer(cfg, logger, child, r)
 }
 
-func newServer(cfg *config.Config, logger *log.Logger, child *gate.Child) (*Server, error) {
+func newServer(cfg *config.Config, logger *log.Logger, child *gate.Child, r *resume) (*Server, error) {
 	s := &Server{
 		gate:         child,
+		hand:         handState{freeze: make(chan struct{})},
 		cfg:          cfg,
 		log:          logger,
 		net:          state.NewNetwork(cfg.Server.SID),
@@ -300,6 +311,16 @@ func newServer(cfg *config.Config, logger *log.Logger, child *gate.Child) (*Serv
 		db.Close()
 		return nil, err
 	}
+	if r != nil {
+		// Last, when nothing else can stop this server from starting.
+		if err := s.takeOver(r); err != nil {
+			s.closeRPC()
+			s.closeControl()
+			s.closeListeners()
+			db.Close()
+			return nil, err
+		}
+	}
 	return s, nil
 }
 
@@ -385,6 +406,10 @@ func (s *Server) Serve(ctx context.Context) error {
 				if len(s.events) == 0 {
 					s.flushWrites()
 				}
+			}
+			if s.stopAfter == stopHandover {
+				s.finishHandover()
+				return ErrHandover
 			}
 			if s.stopAfter != 0 {
 				reason := "Server shutting down"
@@ -557,6 +582,12 @@ func (s *Server) shutdown(reason string) {
 	for _, c := range s.clients {
 		s.quit(c, reason)
 	}
+	s.finishStop(snap)
+}
+
+// finishStop is the end of every stop: it waits for the connections to
+// close, saves what is kept across restarts and closes the database.
+func (s *Server) finishStop(snap history.Snapshot) {
 	finished := make(chan struct{})
 	go func() { s.wg.Wait(); close(finished) }()
 	select {

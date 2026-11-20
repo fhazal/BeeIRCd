@@ -136,6 +136,13 @@ func (s *Server) gateLoop() {
 	defer s.wg.Done()
 	for {
 		conn, err := s.gate.Accept()
+		if errors.Is(err, gate.ErrHandover) {
+			// The gate wants this server's clients for the next server
+			// process. No client comes after this, and every client that
+			// came before it is on the loop already.
+			s.post(s.startHandover)
+			return
+		}
 		if err != nil {
 			return // closed, or the gate is gone (main stops the server)
 		}
