@@ -17,14 +17,34 @@
 //     between the client and the other end (pump).
 //   - fd 4, child to gate: Sync requests (Spec, the whole client-facing
 //     setup) and their answers (Result). Separate from fd 3, so a Sync from
-//     the server's loop never waits behind a client hand-over.
+//     the server's loop never waits behind a client.
 //
 // Life cycle: the child exits with ExitRestart to be started again (clients
-// drop; keeping them is the next step), with ExitRegate when this gate is
-// from another version (the gate then executes itself again), and with any
-// other code to make the gate exit with it. SIGTERM and SIGINT go on to the
-// child; the gate keeps copying until the child has said goodbye to
-// everyone, then exits. SIGHUP goes on to the child (rehash).
+// drop), with ExitRegate when this gate is from another version (the gate
+// then executes itself again), and with any other code to make the gate
+// exit with it. SIGTERM and SIGINT go on to the child; the gate keeps
+// copying until the child has said goodbye to everyone, then exits. SIGHUP
+// goes on to the child (rehash).
+//
+// Hand-over (SIGUSR2 to the gate, or Child.RequestHandover): the gate
+// replaces the child with a new one while the clients stay connected.
+//
+//  1. The gate stops giving the child clients (new ones wait in the gate)
+//     and sends it "hand" on fd 3.
+//  2. The child stops reading its clients, writes a snapshot of everything
+//     it knows and sends the gate each client's socket ("fd" on fd 4) and
+//     the snapshot in an unnamed file ("snap"), then exits (ExitHandover).
+//  3. Only when that child is gone the gate starts the next one, with the
+//     snapshot on fd 5, and sends it the sockets ("old" on fd 3) before
+//     any new client. The gate then closes its own copies.
+//  4. The new child loads the snapshot, takes the sockets and says how it
+//     went ("resumed").
+//
+// It is never worse than a restart: a child that doesn't hand over in time
+// is killed and the next one starts empty; a new child that can't use the
+// snapshot drops those clients and carries on empty; one that dies while
+// taking over is started once more, empty. Clients the gate still holds
+// when a hand-over fails are closed with a goodbye line.
 //
 // A bug here hits every user, so this package stays small and plain.
 package gate
@@ -43,11 +63,14 @@ const (
 	// Proto is the gate/child protocol version. A child that finds another
 	// one exits with ExitRegate, so an upgraded binary never talks to an
 	// old gate.
-	Proto = "1"
+	Proto = "2"
 	// ExitRestart: the child asks to be started again (an admin's RESTART).
 	ExitRestart = 120
 	// ExitRegate: the child is newer than the gate; the gate re-executes.
 	ExitRegate = 121
+	// ExitHandover: the child handed its clients to the gate and stopped,
+	// as the gate asked; the next child takes them over.
+	ExitHandover = 122
 
 	envKey = "BEEIRCD_GATE"
 )
@@ -55,6 +78,19 @@ const (
 // ErrRegate is what ChildFromEnv returns when the gate speaks another
 // protocol version.
 var ErrRegate = errors.New("the gate in front of this server is from another BeeIRCd version; starting it again")
+
+// ErrHandover is what Child.Accept returns when the gate asks the server
+// to hand its clients over to the next server process.
+var ErrHandover = errors.New("the gate asks for a hand-over")
+
+// Handover is what a server that takes over gets from the gate: the last
+// server's snapshot and its clients' connections, by the names the
+// snapshot uses. Err is set when it didn't arrive whole (no clients then).
+type Handover struct {
+	Snapshot []byte
+	Err      error
+	conns    map[string]int // file descriptors
+}
 
 // ErrReset is what a Conn's Read returns when the gate dropped the client
 // after a read error, so the server says "Read error" as it did when it

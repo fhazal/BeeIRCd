@@ -26,8 +26,16 @@ type Child struct{}
 // ChildFromEnv: no gate here, so never a child.
 func ChildFromEnv() (*Child, error) { return nil, nil }
 
-func (c *Child) Accept() (net.Conn, error) { return nil, errUnsupported }
-func (c *Child) Sync(Spec) (Result, error) { return Result{}, errUnsupported }
-func (c *Child) Gone() <-chan struct{}     { return nil }
-func (c *Child) Close() error              { return nil }
-func peerClosed(*net.UnixConn) bool        { return false }
+func (c *Child) Accept() (net.Conn, error)               { return nil, errUnsupported }
+func (c *Child) Sync(Spec) (Result, error)               { return Result{}, errUnsupported }
+func (c *Child) Gone() <-chan struct{}                   { return nil }
+func (c *Child) Close() error                            { return nil }
+func (c *Child) RequestHandover() error                  { return errUnsupported }
+func (c *Child) Give([]byte, map[string]net.Conn) error  { return errUnsupported }
+func (c *Child) Handover() *Handover                     { return nil }
+func (c *Child) Resumed(int, string) error               { return errUnsupported }
+func (h *Handover) Len() int                             { return 0 }
+func (h *Handover) Has(string) bool                      { return false }
+func (h *Handover) Conn(string, *Info) (net.Conn, error) { return nil, errUnsupported }
+func (h *Handover) Close()                               {}
+func peerClosed(*net.UnixConn) bool                      { return false }
