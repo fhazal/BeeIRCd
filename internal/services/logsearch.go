@@ -52,8 +52,13 @@ func osLogSearch(s *Services, c *Client, args []string) {
 		return
 	}
 	s.osLog(c, "for %s", pattern)
-	if !strings.ContainsAny(pattern, "*?") {
-		pattern = "*" + pattern + "*"
+	// Lines start with the time and service, so the pattern is always
+	// wrapped in * (as Anope does): "kill*" finds kills too.
+	if !strings.HasPrefix(pattern, "*") {
+		pattern = "*" + pattern
+	}
+	if !strings.HasSuffix(pattern, "*") {
+		pattern += "*"
 	}
 	since := s.now().Add(-time.Duration(days) * 24 * time.Hour)
 	go func() {

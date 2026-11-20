@@ -86,9 +86,9 @@ func TestOperServLogSearch(t *testing.T) {
 		// The newest are kept, still oldest first.
 		{"LOGSEARCH +2l drop", []string{"drop B2", "DROP B3"}, "Showing 2 of 4 matches."},
 		{"LOGSEARCH +10d +1L drop", []string{"DROP B3"}, "Showing 1 of 5 matches."},
-		// With a wildcard the pattern is the whole line.
+		// Wildcards work, and the pattern is always wrapped in * (Anope).
 		{"LOGSEARCH *ChanServ: *B?", []string{"drop B2"}, "Showing 1 of 1 matches."},
-		{"LOGSEARCH drop*", nil, "No matches."},
+		{"LOGSEARCH drop b*", []string{"drop B1", "drop B2", "DROP B3"}, "Showing 3 of 3 matches."},
 	}
 	for _, tc := range cases {
 		svc.Message(boss.UID, opsv, tc.cmd)

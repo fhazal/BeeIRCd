@@ -105,7 +105,7 @@ func (s *Services) startServices() {
 	osCmds["RELOAD"] = svcCmd{"RELOAD", "read beeircd.conf again",
 		"Reloads the config the way /REHASH does (flag a). Changes that need a\nrestart wait for one, as with /REHASH.", osReload}
 	osCmds["LOGSEARCH"] = svcCmd{"LOGSEARCH [+<days>d] [+<limit>l] <pattern>", "search the services log file",
-		"Searches the services log file ([services] log_file) and the one before\nit for lines matching pattern (flag a). Without * or ? it matches\nanywhere in a line. +<days>d looks back that many days (7), +<limit>l\nshows up to that many of the newest matches (50, at most 500).\nExample: LOGSEARCH +30d +100l *used DROP*", osLogSearch}
+		"Searches the services log file ([services] log_file) and the one before\nit for lines matching pattern (flag a). It matches anywhere\nin a line; * and ? are wildcards. +<days>d looks back that many days (7), +<limit>l\nshows up to that many of the newest matches (50, at most 500).\nExample: LOGSEARCH +30d +100l *used DROP*", osLogSearch}
 	osCmds["OPER"] = svcCmd{"OPER LIST | INFO [class] | ADD <nick> <class> | DEL <nick>", "show and change the oper list",
 		"OPER LIST            the opers and their classes\nOPER INFO [class]    what each class may do\nOPER ADD <nick> <class>   (flag a) like /as oper <nick> add class <class> host *@*\nOPER DEL <nick>            (flag a)\nThe full oper commands are in AdminServ: /as help oper", osOper}
 	s.operServ = s.addService("OperServ", "os", "Operator Services", "OperServ is the toolbox for IRC operators. Commands:", osCmds)
