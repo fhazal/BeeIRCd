@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/fhazal/beeircd/internal/config"
+	"github.com/fhazal/beeircd/internal/control"
 	"github.com/fhazal/beeircd/internal/gate"
 	"github.com/fhazal/beeircd/internal/state"
 )
@@ -285,6 +286,12 @@ func TestHandoverKeepsEveryone(t *testing.T) {
 	n := serveNext(t, path, h.resume(func(k int, problem string) { kept = k }))
 	if kept != 6 {
 		t.Fatalf("the next server took over %d clients, want 6", kept)
+	}
+	// beeircd update reads the result from the status.
+	var st *control.Status
+	n.onLoop(func() { st = n.statusInfo() })
+	if h := st.Handover; h == nil || h.Problem != "" || h.Kept != h.Of || h.Kept == 0 {
+		t.Errorf("status after the hand-over: %+v", h)
 	}
 
 	alice.expect("NOTICE Alice :sent by the old server")

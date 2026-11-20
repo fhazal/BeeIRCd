@@ -22,6 +22,7 @@ import (
 
 	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/control"
+	"github.com/fhazal/beeircd/internal/gate"
 	"github.com/fhazal/beeircd/internal/history"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/version"
@@ -136,6 +137,12 @@ func (s *Server) controlConn(conn net.Conn) {
 		if !s.onLoop(func() { s.quitReason = reason }) {
 			stopping()
 		}
+	case control.CmdHandover:
+		if err := s.RequestHandover(); err != nil {
+			resp.Error = err.Error()
+		} else {
+			resp.Done = &control.Done{Text: "handing over"}
+		}
 	case control.CmdRehash:
 		var err error
 		if !s.onLoop(func() { resp.Rehash, err = s.rehash("beeircd rehash") }) {
@@ -188,6 +195,10 @@ func (s *Server) statusInfo() *control.Status {
 		Links:           s.linkStatus(),
 		MaxUsers:        s.cfg.Limits.MaxUsers,
 		ServicesOn:      !s.svc.Off(),
+	}
+	st.Gate, st.Local, st.Handover = "off", s.localUsers(), s.hand.took
+	if s.gate != nil {
+		st.Gate = gate.Proto
 	}
 	sum := s.store.Summary()
 	st.Nicks, st.RegChans, st.Memos = sum.Nicks, sum.Channels, sum.Memos

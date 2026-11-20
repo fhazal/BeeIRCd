@@ -81,6 +81,12 @@ func TestControlStatusCheckBackup(t *testing.T) {
 	if st.Services[0] != "NickServ" || st.HistoryChannels != 1 || st.Cert == nil || st.Cert.Source != "self-signed" || st.PID != os.Getpid() {
 		t.Errorf("status details: %+v %+v", st.Services, st.Cert)
 	}
+	if st.Gate != "off" || st.Local != 1 || st.Handover != nil {
+		t.Errorf("status without the door keeper: gate %q, local %d, handover %+v", st.Gate, st.Local, st.Handover)
+	}
+	if _, err := control.Ask(s.cfg.Control.Socket, control.Request{Cmd: control.CmdHandover}, 5*time.Second); err == nil || !strings.Contains(err.Error(), "needs the gate") {
+		t.Errorf("handover without the door keeper: %v", err)
+	}
 
 	ck := askOK(t, s, control.CmdCheck, "").Check
 	if ck.DBError != "" || ck.Nicks != 1 {

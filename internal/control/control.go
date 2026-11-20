@@ -21,6 +21,11 @@ const (
 	// CmdQuitReason sets the quit message for the next stop (Path holds
 	// the text), so `beeircd update` can say why everyone is leaving.
 	CmdQuitReason = "quit-reason"
+	// CmdHandover asks the server to hand everyone over to a new server
+	// process (the program file as it is on disk now) through the door
+	// keeper, so nobody is disconnected. Only behind the door keeper
+	// (Status.Gate is a version); an error otherwise.
+	CmdHandover = "handover"
 
 	// Hive Panel. Every panel request names the oper it acts for
 	// (As) and the web address they come from (IP); the server checks that
@@ -453,6 +458,13 @@ type Done struct {
 	Text string `json:"text"`
 }
 
+// Handover is how a hand-over to this server process went.
+type Handover struct {
+	Kept    int    `json:"kept"`              // people who stayed connected
+	Of      int    `json:"of"`                // people on the server when it handed over
+	Problem string `json:"problem,omitempty"` // why it didn't work: then nobody stayed
+}
+
 // ChatKey signs the Chat tab's BeeRoom in: SASL PLAIN with Account and
 // Key, once, within a minute.
 type ChatKey struct {
@@ -722,6 +734,15 @@ type Status struct {
 	Cert            *Cert  `json:"cert,omitempty"`
 	BackupDir       string `json:"backup_dir"`
 	Safety          Safety `json:"safety"`
+	// Gate is the door keeper's protocol version when the server runs
+	// behind it (beeircd run on Linux), "off" when it runs without one.
+	// Empty: a server too old to say (it can't hand people over).
+	Gate string `json:"gate,omitempty"`
+	// Local is the people on this server (Online counts the network).
+	Local int `json:"local"`
+	// Handover says how this server process took over from the last one;
+	// nil when it started fresh.
+	Handover *Handover `json:"handover,omitempty"`
 	// Update is a newer release the daily check found (nil: none).
 	Update *UpdateInfo `json:"update,omitempty"`
 	// Links are the server links (hub and leaf only).

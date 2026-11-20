@@ -44,6 +44,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fhazal/beeircd/internal/control"
 	"github.com/fhazal/beeircd/internal/gate"
 	"github.com/fhazal/beeircd/internal/history"
 	"github.com/fhazal/beeircd/internal/irc"
@@ -91,6 +92,9 @@ type handState struct {
 	keepConns  bool
 	version    int    // tests: write this format version (0: handoverVersion)
 	beforeSnap func() // tests: runs when readers and writers have stopped, before the snapshot
+	// took is how this process took over from the last one (status, for
+	// beeircd update); nil when it started fresh.
+	took *control.Handover
 }
 
 // handoverSnap is everything one server process tells the next.
@@ -640,6 +644,7 @@ func (s *Server) takeOver(r *resume) (err error) {
 	empty := func(why string) {
 		s.log.Printf("hand-over: %s; starting without the last server's clients", why)
 		r.close()
+		s.hand.took = &control.Handover{Problem: why}
 		r.done(0, why)
 	}
 	if r.err != nil {
@@ -663,6 +668,7 @@ func (s *Server) takeOver(r *resume) (err error) {
 				c.conn.Close()
 			}
 			r.close()
+			s.hand.took = &control.Handover{Problem: "internal error"}
 			r.done(0, "internal error")
 			err = fmt.Errorf("%w: %v", ErrHandoverBroken, p)
 		}
@@ -704,9 +710,13 @@ func (s *Server) takeOver(r *resume) (err error) {
 	snap.Net.Remap(to)
 	s.net.Load(snap.Net)
 
-	var lost []string // users whose connection couldn't be taken after all
+	var lost []string    // users whose connection couldn't be taken after all
+	people, kept := 0, 0 // registered clients: in the snapshot, taken over
 	for i := range snap.Clients {
 		cs := &snap.Clients[i]
+		if cs.Registered {
+			people++
+		}
 		var u *state.User
 		uid := ""
 		if cs.Registered {
@@ -732,6 +742,9 @@ func (s *Server) takeOver(r *resume) (err error) {
 			continue
 		}
 		taken = append(taken, s.restoreClient(cs, uid, u, conn, uidNow))
+		if cs.Registered {
+			kept++
+		}
 	}
 	r.close() // sockets nobody asked for
 
@@ -759,6 +772,7 @@ func (s *Server) takeOver(r *resume) (err error) {
 		go c.writeLoop()
 		go c.readLoop()
 	}
+	s.hand.took = &control.Handover{Kept: kept, Of: people}
 	r.done(len(taken), "")
 	s.log.Printf("hand-over: took over %d clients and %d channels from %s (%d ms after its snapshot, %d ms to load)",
 		len(taken), s.net.ChannelCount(), snap.From, time.Since(snap.Taken).Milliseconds(), time.Since(start).Milliseconds())

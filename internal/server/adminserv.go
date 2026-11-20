@@ -51,7 +51,7 @@ func adminCommands() map[string]adminCmd {
 		"SERVER": {"SERVER LIST|ADD|SET|DEL|LINK|UNLINK ... | SERVER <name> STATUS|<command>", "linked servers",
 			serverHelp + "\nSERVER <name> STATUS       version, uptime, users and links of that server\nSERVER <name> <command>    run an AdminServ command there (SET, MOTD, OPER,\n                           CLASS, SHOW, HISTORY, DIFF, UNDO, DNSBL); it must\n                           take outside admins ([link] outside_admins =\n                           network) and your admin reach must be network", asServer},
 		"RESTART": {"RESTART [reason]", "restart the server",
-			"Disconnects everyone and starts the server again. You are asked to repeat it\nwith a code first.", asStop(stopRestart)},
+			"Starts the server again. Behind the door keeper (beeircd run on Linux) nobody\nis disconnected: everyone is handed over to the new server process. Otherwise\neveryone is disconnected and reconnects. You are asked to repeat it with a\ncode first.", asStop(stopRestart)},
 		"DIE": {"DIE [reason]", "stop the server",
 			"Disconnects everyone and stops the server. You are asked to repeat it with a\ncode first. Under systemd or Docker it may be started again by them.", asStop(stopDie)},
 	}
@@ -1670,7 +1670,11 @@ func asStop(action int) func(*Server, *Client, []string) {
 			if action == stopDie {
 				what = "stops the server"
 			}
-			s.as(c, "This %s and disconnects %s.", what, plural(people, "person"))
+			if action == stopRestart && s.gate != nil {
+				s.as(c, "This restarts the server without disconnecting anyone: the door keeper hands the %s here to the new server process.", plural(people, "person"))
+			} else {
+				s.as(c, "This %s and disconnects %s.", what, plural(people, "person"))
+			}
 			s.as(c, "To go ahead within 2 minutes: /as %s %s [reason]", strings.ToLower(word), fresh)
 			return
 		}
@@ -1683,6 +1687,28 @@ func asStop(action int) func(*Server, *Client, []string) {
 			s.sno('a', "RESTART command from %s, restarting server.", snoWho(c.user))
 		}
 		s.as(c, "Going now.")
-		s.stopAfter, s.stopReason = action, irc.Truncate(reason, 200)
+		reason = irc.Truncate(reason, 200)
+		if action == stopRestart && s.gate != nil {
+			s.restartByHandover(c, reason)
+			return
+		}
+		s.stopAfter, s.stopReason = action, reason
 	}
+}
+
+// restartByHandover is RESTART behind the door keeper: the next server
+// process takes everyone over. When the hand-over can't start, it is the
+// usual restart after all (everyone reconnects).
+func (s *Server) restartByHandover(c *Client, reason string) {
+	go func() {
+		err := s.RequestHandover()
+		if err == nil {
+			return
+		}
+		s.onLoop(func() {
+			s.log.Printf("RESTART: the hand-over didn't start (%v); restarting the usual way", err)
+			s.as(c, "The hand-over didn't start (%v); restarting the usual way: everyone reconnects.", err)
+			s.stopAfter, s.stopReason = stopRestart, reason
+		})
+	}()
 }

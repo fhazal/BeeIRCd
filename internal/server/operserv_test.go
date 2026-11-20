@@ -734,6 +734,8 @@ func TestAdminServRestartAndDie(t *testing.T) {
 			b := boss(t, s)
 			other := login(t, s, "other")
 			b.send("AS " + word)
+			// Without the door keeper a restart disconnects everyone.
+			b.expect(" and disconnects 2 people.")
 			b.expect("To go ahead within 2 minutes: /as " + word + " ")
 			b.send("AS " + word + " wrongcode")
 			c := code(b.expect("To go ahead within 2 minutes: /as " + word + " "))
