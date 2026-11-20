@@ -197,6 +197,7 @@ type Client struct {
 	logged       bool         // a command logged a change (the Hive Panel's stand-in reads it)
 	webFlags     string       // the Hive Panel's stand-in for an oper: their oper flags
 	webDone      func()       // the stand-in's command finished later (a password being hashed)
+	superAdmin   bool         // OperServ SET SUPERADMIN: founder on every registered channel
 }
 
 // operFlags are c's oper flags: from the server for someone on IRC, from
@@ -300,6 +301,7 @@ func (s *Services) handle(ev state.Event) {
 		s.logUserMode(e)
 		if c := s.clients[e.UID]; c != nil && !c.closed {
 			s.saveModes(c)
+			s.isSuperAdmin(c) // de-opered: SUPERADMIN ends
 			if on := c.user.HasMode('h'); on != c.helpOn {
 				c.helpOn = on
 				if on {
@@ -311,6 +313,7 @@ func (s *Services) handle(ev state.Event) {
 		if c := s.clients[e.UID]; c != nil {
 			s.saveModes(c)
 			s.saveQuit(c, e.Reason)
+			s.dropSuperAdmin(c, "quit")
 			delete(s.clients, e.UID)
 			s.buddyOffline(c.accountID)
 			s.helpGone(e.UID)

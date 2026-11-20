@@ -403,6 +403,11 @@ restart ends it too. It applies to the server you type it on.
     bans and suspensions don't expire while it is on. Hive Panel forms
     that run a services command are refused too; the panel's own ban,
     channel and settings forms and web sign-up are not.
+  - `SET SUPERADMIN ON|OFF`: for yourself only. While on you count as
+    founder on every registered channel (ChanServ commands, join past
+    +i/+k/bans, suspended channels too), as long as you are identified.
+    It ends when you turn it off, lose oper flag `a` or quit; each of
+    those is logged. `SET LIST` marks you "(super admin)".
 
 ### For everyone
 

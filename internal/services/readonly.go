@@ -1,7 +1,7 @@
 package services
 
-// OperServ SET, as Anope's os_set: READONLY switches. They live in memory
-// only, so a restart turns them off again.
+// OperServ SET, as Anope's os_set: the READONLY and SUPERADMIN switches.
+// They live in memory only, so a restart turns them off again.
 
 import (
 	"strings"
@@ -72,26 +72,64 @@ func osSet(s *Services, c *Client, args []string) {
 	what := strings.ToUpper(argAt(args, 0))
 	if what == "LIST" {
 		s.os(c, "READONLY   %s", onOffWord(s.readonly))
+		if s.isSuperAdmin(c) {
+			s.os(c, "SUPERADMIN ON (super admin)")
+		} else {
+			s.os(c, "SUPERADMIN OFF")
+		}
 		return
 	}
 	on, ok := onOff(argAt(args, 1))
-	if what != "READONLY" || !ok {
-		s.os(c, "Syntax: SET {READONLY} {ON | OFF} | SET LIST")
+	if (what != "READONLY" && what != "SUPERADMIN") || !ok {
+		s.os(c, "Syntax: SET {READONLY | SUPERADMIN} {ON | OFF} | SET LIST")
 		return
 	}
 	if !s.needFlag(c, s.operServ, 'a') {
 		return
 	}
 	word := onOffWord(on)
-	s.readonly = on
+	switch what {
+	case "READONLY":
+		s.readonly = on
+	case "SUPERADMIN":
+		c.superAdmin = on // for c only: nobody turns it on for someone else
+	}
 	s.audit(c, s.operServ, "SET %s %s", what, word)
 	s.osLog(c, "to turn %s %s", what, strings.ToLower(word))
 	s.snotice('a', "%s turned %s %s", c.user.Nick, what, strings.ToLower(word))
-	if on {
+	switch {
+	case what == "SUPERADMIN" && on:
+		s.os(c, "You are now a super admin: founder on every registered channel, until you turn it off, de-oper or quit.")
+	case what == "SUPERADMIN":
+		s.os(c, "You are no longer a super admin.")
+	case on:
 		s.os(c, "Services are now in read-only mode: nothing is saved or expires until READONLY is off or services restart.")
-	} else {
+	default:
 		s.os(c, "Services are no longer in read-only mode.")
 	}
+}
+
+// isSuperAdmin reports whether c is a super admin right now. Someone who
+// lost oper flag a (de-opered, or a rehash took it) stops being one.
+func (s *Services) isSuperAdmin(c *Client) bool {
+	if c == nil || !c.superAdmin {
+		return false
+	}
+	if !c.can('a') {
+		s.dropSuperAdmin(c, "no longer an admin")
+		return false
+	}
+	return true
+}
+
+// dropSuperAdmin ends c's SUPERADMIN without them asking, and logs why.
+func (s *Services) dropSuperAdmin(c *Client, why string) {
+	if !c.superAdmin {
+		return
+	}
+	c.superAdmin = false
+	s.snotice('a', "%s turned SUPERADMIN off (%s)", c.user.Nick, why)
+	s.logTo(s.operServ, "ADMIN: "+anopeMask(c.user)+" is no longer a super admin ("+why+")")
 }
 
 func onOffWord(on bool) string {

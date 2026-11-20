@@ -46,8 +46,8 @@ func operServMoreCommands() map[string]svcCmd {
 			"IGNORE ADD <time> {<nick> | <mask>} [reason]   time like 30m, 2h, 7d (a bare\n    number is seconds), 0 for good\nIGNORE DEL {<nick> | <mask>}\nIGNORE LIST\nIGNORE CLEAR\nServices drop everything a match says to them. A nick online ignores their\nhost (*!*@host); masks are nick!user@host. Never applies to opers.", osIgnore},
 		"SEEN": {"SEEN {STATS | CLEAR <time>}", "the SEEN data",
 			"SEEN STATS   how many nicks SEEN knows\nSEEN CLEAR <time>   forget the nicks seen within that time, like 1h", osSeen},
-		"SET": {"SET {READONLY} {ON | OFF} | SET LIST", "switch services modes (flag a)",
-			"SET LIST                show the switches\nSET READONLY {ON | OFF}  (flag a) nothing is saved: commands that change\n    data are refused, and nicks, channels and bans don't expire\nThe switches live in memory: a restart turns them all off again.", osSet},
+		"SET": {"SET {READONLY | SUPERADMIN} {ON | OFF} | SET LIST", "switch services modes (flag a)",
+			"SET LIST                show the switches\nSET READONLY {ON | OFF}  (flag a) nothing is saved: commands that change\n    data are refused, and nicks, channels and bans don't expire\nSET SUPERADMIN {ON | OFF}  (flag a) for you only: you count as founder on\n    every registered channel; ends when you turn it off, de-oper or quit\nThe switches live in memory: a restart turns them all off again.", osSet},
 	}
 }
 

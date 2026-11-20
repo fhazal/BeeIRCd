@@ -13,14 +13,14 @@ import (
 // csJoinLevel is u's level on channel name, before joining (0 when the
 // channel isn't registered). Anyone on the access list gets past +i and +k.
 func (s *Services) csJoinLevel(c *Client, name string) int {
-	if c.accountID == 0 {
+	if c.accountID == 0 && !s.isSuperAdmin(c) {
 		return store.LevelNone
 	}
 	reg, err := s.store.ChannelByName(name)
 	if err != nil || reg == nil || reg.Suspended(time.Now()) {
 		return store.LevelNone
 	}
-	return s.accountLevel(reg, s.chanAccount(c, reg)).level
+	return s.clientLevel(c, reg).level
 }
 
 // csJoin runs after u joined ch. created means u opened the channel.
@@ -36,7 +36,7 @@ func (s *Services) csJoin(c *Client, ch *state.Channel, created bool) {
 		}
 		return
 	}
-	lvl := s.accountLevel(reg, s.chanAccount(c, reg))
+	lvl := s.clientLevel(c, reg)
 	if created {
 		s.restoreChannel(reg, ch)
 		if !s.secureAllows(reg, lvl, 'o') {
@@ -85,7 +85,7 @@ func (s *Services) csOnIdentify(c *Client) {
 		if err != nil || reg == nil || reg.Suspended(time.Now()) {
 			continue
 		}
-		if s.accountLevel(reg, s.chanAccount(c, reg)).level > store.LevelNone {
+		if s.clientLevel(c, reg).level > store.LevelNone {
 			reg.LastUsed = time.Now()
 			s.store.SaveChannel(reg)
 			s.csAutoModes(reg, ch, c.user)
@@ -120,7 +120,7 @@ func (s *Services) csTopicLocked(c *Client, ch *state.Channel) bool {
 	if err != nil || reg == nil || !reg.TopicLock {
 		return false
 	}
-	return !s.levelHas(reg, s.accountLevel(reg, s.chanAccount(c, reg)), "TOPIC")
+	return !s.levelHas(reg, s.clientLevel(c, reg), "TOPIC")
 }
 
 // csTopicChanged keeps a new topic for KEEPTOPIC.

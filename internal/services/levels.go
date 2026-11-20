@@ -114,6 +114,20 @@ func (s *Services) accountLevel(reg *store.Channel, accountID int64) access {
 	return access{level: lvl}
 }
 
+// clientLevel is c's access on reg: the founder's while c is a super
+// admin (OperServ SET SUPERADMIN), else that of the account c is
+// identified to or recognised as (none without one).
+func (s *Services) clientLevel(c *Client, reg *store.Channel) access {
+	if s.isSuperAdmin(c) {
+		return access{level: store.LevelFounder}
+	}
+	id := s.chanAccount(c, reg)
+	if id == 0 {
+		return access{}
+	}
+	return s.accountLevel(reg, id)
+}
+
 // flagsRank is the rank of a FLAGS entry: the highest level its
 // privileges need on reg (founder-only ones count as the top level).
 func (s *Services) flagsRank(reg *store.Channel, flags string) int {
@@ -155,10 +169,10 @@ func (s *Services) levelHas(reg *store.Channel, a access, name string) bool {
 // userLevel is a connected user's access on reg (none when not identified).
 func (s *Services) userLevel(reg *store.Channel, u *state.User) access {
 	c := s.clientOf(u)
-	if c == nil || s.chanAccount(c, reg) == 0 {
+	if c == nil {
 		return access{}
 	}
-	return s.accountLevel(reg, s.chanAccount(c, reg))
+	return s.clientLevel(c, reg)
 }
 
 // chanAccount is the account c's channel access on reg comes from: the one

@@ -282,7 +282,7 @@ func bsAdmin(c *Client) bool { return c.can('s') }
 
 // bsChanPriv reports whether c has privilege priv on reg.
 func (s *Services) bsChanPriv(c *Client, reg *store.Channel, priv string) bool {
-	return s.levelHas(reg, s.accountLevel(reg, s.chanAccount(c, reg)), priv)
+	return s.levelHas(reg, s.clientLevel(c, reg), priv)
 }
 
 // bsLog posts Anope's command line for BotServ (COMMAND, or OVERRIDE when
