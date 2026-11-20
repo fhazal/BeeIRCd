@@ -192,6 +192,14 @@ func (in *installer) osName() string {
 	return strings.TrimSpace(id + " " + ver)
 }
 
+// choices prints numbered answers above the question that follows, so a
+// new admin sees what each number means before typing it.
+func (in *installer) choices(lines ...string) {
+	for i, l := range lines {
+		fmt.Fprintf(in.out, "        %d) %s\n", i+1, l)
+	}
+}
+
 // question asks until check accepts the answer (check returns "" for OK).
 func (in *installer) question(n int, label, def string, check func(string) string) (string, error) {
 	for {
@@ -332,18 +340,20 @@ func (in *installer) ask() (*plan, error) {
 	if err := in.askCert(p); err != nil {
 		return nil, err
 	}
+	in.choices("~&@%+  owner, admin, op, halfop, voice", "@+     op and voice only")
 	style, err := in.question(8, "Channel prefixes", "1", func(a string) string {
 		if a != "1" && a != "2" {
-			return "1) @+ op and voice   2) ~&@%+ owner, admin, op, halfop, voice"
+			return "1) ~&@%+ owner, admin, op, halfop, voice   2) @+ op and voice only"
 		}
 		return ""
 	})
 	if err != nil {
 		return nil, err
 	}
-	if style == "2" {
+	if style == "1" {
 		p.Prefixes = "~&@%+"
 	}
+	in.choices("on its own", "a hub (other servers link to it)", "a leaf (links to a hub)")
 	role, err := in.question(9, "This server is", "1", func(a string) string {
 		if a != "1" && a != "2" && a != "3" {
 			return "1) on its own  2) a hub  3) a leaf"
@@ -506,6 +516,7 @@ func (in *installer) askCert(p *plan) error {
 		def = "2" // Let's Encrypt can't check a private name
 	}
 	for {
+		in.choices("Let's Encrypt (free, renews itself)", "self-signed now, switch later", "my own files")
 		choice, err := in.question(7, "TLS certificate", def, func(a string) string {
 			if a != "1" && a != "2" && a != "3" {
 				return "1) Let's Encrypt  2) self-signed  3) my own files"

@@ -60,7 +60,7 @@ func TestInstallSelfSigned(t *testing.T) {
 		"7777 6697",             // 6 7777 busy: asked again
 		"",                      // 6 6667 plain, 6697 TLS
 		"2",                     // 7 self-signed
-		"",                      // 8 @+
+		"",                      // 8 ~&@%+
 		"2",                     // 9 hub
 		"6697",                  //   link port = a client port: asked again
 		"",                      //   7000
@@ -79,7 +79,8 @@ func TestInstallSelfSigned(t *testing.T) {
 	for _, want := range []string{"a DNS name like", "belongs to the services", "at least 8", "port 7777 is in use",
 		"Server      irc.beenet.org   on network Beenet", "then /oper, from *@203.0.113.5", "6667 plain · 6697 TLS",
 		"daily 04:00 Asia/Kuala_Lumpur", "service beeircd enabled", "firewall (ufw): 6667, 6697, 7000 open",
-		"already for clients", "hub, link port 7000 (TLS)"} {
+		"already for clients", "hub, link port 7000 (TLS)",
+		"        3) my own files\n  7/9", "        2) @+     op and voice only\n  8/9", "        3) a leaf (links to a hub)\n  9/9"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("output lacks %q:\n%s", want, text)
 		}
@@ -93,7 +94,7 @@ func TestInstallSelfSigned(t *testing.T) {
 	}
 	if cfg.Server.Name != "irc.beenet.org" || cfg.Server.Network != "Beenet" || cfg.Services.Admin != "Bee" ||
 		!cfg.TLS.SelfSigned || cfg.TLS.ACME || len(cfg.Listen) != 2 || !strings.HasSuffix(filepath.ToSlash(cfg.Control.Socket), instSocket) ||
-		len(cfg.Services.AdminHosts) != 1 || cfg.Server.Prefixes != "@+" || len(cfg.History.Secret) != 40 ||
+		len(cfg.Services.AdminHosts) != 1 || cfg.Server.Prefixes != "~&@%+" || len(cfg.History.Secret) != 40 ||
 		cfg.Link.Role != "hub" || cfg.Link.Port != 7000 {
 		t.Errorf("config %+v", cfg)
 	}
@@ -150,7 +151,7 @@ func TestInstallLetsEncryptAndTLSOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !cfg.TLS.ACME || cfg.TLS.ACMEEmail != "admin@example.org" || len(cfg.Listen) != 1 || !cfg.Listen[0].TLS || cfg.Server.Prefixes != "~&@%+" {
+	if !cfg.TLS.ACME || cfg.TLS.ACMEEmail != "admin@example.org" || len(cfg.Listen) != 1 || !cfg.Listen[0].TLS || cfg.Server.Prefixes != "@+" {
 		t.Errorf("config %+v", cfg)
 	}
 	unit, _ := os.ReadFile(in.path(instUnit))

@@ -54,8 +54,8 @@ nothing is written before you say yes to the summary.
 | 4 | Admin password | Your `/oper` password (at least 8 characters, typed twice, not shown). Only its hash is stored |
 | 5 | Admin may /oper from | `user@host` masks or IPs. Over SSH it suggests your own IP. Empty = anywhere |
 | 6 | Ports | Default `6667 plain, 6697 TLS`. Answer `6697` alone for TLS only |
-| 7 | TLS certificate | 1) Let's Encrypt, 2) self-signed, 3) your own files (see [Certificates](#certificates)) |
-| 8 | Channel prefixes | 1) `@+` op and voice, 2) `~&@%+` owner, admin, op, halfop, voice |
+| 7 | TLS certificate | 1) Let's Encrypt, 2) self-signed now, switch later, 3) your own files (see [Certificates](#certificates)) |
+| 8 | Channel prefixes | 1) `~&@%+` owner, admin, op, halfop, voice (the default), 2) `@+` op and voice only |
 | 9 | This server is | 1) on its own, 2) a hub, 3) a leaf. A hub or leaf also gets a link port (7000). A leaf is asked for its hub: name, address (`host` or `host:port`) and fingerprint (`beeircd link-info` on the hub; Enter adds it later). At the end a hub or leaf prints the block the other server pastes, see [Linking servers](ADMIN.md#linking-servers) |
 
 Then one yes/no: **Set up the Hive Panel too?** (default no). Yes adds the
