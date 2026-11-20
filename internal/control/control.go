@@ -136,6 +136,7 @@ type Request struct {
 	Flags  string     `json:"flags,omitempty"` // oper-save: flags on top of the class
 	Hosts  string     `json:"hosts,omitempty"` // oper-save: masks, space or comma between
 	New    bool       `json:"new,omitempty"`   // oper-save, link-save: add, not change
+	Reach  string     `json:"reach,omitempty"` // oper-save: home or network (network owner only); "" keeps it
 	Block  *LinkBlock `json:"block,omitempty"` // link-save
 	Lat    *float64   `json:"lat,omitempty"`   // map-place
 	Lon    *float64   `json:"lon,omitempty"`   // map-place
@@ -323,6 +324,8 @@ type Match struct {
 type Opers struct {
 	Rows    []OperRow   `json:"rows"`
 	Classes []OperClass `json:"classes"`
+	// OwnerView is set for the network owner: only they change Reach.
+	OwnerView bool `json:"owner_view,omitempty"`
 }
 
 // OperRow is one oper entry. The owner (the [services] admin) comes first
@@ -338,6 +341,7 @@ type OperRow struct {
 	Password bool      `json:"password"` // an oper password is set
 	Disabled string    `json:"disabled,omitempty"`
 	Owner    bool      `json:"owner,omitempty"`
+	Reach    string    `json:"reach,omitempty"` // "network": admin powers on every server; "" home
 	AddedBy  string    `json:"added_by,omitempty"`
 	AddedAt  time.Time `json:"added_at,omitzero"`
 }
@@ -359,6 +363,8 @@ type Links struct {
 	Status      []Link      `json:"status"`
 	Places      []MapPlace  `json:"places"`     // where the owner put the servers
 	FindByIP    bool        `json:"find_by_ip"` // [server] find_place_by_ip
+	// OutsideAdmins is [link] outside_admins: network or none.
+	OutsideAdmins string `json:"outside_admins"`
 }
 
 // MapPlace is where a server is on the network map: set by the owner,

@@ -480,6 +480,15 @@ func (b *inspBridge) out(m irc.Message) []string {
 		return nil
 	case "SASL": // :src SASL target uid mode data...
 		return b.outSASL(src, p)
+	case "GLOBOPS": // :uid GLOBOPS :text -> :sid SNONOTICE G :From nick: text
+		if len(p) == 0 || last() == "" {
+			return nil
+		}
+		text := last()
+		if n := b.nicks[src]; n != "" {
+			text = "From " + n + ": " + text
+		}
+		return []string{line(nil, sourceSID(src), "SNONOTICE", true, "G", text)}
 	}
 	if len(m.Command) == 3 && m.Command[0] >= '0' && m.Command[0] <= '9' && len(p) > 0 {
 		// :src 401 uid params -> NUM src uid 401 params
@@ -897,6 +906,13 @@ func (b *inspBridge) outTKL(src string, p []string) []string {
 	case BanGZline, BanQline:
 		mask = p[3]
 	}
+	// InspIRCd names the line's source in its notice ("<nick> added a
+	// timed G-line ..."), so a ban set or removed by someone online goes
+	// from them, not from the server.
+	nick, _, _ := strings.Cut(p[4], "!")
+	if uid := b.ourUID(nick); uid != "" {
+		src = uid
+	}
 	if p[0] == "-" {
 		return []string{line(nil, src, "DELLINE", false, typ, mask)}
 	}
@@ -993,7 +1009,21 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 	}
 	one := func(l string) ([]string, []string) { return []string{l}, nil }
 	switch m.Command {
-	case "BURST", "SINFO", "SNONOTICE", "RSQUIT", "RESYNC", "SVSHOLD", "SVSOPER", "SVSCMODE", "MAP", "RCONNECT":
+	case "SNONOTICE": // :sid SNONOTICE G :text: their GLOBOPS (every other letter is dropped)
+		if len(p) < 2 || (p[0] != "G" && p[0] != "g") {
+			return nil, nil
+		}
+		// "From nick: text" from one of their opers goes on from that
+		// person, so UnrealIRCd shows "from nick: text", not the server.
+		if rest, ok := strings.CutPrefix(p[1], "From "); ok {
+			if nick, text, ok := strings.Cut(rest, ": "); ok {
+				if uid := b.theirUID(nick); uid != "" {
+					return one(line(nil, uid, "GLOBOPS", true, text))
+				}
+			}
+		}
+		return one(line(nil, src, "GLOBOPS", true, p[1]))
+	case "BURST", "SINFO", "RSQUIT", "RESYNC", "SVSHOLD", "SVSOPER", "SVSCMODE", "MAP", "RCONNECT":
 		return nil, nil
 	case "SERVER": // :up SERVER name sid [key=value...] :desc
 		if len(p) < 3 {
@@ -1215,6 +1245,26 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 		return one(line(nil, src, "TSCTL", false, "alltime"))
 	}
 	return nil, nil
+}
+
+// theirUID is the UID of the person on their side with nick, "" when
+// there is none.
+func (b *inspBridge) theirUID(nick string) string { return b.uidByNick(nick, true) }
+
+// ourUID is the UID of the person on our side with nick, "" when there is
+// none.
+func (b *inspBridge) ourUID(nick string) string { return b.uidByNick(nick, false) }
+
+func (b *inspBridge) uidByNick(nick string, theirs bool) string {
+	if nick == "" {
+		return ""
+	}
+	for uid, n := range b.nicks {
+		if len(uid) == 9 && b.behind[sourceSID(uid)] == theirs && irc.Fold(n) == irc.Fold(nick) {
+			return uid
+		}
+	}
+	return ""
 }
 
 // who names a source for people: a nick or a server name.

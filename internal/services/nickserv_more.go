@@ -501,6 +501,9 @@ func (s *Services) unsuspendAccount(a *store.Account) {
 // expireAccountSuspends lifts suspensions that ran out (Anope logs
 // "Expiring suspend for nick").
 func (s *Services) expireAccountSuspends(now time.Time) {
+	if s.readonly {
+		return
+	}
 	for _, a := range s.store.SuspendedAccounts() {
 		if !a.Suspended(now) {
 			s.unsuspendAccount(a)

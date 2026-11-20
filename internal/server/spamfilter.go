@@ -132,6 +132,9 @@ func (s *Server) spamDo(c *Client, r *spamfilter.Rule, t byte, to, text string) 
 	s.svc.SpamHit(r.ID, now)
 	s.snoticeEvery("spamfilter:"+r.Key(), spamNoticeEvery, 'f', "%s", spamNotice(c, r, t, to, now))
 	reason := r.Reason
+	if r.Action != spamfilter.Warn {
+		s.svc.LogBanHit("spamfilter", r.Match, c.logMask(c.nick), r.SetBy, reason)
+	}
 	switch r.Action {
 	case spamfilter.Kill, spamfilter.TempShun, spamfilter.Shun, spamfilter.Gline, spamfilter.Kline, spamfilter.Gzline, spamfilter.Zline:
 		s.autoSpamReport(c, reason)
@@ -156,7 +159,7 @@ func (s *Server) spamDo(c *Client, r *spamfilter.Rule, t byte, to, text string) 
 		return spamGone
 	case spamfilter.Gline, spamfilter.Kline:
 		s.svc.SpamBan(store.BanAkill, c.ip, reason, r.BanTime)
-		s.quit(c, "Banned: "+reason)
+		s.banQuit(c, "Banned", reason)
 		return spamGone
 	case spamfilter.Gzline, spamfilter.Zline:
 		s.svc.SpamBan(store.BanZline, c.ip, reason, r.BanTime)

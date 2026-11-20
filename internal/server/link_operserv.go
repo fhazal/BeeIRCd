@@ -38,6 +38,7 @@ func (s *Server) standIn(uid string) *Client {
 		s.links.stand[uid] = c
 	}
 	c.operFlags = host{s}.OperFlags(uid)
+	c.operReach = s.reachOf(uid)
 	lines := []string{}
 	c.capture = &lines
 	return c
@@ -239,7 +240,7 @@ func osJupe(s *Server, c *Client, args []string) {
 			s.dropLink(r.via, why)
 		} else if r.via != nil {
 			r.via.send(fmt.Sprintf(":%s SQUIT %s :%s", s.cfg.Server.SID, r.name, why))
-			gone, users := s.splitOff(r.sid, s.links.servers[r.uplink].nameOr(r.uplink), r.name)
+			gone, users := s.splitOff(r.sid, s.links.servers[r.uplink].nameOr(r.uplink), r.name, why)
 			s.linkBroadcast(r.via, fmt.Sprintf(":%s SQUIT %s :%s", r.uplink, r.name, why))
 			s.remoteSplit(r.name, s.links.servers[r.uplink].nameOr(r.uplink), why, gone, users)
 		}
@@ -666,11 +667,7 @@ func (s *Server) adminStatus() []string {
 	lines := []string{
 		fmt.Sprintf("%s: BeeIRCd %s, up %s, %d here, %d on the network", s.cfg.Server.Name, version.String(), durShort(time.Since(s.created)), s.localUsers(), total),
 	}
-	remote := "off"
-	if s.cfg.Link.RemoteAdmin {
-		remote = "on"
-	}
-	lines = append(lines, fmt.Sprintf("Role %s, remote_admin %s, services %s", s.cfg.Link.Role, remote, map[bool]string{true: "on", false: "off"}[s.cfg.Services.On()]))
+	lines = append(lines, fmt.Sprintf("Role %s, outside admins %s, services %s", s.cfg.Link.Role, s.cfg.Link.OutsideAdmins, map[bool]string{true: "on", false: "off"}[s.cfg.Services.On()]))
 	return append(lines, s.uplinkLines()...)
 }
 
@@ -722,18 +719,18 @@ func (s *Server) remoteAdmin(l *linkConn, m irc.Message) {
 		}
 		return
 	}
-	if !s.cfg.Link.RemoteAdmin {
-		say("This server doesn't take AdminServ commands from other servers ([link] remote_admin = false). Ask whoever runs it.")
-		s.sno('a', "Refused remote AdminServ from %s (%s on %s): %s", u.Nick, u.Account, u.Server, line)
-		return
-	}
 	c := s.standIn(u.UID)
 	if c == nil {
 		return
 	}
+	if why := s.outsideRefusal(c); why != "" {
+		c.capture = nil
+		say(why)
+		s.sno('a', "Refused outside AdminServ from %s (%s on %s): %s", u.Nick, orStr(u.Account, "no account"), u.Server, line)
+		return
+	}
 	c.adminFrom = u.Server
-	s.sno('a', "Remote AdminServ from %s (%s on %s): %s", u.Nick, orStr(u.Account, "no account"), u.Server, line)
-	s.log.Printf("remote AdminServ from %s (%s on %s): %s", u.Nick, u.Account, u.Server, line)
+	s.outsideNote(c, line)
 	adminCommands()[cmd].run(s, c, args[1:])
 	c.adminFrom = ""
 	s.flushStandIn(c)

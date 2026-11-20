@@ -140,15 +140,27 @@ func (s *Server) remoteBan(l *linkConn, raw irc.Message, b *link.Ban) {
 	if b.Expires > 0 {
 		nb.Expires = time.Unix(b.Expires, 0)
 	}
+	if !b.Add && nb.Reason == "" {
+		// InspIRCd's DELLINE has no reason: the ban we keep has it.
+		for _, have := range s.svc.LinkedBans() {
+			if have.Kind == kind && strings.EqualFold(have.Mask, mask) {
+				nb.Reason = have.Reason
+				break
+			}
+		}
+	}
 	s.banFrom = l
 	changed := s.svc.RemoteBan(nb, b.Add)
 	s.banFrom = nil
 	if changed && l.eos {
+		// UnrealIRCd names the setter nick!user@host; the notice, like
+		// InspIRCd's, names the nick.
+		by, _, _ := strings.Cut(nb.SetBy, "!")
 		switch {
 		case !b.Add:
-			s.snoBanRemoved('X', nb.SetBy, kind, nb.Mask, nb.Reason)
+			s.snoBanRemoved('X', by, kind, nb.Mask, nb.Reason)
 		default:
-			s.snoBanAdded('X', nb.SetBy, kind, nb.Mask, nb.Reason, nb.Expires)
+			s.snoBanAdded('X', by, kind, nb.Mask, nb.Reason, nb.SetAt, nb.Expires)
 		}
 	}
 }
@@ -161,6 +173,7 @@ func (s *Server) enforceBan(b store.NetBan) {
 		return
 	}
 	var hit []*Client
+	var bans []*store.NetBan
 	for _, c := range s.clients {
 		if c.user == nil || c.closed || c.user.Service {
 			continue
@@ -168,10 +181,13 @@ func (s *Server) enforceBan(b store.NetBan) {
 		u := c.user
 		if k := s.svc.ConnectBan(u.TrueIdent(), u.RealHost, u.IP, u.Realname, u.Account != ""); k != nil {
 			hit = append(hit, c)
+			bans = append(bans, k)
 		}
 	}
-	for _, c := range hit {
-		s.reply(c, irc.ErrYoureBannedCreep, "You are banned from this network: "+b.Reason)
-		s.quit(c, "Banned: "+b.Reason)
+	for i, c := range hit {
+		k := bans[i]
+		s.svc.LogBanHit(k.Kind, k.Mask, c.logMask(c.nick), k.SetBy, k.Reason)
+		s.reply(c, irc.ErrYoureBannedCreep, s.cfg.Messages.BanText("You are banned from this network: "+b.Reason))
+		s.banQuit(c, "Banned", b.Reason)
 	}
 }

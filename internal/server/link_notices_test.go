@@ -52,18 +52,18 @@ func TestLinkNotices(t *testing.T) {
 		}
 	})
 	for _, want := range []string{
-		"*** Notice -- Server \x02leaf.test.local\x02 has not responded to PING for 31 seconds, high latency.",
-		"*** Notice -- Server \x02leaf.test.local\x02 is responding to PING again (lag ",
-		"*** Notice -- Server \x02leaf.test.local\x02 split: test split",
-		"*** Notice -- Netsplit complete, lost \x022\x02 users on \x021\x02 server.",
-		"*** Notice -- Connection to '\x02leaf.test.local\x02' was established for 3 minutes, 4 seconds",
+		"*** LINK: Server \x02leaf.test.local\x02 has not responded to PING for 31 seconds, high latency.",
+		"*** LINK: Server \x02leaf.test.local\x02 is responding to PING again (lag ",
+		"*** LINK: Server \x02leaf.test.local\x02 split: test split",
+		"*** LINK: Netsplit complete, lost \x022\x02 users on \x021\x02 server.",
+		"*** LINK: Connection to '\x02leaf.test.local\x02' was established for 3 minutes and 4 seconds",
 	} {
 		op.expect(want)
 	}
 	for _, want := range []string{
 		"Server leaf.test.local split: test split",
 		"Netsplit complete, lost 2 users on 1 server.",
-		"Connection to 'leaf.test.local' was established for 3 minutes, 4 seconds",
+		"Connection to 'leaf.test.local' was established for 3 minutes and 4 seconds",
 	} {
 		if !hub.logHas(want) {
 			t.Errorf("no %q in:\n%s", want, hub.log.String())
@@ -105,8 +105,8 @@ func TestLinkPortFailedThrottle(t *testing.T) {
 		hub.s.linkPortFailed(a2, "TLS handshake failed: second")
 		hub.s.linkPortFailed(b, "TLS handshake failed: other")
 	})
-	op.expect("*** Notice -- Server connection from 192.0.2.1 failed: TLS handshake failed: first")
-	op.expect("*** Notice -- Server connection from 192.0.2.2 failed: TLS handshake failed: other")
+	op.expect("*** LINK: Server connection from 192.0.2.1 failed: TLS handshake failed: first")
+	op.expect("*** LINK: Server connection from 192.0.2.2 failed: TLS handshake failed: other")
 	op.quiet("192.0.2.1")
 
 	// 10 seconds on, the same address is told again
@@ -114,7 +114,7 @@ func TestLinkPortFailedThrottle(t *testing.T) {
 		hub.s.noticeAt["linkport:192.0.2.1"] = time.Now().Add(-linkPortNoticeEvery)
 		hub.s.linkPortFailed(a, "TLS handshake failed: later")
 	})
-	op.expect("*** Notice -- Server connection from 192.0.2.1 failed: TLS handshake failed: later")
+	op.expect("*** LINK: Server connection from 192.0.2.1 failed: TLS handshake failed: later")
 }
 
 func TestLongDuration(t *testing.T) {
@@ -122,12 +122,12 @@ func TestLongDuration(t *testing.T) {
 		0:                                 "0 seconds",
 		time.Second:                       "1 second",
 		45 * time.Second:                  "45 seconds",
-		15*time.Minute + 3*time.Second:    "15 minutes, 3 seconds",
-		time.Hour + 30*time.Second:        "1 hour, 30 seconds",
-		4*24*time.Hour + 2*time.Hour:      "4 days, 2 hours",
-		9 * 24 * time.Hour:                "1 week, 2 days",
-		400 * 24 * time.Hour:              "1 year, 5 weeks",
-		400*24*time.Hour + 61*time.Second: "1 year, 5 weeks, 1 minute, 1 second",
+		15*time.Minute + 3*time.Second:    "15 minutes and 3 seconds",
+		time.Hour + 30*time.Second:        "1 hour and 30 seconds",
+		4*24*time.Hour + 2*time.Hour:      "4 days and 2 hours",
+		9 * 24 * time.Hour:                "1 week and 2 days",
+		400 * 24 * time.Hour:              "1 year and 5 weeks",
+		400*24*time.Hour + 61*time.Second: "1 year, 5 weeks, 1 minute and 1 second",
 	} {
 		if got := longDuration(d); got != want {
 			t.Errorf("longDuration(%v) = %q, want %q", d, got, want)

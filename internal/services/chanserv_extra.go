@@ -676,6 +676,9 @@ func (s *Services) unsuspend(reg *store.Channel) {
 
 // expireSuspends opens channels whose suspension ran out.
 func (s *Services) expireSuspends(now time.Time) {
+	if s.readonly {
+		return
+	}
 	all, err := s.store.Channels()
 	if err != nil {
 		return

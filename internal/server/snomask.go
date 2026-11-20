@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
@@ -18,17 +19,63 @@ import (
 //	x/X bans set here / from other servers f spam filter
 //	d DNSBL                                l/L server links / further away
 //	n/N nick changes here / elsewhere      t STATS requests
+//	g/G oper chat (GLOBOPS) here / elsewhere
 //	v oper override
 const (
 	// snomaskLetters are all the letters a mask may hold.
-	snomaskLetters = "acdfklnoqrtvxCKLNOQX"
+	snomaskLetters = "acdfgklnoqrtvxCGKLNOQX"
 	// snomaskDefault is what +s without letters gives: everything opers
 	// got before snomasks, so n, N, t, C, Q and v are off.
-	snomaskDefault = "acdfkloqrxKLOX"
+	snomaskDefault = "acdfgkloqrxGKLOX"
 )
 
+// snoCategory is the word that starts a server notice with letter, like
+// InspIRCd 4 ("*** CONNECT: Client connecting ..."): a capital letter is the
+// same news from another server, so only the letters InspIRCd words that way
+// get a REMOTE prefix.
+func snoCategory(letter byte) string {
+	switch letter {
+	case 'c':
+		return "CONNECT"
+	case 'C':
+		return "REMOTECONNECT"
+	case 'q':
+		return "QUIT"
+	case 'Q':
+		return "REMOTEQUIT"
+	case 'o', 'O':
+		return "OPER"
+	case 'x', 'X':
+		return "XLINE"
+	case 'k', 'K':
+		return "KILL"
+	case 'r':
+		return "REHASH"
+	case 't':
+		return "STATS"
+	case 'l':
+		return "LINK"
+	case 'L':
+		return "REMOTELINK"
+	case 'f':
+		return "FILTER"
+	case 'd':
+		return "DNSBL"
+	case 'n':
+		return "NICK"
+	case 'N':
+		return "REMOTENICK"
+	case 'g', 'G':
+		return "GLOBOPS"
+	case 'v':
+		return "OVERRIDE"
+	}
+	return "ANNOUNCEMENT"
+}
+
 // applySnomask changes the mask cur by change: "+cq-k" adds c and q and
-// takes k away, "cqk" (no sign) adds. Unknown letters are left out. The
+// takes k away, "cqk" (no sign) adds, "+*" adds every letter and "-*" takes
+// them all away. Unknown letters are left out. The
 // result lists the letters lowercase first, then uppercase.
 func applySnomask(cur, change string) string {
 	var set [128]bool
@@ -42,6 +89,10 @@ func applySnomask(cur, change string) string {
 			add = true
 		case l == '-':
 			add = false
+		case l == '*':
+			for j := 0; j < len(snomaskLetters); j++ {
+				set[snomaskLetters[j]] = add
+			}
 		case strings.IndexByte(snomaskLetters, l) >= 0:
 			set[l] = add
 		}
@@ -102,15 +153,27 @@ func (s *Server) setUserModeLine(c *Client, srcUID, line string) bool {
 }
 
 // snoWho is how a server notice names u, like InspIRCd 4: its real mask
-// and IP, "nick!ident@host (ip)".
+// and IP, "nick (ident@host) [ip]".
 func snoWho(u *state.User) string {
-	return u.Nick + "!" + u.TrueIdent() + "@" + u.RealHost + " (" + u.IP + ")"
+	return u.Nick + " (" + u.TrueIdent() + "@" + u.RealHost + ") [" + u.IP + "]"
 }
 
-// snoDate is a time the way InspIRCd's notices give it ("Thu Nov 19
-// 11:00:00 2026"), in UTC.
+// snoRealMask is u's real mask, "nick!ident@host", the way InspIRCd 4's
+// connect, quit and kill notices name a user (GetRealMask).
+func snoRealMask(u *state.User) string {
+	return u.Nick + "!" + u.TrueIdent() + "@" + u.RealHost
+}
+
+// snoMaskIP is the real mask and IP, "nick!ident@host (ip)", as InspIRCd 4's
+// connect and quit notices give them.
+func snoMaskIP(u *state.User) string {
+	return snoRealMask(u) + " (" + u.IP + ")"
+}
+
+// snoDate is a time the way InspIRCd 4's notices give it ("Thu 19 Nov 2026
+// 11:00:00"), in UTC.
 func snoDate(t time.Time) string {
-	return t.UTC().Format("Mon Jan 2 15:04:05 2006")
+	return t.UTC().Format("Mon 2 Jan 2006 15:04:05")
 }
 
 // connClass is the class a connect notice names: BeeIRCd has no connect
@@ -123,13 +186,15 @@ func connClass(u *state.User) string {
 	return "unknown-users"
 }
 
-// operType is the "type" an oper-up notice names: the oper class, or the
-// flags for an entry without one.
-func operType(class, flags string) string {
-	if class != "" {
-		return class
+// snoOperUp is InspIRCd 4's oper-up notice after who (snoWho): "is now a
+// server operator of type <b>Network Administrator</b> (using account
+// <b>name</b>)." (core_oper.cpp), without the account part when there is
+// none (a remote oper, opertype.cpp without ~name).
+func snoOperUp(who, rank, account string) string {
+	if account == "" {
+		return who + " is now a server operator of type \x02" + rank + "\x02."
 	}
-	return flags
+	return who + " is now a server operator of type \x02" + rank + "\x02 (using account \x02" + account + "\x02)."
 }
 
 // operFail is the server notice for a failed /OPER as account by u,
@@ -140,10 +205,11 @@ func (s *Server) operFail(letter byte, u *state.User, account, why string) {
 }
 
 // operFailWhy is the reason for operFail from the answer the services
-// server gave a /OPER relayed to it.
-func operFailWhy(answer string) string {
+// server gave a /OPER relayed to it. wrongPw is the [messages]
+// reject_password text, matched as well as the built-in one.
+func operFailWhy(answer, wrongPw string) string {
 	switch {
-	case answer == "Password incorrect":
+	case answer == config.DefaultRejectPassword, answer == wrongPw:
 		return "they specified the wrong password"
 	case strings.HasPrefix(answer, "Too many wrong passwords"):
 		return "they tried too many wrong passwords"
@@ -169,15 +235,16 @@ func (s *Server) serverSynced(sid string) bool {
 
 // snoBanAdded is InspIRCd's notice for a new ban: "nick added a timed
 // G-line on mask, expires in 1 hour (on <date>): reason", or "a permanent
-// G-line" when expires is zero.
-func (s *Server) snoBanAdded(letter byte, by, kind, mask, reason string, expires time.Time) {
+// G-line" when expires is zero. The time it names is the ban's own length,
+// expires less setAt, like InspIRCd's ADDLINE duration.
+func (s *Server) snoBanAdded(letter byte, by, kind, mask, reason string, setAt, expires time.Time) {
 	if !expires.IsZero() {
-		left := time.Until(expires).Round(time.Second)
-		if left < time.Second {
-			left = time.Second
+		life := expires.Sub(setAt).Round(time.Second)
+		if life < time.Second {
+			life = time.Second
 		}
 		s.sno(letter, "%s added a timed %s on %s, expires in %s (on %s): %s",
-			by, store.BanWord(kind), mask, longDuration(left), snoDate(expires), reason)
+			by, store.BanWord(kind), mask, longDuration(life), snoDate(expires), reason)
 		return
 	}
 	s.sno(letter, "%s added a permanent %s on %s: %s", by, store.BanWord(kind), mask, reason)
@@ -216,5 +283,5 @@ func (s *Server) snoRemoteQuit(u *state.User, reason string) {
 	if u.Service || s.ours(u.UID) || !s.serverSynced(uidServer(u.UID)) {
 		return
 	}
-	s.snoOnly('Q', "Client exiting on server "+u.Server+": "+snoWho(u)+" ["+reason+"]")
+	s.snoOnly('Q', "Client exiting on server "+u.Server+": "+snoMaskIP(u)+" ["+reason+"]")
 }

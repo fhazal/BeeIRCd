@@ -580,6 +580,7 @@ func (s *Server) linkUp(l *linkConn) {
 	others := s.burstServers(l)
 	s.links.servers[p.SID] = &remoteServer{name: p.Name, sid: p.SID, desc: p.Description, uplink: s.cfg.Server.SID, hops: 1, via: l,
 		software: p.Software, protocol: p.Protocol}
+	s.svc.LogServerJoin(p.Name, p.Description, s.cfg.Server.Name)
 	if r := s.links.retry[strings.ToLower(p.Name)]; r != nil {
 		r.wait, r.lastErr = 0, ""
 	}
@@ -744,7 +745,11 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		s.remoteReputation(l, m)
 	case "SINFO":
 		s.linkSINFO(l, m)
-	case "SMOD", "GLOBOPS", "SENDUMODE", "SENDSNO", "SLOG", "SWHOIS", "BOTMOTD":
+	case "GLOBOPS":
+		s.remoteGlobops(l, m)
+	case "SENDUMODE":
+		s.remoteSendUmode(l, m)
+	case "SMOD", "SENDSNO", "SLOG", "SWHOIS", "BOTMOTD":
 		// Server info, module lists and notices for opers: nothing to do,
 		// and nothing worth a log line.
 	default:
@@ -823,6 +828,7 @@ func (s *Server) linkSID(l *linkConn, m irc.Message) {
 	}
 	r := &remoteServer{name: name, sid: sid, desc: desc, uplink: up.sid, hops: up.hops + 1, via: l}
 	s.links.servers[sid] = r
+	s.svc.LogServerJoin(name, desc, up.name)
 	s.linkBroadcast(l, fmt.Sprintf(":%s SID %s %d %s :%s", up.sid, name, r.hops+1, sid, desc))
 	s.lnotice("Server \x02%s\x02 introduced server \x02%s\x02 (%s)", up.name, name, desc)
 }
@@ -853,7 +859,7 @@ func (s *Server) linkSQUIT(l *linkConn, m irc.Message) {
 		s.dropLink(l, "they ended the link: "+reason)
 		return
 	}
-	gone, users := s.splitOff(r.sid, s.links.servers[r.uplink].nameOr(r.uplink), r.name)
+	gone, users := s.splitOff(r.sid, s.links.servers[r.uplink].nameOr(r.uplink), r.name, reason)
 	s.linkBroadcast(l, fmt.Sprintf(":%s SQUIT %s :%s", r.uplink, r.name, reason))
 	s.remoteSplit(r.name, s.links.servers[r.uplink].nameOr(r.uplink), reason, gone, users)
 }
@@ -895,8 +901,8 @@ func countOf(n int, what string) string {
 
 // splitOff removes a server and everything behind it, with the users on
 // them (quit reason "near far"); it returns how many servers and users
-// went.
-func (s *Server) splitOff(sid, near, far string) (servers, users int) {
+// went. reason goes in the services log line.
+func (s *Server) splitOff(sid, near, far, reason string) (servers, users int) {
 	gone := map[string]bool{sid: true}
 	for changed := true; changed; {
 		changed = false
@@ -906,11 +912,41 @@ func (s *Server) splitOff(sid, near, far string) (servers, users int) {
 			}
 		}
 	}
+	s.logSplit(gone, reason)
 	users = s.quitSplit(gone, near, far)
 	for k := range gone {
 		delete(s.links.servers, k)
 	}
 	return len(gone), users
+}
+
+// logSplit posts a services log line for each server in gone, nearest
+// first.
+func (s *Server) logSplit(gone map[string]bool, reason string) {
+	var rs []*remoteServer
+	for sid := range gone {
+		if r := s.links.servers[sid]; r != nil {
+			rs = append(rs, r)
+		}
+	}
+	sort.Slice(rs, func(i, j int) bool {
+		if rs[i].hops != rs[j].hops {
+			return rs[i].hops < rs[j].hops
+		}
+		return rs[i].name < rs[j].name
+	})
+	for _, r := range rs {
+		s.svc.LogServerSplit(r.name, r.desc, s.uplinkName(r.uplink), reason)
+	}
+}
+
+// uplinkName is the name of the server with SID sid: this one or a linked
+// one.
+func (s *Server) uplinkName(sid string) string {
+	if sid == s.cfg.Server.SID {
+		return s.cfg.Server.Name
+	}
+	return s.links.servers[sid].nameOr(sid)
 }
 
 // linkNetinfo is "NETINFO maxglobal ts protocol cloakhash 0 0 0 :network".
@@ -968,6 +1004,7 @@ func (s *Server) dropLink(l *linkConn, reason string) {
 			behind[sid] = true
 		}
 	}
+	s.logSplit(behind, reason)
 	users := s.quitSplit(behind, s.cfg.Server.Name, l.peer.Name)
 	for sid := range behind {
 		delete(s.links.servers, sid)
@@ -1033,7 +1070,7 @@ func orStr(a, b string) string {
 
 // longDuration writes a duration the way InspIRCd's
 // Duration::ToLongString does, every non-zero unit: "45 seconds",
-// "15 minutes, 3 seconds", "1 week, 2 days, 3 hours, 5 minutes".
+// "15 minutes and 3 seconds", "1 week, 2 days, 3 hours and 5 minutes".
 func longDuration(d time.Duration) string {
 	secs := int64(d / time.Second)
 	if secs <= 0 {
@@ -1050,7 +1087,7 @@ func longDuration(d time.Duration) string {
 			secs -= n * u.n
 		}
 	}
-	return strings.Join(parts, ", ")
+	return config.JoinWords(parts)
 }
 
 // linkTick handles handshake timeouts, pings and autoconnect.

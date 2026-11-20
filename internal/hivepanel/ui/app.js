@@ -1668,6 +1668,253 @@
     };
   }
 
+  // Messages ([messages]): fixed quit/part texts, quit hiding and the ban contact.
+  function messagesCard() {
+    const count = h('span');
+    const undoBtn = h('button', { type: 'button', class: 'btn ghost', text: 'Undo' });
+    const saveBtn = h('button', { type: 'button', class: 'btn main', text: 'Save' });
+    const bar = h('div', { class: 'unsaved', hidden: true }, count, h('div', { class: 'row-btns' }, undoBtn, ' ', saveBtn));
+    const body = h('div');
+    const el = h('section', { class: 'card', hidden: true }, h('h2', { text: 'Messages' }),
+      h('p', { class: 'note', text: 'Texts people see when they quit, part, get turned away or banned. Empty means the built-in text.' }),
+      body, bar);
+    let set = {}, fields = [], load = async () => {};
+
+    // "10s", "1m30s", "1h", a bare number of seconds, "off" or "0": seconds, or -1.
+    function secsOf(v) {
+      v = v.trim().toLowerCase();
+      if (v === 'off' || v === '0') return 0;
+      if (/^\d+$/.test(v)) return Number(v);
+      const m = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/.exec(v);
+      return m && v !== '' ? Number(m[1] || 0) * 3600 + Number(m[2] || 0) * 60 + Number(m[3] || 0) : -1;
+    }
+    const isOff = v => v === '' || v.toLowerCase() === 'off';
+    const NAMES = ['static-quit', 'static-part', 'quit-message-min-time', 'quit-prefix', 'reject-full', 'reject-too-many', 'reject-password',
+      'ban-notice', 'ban-contact', 'ban-quit', 'hide-killed-by'];
+    const GROUP = {};
+    for (const n of NAMES.slice(0, 4)) GROUP[n] = 'Quit and part';
+    for (const n of NAMES.slice(4, 7)) GROUP[n] = 'Turned away';
+    for (const n of NAMES.slice(7)) GROUP[n] = 'Bans and kills';
+    const textRow = (id, label, max, cls) => {
+      const input = h('input', { class: 'in', id, type: 'text', autocomplete: 'off', maxlength: String(max), 'aria-describedby': id + '-hint' });
+      const hint = h('span', { class: 'hint', id: id + '-hint' });
+      return { input, hint, row: h('label', { class: cls || 'f ap-row', for: id }, label, input, hint) };
+    };
+    const mk = (name, label, loaded) => ({ name, label, loaded, ok: true, dirty: false, now: () => '', draw() {}, reset() {} });
+
+    function build() {
+      fields = [];
+      if (set['static-quit']) {
+        const s = set['static-quit'];
+        const f = mk('static-quit', 'Quit message for everyone', isOff(s.value) ? 'off' : s.value);
+        const t = textRow('msg-static-quit', f.label, 300);
+        f.row = t.row; f.input = t.input; f.hint = t.hint;
+        f.reset = () => { t.input.value = f.loaded === 'off' ? '' : f.loaded; };
+        f.now = () => t.input.value.trim() || 'off';
+        f.draw = () => {
+          f.ok = t.input.value.trim().length <= 300;
+          f.err = 'At most 300 characters.';
+          f.was = f.loaded === 'off' ? 'off' : f.loaded;
+          f.base = 'Empty is off. Everyone\'s quit reason becomes this text.';
+        };
+        fields.push(f);
+      }
+      if (set['static-part']) {
+        const s = set['static-part'];
+        const v = s.value.trim();
+        const mode0 = isOff(v) || v.toLowerCase() === 'no' ? 'keep' : v.toLowerCase() === 'yes' ? 'remove' : 'replace';
+        const f = mk('static-part', 'Part messages', mode0 === 'keep' ? 'off' : mode0 === 'remove' ? 'yes' : v);
+        let mode = mode0;
+        const t = textRow('msg-static-part', 'Text people see instead', 300, 'f');
+        const btns = [['keep', 'Keep'], ['remove', 'Remove'], ['replace', 'Replace with text']].map(([m, lab]) =>
+          h('button', { type: 'button', text: lab, 'aria-pressed': 'false', 'data-mode': m }));
+        const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Part messages' }, ...btns);
+        const hint = h('span', { class: 'hint', id: 'msg-static-part-hint' });
+        f.row = h('div', { class: 'f ap-row' }, 'Part messages', seg, t.row, hint);
+        f.input = t.input; f.hint = hint;
+        t.hint.hidden = true;
+        f.reset = () => { mode = mode0; t.input.value = mode0 === 'replace' ? v : ''; };
+        f.now = () => mode === 'keep' ? 'off' : mode === 'remove' ? 'yes' : t.input.value.trim();
+        f.draw = () => {
+          btns.forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === mode ? 'true' : 'false'));
+          t.row.hidden = mode !== 'replace';
+          f.ok = mode !== 'replace' || (t.input.value.trim() !== '' && t.input.value.trim().length <= 300);
+          f.err = t.input.value.trim() === '' ? 'Write the text people will see instead.' : 'At most 300 characters.';
+          f.was = mode0 === 'keep' ? 'Keep' : mode0 === 'remove' ? 'Remove' : 'Replace with "' + v + '"';
+          f.base = 'Remove drops the reason from every part.';
+        };
+        btns.forEach(b => b.addEventListener('click', () => { mode = b.dataset.mode; check(f); if (mode === 'replace') t.input.focus(); }));
+        fields.push(f);
+      }
+      if (set['quit-message-min-time']) {
+        const s = set['quit-message-min-time'];
+        const f = mk('quit-message-min-time', 'Hide quit messages of people online less than', isOff(s.value) ? 'off' : s.value);
+        const t = textRow('msg-quit-min', f.label, 12);
+        t.input.classList.add('mono');
+        f.row = t.row; f.input = t.input; f.hint = t.hint;
+        f.reset = () => { t.input.value = f.loaded === 'off' ? '0' : f.loaded; };
+        f.now = () => secsOf(t.input.value) === 0 ? 'off' : t.input.value.trim().toLowerCase();
+        f.dirtyNow = () => secsOf(t.input.value) !== secsOf(f.loaded);
+        f.draw = () => {
+          const n = secsOf(t.input.value);
+          f.ok = n >= 0 && n <= 3600;
+          f.err = 'Use a time like 10s or 1m, up to 1h. 0 is off.';
+          f.was = f.loaded === 'off' ? '0' : f.loaded;
+          f.base = '0 for off. Up to 1h. Not used when a quit message for everyone is set.';
+        };
+        fields.push(f);
+      }
+      if (set['quit-prefix']) {
+        // The server sends "Quit: " in quotes (or none); a typed prefix goes back in quotes so a trailing space stays.
+        const s = set['quit-prefix'];
+        let raw = s.value;
+        if (raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"')) raw = raw.slice(1, -1);
+        const norm = v => v.trim().toLowerCase() === 'none' ? 'none' : v.trim() === '' || v === 'Quit: ' ? '' : v;
+        const f = mk('quit-prefix', 'Quit prefix', norm(raw));
+        const t = textRow('msg-quit-prefix', f.label, 300);
+        t.input.placeholder = 'Quit: ';
+        f.row = t.row; f.input = t.input; f.hint = t.hint;
+        f.reset = () => { t.input.value = f.loaded; };
+        f.now = () => { const v = norm(t.input.value); return v === '' ? 'default' : v === 'none' ? 'none' : '"' + t.input.value + '"'; };
+        f.dirtyNow = () => norm(t.input.value) !== f.loaded;
+        f.draw = () => {
+          f.ok = t.input.value.length <= 300;
+          f.err = 'At most 300 characters.';
+          f.was = f.loaded === '' ? 'Quit: ' : f.loaded === 'none' ? 'none' : '"' + f.loaded + '"';
+          f.base = 'Shown before a quit reason. Empty is "Quit: ". Write none for no prefix.';
+        };
+        fields.push(f);
+      }
+      // A text with a built-in default: empty puts the built-in text back ("default" for the server).
+      const builtin = (name, label, dflt) => {
+        if (!set[name]) return;
+        const v = set[name].value.trim();
+        const f = mk(name, label, v === '' || v.toLowerCase() === 'default' || v === dflt ? 'default' : v);
+        const t = textRow('msg-' + name, label, 300);
+        t.input.placeholder = dflt;
+        f.row = t.row; f.input = t.input; f.hint = t.hint;
+        f.reset = () => { t.input.value = f.loaded === 'default' ? '' : f.loaded; };
+        f.now = () => t.input.value.trim() || 'default';
+        f.draw = () => {
+          f.ok = t.input.value.trim().length <= 300;
+          f.err = 'At most 300 characters.';
+          f.was = f.loaded === 'default' ? 'the built-in text' : f.loaded;
+          f.base = 'Empty uses the built-in text shown in grey.';
+        };
+        fields.push(f);
+      };
+      builtin('reject-full', 'Server full', 'This server is full. Please try again later.');
+      builtin('reject-too-many', 'Too many from one IP', 'Too many connections from your IP');
+      builtin('reject-password', 'Wrong password', 'Password incorrect');
+      // A text where empty is off.
+      const offText = (name, label, base) => {
+        if (!set[name]) return;
+        const s = set[name];
+        const f = mk(name, label, isOff(s.value) ? 'off' : s.value);
+        const t = textRow('msg-' + name, label, 300);
+        f.row = t.row; f.input = t.input; f.hint = t.hint;
+        f.reset = () => { t.input.value = f.loaded === 'off' ? '' : f.loaded; };
+        f.now = () => t.input.value.trim() || 'off';
+        f.draw = () => {
+          const v = t.input.value.trim();
+          f.ok = v.length <= 300;
+          f.err = 'At most 300 characters.';
+          f.was = f.loaded === 'off' ? 'off' : f.loaded;
+          f.base = base(v);
+        };
+        fields.push(f);
+      };
+      offText('ban-notice', 'Notice to banned people', () => 'Sent to a banned person just before they are disconnected. Empty is off.');
+      offText('ban-contact', 'Ban contact', v => v ? 'Banned people see: "… Email ' + v + ' for more information."' : 'Off');
+      if (set['ban-quit']) {
+        const s = set['ban-quit'];
+        const v = s.value.trim();
+        const mode0 = isOff(v) || v.toLowerCase() === 'no' ? 'keep' : v.toLowerCase() === 'yes' ? 'remove' : 'replace';
+        const f = mk('ban-quit', 'Others see a ban as', mode0 === 'keep' ? 'off' : mode0 === 'remove' ? 'yes' : v);
+        let mode = mode0;
+        const t = textRow('msg-ban-quit', 'Text others see instead', 300, 'f');
+        const btns = [['keep', 'Banned: reason'], ['remove', 'Banned'], ['replace', 'Own text']].map(([m, lab]) =>
+          h('button', { type: 'button', text: lab, 'aria-pressed': 'false', 'data-mode': m }));
+        const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Others see a ban as' }, ...btns);
+        const hint = h('span', { class: 'hint', id: 'msg-ban-quit-hint' });
+        f.row = h('div', { class: 'f ap-row' }, 'Others see a ban as', seg, t.row, hint);
+        f.input = t.input; f.hint = hint;
+        t.hint.hidden = true;
+        f.reset = () => { mode = mode0; t.input.value = mode0 === 'replace' ? v : ''; };
+        f.now = () => mode === 'keep' ? 'off' : mode === 'remove' ? 'yes' : t.input.value.trim();
+        f.draw = () => {
+          btns.forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === mode ? 'true' : 'false'));
+          t.row.hidden = mode !== 'replace';
+          const own = t.input.value.trim();
+          const clash = ['yes', 'no', 'off'].includes(own.toLowerCase());
+          f.ok = mode !== 'replace' || (own !== '' && own.length <= 300 && !clash);
+          f.err = own === '' ? 'Write the text others will see instead.' : clash ? 'Write a different text.' : 'At most 300 characters.';
+          f.was = mode0 === 'keep' ? 'Banned: reason' : mode0 === 'remove' ? 'Banned' : 'Own text "' + v + '"';
+          f.base = 'What everyone else sees as the quit reason of a banned person.';
+        };
+        btns.forEach(b => b.addEventListener('click', () => { mode = b.dataset.mode; check(f); if (mode === 'replace') t.input.focus(); }));
+        fields.push(f);
+      }
+      offText('hide-killed-by', 'Show kills as done by', () => 'Empty shows the real oper. Opers always see who really did it.');
+      for (const f of fields) {
+        f.reset();
+        f.input.addEventListener('input', () => check(f));
+        f.input.addEventListener('keydown', e => { if (e.key === 'Enter' && !saveBtn.disabled) saveBtn.click(); });
+      }
+      const rows = [];
+      let last = '';
+      for (const f of fields) {
+        const g = GROUP[f.name];
+        if (g !== last) rows.push(h('div', { class: 'grp msg-grp', text: g }));
+        last = g;
+        rows.push(f.row);
+      }
+      put(body, ...rows);
+      fields.forEach(check);
+      if (!fields.length) bar.hidden = true;
+    }
+    function check(f) {
+      f.draw();
+      f.dirty = f.dirtyNow ? f.dirtyNow() : f.now().toLowerCase() !== f.loaded.toLowerCase();
+      f.row.classList.toggle('changed', f.ok && f.dirty);
+      f.input.classList.toggle('wrong', !f.ok);
+      f.hint.classList.toggle('wrong', !f.ok);
+      f.hint.textContent = !f.ok ? f.err : f.dirty ? 'was ' + f.was : f.base;
+      const n = fields.filter(x => x.dirty).length;
+      bar.hidden = n === 0;
+      count.textContent = n === 1 ? '1 unsaved change' : n + ' unsaved changes';
+      saveBtn.disabled = fields.some(x => x.dirty && !x.ok);
+    }
+    undoBtn.addEventListener('click', build);
+    saveBtn.addEventListener('click', () => busy(saveBtn, async () => {
+      const done = [];
+      for (const f of fields.filter(x => x.dirty && x.ok)) {
+        try {
+          const d = await api('POST', '/api/set', { name: f.name, value: f.now() });
+          done.push(d.changed);
+          set[f.name].value = d.changed.new;
+        } catch (e) { toastErr(f.label + ' was not saved: ' + e.message); }
+      }
+      build();
+      if (!done.length) return;
+      toast(['Messages saved and applied'], async () => {
+        for (const c of done.slice().reverse()) if (c.id) await api('POST', '/api/undo', { id: c.id });
+        await load();
+        toast(['Put back as it was']);
+      });
+    }));
+    return {
+      el,
+      fill(byName, reload) {
+        load = reload;
+        set = {};
+        for (const n of NAMES) if (byName[n]) set[n] = Object.assign({}, byName[n]);
+        el.hidden = !Object.keys(set).length;
+        if (!el.hidden) build();
+      },
+    };
+  }
+
   function settingsPage() {
     const aj = autoJoinCard();
     const grid = h('div', { class: 'grid2' }, h('p', { class: 'empty', text: 'Loading…' }));
@@ -1699,6 +1946,7 @@
         if (byName.members) { membersCard.hidden = false; membersBox.checked = byName.members.value === 'on'; }
         aj.fill(byName, load);
         ls.fill(byName, load);
+        ms.fill(byName, load);
         fields.length = 0;
         put(grid, ...LIMITS.filter(l => byName[l.name]).map(l => {
           const s = byName[l.name];
@@ -1769,6 +2017,7 @@
     const backups = me.owner ? backupsCard() : null;
     const mailBox = me.owner ? mailCard() : null;
     const ls = loginSpamCard();
+    const ms = messagesCard();
 
     // Member sign-in: people with a registered nick get their own pages
     // (Home, Chat, My nick, My channels, Memos), never the admin ones.
@@ -1798,6 +2047,7 @@
         h('section', { class: 'card' }, h('h2', { text: 'Server actions' }), actions)),
       aj.el,
       ls.el,
+      ms.el,
       membersCard,
       mailBox && mailBox.el,
       backups && backups.el);
@@ -2885,7 +3135,8 @@
         const btn = h('button', { type: 'button', class: 'rowbtn', 'aria-expanded': r.account === open ? 'true' : 'false' },
           r.account, r.owner ? icon('lock', 'lock') : null);
         const tr = h('tr', { class: 'person' + (r.account === open ? ' open' : '') },
-          h('td', {}, btn, r.disabled ? [' ', h('span', { class: 'tag', text: 'disabled' })] : null),
+          h('td', {}, btn, r.reach === 'network' ? [' ', h('span', { class: 'tag', text: 'network' })] : null,
+            r.disabled ? [' ', h('span', { class: 'tag', text: 'disabled' })] : null),
           h('td', { text: r.class || '—' }),
           h('td', {}, chips(r.all || '')),
           h('td', { class: 'mono', text: (r.hosts || []).join(' ') }),
@@ -2937,6 +3188,22 @@
       drawPicks();
       const hosts = h('input', { class: 'in mono', id: 'op-hosts', type: 'text', autocomplete: 'off', value: r.hosts.join(' '), placeholder: '*@192.168.50.* or *@*' });
       const pw = h('input', { class: 'in', id: 'op-pw', type: 'password', autocomplete: 'new-password', placeholder: adding ? 'At least 8 characters' : (r.password ? 'Leave empty to keep' : 'None set yet: set one') });
+      const ownerView = !!data.owner_view;
+      const reachNow = r.reach === 'network' ? 'network' : 'home';
+      const reachRadios = {};
+      const reachField = h('fieldset', { class: 'f plain' }, h('legend', { class: 'lbl', text: 'Reach' }));
+      if (ownerView) {
+        reachField.append(h('div', { class: 'picks' }, [['home', 'Home server only'], ['network', 'Whole network']].map(([v, t]) => {
+          const rb = h('input', { type: 'radio', name: 'op-reach', value: v });
+          rb.checked = v === reachNow;
+          reachRadios[v] = rb;
+          return h('label', { class: 'pk' }, rb, ' ' + t);
+        })),
+        h('span', { class: 'note', text: 'Whole network: their admin commands work on every server that takes outside admins.' }));
+      } else {
+        reachField.append(h('p', { text: reachNow === 'network' ? 'Whole network' : 'Home server only' }),
+          h('span', { class: 'note', text: 'Only the network owner can change this.' }));
+      }
       const err = h('span', { class: 'err', role: 'alert' });
       const save = h('button', { type: 'button', class: 'btn main', text: adding ? 'Add oper' : 'Save' });
       save.addEventListener('click', () => busy(save, async () => {
@@ -2948,7 +3215,9 @@
         if (!hosts.value.trim()) { err.textContent = 'Say where they may /oper from, like *@*'; hosts.focus(); return; }
         if (pw.value && pw.value.length < 8) { err.textContent = 'The oper password needs at least 8 characters.'; pw.focus(); return; }
         try {
-          const d = await api('POST', '/api/oper-save', { name, class: cls.value, flags: own, hosts: hosts.value, password: pw.value, new: adding });
+          const body = { name, class: cls.value, flags: own, hosts: hosts.value, password: pw.value, new: adding };
+          if (ownerView) body.reach = reachRadios.network.checked ? 'network' : 'home';
+          const d = await api('POST', '/api/oper-save', body);
           pw.value = '';
           const c = d.changed;
           open = c.name;
@@ -2976,6 +3245,7 @@
         h('label', { class: 'f', for: 'op-class' }, 'Class', cls),
         h('fieldset', { class: 'f plain' }, h('legend', { class: 'lbl', text: 'Flags' }), picks),
         h('span', { class: 'note', text: 'You can give and take only the flags you have.' }),
+        reachField,
         h('label', { class: 'f', for: 'op-hosts' }, 'Allowed from', hosts),
         h('label', { class: 'f', for: 'op-pw' }, adding ? 'Oper password' : 'New oper password', pw),
         err,
@@ -3015,7 +3285,9 @@
         h('div', { class: 'wrap' }, h('table', { class: 'links' },
           h('thead', {}, h('tr', {}, ['Server', 'State', 'Up since', 'Software'].map(t => h('th', { scope: 'col', text: t })), h('th', { scope: 'col' }, h('span', { class: 'sr', text: 'Actions' })))),
           tbody))));
-    const body = h('div', { class: 'band21' }, left, h('div', { class: 'stack' }, form, mine));
+    const outside = h('section', { class: 'card' });
+    let outsideBusy = false; // a click is saving: don't redraw the card under it
+    const body = h('div', { class: 'band21' }, left, h('div', { class: 'stack' }, form, mine, outside));
     const el = h('div', { class: 'main-stack' },
       h('header', { class: 'head' }, h('div', { class: 'head-text' }, h('h1', { text: 'Linked servers' }), sub), addBtn),
       nm && nm.el, body);
@@ -3081,7 +3353,40 @@
           h('span', { class: 'lbl', text: 'Link port' }), h('span', { class: 'mono', text: String(d.link_port || '') }),
           h('span', { class: 'lbl', text: 'Fingerprint' }), h('span', { class: 'fp', text: d.fingerprint || '' })),
         h('p', { class: 'note', text: 'The other server\'s link block needs these. On a BeeIRCd, beeircd link-info prints them too.' }));
+      if (!outsideBusy) drawOutside();
       if (!form.dataset.dirty) drawForm();
+    }
+
+    // Admins from other servers: [link] outside_admins. The owner flips it;
+    // everyone else just reads it.
+    function drawOutside() {
+      const cur = data.outside_admins === 'none' ? 'none' : 'network';
+      const note = cur === 'none'
+        ? 'Only this server\'s own admins may run AdminServ here.'
+        : 'Admins whose reach is network (set by the network owner) may run AdminServ here. They can never change this switch, the link blocks or the config admin.';
+      const head = h('h2', { text: 'Admins from other servers' });
+      if (!me.owner) {
+        put(outside, head, h('p', { class: 'lbl', text: 'Admins from other servers: ' + (cur === 'none' ? 'kept out' : 'let in') }), h('p', { class: 'note', text: note }));
+        return;
+      }
+      const seg = h('div', { class: 'seg ml-seg', role: 'group', 'aria-label': 'Admins from other servers' });
+      put(seg, ...[['network', 'Let in network reach'], ['none', 'Keep out']].map(([v, label]) => {
+        const b = h('button', { type: 'button', 'aria-pressed': cur === v ? 'true' : 'false', text: label });
+        b.addEventListener('click', async () => {
+          if (cur === v || outsideBusy) return;
+          outsideBusy = true;
+          await busy(b, async () => {
+            try {
+              await api('POST', '/api/set', { name: 'outside-admins', value: v });
+              toast(['Admins from other servers: ', h('b', { text: v === 'none' ? 'kept out' : 'let in' })]);
+            } catch (e) { toastErr(e.message); }
+          });
+          outsideBusy = false;
+          await load();
+        });
+        return b;
+      }));
+      put(outside, head, seg, h('p', { class: 'note', text: note }));
     }
 
     function drawForm() {
@@ -3160,9 +3465,22 @@
     ['Network bans', [['ban-expiry', 'Bans without a length last']]],
     ['Services log', [
       ['log-channel', 'Log channel (off for none)'],
-      ['log-connects', 'Also log connects and quits'],
     ]],
   ];
+  // The events the services log shows (log-events): name, label, hint.
+  const LOG_EVENTS = [
+    ['Shown in the log', [
+      ['connect', 'Connects', 'someone joins the network'], ['quit', 'Quits', 'someone leaves'],
+      ['nick', 'Nick changes', ''], ['oper', 'Opers', 'oper up and down'],
+      ['kill', 'Kills', ''], ['server', 'Servers', 'links and splits'],
+      ['bans', 'Ban hits', 'AKILL, Q-line, spamfilter…'], ['other', 'Other', 'DEFCON, session limits'],
+    ]],
+    ['Busy, off by default', [
+      ['umode', 'User modes', ''], ['host', 'Host changes', ''], ['channel', 'Channels', 'joins, parts, new, empty'],
+    ]],
+  ];
+  // The names a log-events value turns on ("*" all, "off" none).
+  const eventsOn = (s) => s.value === '*' ? (s.choices || []).slice() : s.value === 'off' ? [] : s.value.split(',');
   const BOT_TEXT = {
     NickServ: 'Registers nicks, logs people in', ChanServ: 'Registers and guards channels',
     MemoServ: 'Messages for people who are away', OperServ: 'Oper tools and network bans',
@@ -4059,7 +4377,11 @@
 
     function check(f) {
       const s = f.s;
-      if (s.kind === 'onoff') {
+      if (s.kind === 'events') {
+        const was = eventsOn(s);
+        f.dirty = Object.entries(f.boxes).some(([n, b]) => b.checked !== was.includes(n));
+        f.ok = true;
+      } else if (s.kind === 'onoff') {
         f.dirty = (f.input.checked ? 'on' : 'off') !== s.value;
         f.ok = true;
       } else {
@@ -4077,6 +4399,23 @@
       bar.hidden = dirty === 0;
       count.textContent = dirty === 1 ? '1 unsaved change' : dirty + ' unsaved changes';
       saveBtn.disabled = fields.some(x => x.dirty && !x.ok);
+    }
+    // The log-events checkboxes: one field, saved as one list.
+    function eventsBlock(s) {
+      if (!s) return null;
+      const f = { s, boxes: {}, ok: true, dirty: false, label: 'Log events' };
+      const on = eventsOn(s);
+      fields.push(f);
+      return LOG_EVENTS.map(([title, list]) => [
+        h('div', { class: 'grp', text: title }),
+        h('div', { class: 'ev-grid' }, list.map(([n, label, note]) => {
+          const box = h('input', { type: 'checkbox', id: 'svc-ev-' + n });
+          box.checked = on.includes(n);
+          box.addEventListener('change', () => check(f));
+          f.boxes[n] = box;
+          return h('label', { class: 'ck ev', for: 'svc-ev-' + n }, box, h('span', null, label, note ? h('small', { text: note }) : null));
+        })),
+      ]);
     }
     async function load() {
       try {
@@ -4102,25 +4441,29 @@
             input.addEventListener('keydown', e => { if (e.key === 'Enter' && !saveBtn.disabled) saveBtn.click(); });
             fields.push(f);
             return h('label', { class: 'f', for: id }, label, input, hint);
-          })));
+          }),
+          title === 'Services log' ? eventsBlock(by['log-events']) : null));
         put(form, groups);
         fields.forEach(check);
       } catch (e) { put(form, h('p', { class: 'empty', text: e.message })); }
     }
-    undoBtn.addEventListener('click', () => { fields.forEach(f => { if (f.s.kind === 'onoff') f.input.checked = f.s.value === 'on'; else f.input.value = f.s.value; check(f); }); });
+    function resetEvents(f) { const on = eventsOn(f.s); for (const [n, b] of Object.entries(f.boxes)) b.checked = on.includes(n); }
+    undoBtn.addEventListener('click', () => { fields.forEach(f => { if (f.s.kind === 'events') resetEvents(f); else if (f.s.kind === 'onoff') f.input.checked = f.s.value === 'on'; else f.input.value = f.s.value; check(f); }); });
     saveBtn.addEventListener('click', () => busy(saveBtn, async () => {
       const done = [];
       for (const f of fields.filter(x => x.dirty && x.ok)) {
-        const value = f.s.kind === 'onoff' ? (f.input.checked ? 'on' : 'off') : f.input.value.trim();
+        const picked = f.s.kind === 'events' ? Object.keys(f.boxes).filter(n => f.boxes[n].checked) : [];
+        const value = f.s.kind === 'events' ? (picked.length ? picked.join(',') : 'off') : f.s.kind === 'onoff' ? (f.input.checked ? 'on' : 'off') : f.input.value.trim();
         try {
           const d = await api('POST', '/api/set', { name: f.s.name, value });
           done.push(d.changed);
           f.s.value = d.changed.new;
-          if (f.s.kind !== 'onoff') f.input.value = d.changed.new;
+          if (f.s.kind === 'events') resetEvents(f);
+          else if (f.s.kind !== 'onoff') f.input.value = d.changed.new;
           check(f);
-          f.input.classList.remove('saved'); void f.input.offsetWidth; f.input.classList.add('saved');
+          if (f.input) { f.input.classList.remove('saved'); void f.input.offsetWidth; f.input.classList.add('saved'); }
         } catch (e) {
-          if (f.s.kind !== 'onoff') { f.input.classList.add('wrong'); f.hint.classList.add('wrong'); f.hint.textContent = e.message; }
+          if (f.s.kind !== 'onoff' && f.s.kind !== 'events') { f.input.classList.add('wrong'); f.hint.classList.add('wrong'); f.hint.textContent = e.message; }
           toastErr(f.label + ': ' + e.message);
         }
       }

@@ -48,6 +48,9 @@ type User struct {
 	// OperTag is the [server] oper_tag of their server (nil: an older
 	// BeeIRCd that doesn't send it).
 	OperTag *string
+	// OperReach is "network" when their server says their admin powers
+	// count on other servers too; "" = home (also from older servers).
+	OperReach string
 	// OperName is the oper block an oper of this server logged in with
 	// (~oper: bans).
 	OperName string

@@ -77,3 +77,58 @@ func TestInspBanOut(t *testing.T) {
 		t.Errorf("without their list: %q, %v", got, ok)
 	}
 }
+
+// GLOBOPS goes to InspIRCd as its SNONOTICE G ("From nick: text") and an
+// SNONOTICE G from it comes in as GLOBOPS. Other letters stay ignored.
+func TestInspGlobops(t *testing.T) {
+	b := testBridge(t)
+	b.Out(":0BE EOS")
+	b.Out(":0BE UID bee 1 1700000000 ~bee host.example 0BEAAAAAA Bee +iox * cloak.example fwAAAQ== :The Bee")
+	if got := b.Out(":0BEAAAAAA GLOBOPS :maintenance at noon"); !has(got, ":0BE SNONOTICE G :From bee: maintenance at noon") {
+		t.Errorf("out %q", got)
+	}
+	b.In(":1IN ENDBURST")
+	if got, _ := b.In(":1IN SNONOTICE G :From carol: hello"); !has(got, ":1IN GLOBOPS :From carol: hello") {
+		t.Errorf("in G %q", got)
+	}
+	if got, _ := b.In(":1IN SNONOTICE g :From carol: hello"); !has(got, ":1IN GLOBOPS :From carol: hello") {
+		t.Errorf("in g %q", got)
+	}
+	if got, _ := b.In(":1IN SNONOTICE A :announcement"); len(got) != 0 {
+		t.Errorf("another letter came in: %q", got)
+	}
+	// From one of their people it comes in from that person, so
+	// UnrealIRCd shows "from r5ci: hi", not the InspIRCd server.
+	b.In(":1IN UID 1INAAAAAC 1700000000 r5ci h h r5ci r5ci 192.0.2.3 1700000000 +o :x")
+	if got, _ := b.In(":1IN SNONOTICE G :From r5ci: hi"); !has(got, ":1INAAAAAC GLOBOPS :hi") {
+		t.Errorf("in from a user %q", got)
+	}
+}
+
+// InspIRCd names an ADDLINE's or DELLINE's source in its notice
+// (addline.cpp, delline.cpp: usr->nick), so a ban set or removed by
+// someone online goes from their UID (UnrealIRCd's setter is
+// nick!user@host); from anyone else it stays the server's.
+func TestInspBanSourceIsSetter(t *testing.T) {
+	b := testBridge(t)
+	b.Out(":0BE EOS")
+	b.Out(":0BE UID bee 1 1700000000 ~bee host.example 0BEAAAAAA Bee +iox * cloak.example fwAAAQ== :The Bee")
+	cases := []struct{ in, want string }{
+		{":0BE TKL + G ~bot *.example bee 1700003600 1700000000 :no bots", ":0BEAAAAAA ADDLINE G ~bot@*.example bee 1700000000 3600 :no bots"},
+		{":0BE TKL + G ~bot *.example bee!~bee@host.example 1700003600 1700000000 :no bots", ":0BEAAAAAA ADDLINE G ~bot@*.example bee!~bee@host.example 1700000000 3600 :no bots"},
+		{":0BE TKL - G ~bot *.example Bee", ":0BEAAAAAA DELLINE G ~bot@*.example"},
+		{":0BE TKL + G ~bot *.example oper 1700003600 1700000000 :no bots", ":0BE ADDLINE G ~bot@*.example oper 1700000000 3600 :no bots"},
+		{":0BE TKL - G ~bot *.example oper", ":0BE DELLINE G ~bot@*.example"},
+	}
+	for _, c := range cases {
+		if got := b.Out(c.in); !has(got, c.want) {
+			t.Errorf("%s\n  sent %q\n  want %q", c.in, got, c.want)
+		}
+	}
+	// One of theirs with the setter's nick is not ours to speak for.
+	b.In(":1IN ENDBURST")
+	b.In(":1IN UID 1INAAAAAC 1700000000 carol h h carol carol 192.0.2.3 1700000000 + :x")
+	if got := b.Out(":0BE TKL - G ~bot *.example carol"); !has(got, ":0BE DELLINE G ~bot@*.example") {
+		t.Errorf("their nick: %q", got)
+	}
+}

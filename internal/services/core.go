@@ -69,6 +69,9 @@ type Host interface {
 	Stats() HostStats
 	// ResetPeak makes the people peak the number online now (STATS RESET).
 	ResetPeak()
+	// Rehash re-reads beeircd.conf like /REHASH (OperServ RELOAD). Services
+	// run on the loop, so it must not post to the loop and wait.
+	Rehash(by string) error
 	// JoinBlocked says why uid may not join channel with key the normal
 	// way: the numeric ("" = it may) and whether an invite would get it in
 	// (bans, +i, +k, +l, +R), as JOIN itself decides.
@@ -102,6 +105,13 @@ type Services struct {
 	cfg  *config.Config
 	// botSeq numbers bots on the services pseudo-server.
 	botSeq int
+	// readonly is OperServ SET READONLY: no command, expiry or web form
+	// changes the services data. Runtime only, off after a restart.
+	readonly bool
+	// noexpire is OperServ SET NOEXPIRE: nicks, channels, bans, forbids and
+	// session exceptions never expire, and run-out ones stay in force.
+	// Runtime only, off after a restart.
+	noexpire bool
 	// defcon is OperServ DEFCON (0 = 5, normal).
 	defcon int
 	log    *log.Logger
@@ -167,6 +177,10 @@ type Services struct {
 	mailer      Mailer              // how mail goes out (tests replace it)
 	resets      map[int64]resetInfo // NickServ RESETPASS codes by account
 	webMemoSent map[int64]time.Time // Hive Panel memo SEND per account (senddelay), webhome.go
+
+	now     func() time.Time   // the clock for log flood caps (tests replace it)
+	hitCaps map[string]*hitCap // log channel flood caps by ban mask / IP, logevents.go
+	logw    *logWriter         // [services] log_file, nil when off (logfile.go)
 }
 
 // Client is services' record of one person on the network.
@@ -191,6 +205,8 @@ type Client struct {
 	logged       bool         // a command logged a change (the Hive Panel's stand-in reads it)
 	webFlags     string       // the Hive Panel's stand-in for an oper: their oper flags
 	webDone      func()       // the stand-in's command finished later (a password being hashed)
+	superAdmin   bool         // OperServ SET SUPERADMIN: founder on every registered channel
+	globalQueue  []string     // Global QUEUE: your lines, kept until you quit
 }
 
 // operFlags are c's oper flags: from the server for someone on IRC, from
@@ -226,6 +242,8 @@ func New(host Host, cfg *config.Config, logger *log.Logger, net *state.Network, 
 		seenDirty:  make(map[string]bool),
 		seenSaved:  time.Now(),
 		off:        !cfg.Services.On(),
+		now:        time.Now,
+		hitCaps:    make(map[string]*hitCap),
 	}
 	if err := s.loadOperData(); err != nil {
 		return nil, err
@@ -289,8 +307,10 @@ func (s *Services) handle(ev state.Event) {
 			}
 		}
 	case *state.UserMode:
+		s.logUserMode(e)
 		if c := s.clients[e.UID]; c != nil && !c.closed {
 			s.saveModes(c)
+			s.isSuperAdmin(c) // de-opered: SUPERADMIN ends
 			if on := c.user.HasMode('h'); on != c.helpOn {
 				c.helpOn = on
 				if on {
@@ -302,6 +322,7 @@ func (s *Services) handle(ev state.Event) {
 		if c := s.clients[e.UID]; c != nil {
 			s.saveModes(c)
 			s.saveQuit(c, e.Reason)
+			s.dropSuperAdmin(c, "quit")
 			delete(s.clients, e.UID)
 			s.buddyOffline(c.accountID)
 			s.helpGone(e.UID)
@@ -311,7 +332,10 @@ func (s *Services) handle(ev state.Event) {
 		if c := s.clients[e.UID]; c != nil && !c.closed {
 			s.nickCheck(c)
 		}
+	case *state.HostChange:
+		s.logHost(e)
 	case *state.Join:
+		s.logJoin(e)
 		c := s.clients[e.UID]
 		ch := s.net.Channel(e.Channel)
 		if c != nil && !c.closed && ch != nil && ch.Member(c.user) != nil {
@@ -334,9 +358,11 @@ func (s *Services) handle(ev state.Event) {
 			s.csTopicChanged(ch)
 		}
 	case *state.Part:
+		s.logPart(e.UID, e.Channel, true)
 		s.bsForget(e.UID, e.Channel)
 		s.bsTidy(e.Channel)
 	case *state.Kick:
+		s.logPart(e.UID, e.Channel, false)
 		s.bsForget(e.UID, e.Channel)
 		s.bsTidy(e.Channel)
 	}
@@ -383,6 +409,7 @@ func (s *Services) Tick(now time.Time) {
 	if now.Sub(s.seenSaved) >= seenSaveEach {
 		s.SaveSeen()
 	}
+	s.flushHitCaps(now)
 	s.Flush()
 }
 

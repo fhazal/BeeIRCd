@@ -58,7 +58,7 @@ func TestSoftAkillLoginPrompt(t *testing.T) {
 	c := held(t, s, "annie")
 	c.expect("*** This network asks people from your address to log in to a registered nick.")
 	c.expect("*** Turn on SASL in your client, or type now: /AUTH nick:password")
-	b.expect("AKILL %*@127.0.0.0/8 holds annie (~annie@127.0.0.1) for a login")
+	b.expect("*** XLINE: G-line %*@127.0.0.0/8 holds annie (~annie@127.0.0.1) for a login")
 	c.send("PING x")
 	c.send("AUTH ann:wrong-password")
 	c.expect("*** Login failed. Check the nick and password and try /AUTH again.")

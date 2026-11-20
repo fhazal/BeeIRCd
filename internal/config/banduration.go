@@ -71,8 +71,20 @@ func parseGoDuration(v string, bad error) (time.Duration, error) {
 	return d, nil
 }
 
+// JoinWords joins duration parts the InspIRCd 4 way: the last two with
+// " and ", the ones before with ", " ("1 hour, 2 minutes and 3 seconds").
+func JoinWords(parts []string) string {
+	switch len(parts) {
+	case 0:
+		return ""
+	case 1:
+		return parts[0]
+	}
+	return strings.Join(parts[:len(parts)-1], ", ") + " and " + parts[len(parts)-1]
+}
+
 // DurationWords writes a duration with every unit it has, like
-// "2 minutes, 30 seconds" or "30 days, 12 hours" (whole seconds).
+// "2 minutes and 30 seconds" or "30 days and 12 hours" (whole seconds).
 func DurationWords(d time.Duration) string {
 	secs := int64(d / time.Second)
 	if secs <= 0 {
@@ -93,5 +105,5 @@ func DurationWords(d time.Duration) string {
 			secs -= n * u.n
 		}
 	}
-	return strings.Join(parts, ", ")
+	return JoinWords(parts)
 }

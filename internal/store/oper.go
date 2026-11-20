@@ -32,7 +32,21 @@ type Oper struct {
 	// who did it.
 	Disabled   string
 	DisabledBy string
+	// Reach is where the entry's admin powers count: ReachHome ("" or
+	// "home", their own server only) or ReachNetwork (AdminServ on every
+	// server that takes admins from elsewhere). Only the network owner
+	// gives it.
+	Reach string
 }
+
+// Oper reach values.
+const (
+	ReachHome    = "home"
+	ReachNetwork = "network"
+)
+
+// Network reports whether the entry has whole-network reach.
+func (o *Oper) Network() bool { return o != nil && o.Reach == ReachNetwork }
 
 // Forbid stops a nick or channel from being used or registered.
 type Forbid struct {
@@ -119,7 +133,10 @@ func scanOper(row interface{ Scan(...any) error }) (*Oper, error) {
 	var at int64
 	var swhois, certfps string
 	err := row.Scan(&o.AccountID, &o.Account, &o.Flags, &o.Title, &hosts, &o.PassHash, &o.AddedBy, &at,
-		&o.Class, &o.Vhost, &swhois, &o.Disabled, &o.DisabledBy, &certfps)
+		&o.Class, &o.Vhost, &swhois, &o.Disabled, &o.DisabledBy, &certfps, &o.Reach)
+	if o.Reach != ReachNetwork {
+		o.Reach = ""
+	}
 	if certfps != "" {
 		o.CertFPs = strings.Fields(certfps)
 	}
@@ -146,18 +163,23 @@ func (s *Store) SaveOper(o *Oper) error {
 	if s.c.accounts[o.AccountID] == nil {
 		return errors.New("no such account")
 	}
-	_, err := s.db.Exec(`INSERT INTO opers (account_id, flags, title, hosts, pass_hash, added_by, added_at, class, vhost, swhois, disabled, disabled_by, certfps)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	reach := ""
+	if o.Reach == ReachNetwork {
+		reach = ReachNetwork
+	}
+	_, err := s.db.Exec(`INSERT INTO opers (account_id, flags, title, hosts, pass_hash, added_by, added_at, class, vhost, swhois, disabled, disabled_by, certfps, reach)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(account_id) DO UPDATE SET flags = excluded.flags, title = excluded.title, hosts = excluded.hosts, pass_hash = excluded.pass_hash,
 		class = excluded.class, vhost = excluded.vhost, swhois = excluded.swhois, disabled = excluded.disabled, disabled_by = excluded.disabled_by,
-		certfps = excluded.certfps`,
+		certfps = excluded.certfps, reach = excluded.reach`,
 		o.AccountID, o.Flags, o.Title, strings.Join(o.Hosts, " "), o.PassHash, o.AddedBy, o.AddedAt.Unix(),
-		o.Class, o.Vhost, strings.Join(o.Swhois, "\n"), o.Disabled, o.DisabledBy, strings.Join(o.CertFPs, " "))
+		o.Class, o.Vhost, strings.Join(o.Swhois, "\n"), o.Disabled, o.DisabledBy, strings.Join(o.CertFPs, " "), reach)
 	if err != nil {
 		return err
 	}
 	cp := *o
 	cp.Account = ""
+	cp.Reach = reach
 	cp.Hosts = strings.Fields(strings.Join(o.Hosts, " "))
 	if len(cp.Hosts) == 0 {
 		cp.Hosts = nil
@@ -296,7 +318,7 @@ func (s *Store) DelSessionExcept(mask string) (bool, error) {
 
 // migrateOpers adds columns that older databases lack.
 func migrateOpers(db *sql.DB) error {
-	for _, col := range []string{"pass_hash", "class", "vhost", "swhois", "disabled", "disabled_by", "certfps"} {
+	for _, col := range []string{"pass_hash", "class", "vhost", "swhois", "disabled", "disabled_by", "certfps", "reach"} {
 		var n int
 		if err := db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('opers') WHERE name = ?", col).Scan(&n); err != nil {
 			return err

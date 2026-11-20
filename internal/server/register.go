@@ -191,10 +191,12 @@ func (s *Server) cmdNick(c *Client, m irc.Message) {
 		return
 	}
 	if f, ok := s.svc.Forbidden(store.ForbidNick, nick); ok && !c.isOper() {
+		s.svc.LogBanHit("sqline", f.Name, c.logMask(nick), f.SetBy, f.Reason)
 		s.reply(c, irc.ErrErroneusNickname, nick, "Forbidden by the network: "+f.Reason)
 		return
 	}
 	if q, ok := s.qlineFor(nick); ok && !c.isOper() {
+		s.svc.LogBanHit("sqline", q.mask, c.logMask(nick), q.setBy, q.reason)
 		s.reply(c, irc.ErrErroneusNickname, nick, "Forbidden by the network: "+q.reason)
 		return
 	}
@@ -292,7 +294,17 @@ func (s *Server) cmdPong(c *Client, m irc.Message) {
 func (s *Server) cmdQuit(c *Client, m irc.Message) {
 	reason := "Quit"
 	if r := m.Param(0); r != "" {
-		reason = "Quit: " + irc.Truncate(r, s.cfg.Limits.KickLen)
+		reason = s.cfg.Messages.QuitPrefixText() + irc.Truncate(r, s.cfg.Limits.KickLen)
+	}
+	// [messages]: the owner's text, or plain "Quit" for someone who just
+	// came. Opers keep their own.
+	if mc := &s.cfg.Messages; c.registered && c.user != nil && !c.isOper() {
+		switch {
+		case mc.StaticQuit != "":
+			reason = mc.StaticQuit
+		case mc.QuitMessageMinTime.Duration > 0 && time.Since(c.user.SignOn) < mc.QuitMessageMinTime.Duration:
+			reason = "Quit"
+		}
 	}
 	s.quit(c, reason)
 }
@@ -319,8 +331,9 @@ func (s *Server) tryRegister(c *Client) {
 		// Over its IP's limit at connect; now the hostname is known.
 		c.sessionLate = false
 		if n, max := s.sessions(c.ip), s.svc.SessionLimitFor(c.ip, c.host); n > max {
+			s.svc.LogSessionLimit(c.ip, max, c.logMask(c.nick))
 			s.sno('a', "Client %s with IP %s rejected: maxperip limit exceeded (%d local, max %d)", c.nick, c.ip, n, max)
-			s.quit(c, fmt.Sprintf("Too many connections from your IP (the limit is %d)", max))
+			s.quit(c, s.cfg.Messages.TooManyText())
 			return
 		}
 	}
@@ -356,7 +369,7 @@ func (s *Server) tryRegister(c *Client) {
 		u.Modes['r'] = true
 	}
 	if s.localUsers() >= s.cfg.Limits.MaxUsers {
-		s.quit(c, "This server is full. Please try again later.")
+		s.quit(c, s.cfg.Messages.FullText())
 		return
 	}
 	if s.jump != nil {
@@ -366,7 +379,7 @@ func (s *Server) tryRegister(c *Client) {
 	k := s.svc.ConnectBan(c.ident, c.host, c.ip, c.realname, a != nil)
 	switch {
 	case k != nil && k.Soft():
-		s.sno('x', "%s %s holds %s (%s@%s) for a login", strings.ToUpper(k.Kind), k.Mask, c.nick, c.ident, c.host)
+		s.sno('x', "%s %s holds %s (%s@%s) for a login", store.BanWord(k.Kind), k.Mask, c.nick, c.ident, c.host)
 		s.authPrompt(c, k.Reason)
 		return
 	case k == nil && a == nil && c.softReason != "":
@@ -374,9 +387,10 @@ func (s *Server) tryRegister(c *Client) {
 		return
 	}
 	if k != nil {
-		s.reply(c, irc.ErrYoureBannedCreep, "You are banned from this network: "+k.Reason)
-		s.sno('x', "%s %s stopped %s (%s@%s)", strings.ToUpper(k.Kind), k.Mask, c.nick, c.ident, c.host)
-		s.quit(c, "Banned: "+k.Reason)
+		s.svc.LogBanHit(k.Kind, k.Mask, c.logMask(c.nick), k.SetBy, k.Reason)
+		s.reply(c, irc.ErrYoureBannedCreep, s.cfg.Messages.BanText("You are banned from this network: "+k.Reason))
+		s.sno('x', "%s %s stopped %s (%s@%s)", store.BanWord(k.Kind), k.Mask, c.nick, c.ident, c.host)
+		s.banQuit(c, "Banned", k.Reason)
 		return
 	}
 	if !s.spamUser(c, c.nick) {
@@ -408,8 +422,8 @@ func (s *Server) tryRegister(c *Client) {
 	s.notePeak(n)
 	s.notePeakGlobal()
 	s.log.Printf("connect %s (%s@%s) %s", u.Nick, u.Ident, u.RealHost, c.ip)
-	connect := fmt.Sprintf("Client connecting to %s on port %d (class %s): %s [%s\x0F]",
-		s.cfg.Server.Name, c.port, connClass(u), snoWho(u), u.Realname)
+	connect := fmt.Sprintf("Client connecting on port %d (class %s): %s [%s\x0F]",
+		c.port, connClass(u), snoMaskIP(u), u.Realname)
 	if c.webirc != "" {
 		connect += " (WEBIRC " + c.webirc + ")"
 	}
@@ -655,4 +669,16 @@ func (s *Server) motd(c *Client) {
 		s.reply(c, irc.RplMotd, "- "+l)
 	}
 	s.reply(c, irc.RplEndOfMotd, "End of /MOTD command.")
+}
+
+// logMask is c as nick!ident@realhost for a services log line, with nick
+// for one not registered yet ("" when that is "" too).
+func (c *Client) logMask(nick string) string {
+	if c.user != nil {
+		return c.user.Nick + "!" + c.user.TrueIdent() + "@" + c.user.RealHost
+	}
+	if nick == "" {
+		return ""
+	}
+	return nick + "!" + orStar(c.ident) + "@" + c.host
 }

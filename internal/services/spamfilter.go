@@ -155,7 +155,7 @@ func (s *Services) AddSpamFilter(f spamfilter.Filter, by string, force bool) (sp
 	if s.spam.hook != nil {
 		s.spam.hook(f, true)
 	}
-	s.snotice('f', "%s added filter %s", by, Describe(f))
+	s.snotice('f', "%s added filter %s", by, FilterNotice(f))
 	s.logTo(s.operServ, fmt.Sprintf("%s added spam filter %s", by, Describe(f)))
 	return f, nil
 }
@@ -243,6 +243,9 @@ func (s *Services) RemoteSpamFilter(f spamfilter.Filter, add bool) bool {
 // expireSpamFilters drops rules that ran out (every server does at the
 // same time, so nothing is sent over links).
 func (s *Services) expireSpamFilters(now time.Time) {
+	if s.readonly {
+		return
+	}
 	gone, err := s.store.PurgeSpamFilters(now)
 	if err != nil {
 		s.log.Printf("services database: %v", err)
@@ -267,6 +270,18 @@ func Describe(f spamfilter.Filter) string {
 		m = "regex " + m
 	}
 	return fmt.Sprintf("%s on %s -> %s (%s)", m, strings.Join(f.Words(), ", "), ActionWords(f), f.Reason)
+}
+
+// FilterNotice is f the way InspIRCd 4's m_filter words a new filter in
+// its "added filter" notice: "'match', type 'action', duration '1 hour',
+// flags 'targets', reason: why", the duration only for a timed ban. The
+// type and flags are our (UnrealIRCd) action name and target letters.
+func FilterNotice(f spamfilter.Filter) string {
+	dur := ""
+	if spamfilter.Bans(f.Action) && f.BanTime > 0 {
+		dur = ", duration '" + longDuration(f.BanTime) + "'"
+	}
+	return fmt.Sprintf("'%s', type '%s'%s, flags '%s', reason: %s", f.Match, f.Action, dur, f.Targets, f.Reason)
 }
 
 // ActionWords is f's action in plain words: "Block", "AKILL 1d" ...

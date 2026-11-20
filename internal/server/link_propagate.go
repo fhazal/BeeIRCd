@@ -430,6 +430,77 @@ func (s *Server) remoteNick(l *linkConn, src string, n *link.Nick) {
 	s.emitFrom(l, src, &state.NickChange{UID: u.UID, Nick: nick, TS: ts})
 }
 
+// remoteGlobops is oper chat from elsewhere (":uid GLOBOPS :text" from an
+// oper, or from a server with the whole line "From nick: text"): the opers
+// here with the G letter get "*** GLOBOPS: From <nick>: <text>", and the
+// other links get it on.
+func (s *Server) remoteGlobops(l *linkConn, m irc.Message) {
+	if len(m.Params) == 0 || m.Params[len(m.Params)-1] == "" {
+		return
+	}
+	text := m.Params[len(m.Params)-1]
+	_, u, ok := s.linkSource(l, m.Source)
+	if !ok {
+		return
+	}
+	if u != nil {
+		if !u.Modes['o'] {
+			return
+		}
+		text = "From " + u.Nick + ": " + text
+	}
+	s.sno('G', "%s", text)
+	for _, o := range s.upLinks(l) {
+		if u == nil && !o.peer.Bee && o.bridge == nil {
+			o.send(s.unrealGlobops(m.Source, text))
+			continue
+		}
+		o.send(m.String())
+	}
+}
+
+// unrealGlobops is a server's GLOBOPS "From nick: text" the way UnrealIRCd
+// sends one: from the person (":uid GLOBOPS :text", shown there as "from
+// nick: text") when nick is someone known, else ":sid SENDUMODE o :from
+// nick: text"; a line without a nick goes as it is.
+func (s *Server) unrealGlobops(src, text string) string {
+	rest, ok := strings.CutPrefix(text, "From ")
+	nick, msg, ok2 := strings.Cut(rest, ": ")
+	if !ok || !ok2 || nick == "" || strings.ContainsAny(nick, " ") {
+		return irc.Message{Source: src, Command: "GLOBOPS", Params: []string{text}, Trailing: true}.String()
+	}
+	if u := s.net.UserByNick(nick); u != nil {
+		return irc.Message{Source: u.UID, Command: "GLOBOPS", Params: []string{msg}, Trailing: true}.String()
+	}
+	return irc.Message{Source: src, Command: "SENDUMODE", Params: []string{"o", "from " + nick + ": " + msg}, Trailing: true}.String()
+}
+
+// remoteSendUmode is UnrealIRCd's ":sid SENDUMODE o :from nick: text", how
+// a GLOBOPS crosses its links. Only that form, from an oper (or a server or
+// services bot) behind l, is oper chat; every other SENDUMODE is left alone.
+func (s *Server) remoteSendUmode(l *linkConn, m irc.Message) {
+	if l.peer.Bee || l.bridge != nil || len(m.Params) != 2 || strings.TrimPrefix(m.Params[0], "+") != "o" {
+		return
+	}
+	rest, ok := strings.CutPrefix(m.Params[1], "from ")
+	if !ok {
+		return
+	}
+	name, text, ok := strings.Cut(rest, ": ")
+	if !ok || name == "" || text == "" || strings.ContainsAny(name, " ") {
+		return
+	}
+	if srv, u, ok := s.linkSource(l, name); ok && (srv != nil || u != nil) {
+		if u != nil && u.Modes['o'] {
+			s.remoteGlobops(l, irc.Message{Source: u.UID, Command: "GLOBOPS", Params: []string{text}, Trailing: true})
+			return
+		}
+		if u == nil || u.Service {
+			s.remoteGlobops(l, irc.Message{Source: uidServer(m.Source), Command: "GLOBOPS", Params: []string{"From " + name + ": " + text}, Trailing: true})
+		}
+	}
+}
+
 // linkBroadcastKill tells every link but one that uid was killed.
 func (s *Server) linkBroadcastKill(except *linkConn, src, uid, reason string) {
 	for _, o := range s.upLinks(except) {
@@ -784,8 +855,9 @@ func (s *Server) killRemote(u *state.User, by, reason string) {
 	if v := s.net.UserByNick(by); v != nil {
 		src = v.UID
 	}
-	s.sno('K', "Remote kill by %s: %s!%s@%s (%s)", by, u.Nick, u.TrueIdent(), u.RealHost, reason)
+	s.sno('K', "Remote kill by %s: %s (%s)", by, snoRealMask(u), reason)
 	s.linkBroadcastKill(nil, src, u.UID, reason)
-	s.snoRemoteQuit(u, fmt.Sprintf("Killed (%s (%s))", by, reason))
-	s.emitQuiet(&state.UserQuit{UID: u.UID, Reason: fmt.Sprintf("Killed (%s (%s))", by, reason)})
+	shown := fmt.Sprintf("Killed (%s (%s))", s.killedBy(by), reason)
+	s.snoRemoteQuit(u, shown)
+	s.emitQuiet(&state.UserQuit{UID: u.UID, Reason: shown})
 }

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -35,7 +36,7 @@ func adminCommands() map[string]adminCmd {
 		"PORT": {"PORT ADD|DEL|LIST [port] [TLS]", "open or close a port",
 			"PORT LIST\nPORT ADD <port> [TLS]   opens it now, on the same address as the first port\nPORT ADD <address:port> [TLS]\nPORT DEL <port|address:port>\nPeople already connected through a closed port stay connected.", asPort},
 		"OPER": {"OPER LIST | OPER <nick> ADD|SET|DEL|DISABLE|ENABLE ...", "who is an IRC operator",
-			"OPER LIST\nOPER <nick> ADD CLASS <class>|FLAGS <letters> HOST <mask> [PASSWORD <password>] [TITLE <text>]\nOPER <nick> SET CLASS <class>|OFF\nOPER <nick> SET FLAGS <letters>|OFF   flags on top of the class\nOPER <nick> SET HOST <mask> [mask ...]   globs or CIDR, like *@192.168.50.0/24\nOPER <nick> SET PASSWORD <password>|OFF   OFF: certificate only\nOPER <nick> SET CERT <fingerprint> [...]|OFF   /oper needs this TLS client certificate\nOPER <nick> SET TITLE|VHOST <text>|OFF   instead of the class's\nOPER <nick> SET SWHOIS <line> [| <line> ...]|OFF\nOPER <nick> DISABLE [reason]   keep the entry, refuse /oper\nOPER <nick> ENABLE\nOPER <nick> DEL\nThe server admin from beeircd.conf may SET their own TITLE, SWHOIS and VHOST.\nClasses: /as class list (helper, globop, admin, netadmin are built in).\nFlags: a admin, b bots, c links, g global, h hosts, k kill, s services.\nThe nick must be registered. Opers oper up with /oper <nick> <oper password>\nfrom a matching host; the oper password is their own, not the NickServ one.\nYou can only give flags (and classes) you have.\nExample: /as oper ember add class globop host *@192.168.50.* password Hive-2026", asOper},
+			"OPER LIST\nOPER <nick> ADD CLASS <class>|FLAGS <letters> HOST <mask> [PASSWORD <password>] [TITLE <text>]\nOPER <nick> SET CLASS <class>|OFF\nOPER <nick> SET FLAGS <letters>|OFF   flags on top of the class\nOPER <nick> SET HOST <mask> [mask ...]   globs or CIDR, like *@192.168.50.0/24\nOPER <nick> SET PASSWORD <password>|OFF   OFF: certificate only\nOPER <nick> SET CERT <fingerprint> [...]|OFF   /oper needs this TLS client certificate\nOPER <nick> SET TITLE|VHOST <text>|OFF   instead of the class's\nOPER <nick> SET SWHOIS <line> [| <line> ...]|OFF\nOPER <nick> SET REACH HOME|NETWORK   network owner only: with network their\n                   AdminServ powers count on the other servers too\nOPER <nick> DISABLE [reason]   keep the entry, refuse /oper\nOPER <nick> ENABLE\nOPER <nick> DEL\nThe server admin from beeircd.conf may SET their own TITLE, SWHOIS and VHOST.\nClasses: /as class list (helper, globop, admin, netadmin are built in).\nFlags: a admin, b bots, c links, g global, h hosts, k kill, s services.\nThe nick must be registered. Opers oper up with /oper <nick> <oper password>\nfrom a matching host; the oper password is their own, not the NickServ one.\nYou can only give flags (and classes) you have.\nExample: /as oper ember add class globop host *@192.168.50.* password Hive-2026", asOper},
 		"CLASS": {"CLASS LIST | CLASS <name> ADD|SET|DEL ...", "oper classes",
 			"CLASS LIST\nCLASS <name> ADD FLAGS <letters>\nCLASS <name> SET FLAGS <letters>\nCLASS <name> SET TITLE <text>|OFF   WHOIS line, like: is a Network Administrator\nCLASS <name> SET VHOST <host>|OFF   shown host at /oper, like staff.example.org\nCLASS <name> SET SWHOIS <line> [| <line> ...]|OFF\nCLASS <name> DEL   a built-in class goes back to its defaults\nClasses are saved as [[operclass]] blocks in beeircd.conf.", asClass},
 		"HISTORY": {"HISTORY [count]", "the changes AdminServ made",
@@ -48,7 +49,7 @@ func adminCommands() map[string]adminCmd {
 		"SPAMREPORT": {"SPAMREPORT LIST | KEY <name> <rpckey|OFF> | STAGING <name> ON|OFF", "where /SPAMREPORT sends spammers",
 			"SPAMREPORT LIST                the [[spamreport]] places of beeircd.conf\nSPAMREPORT KEY <name> <rpckey>  save a DroneBL RPC key (adds a dronebl place\n                               called <name> when there is none). OFF removes it.\nSPAMREPORT STAGING <name> ON    send to DroneBL's test list instead of the real one\nGet a DroneBL key at https://dronebl.org/rpckey_signup. Keys are never shown.", asSpamReport},
 		"SERVER": {"SERVER LIST|ADD|SET|DEL|LINK|UNLINK ... | SERVER <name> STATUS|<command>", "linked servers",
-			serverHelp + "\nSERVER <name> STATUS       version, uptime, users and links of that server\nSERVER <name> <command>    run an AdminServ command there (SET, MOTD, OPER,\n                           CLASS, SHOW, HISTORY, DIFF, UNDO, DNSBL); it must\n                           allow it with [link] remote_admin = true", asServer},
+			serverHelp + "\nSERVER <name> STATUS       version, uptime, users and links of that server\nSERVER <name> <command>    run an AdminServ command there (SET, MOTD, OPER,\n                           CLASS, SHOW, HISTORY, DIFF, UNDO, DNSBL); it must\n                           take outside admins ([link] outside_admins =\n                           network) and your admin reach must be network", asServer},
 		"RESTART": {"RESTART [reason]", "restart the server",
 			"Disconnects everyone and starts the server again. You are asked to repeat it\nwith a code first.", asStop(stopRestart)},
 		"DIE": {"DIE [reason]", "stop the server",
@@ -71,11 +72,15 @@ func (s *Server) adminServCommands() map[string]services.BotCommand {
 				return
 			}
 			// Someone on another server: SERVER (to reach their own
-			// server) always; the rest only with [link] remote_admin.
+			// server) always; the rest only when this server takes
+			// outside admins and their reach is network.
 			s.runFor(uid, func(c *Client) {
-				if name != "SERVER" && !s.cfg.Link.RemoteAdmin {
-					s.as(c, "AdminServ on %s only takes commands from people on it ([link] remote_admin = false). For your own server: /as server <its name> <command>", s.cfg.Server.Name)
-					return
+				if name != "SERVER" {
+					if why := s.outsideRefusal(c); why != "" {
+						s.as(c, "%s", why)
+						return
+					}
+					s.outsideNote(c, strings.TrimSpace(name+" "+strings.Join(args, " ")))
 				}
 				run(s, c, args)
 			})
@@ -115,7 +120,7 @@ type setting struct {
 	table string
 	key   string
 	help  string
-	kind  byte // 'i' number, 'd' time, 'b' on/off, 't' text, 'c' channels, 'g' groups, 'f' channels by oper flag
+	kind  byte // 'i' number, 'd' time, 'b' on/off, 't' text, 'c' channels, 'g' groups, 'f' channels by oper flag, 'e' log events
 	lo    int64
 	hi    int64 // numbers: limits; times: in seconds
 	get   func(*config.Config) string
@@ -123,8 +128,64 @@ type setting struct {
 	check func(string) string // extra check for text, returns the problem
 	offOK bool                // text: OFF empties it
 	after func(s *Server, old string)
-	// enc checks a list value and writes it as TOML (kinds c, g and f).
+	// enc checks a list value and writes it as TOML (kinds c, g, f and e). An
+	// empty lit removes the key (log-events DEFAULT).
 	enc func(c *config.Config, v string) (lit, problem string)
+	// owner: only the network owner may change it (never an admin from
+	// another server), at AdminServ, in the Hive Panel, and by UNDO.
+	owner bool
+}
+
+// outsideAdminsEnc checks the [link] outside_admins value.
+func outsideAdminsEnc(_ *config.Config, v string) (string, string) {
+	v = strings.ToLower(strings.TrimSpace(v))
+	if v != config.OutsideNetwork && v != config.OutsideNone {
+		return "", "outside-admins is network or none."
+	}
+	return config.Quote(v), ""
+}
+
+// logEventsEnc checks the [services] log_events value: event names with
+// commas or spaces, "*" for all, OFF for none, DEFAULT to drop the key.
+func logEventsEnc(_ *config.Config, v string) (string, string) {
+	v = strings.TrimSpace(v)
+	switch strings.ToLower(v) {
+	case "default":
+		return "", ""
+	case "off", "none":
+		return "[]", ""
+	}
+	var out []string
+	for _, e := range splitList(v) {
+		e = strings.ToLower(e)
+		if e == "*" {
+			return `["*"]`, ""
+		}
+		if !slices.Contains(config.LogEventNames, e) {
+			return "", fmt.Sprintf("log-events: %q is not an event. Use %s, * for all, OFF for none or DEFAULT.", e, strings.Join(config.LogEventNames, ", "))
+		}
+		if !slices.Contains(out, e) {
+			out = append(out, e)
+		}
+	}
+	if len(out) == 0 {
+		return "", "log-events takes event names like connect,quit,kill (or * for all, OFF for none, DEFAULT)."
+	}
+	return tomlArray(out), ""
+}
+
+// logEventsGet is the events logged now: "*" for all, "off" for none.
+func logEventsGet(c *config.Config) string {
+	var on []string
+	for _, e := range config.LogEventNames {
+		if c.Services.LogEventOn(e) {
+			on = append(on, e)
+		}
+	}
+	if len(on) == len(config.LogEventNames) {
+		return "*"
+	}
+	return listOrOff(on)
 }
 
 func limitsApply(dst, src *config.Config)   { dst.Limits = src.Limits }
@@ -133,7 +194,148 @@ func servicesApply(dst, src *config.Config) { dst.Services = src.Services }
 var guestRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]{0,9}$`)
 
 func settings() []setting {
-	return append(append(baseSettings(), joinSettings()...), authSettings()...)
+	return append(append(append(baseSettings(), joinSettings()...), authSettings()...), messageSettings()...)
+}
+
+// messageSettings are the [messages] settings: quit, part and ban texts.
+// OFF switches each one off.
+func messageSettings() []setting {
+	ms := func(d, s *config.Config) { d.Messages = s.Messages }
+	orOff := func(f func(*config.Config) string) func(*config.Config) string {
+		return func(c *config.Config) string {
+			if v := f(c); v != "" {
+				return v
+			}
+			return "off"
+		}
+	}
+	oneLine := func(v string) string {
+		if strings.ContainsAny(v, "\r\n\x00") {
+			return "Write it on one line."
+		}
+		return ""
+	}
+	return []setting{
+		{name: "static-quit", table: "messages", key: "static_quit", help: "every quit reason people give becomes this text (OFF for their own)", kind: 't', hi: 300, offOK: true, apply: ms, check: oneLine,
+			get: orOff(func(c *config.Config) string { return c.Messages.StaticQuit })},
+		{name: "static-part", table: "messages", key: "static_part", help: "part reasons: YES drops them, other text replaces them (OFF for their own)", kind: 't', hi: 300, offOK: true, apply: ms, check: oneLine,
+			get: orOff(func(c *config.Config) string {
+				if strings.EqualFold(c.Messages.StaticPart, "no") {
+					return ""
+				}
+				return c.Messages.StaticPart
+			}),
+			enc: func(_ *config.Config, v string) (string, string) {
+				v = strings.TrimSpace(v)
+				switch {
+				case strings.EqualFold(v, "off"), strings.EqualFold(v, "no"):
+					return `""`, ""
+				case strings.EqualFold(v, "yes"):
+					return `"yes"`, ""
+				case v == "" || len(v) > 300:
+					return "", "static-part takes YES, a text of up to 300 characters, or OFF."
+				}
+				if p := oneLine(v); p != "" {
+					return "", p
+				}
+				return config.Quote(v), ""
+			}},
+		{name: "quit-message-min-time", table: "messages", key: "quit_message_min_time", help: "people connected for less than this quit with plain \"Quit\" (OFF for no limit)", kind: 'd', lo: 0, hi: 3600, apply: ms,
+			get: func(c *config.Config) string {
+				if d := c.Messages.QuitMessageMinTime.Duration; d > 0 {
+					return config.FormatDuration(d)
+				}
+				return "off"
+			},
+			enc: func(_ *config.Config, v string) (string, string) {
+				v = strings.ToLower(strings.TrimSpace(v))
+				if v == "off" || v == "0" {
+					return `"0s"`, ""
+				}
+				d, err := config.ParseDuration(v)
+				if err != nil || d < 0 || d > time.Hour {
+					return "", "quit-message-min-time takes a time up to 1h, like 30s or 5m, or OFF."
+				}
+				return config.Quote(config.FormatDuration(d)), ""
+			}},
+		{name: "ban-contact", table: "messages", key: "ban_contact", help: "an email added to \"You are banned\" so people know whom to ask (OFF for none)", kind: 't', hi: 300, offOK: true, apply: ms, check: oneLine,
+			get: orOff(func(c *config.Config) string { return c.Messages.BanContact })},
+		{name: "quit-prefix", table: "messages", key: "quit_prefix", help: "what goes before quit reasons, in quotes to keep a space like \"Exit: \" (NONE for nothing, DEFAULT for \"Quit: \")", kind: 't', hi: 300, apply: ms,
+			get: func(c *config.Config) string {
+				if p := c.Messages.QuitPrefixText(); p != "" {
+					return config.Quote(p)
+				}
+				return "none"
+			},
+			enc: func(_ *config.Config, v string) (string, string) {
+				v = strings.TrimSpace(v)
+				if len(v) >= 2 && strings.HasPrefix(v, `"`) && strings.HasSuffix(v, `"`) {
+					v = v[1 : len(v)-1] // "Exit: " keeps its space
+				}
+				switch {
+				case strings.EqualFold(v, "default"):
+					return `""`, ""
+				case strings.EqualFold(strings.TrimSpace(v), "none"):
+					return `"none"`, ""
+				case v == "" || len(v) > 300:
+					return "", "quit-prefix takes a text of up to 300 characters, NONE or DEFAULT."
+				}
+				if p := oneLine(v); p != "" {
+					return "", p
+				}
+				return config.Quote(v), ""
+			}},
+		{name: "reject-full", table: "messages", key: "reject_full", help: "the quit reason when the server is full (DEFAULT for the built-in one)", kind: 't', hi: 300, apply: ms,
+			get: func(c *config.Config) string { return c.Messages.FullText() }, enc: msgText("reject-full", oneLine)},
+		{name: "reject-too-many", table: "messages", key: "reject_too_many", help: "the quit reason for too many connections from one IP (DEFAULT for the built-in one)", kind: 't', hi: 300, apply: ms,
+			get: func(c *config.Config) string { return c.Messages.TooManyText() }, enc: msgText("reject-too-many", oneLine)},
+		{name: "reject-password", table: "messages", key: "reject_password", help: "the answer to a wrong /OPER password (DEFAULT for the built-in one)", kind: 't', hi: 300, apply: ms,
+			get: func(c *config.Config) string { return c.Messages.PasswordText() }, enc: msgText("reject-password", oneLine)},
+		{name: "ban-notice", table: "messages", key: "ban_notice", help: "a notice sent to people a ban disconnects (OFF for none)", kind: 't', hi: 300, offOK: true, apply: ms, check: oneLine,
+			get: orOff(func(c *config.Config) string { return c.Messages.BanNotice })},
+		{name: "ban-quit", table: "messages", key: "ban_quit", help: "the quit reason others see for a banned user: YES hides the reason, other text replaces it (OFF for the real one)", kind: 't', hi: 300, offOK: true, apply: ms, check: oneLine,
+			get: orOff(func(c *config.Config) string {
+				if strings.EqualFold(c.Messages.BanQuit, "no") {
+					return ""
+				}
+				return c.Messages.BanQuit
+			}),
+			enc: func(_ *config.Config, v string) (string, string) {
+				v = strings.TrimSpace(v)
+				switch {
+				case strings.EqualFold(v, "off"), strings.EqualFold(v, "no"):
+					return `""`, ""
+				case strings.EqualFold(v, "yes"):
+					return `"yes"`, ""
+				case v == "" || len(v) > 300:
+					return "", "ban-quit takes YES, a text of up to 300 characters, or OFF."
+				}
+				if p := oneLine(v); p != "" {
+					return "", p
+				}
+				return config.Quote(v), ""
+			}},
+		{name: "hide-killed-by", table: "messages", key: "hide_killed_by", help: "the name KILL quit reasons show instead of the oper, like OperServ (OFF for the real one)", kind: 't', hi: 300, offOK: true, apply: ms, check: oneLine,
+			get: orOff(func(c *config.Config) string { return c.Messages.HideKilledBy })},
+	}
+}
+
+// msgText is the enc of a [messages] text with a built-in default:
+// DEFAULT puts the built-in one back.
+func msgText(name string, check func(string) string) func(*config.Config, string) (string, string) {
+	return func(_ *config.Config, v string) (string, string) {
+		v = strings.TrimSpace(v)
+		switch {
+		case strings.EqualFold(v, "default"):
+			return `""`, ""
+		case v == "" || len(v) > 300:
+			return "", name + " takes text of up to 300 characters (DEFAULT for the built-in one)."
+		}
+		if p := check(v); p != "" {
+			return "", p
+		}
+		return config.Quote(v), ""
+	}
 }
 
 // authSettings are the [authprompt] settings: the login prompt people a
@@ -359,6 +561,10 @@ func baseSettings() []setting {
 		{name: "find-place-by-ip", table: "server", key: "find_place_by_ip", help: "ask ipinfo.io once where this server's own IP is, for the network map (city level)", kind: 'b',
 			get: func(c *config.Config) string { return onoff(c.FindPlaceByIP()) }, apply: func(d, s *config.Config) { d.Server.FindPlaceByIP = s.Server.FindPlaceByIP },
 			after: func(s *Server, _ string) { s.startPlaceLookup(); s.announcePlace() }},
+		{name: "outside-admins", table: "link", key: "outside_admins", help: "admins from other servers with network reach may run AdminServ here (network) or not (none)", kind: 't', hi: 7, owner: true,
+			get:   func(c *config.Config) string { return c.Link.OutsideAdmins },
+			apply: func(d, s *config.Config) { d.Link.OutsideAdmins = s.Link.OutsideAdmins },
+			enc:   outsideAdminsEnc},
 		{name: "ircv3-drafts", table: "server", key: "ircv3_drafts", help: "offer the IRCv3 drafts (read-marker, multiline, message-redaction, account-registration, pre-away, extended-isupport) to clients that ask", kind: 'b',
 			get: func(c *config.Config) string { return onoff(c.Server.IRCv3Drafts) }, apply: func(d, s *config.Config) { d.Server.IRCv3Drafts = s.Server.IRCv3Drafts },
 			after: func(s *Server, old string) { s.draftsChanged(old == "off") }},
@@ -405,6 +611,8 @@ func baseSettings() []setting {
 			}},
 		{name: "log-connects", table: "services", key: "log_connects", help: "also log connects and quits there", kind: 'b',
 			get: func(c *config.Config) string { return onoff(c.Services.LogConnectsOn()) }, apply: servicesApply},
+		{name: "log-events", table: "services", key: "log_events", help: "events logged there: connect, quit, nick, oper, kill, server, bans, other, umode, host, channel (* all, OFF none, DEFAULT)", kind: 'e',
+			get: logEventsGet, apply: servicesApply, enc: logEventsEnc},
 		{name: "registration", table: "services", key: "registration", help: "new NickServ accounts: none (ready at once), mail (confirm by email) or admin (an oper confirms)", kind: 't', hi: 5,
 			get: func(c *config.Config) string { return c.Services.RegistrationMode() }, apply: servicesApply,
 			check: func(v string) string {
@@ -493,7 +701,19 @@ func (s *Server) applySetting(c *Client, sv *state.User, name, value string) {
 		s.botReply(c, sv, fmt.Sprintf("There is no setting %s. See them all: /as show", name))
 		return
 	}
-	old, now, _, problem := s.setSetting(c.user.Nick, st, value)
+	if st.owner {
+		// An admin from another server can never change it; here only the
+		// network owner can (on a leaf: its own config admin).
+		if !s.ours(c.uid) {
+			s.botReply(c, sv, fmt.Sprintf("%s on %s is changed only by people on it, so nobody from another server can lock its admin out.", st.name, s.cfg.Server.Name))
+			return
+		}
+		if !s.ownsServer(c) {
+			s.botReply(c, sv, fmt.Sprintf("Only %s can change %s.", s.ownerOfServer(), st.name))
+			return
+		}
+	}
+	old, now, _, problem := s.setSetting(s.changedBy(c), st, value)
 	if problem != "" {
 		s.botReply(c, sv, problem)
 		return
@@ -521,7 +741,11 @@ func (s *Server) setSetting(who string, st setting, value string) (old, now stri
 		return "", "", 0, "This server wasn't started from a config file, so settings can't be saved."
 	}
 	fresh, err := config.Edit(s.cfg.Path, func(d *config.Doc) error {
-		d.Set(st.table, st.key, lit)
+		if lit == "" {
+			d.Unset(st.table, st.key)
+		} else {
+			d.Set(st.table, st.key, lit)
+		}
 		return nil
 	})
 	if err != nil {
@@ -872,7 +1096,15 @@ func asOper(s *Server, c *Client, args []string) {
 		return
 	}
 	if s.isAdminAccount(a) {
-		if strings.EqualFold(args[1], "SET") && strings.EqualFold(argAt(args, 2), "PASSWORD") && c.operAccount == a.ID {
+		what := strings.ToUpper(argAt(args, 2))
+		ownLook := strings.EqualFold(args[1], "SET") && (what == "TITLE" || what == "SWHOIS" || what == "VHOST")
+		self := s.accountID(c) == a.ID || c.operAccount == a.ID
+		// The lock-out guard: from another server only their own look,
+		// by themselves.
+		if !(ownLook && self) && s.lockedForOutside(c, "The config admin's oper entry") {
+			return
+		}
+		if strings.EqualFold(args[1], "SET") && what == "PASSWORD" && c.operAccount == a.ID {
 			pw := argAt(args, 3)
 			if len(pw) < minOperPassword {
 				s.as(c, "Syntax: OPER %s SET PASSWORD <password> (at least %d characters)", a.Name, minOperPassword)
@@ -889,8 +1121,8 @@ func asOper(s *Server, c *Client, args []string) {
 			})
 			return
 		}
-		if what := strings.ToUpper(argAt(args, 2)); strings.EqualFold(args[1], "SET") && (what == "TITLE" || what == "SWHOIS" || what == "VHOST") {
-			if s.accountID(c) != a.ID {
+		if ownLook {
+			if !self {
 				s.as(c, "Only %s can change their own title, WHOIS lines and vhost.", a.Name)
 				return
 			}
@@ -1085,7 +1317,7 @@ func asOper(s *Server, c *Client, args []string) {
 		}
 		what, rest := strings.ToUpper(argAt(args, 2)), args[min(3, len(args)):]
 		if len(rest) == 0 {
-			s.as(c, "Syntax: OPER <nick> SET CLASS|FLAGS|HOST|PASSWORD|CERT|TITLE|VHOST|SWHOIS <value>")
+			s.as(c, "Syntax: OPER <nick> SET CLASS|FLAGS|HOST|PASSWORD|CERT|TITLE|VHOST|SWHOIS|REACH <value>")
 			return
 		}
 		if what == "PASSWORD" && strings.EqualFold(rest[0], "OFF") {
@@ -1206,8 +1438,22 @@ func asOper(s *Server, c *Client, args []string) {
 				return
 			}
 			cur.CertFPs = fps
+		case "REACH":
+			if !s.isOwner(c) {
+				s.as(c, "Only %s gives or takes whole-network admin reach.", s.ownerWhere())
+				return
+			}
+			switch strings.ToLower(val) {
+			case store.ReachHome:
+				cur.Reach = ""
+			case store.ReachNetwork:
+				cur.Reach = store.ReachNetwork
+			default:
+				s.as(c, "Syntax: OPER %s SET REACH HOME|NETWORK (home: AdminServ on their own server only; network: on every server that takes outside admins)", a.Name)
+				return
+			}
 		default:
-			s.as(c, "Syntax: OPER <nick> SET CLASS|FLAGS|HOST|PASSWORD|CERT|TITLE|VHOST|SWHOIS <value>")
+			s.as(c, "Syntax: OPER <nick> SET CLASS|FLAGS|HOST|PASSWORD|CERT|TITLE|VHOST|SWHOIS|REACH <value>")
 			return
 		}
 		if err := s.store.SaveOper(cur); err != nil {
@@ -1229,6 +1475,9 @@ func asOper(s *Server, c *Client, args []string) {
 		}
 		if len(cur.CertFPs) > 0 { // shown in full, so a paste error stands out
 			reply += ", certificate " + strings.Join(cur.CertFPs, " ")
+		}
+		if cur.Network() {
+			reply += ", reach network"
 		}
 		s.as(c, "%s.", reply)
 	case "DEL":
@@ -1361,12 +1610,18 @@ func asOperList(s *Server, c *Client) {
 		if len(s.cfg.Services.AdminHosts) > 0 {
 			where = strings.Join(s.adminHosts(), " ") + " (server admin from beeircd.conf)"
 		}
+		if !s.svc.Off() {
+			where += "  reach: network (network owner)"
+		}
 		s.as(c, "  %-*s  %-10s  %-6s  %-6s  %-8s  %s", width, admin, "netadmin", allFlags, yesNo(a != nil && online[a.ID]), yesNo(s.cfg.Services.AdminPassword != ""), where)
 	}
 	for _, o := range list {
 		hosts := strings.Join(o.Hosts, " ")
 		if o.Disabled != "" {
 			hosts += "  DISABLED: " + o.Disabled
+		}
+		if o.Network() {
+			hosts += "  reach: network"
 		}
 		s.as(c, "  %-*s  %-10s  %-6s  %-6s  %-8s  %s", width, o.Account, describeClass(o), orNone(s.viewOf(&o).flags), yesNo(online[o.AccountID]), yesNo(o.PassHash != ""), hosts)
 	}
@@ -1381,8 +1636,7 @@ func asServer(s *Server, c *Client, args []string) {
 	switch strings.ToUpper(argAt(args, 0)) {
 	case "", "LIST", "LINK", "UNLINK":
 	case "ADD", "SET", "DEL":
-		if !s.ours(c.uid) && !s.cfg.Link.RemoteAdmin {
-			s.as(c, "Link blocks on %s are changed by people on it ([link] remote_admin = false).", s.cfg.Server.Name)
+		if s.lockedForOutside(c, "The link blocks") {
 			return
 		}
 	default:
@@ -1424,9 +1678,9 @@ func asStop(action int) func(*Server, *Client, []string) {
 		s.audit(c, s.adminServ, "%s %s", word, reason)
 		s.svc.LogAdmin(c.uid, s.adminServ, "") // os_shutdown
 		if action == stopDie {
-			s.sno('a', "DIE command from %s!%s@%s, shutting down server.", c.user.Nick, c.user.TrueIdent(), c.user.RealHost)
+			s.sno('a', "DIE command from %s, shutting down server.", snoWho(c.user))
 		} else {
-			s.sno('a', "RESTART command from %s!%s@%s, restarting server.", c.user.Nick, c.user.TrueIdent(), c.user.RealHost)
+			s.sno('a', "RESTART command from %s, restarting server.", snoWho(c.user))
 		}
 		s.as(c, "Going now.")
 		s.stopAfter, s.stopReason = action, irc.Truncate(reason, 200)

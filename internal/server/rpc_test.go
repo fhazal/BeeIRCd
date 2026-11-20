@@ -333,7 +333,7 @@ func TestRPCSocketAndLog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	has(t, "log event", line, `"method":"log.event"`, `"subsystem":"connect"`, `"event_id":"LOCAL_CLIENT_CONNECT"`, `Client connecting to irc.test.local on port `, `newbie!~newbie@127.0.0.1 (127.0.0.1)`, `"log_source":"irc.test.local"`)
+	has(t, "log event", line, `"method":"log.event"`, `"subsystem":"connect"`, `"event_id":"LOCAL_CLIENT_CONNECT"`, `Client connecting on port `, `newbie!~newbie@127.0.0.1 (127.0.0.1)`, `"log_source":"irc.test.local"`)
 
 	// What changes something is in the log, with who asked.
 	has(t, "kill", ask(`{"jsonrpc":"2.0","id":4,"method":"user.kill","params":{"nick":"newbie","reason":"test"}}`), `"id":4`, `"result":true`)

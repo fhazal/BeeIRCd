@@ -130,7 +130,7 @@ func (s *Services) csLookup(c *Client, name string) (*store.Channel, access, boo
 		s.cs(c, "%s isn't registered.", name)
 		return nil, access{}, false
 	}
-	return reg, s.accountLevel(reg, s.chanAccount(c, reg)), true
+	return reg, s.clientLevel(c, reg), true
 }
 
 // csChan is csLookup for commands: a suspended channel is refused (except
@@ -141,7 +141,7 @@ func (s *Services) csChan(c *Client, name string, need int) (*store.Channel, acc
 	if !ok {
 		return nil, access{}, false
 	}
-	if reg.Suspended(time.Now()) && !c.can('s') {
+	if reg.Suspended(time.Now()) && !c.can('s') && !s.isSuperAdmin(c) {
 		s.cs(c, "%s is suspended: %s", reg.Name, reg.SuspendReason)
 		return nil, access{}, false
 	}
@@ -433,6 +433,9 @@ func csLevelList(level int) func(*Services, *Client, []string) {
 			old, _ := s.store.Level(reg, target.ID)
 			if old == level {
 				s.cs(c, "%s is on the %s list of %s already.", target.Name, n, reg.Name)
+				return
+			}
+			if s.neverOpBlocks(c, target, old != store.LevelNone) {
 				return
 			}
 			if !s.accessChange(c, reg, lvl, old, level, target.Name) {

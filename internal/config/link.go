@@ -27,10 +27,16 @@ type Link struct {
 	Key  string `toml:"key"`
 	// Servers are the [[link.server]] blocks, one per server we link with.
 	Servers []LinkServer `toml:"server"`
-	// RemoteAdmin lets admins on the services server run AdminServ
-	// commands here over the link (/as server <name> ...). Off by
-	// default, so whoever runs this server keeps the last word.
-	RemoteAdmin bool `toml:"remote_admin"`
+	// RemoteAdmin is the old on/off for AdminServ from other servers;
+	// OutsideAdmins replaced it. An old config that says false, with no
+	// outside_admins, keeps refusing them (outside_admins = none).
+	RemoteAdmin *bool `toml:"remote_admin"`
+	// OutsideAdmins says whether admins from other servers may run
+	// AdminServ here: "network" (the default) lets in admins whose reach
+	// is network (given by the network owner), "none" takes no admin
+	// commands from other servers. Either way an outside admin can never
+	// change this setting, the link blocks or the config admin's entry.
+	OutsideAdmins string `toml:"outside_admins"`
 	// HideSplit shows non-opers "*.net *.split" as the quit reason of a
 	// netsplit instead of the two server names (L8).
 	HideSplit bool `toml:"hide_split"`
@@ -83,12 +89,24 @@ func (l Link) Server(name string) *LinkServer {
 // LinkPort is the default port for server links.
 const LinkPort = 7000
 
+// [link] outside_admins values.
+const (
+	OutsideNetwork = "network"
+	OutsideNone    = "none"
+)
+
 func (c *Config) setLinkDefaults() {
 	if c.Link.Role == "" {
 		c.Link.Role = "standalone"
 	}
 	if c.Link.Linked() && c.Link.Port == 0 {
 		c.Link.Port = LinkPort
+	}
+	if c.Link.OutsideAdmins == "" {
+		c.Link.OutsideAdmins = OutsideNetwork
+		if c.Link.RemoteAdmin != nil && !*c.Link.RemoteAdmin {
+			c.Link.OutsideAdmins = OutsideNone
+		}
 	}
 	dir := filepath.Dir(c.Services.Database)
 	if c.Link.Cert == "" && c.Link.Key == "" {
@@ -140,6 +158,9 @@ func (c *Config) checkLink() error {
 	}
 	if c.Link.Port < 0 || c.Link.Port > 65535 {
 		return fmt.Errorf("[link] port must be a port number")
+	}
+	if c.Link.OutsideAdmins != OutsideNetwork && c.Link.OutsideAdmins != OutsideNone {
+		return fmt.Errorf("[link] outside_admins %q must be network or none", c.Link.OutsideAdmins)
 	}
 	if c.Link.Linked() {
 		for _, l := range c.Listen {

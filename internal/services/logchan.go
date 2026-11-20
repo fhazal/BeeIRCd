@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
@@ -117,8 +118,10 @@ func (s *Services) logModes(e *state.ChannelMode) {
 	}
 }
 
-// logTo posts text to the log channel as sv.
+// logTo posts text to the log channel as sv, and writes it to the log
+// file when there is one.
 func (s *Services) logTo(sv *service, text string) {
+	s.logFileLine(sv, text)
 	name := s.logChannel()
 	if name == "" || sv == nil {
 		return
@@ -133,14 +136,9 @@ func (s *Services) logTo(sv *service, text string) {
 // anopeMask is Anope's User::GetMask(): nick!ident@realhost.
 func anopeMask(u *state.User) string { return u.Nick + "!" + u.TrueIdent() + "@" + u.RealHost }
 
-// logUsersOn reports whether USERS lines go to the log channel.
-func (s *Services) logUsersOn() bool {
-	return s.logChannel() != "" && s.cfg.Services.LogConnectsOn()
-}
-
 // LogUserConnect posts Anope's connect line (users.cpp).
 func (s *Services) LogUserConnect(u *state.User) {
-	if !s.logUsersOn() || u.Service {
+	if !s.logEventOn("connect") || u.Service {
 		return
 	}
 	text := "USERS: " + anopeMask(u) + " "
@@ -156,7 +154,7 @@ func (s *Services) LogUserConnect(u *state.User) {
 
 // LogUserQuit posts Anope's disconnect line (users.cpp).
 func (s *Services) LogUserQuit(u *state.User, _ string) {
-	if !s.logUsersOn() || u.Service {
+	if !s.logEventOn("quit") || u.Service {
 		return
 	}
 	s.logTo(s.global, "USERS: "+anopeMask(u)+" ("+u.Realname+") disconnected from the network ("+u.Server+")")
@@ -164,7 +162,7 @@ func (s *Services) LogUserQuit(u *state.User, _ string) {
 
 // logNick posts Anope's nick change line (users.cpp).
 func (s *Services) logNick(e *state.NickChange) {
-	if !s.logUsersOn() || e.Old == "" {
+	if !s.logEventOn("nick") || e.Old == "" {
 		return
 	}
 	u := s.net.UserByUID(e.UID)
@@ -198,7 +196,7 @@ func (s *Services) logCmd(c *Client, sv *service, kind, channel, text string) {
 	if c != nil {
 		c.logged = true
 	}
-	if s.logChannel() == "" || c == nil || c.user == nil {
+	if (s.logChannel() == "" && !s.logFileOn()) || c == nil || c.user == nil {
 		return
 	}
 	line := kind + ": " + anopeMask(c.user)
@@ -307,7 +305,7 @@ func expiryLine(word, mask, setBy string, setAt time.Time, reason string, now ti
 
 // longDuration writes a duration the way InspIRCd's
 // Duration::ToLongString does (the same as the server's): every non-zero
-// unit, "1 week, 2 days, 3 hours, 5 minutes".
+// unit, "1 week, 2 days, 3 hours and 5 minutes".
 func longDuration(d time.Duration) string {
 	secs := int64(d / time.Second)
 	if secs <= 0 {
@@ -327,7 +325,7 @@ func longDuration(d time.Duration) string {
 			secs -= n * u.n
 		}
 	}
-	return strings.Join(parts, ", ")
+	return config.JoinWords(parts)
 }
 
 // anopeExpired is Anope's line for something that ran out (operserv.cpp,

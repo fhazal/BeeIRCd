@@ -74,6 +74,10 @@ func (s *Server) operEntry(a *store.Account) (*store.Oper, error) {
 	if s.isAdminAccount(a) {
 		o := &store.Oper{AccountID: a.ID, Account: a.Name, Class: "netadmin", Flags: allFlags,
 			Vhost: s.cfg.Services.AdminVhost, Hosts: s.adminHosts(), PassHash: s.cfg.Services.AdminPassword}
+		if !s.svc.Off() {
+			// The services server's admin owns the network.
+			o.Reach = store.ReachNetwork
+		}
 		// Their own entry, when they have one, still says how they look:
 		// title, WHOIS lines, and the vhost when beeircd.conf names none.
 		if own, err := s.store.OperByAccount(a.ID); err == nil && own != nil {
@@ -103,8 +107,9 @@ func (s *Server) operUp(c *Client, o *store.Oper) {
 // leaf v comes from the services server (o.AccountID 0: no account here).
 func (s *Server) operUpView(c *Client, o *store.Oper, v operView) {
 	u := c.user
-	was := c.operFlags
+	was, wasReach := c.operFlags, c.operReach
 	c.operFlags, c.operTitle, c.operAccount, c.operSwhois, c.operClass = v.flags, v.title, o.AccountID, v.swhois, v.class
+	c.operReach = v.reach
 	u.OperClass, u.OperName = v.class, o.Account // ~O: and ~oper: bans
 	s.opers[c] = true
 	c.noLag.Store(true)
@@ -113,13 +118,16 @@ func (s *Server) operUpView(c *Client, o *store.Oper, v operView) {
 		if was != v.flags {
 			s.notice(c, "*** Your oper flags are now "+describeFlags(v.flags))
 		}
-		// Also when only the title or the WHOIS lines changed.
-		s.linkOperInfo(nil, u.UID, v.class, v.flags, s.ownLook(v.title, v.swhois))
+		if wasReach != v.reach {
+			s.notice(c, "*** Your admin reach is now "+s.reachWords(v.reach))
+		}
+		// Also when only the title, the WHOIS lines or the reach changed.
+		s.linkOperInfo(nil, u.UID, v.class, v.flags, s.ownLook(v.title, v.swhois, v.reach))
 		return
 	}
 	c.snomask = snomaskDefault
 	s.emit(&state.UserMode{UID: u.UID, Changes: umodes(true, "os")})
-	s.linkOperInfo(nil, u.UID, v.class, v.flags, s.ownLook(v.title, v.swhois))
+	s.linkOperInfo(nil, u.UID, v.class, v.flags, s.ownLook(v.title, v.swhois, v.reach))
 	s.reply(c, irc.RplYoureOper, "You are now an IRC operator")
 	s.replySnomask(c)
 	if v.class != "" {
@@ -127,7 +135,7 @@ func (s *Server) operUpView(c *Client, o *store.Oper, v operView) {
 	} else {
 		s.notice(c, "*** Oper flags: "+describeFlags(v.flags))
 	}
-	s.sno('o', "%s is now a server operator of type \x02%s\x02 (using account \x02%s\x02).", snoWho(u), operType(v.class, v.flags), o.Account)
+	s.sno('o', "%s", snoOperUp(snoWho(u), s.operRank(v.class, v.title), o.Account))
 	s.svc.SendOperNews(c.uid)
 	s.operExtras(c)
 }
@@ -139,6 +147,7 @@ func (s *Server) deoper(c *Client, why string) {
 		return
 	}
 	c.operFlags, c.operTitle, c.operAccount, c.operSwhois, c.operClass = "", "", 0, nil, ""
+	c.operReach = ""
 	u.OperClass, u.OperName = "", ""
 	c.operVia = nil
 	c.snomask = ""
@@ -215,7 +224,7 @@ func (s *Server) lnotice(format string, a ...any) {
 func (s *Server) snoticeOpers(letter byte, text string) {
 	for c := range s.opers {
 		if c.wantsSno(letter) {
-			s.notice(c, "*** Notice -- "+text)
+			s.notice(c, "*** "+snoCategory(letter)+": "+text)
 		}
 	}
 }
@@ -328,7 +337,7 @@ func (s *Server) cmdOper(c *Client, m irc.Message) {
 			s.reply(c, irc.ErrPasswdMismatch, "The login server can't be reached right now. Try again in a moment.")
 			s.operFail('o', u, o.Account, "the login server can't be reached")
 		default:
-			s.reply(c, irc.ErrPasswdMismatch, "Password incorrect")
+			s.reply(c, irc.ErrPasswdMismatch, s.cfg.Messages.PasswordText())
 			s.operFail('o', u, o.Account, "they specified the wrong password")
 		}
 	})
@@ -434,13 +443,19 @@ func (s *Server) killUser(u *state.User, by, reason string) {
 	reason = irc.Truncate(unwrapKill(reason), s.cfg.Limits.KickLen)
 	if tc == nil {
 		if s.linkOf(u.UID) != nil {
+			s.svc.LogKill(u, by, reason)
 			s.killRemote(u, by, reason)
 		}
 		return
 	}
-	tc.send(irc.Message{Source: by, Command: "KILL", Params: []string{u.Nick, reason}, Trailing: true}.String())
-	s.sno('k', "Local kill by %s: %s!%s@%s (%s)", by, u.Nick, u.TrueIdent(), u.RealHost, reason)
-	s.quit(tc, "Killed ("+by+" ("+reason+"))")
+	s.svc.LogKill(u, by, reason)
+	src, shown := by, s.killedBy(by)
+	if shown != by {
+		src = s.cfg.Server.Name // [messages] hide_killed_by: not the oper
+	}
+	tc.send(irc.Message{Source: src, Command: "KILL", Params: []string{u.Nick, reason}, Trailing: true}.String())
+	s.sno('k', "Local kill by %s: %s (%s)", by, snoRealMask(u), reason)
+	s.quit(tc, "Killed ("+shown+" ("+reason+"))")
 }
 
 // unwrapKill strips any "Killed (<by> (" ... "))" wrappers a KILL reason
@@ -468,6 +483,18 @@ func (s *Server) cmdWallops(c *Client, m irc.Message) {
 			oc.send(line)
 		}
 	}
+}
+
+// /GLOBOPS <text> is oper chat: everyone with the g notice letter here gets
+// "*** GLOBOPS: From <nick>: <text>", and the other servers get it as
+// letter G.
+func (s *Server) cmdGlobops(c *Client, m irc.Message) {
+	if !s.needOper(c) {
+		return
+	}
+	text := strings.Join(m.Params, " ")
+	s.sno('g', "From %s: %s", c.user.Nick, text)
+	s.linkBroadcast(nil, irc.Message{Source: c.uid, Command: "GLOBOPS", Params: []string{text}, Trailing: true}.String())
 }
 
 // sessions counts the connections from ip.

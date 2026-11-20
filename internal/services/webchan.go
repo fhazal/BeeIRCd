@@ -92,6 +92,9 @@ func init() {
 // WebChanServ runs ChanServ cmd #chan args... for account id at the Hive
 // Panel (ip). It returns whether ChanServ made the change and its answer.
 func (s *Services) WebChanServ(id int64, ip, cmd, channel string, args []string) (bool, string) {
+	if s.readonly { // every web ChanServ action changes data
+		return false, readonlyRefusal
+	}
 	a, why := s.webAccount(id)
 	if a == nil {
 		return false, why
@@ -139,6 +142,9 @@ func (s *Services) ownChanMemo(reg *store.Channel, memoID int64) (store.Memo, bo
 // WebChanMemo reads (marks read) or deletes memo memoID of channel name's
 // box, for someone with the MEMO privilege there.
 func (s *Services) WebChanMemo(id int64, ip, name string, memoID int64, del bool) string {
+	if del && s.readonly {
+		return readonlyRefusal
+	}
 	v, why := s.WebChan(id, name)
 	if v == nil {
 		return why

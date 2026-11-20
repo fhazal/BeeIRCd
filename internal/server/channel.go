@@ -113,9 +113,21 @@ func (s *Server) cmdPart(c *Client, m irc.Message) {
 		case ch.Member(c.user) == nil:
 			s.reply(c, irc.ErrNotOnChannel, ch.Name, "You're not on that channel")
 		default:
-			s.partOne(c.user, ch, s.partReason(c, ch, reason))
+			r := s.partReason(c, ch, reason)
+			if r != "" || reason == "" {
+				r = s.staticPart(c, r) // a muted reason stays dropped
+			}
+			s.partOne(c.user, ch, r)
 		}
 	}
+}
+
+// staticPart is [messages] static_part: opers keep their own reason.
+func (s *Server) staticPart(c *Client, reason string) string {
+	if c.isOper() {
+		return reason
+	}
+	return s.cfg.Messages.PartText(reason)
 }
 
 // partReason drops the part message of someone a ban keeps quiet (a ban,

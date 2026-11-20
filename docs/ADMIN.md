@@ -88,10 +88,13 @@ can change things; every oper can look.
 `flood-rate`, `ping-interval`, `ping-timeout`, `cloak`, `resolve-hosts`,
 `nick-expire`, `chan-expire`, `identify-within`, `kill-quick`,
 `allow-kill-immed`, `ban-expiry`, `guest-prefix`, `log-channel`,
-`log-connects`, `flood-profile`, `find-place-by-ip`, `members`,
+`log-connects`, `log-events`, `flood-profile`, `find-place-by-ip`, `outside-admins` (owner only), `members`,
 `registration`, `unconfirmed-expire`, `default-language`, `ircv3-drafts`,
 `auto-join`, `auto-join-skip`, `oper-join`, `oper-join-flag`,
-`auth-prompt`, `auth-prompt-text`, `auth-prompt-fail`, `auth-prompt-time`.
+`auth-prompt`, `auth-prompt-text`, `auth-prompt-fail`, `auth-prompt-time`,
+`static-quit`, `static-part`, `quit-message-min-time`, `ban-contact`,
+`quit-prefix`, `reject-full`, `reject-too-many`, `reject-password`,
+`ban-notice`, `ban-quit`, `hide-killed-by`.
 
 ### Opers
 
@@ -116,6 +119,40 @@ from IRC. Add others with AdminServ:
 - Built-in classes: `helper` (h), `globop` (hk), `admin` (ghks), `netadmin`
   (abcghks). You can only give flags you have yourself.
 - Opers skip the flood slowdown.
+
+### Admin roles
+
+On linked servers an admin's AdminServ powers (flag `a`) count on their
+own server, or on the whole network:
+
+| Role | Who | Where AdminServ works |
+|------|-----|-----------------------|
+| Network owner | `[services] admin` of the services server (the hub) | every server; only they give or take network reach |
+| Network admin | an oper entry with reach `network` | their own server, and every server with `[link] outside_admins = "network"` |
+| Server admin | an oper entry with reach `home` (the default), or a leaf's own `[services] admin` | their own server only |
+
+```
+/as oper ember set reach network
+/as oper ember set reach home
+```
+
+- Only the network owner sets reach (logged in or opered as that account,
+  on the services server). OPER LIST shows `reach: network`; the change is
+  in HISTORY and UNDO like any other, and someone already opered gets the
+  new reach at once.
+- Only network admins (or the owner) change or remove an entry with
+  network reach.
+- A server takes admins from elsewhere with `[link] outside_admins =
+  "network"` (the default); `"none"` turns them all away. Every command an
+  outside admin runs is logged and shown as a server notice to the admins there, and
+  HISTORY names them as `nick on server`.
+- Lock-out guard: nobody from another server can change a server's link
+  blocks or its config admin's oper entry and password, and
+  `outside_admins` is changed only by the network owner on that server
+  (`/as set outside-admins network|none`, or the Hive Panel's Linked
+  servers page), never from outside. Whoever runs a server can't be
+  locked out of it.
+- `/as server <name> status` shows `outside admins network|none`.
 
 ## Channel bots (BotServ)
 
@@ -344,6 +381,70 @@ connected now, except opers. A second address is for TLS connections:
 `/JUMPSERVER` alone shows the setting and `/JUMPSERVER OFF` ends it; a
 restart ends it too. It applies to the server you type it on.
 
+### Services switches
+
+- **NickServ `SET NEVEROP ON`** (Anope's NEVEROP): nobody can put that
+  account on a channel access list. ChanServ ACCESS ADD, FLAGS and the
+  xOP lists (QOP, SOP, AOP, HOP, VOP) refuse with "Bee has NEVEROP on and
+  can't be added to access lists." Entries the account has already stay
+  and may still be changed or removed. Off by default; opers change it
+  for someone with `SASET NEVEROP <nick> ON|OFF`. INFO shows it to the
+  owner and opers.
+- **OperServ `SET`** (Anope's os_set) flips services-wide switches.
+  `SET LIST` shows them to any oper; changing one needs oper flag `a`.
+  The switches live in memory only: **a restart turns them all off
+  again**. Every change goes to the `a` server notices and the #services
+  log channel.
+  - `SET READONLY ON|OFF`: nothing is saved. Commands that would change
+    data answer "Services are in read-only mode; this can't be changed
+    right now." Looking still works (INFO, LIST, STATUS, ACCESS LIST,
+    ...), and so do IDENTIFY, LOGOUT, RECOVER, channel status commands
+    (OP, KICK, BAN, ...), KILL and OperServ SET itself. Nicks, channels,
+    bans and suspensions don't expire while it is on. Hive Panel forms
+    that run a services command are refused too; the panel's own ban,
+    channel and settings forms and web sign-up are not.
+  - `SET SUPERADMIN ON|OFF`: for yourself only. While on you count as
+    founder on every registered channel (ChanServ commands, join past
+    +i/+k/bans, suspended channels too), as long as you are identified.
+    It ends when you turn it off, lose oper flag `a` or quit; each of
+    those is logged. `SET LIST` marks you "(super admin)".
+  - `SET NOEXPIRE ON|OFF`: nothing expires. Nicks, channels and
+    unconfirmed accounts stay, and AKILLs and the other bans, forbids and
+    session exceptions stay in force even once their time has run out
+    (as on Anope). New entries and changes still save as usual.
+    Suspensions and spam filters still expire. Bans sent to linked
+    servers carry their expiry time, so a linked server can still drop
+    one on its own.
+- **OperServ `RELOAD`** (Anope's os_reload, oper flag `a`) reads
+  `beeircd.conf` again, exactly like `/REHASH`: a file that doesn't pass
+  the checks is refused and the old settings stay, and changes that need a
+  restart wait for one. Answers "Reloaded the config." or the error. It
+  goes to the `a` server notices and the #services log channel, and still
+  works while `SET READONLY` is on (it is config, not services data).
+- **OperServ `LOGSEARCH [+<days>d] [+<limit>l] <pattern>`** (Anope's
+  os_logsearch, oper flag `a`) searches the services log file
+  (`[services] log_file`) and the one before it (`<file>.1`). The pattern
+  (with `*` and `?` as wildcards, not caring about case) matches anywhere
+  in a line, as in Anope. `+<days>d` looks
+  that many days back (7), `+<limit>l` shows that many matches (50, at
+  most 500): the newest ones, oldest first, then "Showing N of M
+  matches." or "No matches.". The files are read beside the server, so a
+  big search doesn't hold it up. Without a log file it answers
+  "Services don't log to a file; set [services] log_file first." It
+  works while `SET READONLY` is on.
+- **Global commands** (Anope's gl_global, gl_queue, gl_server; oper flag
+  `g`, `/msg Global help`). `GLOBAL [text]` is the same as OperServ
+  GLOBAL: a notice from Global to everyone online. With no text it sends
+  your queue and empties it. `QUEUE ADD <text>`, `QUEUE DEL <num>`,
+  `QUEUE LIST` and `QUEUE CLEAR` build a notice of several lines: your own
+  queue of at most 10 lines, kept in memory until you quit. `SERVER
+  <server> [text]` is GLOBAL for the people on one server (name matched
+  without regard to case; "No server named X." when nobody is known
+  there); with no text it sends your queue to that server. Each line goes
+  out as its own notice, in order. Every send is audited and logged, and
+  you are told how many people got it. Global answers IRC operators only
+  and is never held back by `SET READONLY`.
+
 ### For everyone
 
 - **Caller ID.** `/MODE yournick +g` lets only people on your accept list
@@ -443,6 +544,53 @@ in the Hive Panel under Settings → Login prompt & spam reports.
 
 Soft AKILLs travel to UnrealIRCd servers with their `%`. InspIRCd has no
 soft bans, so a soft AKILL is not sent to InspIRCd servers.
+
+### Quit, part and ban texts
+
+`[messages]` sets texts of your own, like UnrealIRCd's static-quit,
+static-part, anti-spam-quit-message-time and kline-address. All are off
+by default, and opers always keep their own quit and part reasons.
+
+- `static_quit`: every quit people make themselves shows this text, word
+  for word. Quits the server makes (ping timeout, kill, ban) don't change.
+- `static_part`: `"yes"` drops part reasons, any other text replaces them.
+- `quit_message_min_time`: people connected for less than this quit with
+  plain "Quit", so a spammer can't connect, quit with an ad and leave.
+- `ban_contact`: an email added to "You are banned", like "You are banned
+  from this network: spam. Email kline@example.net for more information."
+- `quit_prefix`: what goes before the quit reason people give, written as
+  is (keep the space: `"Exit: "`). `"none"` leaves it out; unset is
+  `"Quit: "`.
+- `reject_full`, `reject_too_many`, `reject_password`: your own texts for
+  "This server is full. Please try again later.", "Too many connections
+  from your IP" and a wrong /OPER password ("Password incorrect").
+- `ban_notice`: a notice sent to someone a ban (K-line, G-line, Z-line,
+  DNSBL, spam filter, login prompt) disconnects, like InspIRCd's
+  moronbanner.
+- `ban_quit`: the quit reason others see when a ban disconnects someone.
+  `"yes"` shows just "Banned" (or "K-Lined"), any other text replaces the
+  whole reason. The banned person and the opers still see the real one.
+- `hide_killed_by`: shows this name instead of the oper in "Killed (<name>
+  (reason))", like InspIRCd's hidekills, for everyone including the person
+  killed. Services' SVSKILL with a "Killed (who (reason))" text is shown the
+  same way. Opers' kill notices keep the real oper; kills the server makes
+  (nick collisions) keep the server's name.
+
+```toml
+[messages]
+static_quit = "Client exited"
+ban_contact = "kline@example.net"
+quit_prefix = "Exit: "
+ban_notice = "You were banned. Read the rules at example.net/rules"
+ban_quit = "yes"
+hide_killed_by = "OperServ"
+```
+
+Change them live with `/as set static-quit Client exited`, `static-part
+yes`, `quit-message-min-time 5m` or `ban-contact kline@example.net`; `off`
+switches one off. `quit-prefix` takes quotes to keep a trailing space
+(`/as set quit-prefix "Exit: "`), `none` or `default`; the `reject-*`
+settings take `default` for the built-in text.
 
 ### Spam reports
 
@@ -725,7 +873,9 @@ then open <http://127.0.0.1:8787>. `beeircd install` sets it up as the
   beeircd.conf and applied with a rehash at once; the link password is
   never shown (leave it empty to keep it). The card "This server, for the
   other side" shows the name, link port and fingerprint the other
-  server's block needs (the same as `beeircd link-info`).
+  server's block needs (the same as `beeircd link-info`). The card "Admins
+  from other servers" shows `[link] outside_admins`; the network owner
+  switches it there between letting in network reach and keeping out.
 - **Services** (flag `a`): registered nicks, channels and memos, the
   bots, and the services settings from AdminServ SET in plain words
   (account and channel expiry, identify time, guest prefix, KILL QUICK /
@@ -1212,6 +1362,9 @@ difference is a warning to opers, not a refusal.
 | `admin_vhost` | – | Host the admin shows once opered |
 | `log_channel` | – | Services log every command and oper event here, like `#services` |
 | `log_connects` | `true` | Also log connects, quits and nick changes there |
+| `log_events` | see below | Which events go to the log channel besides the command lines; `["*"]` all |
+| `log_file` | – | Also keep every log channel line in this file (relative to `beeircd.conf`, like `database`), even with no `log_channel`. `OperServ LOGSEARCH` searches it |
+| `log_file_max_mb` | `10` | When `log_file` grows past this it becomes `<file>.1` (replacing the older one) and a new file starts |
 | `nick_expire` | `90d` | Accounts unused this long are dropped |
 | `chan_expire` | `60d` | Channels no access-list member joined this long are dropped |
 | `identify_within` | `60s` | Time to identify on a protected nick |
@@ -1230,6 +1383,59 @@ difference is a warning to opers, not a refusal.
 | `unconfirmed_expire` | `1d` | Unconfirmed accounts are dropped this long after REGISTER (`0s` never) |
 | `max_memos` | `20` | Memo limit of a new account |
 | `memo_send_delay` | `3s` | Wait between two memos (`0s` off; opers don't wait) |
+
+**What the log channel shows.** Every services command goes to
+`log_channel`. `log_events` adds network events, like Anope 2.0's log
+block. The names:
+
+| Event | Lines |
+|---|---|
+| `connect`, `quit`, `nick` | `USERS:` someone on this server connects, quits or changes nick |
+| `oper` | `USERS:` someone becomes an IRC operator (rank and oper account) or stops being one |
+| `kill` | `USERS:` someone was killed, by whom and why (oper `/KILL`, services, other servers) |
+| `server` | `SERVER:` a server links to the network or splits off, with its uplink and the reason |
+| `bans` | `AKILL:`, `ZLINE:`, `SNLINE:`, `SHUN:`, `KLINE:`, `SQLINE:` or `SPAMFILTER:` a ban caught someone |
+| `other` | `SESSION:` an IP hit its session limit |
+| `umode` | `USERS:` someone's user modes change |
+| `host` | `USERS:` someone's shown host changes |
+| `channel` | `CHANNEL:` joins, parts, a channel created and a channel left empty (not the log channel itself) |
+
+Unset, every event but `umode`, `host` and `channel` is on; an older
+config with `log_connects = false` also leaves out `connect`, `quit` and
+`nick`. A list you set replaces that default. Ban and session lines stop
+at 5 per ban mask (or IP) in 10 seconds, then one `... and N more hits`
+line. An unknown name is a config error.
+
+You can change it without editing the file. In the Hive Panel, Services,
+the "Services log" card has a box for each event (the eight on by
+default under "Shown in the log", the three busy ones under "Busy, off
+by default"), and Save applies it at once. In AdminServ:
+`/as set log-events connect,quit,kill` (a list of names), `/as set
+log-events *` (all), `/as set log-events off` (none) or `/as set
+log-events default` (back to the default; removes the key). `/as show`
+lists the events that are on now. `log-connects` still works for older
+setups, but the panel no longer shows it.
+
+**The log file.** With `log_file` set, every line the bots post to the
+log channel is also written to that file, one per line, like
+`2026-11-20 01:31:05 OperServ: ADMIN: Boss!boss@host (Boss) used RELOAD`
+(the server's local time, the service that wrote it, colours and bold
+taken out). It is written even when `log_channel` is empty or the bot
+isn't in it. The file is made with mode 0600 and only appended to; past
+`log_file_max_mb` it is renamed to `<file>.1` and a new one starts, so
+at most twice that is kept. Writing happens beside the server, never
+holding it up: if the disk falls behind by more than 1024 lines, the
+newest are dropped (the count goes to the server log at shutdown). If
+the file can't be opened or written, opers with the `a` snomask and the
+server log are told once, and the next rehash tries again. A rehash
+with a new `log_file` closes the old file and opens the new one.
+
+```toml
+[services]
+log_channel = "#services"
+log_events  = ["connect", "quit", "oper", "kill", "server", "bans", "channel"]
+log_file    = "services.log"
+```
 
 ### [limits]
 
@@ -1301,6 +1507,22 @@ One block per DNS blocklist.
 | `message` | "This network asks people from your address to log in to a registered nick." | The first notice (at most 300 characters) |
 | `fail_message` | "Login failed. Check the nick and password and try /AUTH again." | The notice after a wrong password |
 | `timeout` | `60s` | How long they have to log in (10s to 10m) |
+
+### [messages]
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `static_quit` | off | Every quit reason people give themselves becomes this text, word for word (opers keep theirs) |
+| `static_part` | off | `"yes"` drops part reasons, other text replaces them, `"no"` = off (opers keep theirs) |
+| `quit_message_min_time` | `0` (off) | People connected for less than this quit with plain "Quit" (up to `1h`; not used with `static_quit`) |
+| `ban_contact` | off | An email added to "You are banned...": "Email <this> for more information." |
+| `quit_prefix` | `"Quit: "` | Goes before the quit reason people give, kept as written (trailing space too); `"none"` = no prefix |
+| `reject_full` | "This server is full. Please try again later." | Quit reason when the server is full |
+| `reject_too_many` | "Too many connections from your IP" | Quit reason when an IP is over its connection limit |
+| `reject_password` | "Password incorrect" | The answer to a wrong /OPER password |
+| `ban_notice` | off | A notice sent to someone a ban disconnects (InspIRCd moronbanner) |
+| `ban_quit` | off | The quit reason others see for a banned user: `"yes"` = just "Banned"/"K-Lined", other text replaces it; the banned user sees the real one |
+| `hide_killed_by` | off | Shown instead of the oper in "Killed (<this> (reason))" (InspIRCd hidekills); server kills keep the server name |
 
 ### [[spamreport]]
 
@@ -1699,7 +1921,8 @@ links with BeeIRCd and UnrealIRCd 6, and translates to and from InspIRCd
 | `port` | `7000` for hub/leaf | TLS port for server links (restart) |
 | `cert`, `key` | next to services.db | This server's link certificate, made at the first start as a hub or leaf and never renewed, so its fingerprint stays the same. It is in every backup |
 | `hide_split` | `false` | In a netsplit, show non-opers `*.net *.split` as the quit reason instead of the two server names (opers always see them) |
-| `remote_admin` | `false` | Let admins on other servers run AdminServ commands here (`/as server <this server> SET ...`) and use this server's AdminServ. Off: only people on this server change it; `SERVER <name> STATUS` (read-only) works either way |
+| `outside_admins` | `"network"` | Whether admins from other servers may run AdminServ here. `network`: admins whose reach is network (see [Admin roles](#admin-roles)) can; admins with home reach can't. `none`: no admin commands from other servers. Either way an outside admin can never change this setting, the link blocks, or the config admin's oper entry and password (restart) |
+| `remote_admin` | – | Replaced by `outside_admins`. Still read so old configs load: `remote_admin = false` with no `outside_admins` line means `outside_admins = "none"` |
 
 Each server we link with gets a `[[link.server]]` block. These apply on
 `beeircd rehash`; removing one drops that link.
@@ -1818,8 +2041,9 @@ and software), `JUPE <server> [reason]` / `JUPE LIST` / `JUPE DEL`
 ADD | SET | DEL | LINK | UNLINK` (writes the `[[link.server]]` blocks,
 also in AdminServ). AdminServ `SERVER <name> STATUS` and
 `SERVER <name> <command>` run on another BeeIRCd (SET, MOTD, OPER, CLASS,
-SHOW, HISTORY, DIFF, UNDO, DNSBL; it needs `remote_admin = true` there;
-ports, restarts and link blocks are changed in that server's shell). Each
+SHOW, HISTORY, DIFF, UNDO, DNSBL; it needs `outside_admins = "network"`
+there and network reach, see [Admin roles](#admin-roles); ports, restarts
+and link blocks are changed in that server's shell). Each
 remote change is logged on both servers with who and what.
 
 **Link notices.** IRC operators (user mode `+s`) see each step of a

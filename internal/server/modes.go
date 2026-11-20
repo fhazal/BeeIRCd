@@ -59,9 +59,33 @@ func (s *Server) userMode(c *Client, m irc.Message) {
 		s.replyBare(c, irc.RplUModeIs, u.ModeString())
 		return
 	}
-	if s.setUserModes(c, u.UID, m.Params[1], m.Params[2:]...) {
+	// Like InspIRCd 4: someone who isn't an oper is told why +s is refused.
+	denied := !c.isOper() && addsUserMode(m.Params[1], 's')
+	unknown := s.setUserModes(c, u.UID, m.Params[1], m.Params[2:]...)
+	if denied {
+		s.reply(c, irc.ErrNoPrivileges, "Permission Denied - Only operators may set user mode s")
+	}
+	if unknown {
 		s.reply(c, irc.ErrUModeUnknownFlag, "Unknown MODE flag")
 	}
+}
+
+// addsUserMode reports whether the mode string modes ("+iw-x") sets mode.
+func addsUserMode(modes string, mode byte) bool {
+	add := true
+	for i := 0; i < len(modes); i++ {
+		switch modes[i] {
+		case '+':
+			add = true
+		case '-':
+			add = false
+		case mode:
+			if add {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // setUserModes changes c's user modes as the MODE command allows (+o only

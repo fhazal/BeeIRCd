@@ -114,6 +114,20 @@ func (s *Services) accountLevel(reg *store.Channel, accountID int64) access {
 	return access{level: lvl}
 }
 
+// clientLevel is c's access on reg: the founder's while c is a super
+// admin (OperServ SET SUPERADMIN), else that of the account c is
+// identified to or recognised as (none without one).
+func (s *Services) clientLevel(c *Client, reg *store.Channel) access {
+	if s.isSuperAdmin(c) {
+		return access{level: store.LevelFounder}
+	}
+	id := s.chanAccount(c, reg)
+	if id == 0 {
+		return access{}
+	}
+	return s.accountLevel(reg, id)
+}
+
 // flagsRank is the rank of a FLAGS entry: the highest level its
 // privileges need on reg (founder-only ones count as the top level).
 func (s *Services) flagsRank(reg *store.Channel, flags string) int {
@@ -155,10 +169,10 @@ func (s *Services) levelHas(reg *store.Channel, a access, name string) bool {
 // userLevel is a connected user's access on reg (none when not identified).
 func (s *Services) userLevel(reg *store.Channel, u *state.User) access {
 	c := s.clientOf(u)
-	if c == nil || s.chanAccount(c, reg) == 0 {
+	if c == nil {
 		return access{}
 	}
-	return s.accountLevel(reg, s.chanAccount(c, reg))
+	return s.clientLevel(c, reg)
 }
 
 // chanAccount is the account c's channel access on reg comes from: the one
@@ -305,6 +319,9 @@ func csAccess(s *Services, c *Client, args []string) {
 			return
 		}
 		old, _ := s.store.Level(reg, target.ID)
+		if s.neverOpBlocks(c, target, old != store.LevelNone) {
+			return
+		}
 		if !s.accessChange(c, reg, lvl, old, newLevel, target.Name) {
 			return
 		}
@@ -380,6 +397,17 @@ func (s *Services) csAccount(c *Client, reg *store.Channel, nick string) (*store
 		return nil, false
 	}
 	return target, true
+}
+
+// neverOpBlocks refuses to put target on an access list it isn't on yet
+// when it has NickServ SET NEVEROP on (Anope's NEVEROP). An entry it has
+// already may still be changed or removed.
+func (s *Services) neverOpBlocks(c *Client, target *store.Account, onList bool) bool {
+	if onList || !target.NeverOp {
+		return false
+	}
+	s.cs(c, "%s has NEVEROP on and can't be added to access lists.", target.Name)
+	return true
 }
 
 // accessDel removes entries by nick or number list. level is the xOP list

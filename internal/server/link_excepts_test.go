@@ -41,5 +41,5 @@ func TestLeafUsesSessionExceptions(t *testing.T) {
 	// Refused as it connects, before it says anything (sending first could
 	// lose the reply to a reset).
 	c := raw(t, leaf.s)
-	c.expect("Too many connections from your IP (the limit is 2)")
+	c.expect("Too many connections from your IP")
 }

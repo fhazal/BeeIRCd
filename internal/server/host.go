@@ -214,6 +214,13 @@ func (s *Server) lockedFor(key int64, src string) time.Duration { return s.svc.L
 
 func (h host) ResetPeak() { h.s.maxLocal = h.s.localUsers() }
 
+// Rehash is OperServ RELOAD. Services run on the loop, and so does REHASH:
+// call rehash directly, posting and waiting would deadlock.
+func (h host) Rehash(by string) error {
+	_, err := h.s.rehash(by)
+	return err
+}
+
 func (h host) JoinBlocked(uid, channel, key string) (string, bool) {
 	s := h.s
 	c, ch := s.clients[uid], s.net.Channel(channel)

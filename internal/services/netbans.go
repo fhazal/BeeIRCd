@@ -34,9 +34,37 @@ var banKinds = map[string]banKind{
 	store.BanEline:  {store.BanEline, "ELINE", "EXCEPTION BAN", "<user@host|nick>", "exempt"},
 }
 
+// banAddedText is InspIRCd 4's server notice for a new ban: "ab added a
+// timed G-line on *@x, expires in 1 hour (on Thu 19 Nov 2026 05:20:49):
+// reason", or "added a permanent G-line on *@x: reason" without an end.
+func banAddedText(by, kind, mask, reason string, now, expires time.Time) string {
+	if expires.IsZero() {
+		return fmt.Sprintf("%s added a permanent %s on %s: %s", by, store.BanWord(kind), mask, reason)
+	}
+	left := expires.Sub(now).Round(time.Second)
+	if left < time.Second {
+		left = time.Second
+	}
+	return fmt.Sprintf("%s added a timed %s on %s, expires in %s (on %s): %s",
+		by, store.BanWord(kind), mask, longDuration(left), snoDate(expires), reason)
+}
+
+// banRemovedText is InspIRCd 4's server notice for a removed ban: "ab
+// removed G-line on *@x: reason" (ending at the mask without a reason).
+func banRemovedText(by, kind, mask, reason string) string {
+	if reason == "" {
+		return fmt.Sprintf("%s removed %s on %s", by, store.BanWord(kind), mask)
+	}
+	return fmt.Sprintf("%s removed %s on %s: %s", by, store.BanWord(kind), mask, reason)
+}
+
+// snoDate is a time the way InspIRCd 4's notices give it ("Thu 19 Nov 2026
+// 05:20:49"), in UTC.
+func snoDate(t time.Time) string { return t.UTC().Format("Mon 2 Jan 2006 15:04:05") }
+
 // liveBans returns the bans of kind still in force, oldest first.
 func (s *Services) liveBans(kind string) []store.NetBan {
-	now := time.Now()
+	now := s.banNow() // NOEXPIRE keeps run-out entries in force
 	var out []store.NetBan
 	for _, b := range s.netbans {
 		if b.Kind == kind && b.Live(now) {
@@ -109,7 +137,7 @@ func (s *Services) firstBan(kind, ident, host, ip, realname string) *store.NetBa
 // firstBanSoft is firstBan; soft bans (a % mask, which logged-in people
 // pass) count only when soft is true.
 func (s *Services) firstBanSoft(kind, ident, host, ip, realname string, soft bool) *store.NetBan {
-	now := time.Now()
+	now := s.banNow() // NOEXPIRE keeps run-out entries in force
 	for i := range s.netbans {
 		b := &s.netbans[i]
 		if b.Kind == kind && (soft || !b.Soft()) && b.Live(now) && s.banMatches(b, ident, host, ip, realname) {
@@ -122,7 +150,7 @@ func (s *Services) firstBanSoft(kind, ident, host, ip, realname string, soft boo
 // exempt reports whether an ELINE covers ident at host/ip. With ident ""
 // (before the ident is known) only the host part counts.
 func (s *Services) exempt(ident, host, ip string) bool {
-	now := time.Now()
+	now := s.banNow() // NOEXPIRE keeps run-out entries in force
 	for _, b := range s.netbans {
 		if b.Kind != store.BanEline || !b.Live(now) {
 			continue
@@ -383,7 +411,8 @@ func (s *Services) netBanCommand(c *Client, k banKind, args []string) {
 		if life > 0 {
 			how = "for " + config.DurationWords(life)
 		}
-		s.audit(c, s.operServ, "%s ADD %s %s (%s)", k.name, mask, how, b.Reason)
+		c.logged = true // a change was made (the Hive Panel's stand-in reads it)
+		s.snotice('x', "%s", banAddedText(c.user.Nick, k.kind, mask, b.Reason, now, b.Expires))
 		n := 0
 		for _, oc := range hits {
 			ou := oc.user
@@ -393,6 +422,7 @@ func (s *Services) netBanCommand(c *Client, k banKind, args []string) {
 			n++
 			switch k.kind {
 			case store.BanAkill, store.BanZline, store.BanSNLine:
+				s.logNetBanHit(&b, ou)
 				s.reply(oc, irc.ErrYoureBannedCreep, "You are banned from this network: "+b.Reason)
 				s.quit(oc, "Banned: "+b.Reason)
 			}
@@ -451,11 +481,26 @@ func (s *Services) netBanCommand(c *Client, k banKind, args []string) {
 			}
 		}
 		if len(gone) == 0 {
+			// A nick only resolves while its owner is online (as in
+			// InspIRCd), and a G-line or Z-line usually disconnected them.
+			if !strings.ContainsAny(arg, "@*?.:/$%") && s.net.UserByNick(arg) == nil && irc.ValidNick(arg, 64) {
+				s.os(c, "No %s on %s. %s isn't online, so remove it by its mask. See them all: /os %s list", k.name, arg, arg, strings.ToLower(k.cmd))
+				return
+			}
 			s.os(c, "No %s on %s. See them all: /os %s list", k.name, arg, strings.ToLower(k.cmd))
 			return
 		}
 		s.reloadOperData()
-		s.audit(c, s.operServ, "%s DEL %s", k.name, strings.Join(gone, " "))
+		c.logged = true
+		for _, m := range gone {
+			why := ""
+			for _, b := range live {
+				if b.Mask == m {
+					why = b.Reason
+				}
+			}
+			s.snotice('x', "%s", banRemovedText(c.user.Nick, k.kind, m, why))
+		}
 		for _, m := range gone {
 			s.osLog(c, "to remove %s from the list", m)
 		}

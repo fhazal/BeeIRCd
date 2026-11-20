@@ -281,7 +281,7 @@ func TestOperUpAndWhois(t *testing.T) {
 	ember.expect(" 221 ember +i")
 	ember.send("OPER Boss guess-the-pass")
 	ember.expect(" 464 ember :Password incorrect")
-	b.expect("Notice -- ember!~ember@127.0.0.1 (127.0.0.1) failed to log into the \x02Boss\x02 oper account because they specified the wrong password.")
+	b.expect("OPER: ember (~ember@127.0.0.1) [127.0.0.1] failed to log into the \x02Boss\x02 oper account because they specified the wrong password.")
 	ember.send("OPER nobody " + operPW)
 	ember.expect(" 491 ember :No oper entry for you from this host")
 
@@ -329,7 +329,7 @@ func TestOperEntries(t *testing.T) {
 	b.send("AS OPER ember ADD FLAGS gkx HOST *@127.0.0.1")
 	b.expect(asLine("Boss", "x isn't an oper flag."))
 	b.send("AS OPER ember ADD FLAGS gk HOST *@127.0.0.1 TITLE Night Owl")
-	b.expect("Notice -- Boss used AdminServ: OPER ember ADD flags gk hosts *@127.0.0.1")
+	b.expect("ANNOUNCEMENT: Boss used AdminServ: OPER ember ADD flags gk hosts *@127.0.0.1")
 	b.expect(asLine("Boss", "ember is an oper now: gk (global, kill), from *@127.0.0.1. Set their oper password: /as oper ember set password <password>"))
 	b.send("AS OPER Boss SET FLAGS g")
 	b.expect(asLine("Boss", "Boss is the server admin from beeircd.conf; change it there."))
@@ -347,11 +347,11 @@ func TestOperEntries(t *testing.T) {
 	// identifying isn't needed.
 	ember.send("OPER ember " + pw)
 	ember.expect(" 464 ember :Password incorrect")
-	b.expect("Notice -- ember!~ember@127.0.0.1 (127.0.0.1) failed to log into the \x02ember\x02 oper account because they specified the wrong password.")
+	b.expect("OPER: ember (~ember@127.0.0.1) [127.0.0.1] failed to log into the \x02ember\x02 oper account because they specified the wrong password.")
 	ember.send("OPER ember Ember-oper-1")
 	ember.expect(":irc.test.local MODE ember +os")
 	ember.expect(" 381 ember :You are now an IRC operator")
-	b.expect("Notice -- ember!~ember@127.0.0.1 (127.0.0.1) is now a server operator of type \x02gk\x02 (using account \x02ember\x02).")
+	b.expect("OPER: ember (~ember@127.0.0.1) [127.0.0.1] is now a server operator of type \x02Night Owl\x02 (using account \x02ember\x02).")
 
 	ember.send("AS SHOW")
 	ember.expect(asLine("ember", "AdminServ is for server admins (oper flag a)."))
@@ -408,7 +408,7 @@ func TestKillWallopsGlobalNews(t *testing.T) {
 	b.send("KILL victim :go away")
 	victim.expect(":Boss KILL victim :go away")
 	victim.expect("ERROR :Closing Link: 127.0.0.1 (Killed (Boss (go away)))")
-	b.expect("Notice -- Local kill by Boss: victim!~victim@127.0.0.1 (go away)")
+	b.expect("KILL: Local kill by Boss: victim!~victim@127.0.0.1 (go away)")
 
 	b.send("WALLOPS :opers meeting at nine")
 	watcher.expect(":Boss!~boss@127.0.0.1 WALLOPS :opers meeting at nine")
@@ -503,7 +503,7 @@ func TestSessionLimit(t *testing.T) {
 	login(t, s, "two")
 	login(t, s, "three")
 	fourth := raw(t, s)
-	fourth.expect("ERROR :Closing Link: 127.0.0.1 (Too many connections from your IP (the limit is 3))")
+	fourth.expect("ERROR :Closing Link: 127.0.0.1 (Too many connections from your IP)")
 	b.expect("Client [Unknown user] with IP 127.0.0.1 rejected: maxperip limit exceeded (4 local, max 3)")
 
 	b.send("OS EXCEPTION ADD 127.0.0.* 5 test box")

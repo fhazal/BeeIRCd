@@ -103,11 +103,18 @@ func operMD(o *linkConn, src, uid, class, flags, look string) []string {
 // tag is the [server] oper_tag of the oper's own server (nil = not known,
 // so the server showing the WHOIS uses its own).
 func operLook(title string, swhois []string, tag *string) string {
-	if title == "" && len(swhois) == 0 && tag == nil {
+	return operLookReach(title, swhois, tag, "")
+}
+
+// operLookReach is operLook with the oper's admin reach too ("network"
+// or "" for home).
+func operLookReach(title string, swhois []string, tag *string, reach string) string {
+	reach = cleanReach(reach)
+	if title == "" && len(swhois) == 0 && tag == nil && reach == "" {
 		return ""
 	}
 	for {
-		b, _ := json.Marshal(operLookData{Title: title, Lines: swhois, Tag: tag})
+		b, _ := json.Marshal(operLookData{Title: title, Lines: swhois, Tag: tag, Reach: reach})
 		if len(b) <= 380 || len(swhois) == 0 {
 			return string(b)
 		}
@@ -119,12 +126,25 @@ type operLookData struct {
 	Title string   `json:"t,omitempty"`
 	Lines []string `json:"s,omitempty"`
 	Tag   *string  `json:"g,omitempty"` // oper_tag; older servers leave it out
+	// Reach is "network" for an admin whose AdminServ powers count on
+	// other servers too; older servers leave it out, which means home.
+	Reach string `json:"r,omitempty"`
 }
 
 // ownLook is operLook for an oper of this server, with our oper_tag.
-func (s *Server) ownLook(title string, swhois []string) string {
+func (s *Server) ownLook(title string, swhois []string, reach string) string {
 	tag := s.cfg.Server.OperTag
-	return operLook(title, swhois, &tag)
+	return operLookReach(title, swhois, &tag, reach)
+}
+
+// readOperReach is the admin reach in an operLook value: "network" or ""
+// (home, also when the value is from an older server).
+func readOperReach(value string) string {
+	var d operLookData
+	if value == "" || json.Unmarshal([]byte(value), &d) != nil {
+		return ""
+	}
+	return cleanReach(d.Reach)
 }
 
 // readOperLook is operLook read back from another server, kept short and
@@ -167,7 +187,15 @@ func mdLine(src, uid, key, value string) string {
 // as the oper type ("Network Administrator").
 func (s *Server) operRank(class, title string) string {
 	if title == "" {
+		// UnrealIRCd's classes too: netadmin-with-override is a
+		// netadmin, locop a helper (as in flagsForClass).
+		base := strings.TrimSuffix(strings.ToLower(class), "-with-override")
+		if base == "locop" {
+			base = "helper"
+		}
 		if oc, ok := s.cfg.Class(class); ok {
+			title = oc.Title
+		} else if oc, ok := s.cfg.Class(base); ok {
 			title = oc.Title
 		}
 	}
@@ -199,7 +227,7 @@ func (s *Server) linkOperInfo(except *linkConn, uid, class, flags, look string) 
 func (s *Server) resendOperLooks() {
 	for c := range s.opers {
 		if c.user != nil {
-			s.linkOperInfo(nil, c.uid, c.operClass, c.operFlags, s.ownLook(c.operTitle, c.operSwhois))
+			s.linkOperInfo(nil, c.uid, c.operClass, c.operFlags, s.ownLook(c.operTitle, c.operSwhois, c.operReach))
 		}
 	}
 }
@@ -209,12 +237,12 @@ func (s *Server) operBurst(l *linkConn) []string {
 	var out []string
 	for c := range s.opers {
 		if c.user != nil {
-			out = append(out, operMD(l, s.cfg.Server.SID, c.uid, c.operClass, c.operFlags, s.ownLook(c.operTitle, c.operSwhois))...)
+			out = append(out, operMD(l, s.cfg.Server.SID, c.uid, c.operClass, c.operFlags, s.ownLook(c.operTitle, c.operSwhois, c.operReach))...)
 		}
 	}
 	for _, u := range s.net.Users() {
 		if u.OperClass+u.OperFlags != "" && !s.ours(u.UID) && !s.behind(l, uidServer(u.UID)) {
-			out = append(out, operMD(l, s.cfg.Server.SID, u.UID, u.OperClass, u.OperFlags, operLook(u.OperTitle, u.OperSwhois, u.OperTag))...)
+			out = append(out, operMD(l, s.cfg.Server.SID, u.UID, u.OperClass, u.OperFlags, operLookReach(u.OperTitle, u.OperSwhois, u.OperTag, u.OperReach))...)
 		}
 	}
 	return out
@@ -244,9 +272,16 @@ func (s *Server) remoteOperMD(l *linkConn, m irc.Message) {
 		u.OperFlags, _ = cleanFlags(value)
 	case "bee-operlook":
 		u.OperTitle, u.OperSwhois, u.OperTag = readOperLook(value)
+		u.OperReach = s.trustedReach(l, u, value)
+		// Passed on with the reach we trust, never the one we were sent.
+		m = irc.Message{Source: m.Source, Command: m.Command, Params: []string{"client", uid, key,
+			operLookReach(u.OperTitle, u.OperSwhois, u.OperTag, u.OperReach)}}
+		if m.Params[3] == "" {
+			m.Params = m.Params[:3]
+		}
 	}
 	if !wasOper && u.OperClass+u.OperFlags != "" && !u.Service && s.serverSynced(uidServer(uid)) {
-		s.sno('O', "From %s: %s is now a server operator of type \x02%s\x02.", u.Server, u.Nick, operType(u.OperClass, u.OperFlags))
+		s.sno('O', "From %s: %s", u.Server, snoOperUp(snoWho(u), s.operRank(u.OperClass, u.OperTitle), ""))
 	}
 	for o := range s.links.conns {
 		if o != l && o.up && !o.closed && (key == "operclass" || o.peer.Bee) {

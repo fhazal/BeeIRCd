@@ -32,20 +32,20 @@ func TestLocalSnoticeTexts(t *testing.T) {
 
 	dave := login(t, s, "dave")
 	l := b.expect("): dave!~dave@127.0.0.1 (127.0.0.1) [")
-	if !strings.Contains(l, "*** Notice -- Client connecting to irc.test.local on port ") || !strings.Contains(l, " (class ") || !strings.HasSuffix(l, "\x0F]") {
+	if !strings.Contains(l, "*** CONNECT: Client connecting on port ") || !strings.Contains(l, " (class ") || !strings.HasSuffix(l, "\x0F]") {
 		t.Errorf("connect notice %q", l)
 	}
 
 	dave.send("NICK davey")
 	dave.expect(" NICK davey")
-	b.expect("*** Notice -- User dave changed their nickname to davey")
+	b.expect("*** NICK: User dave changed their nickname to davey")
 
 	dave.send("STATS u")
 	dave.expect(" 219 davey u ")
-	b.expect("*** Notice -- Stats 'u' requested by davey (~dave@127.0.0.1)")
+	b.expect("*** STATS: Stats 'u' requested by davey (~dave@127.0.0.1)")
 
 	dave.send("QUIT :bye")
-	b.expect("*** Notice -- Client exiting: davey!~dave@127.0.0.1 (127.0.0.1) [Quit: bye]")
+	b.expect("*** QUIT: Client exiting: davey!~dave@127.0.0.1 (127.0.0.1) [Quit: bye]")
 }
 
 // Users on other servers: C, N, Q and O once the link is synced.
@@ -58,25 +58,25 @@ func TestRemoteSnoticeTexts(t *testing.T) {
 	w.send("OPER watch " + operPW)
 	w.expect(" 381 watch :You are now an IRC operator")
 	w.send("MODE watch +s +CNQO")
-	w.expect(" 008 watch +acdfkloqrxCKLNOQX ")
+	w.expect(" 008 watch +acdfgkloqrxCGKLNOQX ")
 
 	carl := login(t, leaf.s, "carl")
-	l := w.expect("*** Notice -- Client connecting to leaf.test.local: carl!~carl@127.0.0.1 (127.0.0.1) [")
+	l := w.expect("*** REMOTECONNECT: Client connecting at leaf.test.local: carl!~carl@127.0.0.1 (127.0.0.1) [")
 	if !strings.HasSuffix(l, "\x0F]") {
 		t.Errorf("remote connect notice %q", l)
 	}
 
 	carl.send("NICK carly")
 	carl.expect(" NICK carly")
-	w.expect("*** Notice -- User carl changed their nickname to carly")
+	w.expect("*** REMOTENICK: User carl changed their nickname to carly")
 
 	carl.send("NS REGISTER " + pw)
 	carl.expect("is now registered to you.")
 	operEntryOn(t, hub, "carly", "gk", []string{"*@*"})
 	carl.send("OPER carly " + operPW)
 	carl.expect(" 381 carly :You are now an IRC operator")
-	w.expect("*** Notice -- From leaf.test.local: carly is now a server operator of type \x02gk\x02.")
+	w.expect("*** OPER: From leaf.test.local: carly (~carl@127.0.0.1) [127.0.0.1] is now a server operator of type \x02IRC Operator\x02.")
 
 	carl.send("QUIT :bye")
-	w.expect("*** Notice -- Client exiting on server leaf.test.local: carly!~carl@127.0.0.1 (127.0.0.1) [Quit: bye]")
+	w.expect("*** REMOTEQUIT: Client exiting on server leaf.test.local: carly!~carl@127.0.0.1 (127.0.0.1) [Quit: bye]")
 }

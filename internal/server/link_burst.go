@@ -263,7 +263,7 @@ func (s *Server) remoteUser(l *linkConn, source string, in *link.User) {
 		return
 	}
 	if !u.Service && s.serverSynced(uidServer(u.UID)) {
-		s.snoOnly('C', "Client connecting to "+u.Server+": "+snoWho(u)+" ["+u.Realname+"\x0F]")
+		s.snoOnly('C', "Client connecting at "+u.Server+": "+snoMaskIP(u)+" ["+u.Realname+"\x0F]")
 	}
 }
 
@@ -372,6 +372,7 @@ func (s *Server) renameToUID(u *state.User) {
 // killForCollision removes u (UnrealIRCd's rule) here and tells every link.
 func (s *Server) killForCollision(u *state.User, comment string) {
 	comment = unwrapKill(comment)
+	s.svc.LogKill(u, s.cfg.Server.Name, comment)
 	s.linkBroadcastKill(nil, s.cfg.Server.SID, u.UID, comment)
 	if c := s.clientOf(u); c != nil {
 		c.send(irc.Message{Source: s.cfg.Server.Name, Command: "KILL", Params: []string{u.Nick, comment}, Trailing: true}.String())
@@ -388,18 +389,22 @@ func (s *Server) remoteKill(l *linkConn, k *link.Kill) {
 	if u == nil {
 		return // gone already (both sides killed it in a collision)
 	}
-	by := k.Source
+	by, shown, src := k.Source, k.Source, k.Source
 	if r := s.links.servers[by]; r != nil {
-		by = r.name
+		by, shown, src = r.name, r.name, r.name // a server's kill keeps its name
 	} else if v := s.net.UserByUID(by); v != nil {
-		by = v.Nick
+		by, shown, src = v.Nick, s.killedBy(v.Nick), v.Nick
+		if shown != by {
+			src = s.cfg.Server.Name // [messages] hide_killed_by: not the oper
+		}
 	}
 	why := unwrapKill(k.Reason)
-	reason := "Killed (" + by + " (" + why + "))"
-	s.sno('K', "Remote kill by %s: %s!%s@%s (%s)", by, u.Nick, u.TrueIdent(), u.RealHost, why)
+	reason := "Killed (" + shown + " (" + why + "))"
+	s.svc.LogKill(u, by, why)
+	s.sno('K', "Remote kill by %s: %s (%s)", by, snoRealMask(u), why)
 	s.linkBroadcastKill(l, k.Source, u.UID, why) // on to the rest of the network
 	if c := s.clientOf(u); c != nil {
-		c.send(irc.Message{Source: by, Command: "KILL", Params: []string{u.Nick, why}, Trailing: true}.String())
+		c.send(irc.Message{Source: src, Command: "KILL", Params: []string{u.Nick, why}, Trailing: true}.String())
 		s.origin = &linkOrigin{quiet: true}
 		s.quit(c, reason)
 		return
@@ -419,13 +424,29 @@ func (s *Server) remoteSvsKill(l *linkConn, k *link.SvsKill) {
 	for _, o := range s.upLinks(l) {
 		o.send(":" + k.Source + " SVSKILL " + u.UID + " :" + k.Reason)
 	}
+	reason := s.hideKillerIn(k.Reason)
 	if c := s.clientOf(u); c != nil {
 		s.origin = &linkOrigin{quiet: true} // every link has the SVSKILL
-		s.quit(c, k.Reason)
+		s.quit(c, reason)
 		return
 	}
-	s.snoRemoteQuit(u, k.Reason)
-	s.emitQuiet(&state.UserQuit{UID: u.UID, Reason: k.Reason})
+	s.snoRemoteQuit(u, reason)
+	s.emitQuiet(&state.UserQuit{UID: u.UID, Reason: reason})
+}
+
+// hideKillerIn applies [messages] hide_killed_by to a quit reason shaped
+// like a kill, "Killed (who (why))", as services send in SVSKILL; any
+// other text stays as it is.
+func (s *Server) hideKillerIn(reason string) string {
+	if s.cfg.Messages.HideKilledBy == "" || !strings.HasPrefix(reason, "Killed (") || !strings.HasSuffix(reason, "))") {
+		return reason
+	}
+	rest := reason[len("Killed ("):]
+	i := strings.Index(rest, " (")
+	if i <= 0 || strings.ContainsAny(rest[:i], " ()") {
+		return reason
+	}
+	return "Killed (" + s.killedBy(rest[:i]) + rest[i:]
 }
 
 // supportedRank turns a rank letter from another server into one this

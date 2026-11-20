@@ -373,6 +373,11 @@ table.links{min-width:600px}
 .svc-form{display:flex;flex-direction:column;gap:18px}
 .svc-group{display:flex;flex-direction:column;gap:12px}
 .grp{font:500 10px var(--mono);letter-spacing:1.2px;text-transform:uppercase;color:var(--honey);padding:0 0 4px}
+.ev-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 16px}
+.ck.ev{align-items:flex-start;min-height:30px}
+.ck.ev input{margin:2px 0 0;flex:none}
+.ck.ev small{display:block;color:var(--muted);font-size:12.5px}
+@media(max-width:520px){.ev-grid{grid-template-columns:minmax(0,1fr)}}
 .band21[hidden],.card[hidden]{display:none}
 
 /* Channels */
@@ -869,6 +874,8 @@ select.aj-in{width:auto}
 .ap-row{padding:8px 12px;margin:0;border-left:3px solid transparent;border-radius:0}
 .ap-row:focus-within,.ap-row.changed{border-left-color:var(--honey);background:var(--honey-tint)}
 .card .sr-head{margin:18px 0 4px;font-size:15px}
+.msg-grp{margin-top:16px;padding:0 12px 4px}
+.msg-grp:first-child{margin-top:4px}
 .sr-place{grid-template-columns:minmax(0,1fr)}
 .sr-key{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .sr-key .in{flex:1 1 220px;min-width:0}

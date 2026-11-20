@@ -86,6 +86,8 @@ type Config struct {
 	AntiMixedUTF8 AntiMixedUTF8 `toml:"antimixedutf8"`
 	TargetFlood   TargetFlood   `toml:"targetfloodprot"`
 	BlockAmsg     BlockAmsg     `toml:"blockamsg"`
+	// Messages are owner-set quit, part and ban texts (messages.go).
+	Messages Messages `toml:"messages"`
 	// AuthPrompt holds soft-banned people to log in (spamreport.go).
 	AuthPrompt AuthPrompt `toml:"authprompt"`
 	// SpamReports are where /SPAMREPORT sends spammers' IPs.
@@ -408,7 +410,7 @@ func Load(path string) (*Config, error) {
 	if c.TLS.ACME && c.TLS.Cert == "" && c.TLS.Key == "" {
 		c.TLS.Cert, c.TLS.Key = filepath.Join("tls", "cert.pem"), filepath.Join("tls", "key.pem")
 	}
-	for _, p := range []*string{&c.TLS.Cert, &c.TLS.Key, &c.MOTD.File, &c.Services.Database, &c.History.File, &c.Control.Socket, &c.Backup.Dir} {
+	for _, p := range []*string{&c.TLS.Cert, &c.TLS.Key, &c.MOTD.File, &c.Services.Database, &c.Services.LogFile, &c.History.File, &c.Control.Socket, &c.Backup.Dir} {
 		if *p != "" && !filepath.IsAbs(*p) {
 			*p = filepath.Join(dir, *p)
 		}
@@ -469,6 +471,7 @@ func (c *Config) SetDefaults() {
 	setDur(&sv.BanExpiry, 30*24*time.Hour)
 	setDur(&sv.ChanExpire, 60*24*time.Hour)
 	setInt(&sv.MaxLogins, 10)
+	setInt(&sv.LogFileMaxMB, 10)
 	setInt(&sv.CertMax, 5)
 	setInt(&sv.AjoinMax, 10)
 	setInt(&sv.ListMax, 50)
@@ -541,10 +544,22 @@ type Services struct {
 	// oper events (like Anope's log { target = "#services" }). The bots sit
 	// in it with op and keep it +O (opers only). Empty: no log channel.
 	LogChannel string `toml:"log_channel"`
+	// LogFile also keeps every log channel line in this file (relative to
+	// beeircd.conf), with the time and the service in front, even with no
+	// log channel. Empty: no file. OperServ LOGSEARCH searches it.
+	LogFile string `toml:"log_file"`
+	// LogFileMaxMB is how big LogFile may grow (10): then it becomes
+	// <file>.1 (replacing the older one) and a new file starts.
+	LogFileMaxMB int `toml:"log_file_max_mb"`
 	// LogConnects logs connects, quits and nick changes there (Anope's
 	// users = "connect disconnect nick"). On by default; off for busy
 	// networks.
 	LogConnects *bool `toml:"log_connects"`
+	// LogEvents picks which events go to the log channel besides the
+	// command lines (see LogEventNames; "*" = all). Unset: every event
+	// but umode, host and channel, and without connect, quit and nick
+	// when log_connects = false.
+	LogEvents []string `toml:"log_events"`
 
 	// MaxLogins is how many connections may be identified to one account
 	// at once (Anope's maxlogins, 10).
@@ -622,6 +637,42 @@ func (s Services) RegDelayOr() time.Duration {
 // LogConnectsOn reports whether connects, quits and nick changes are
 // logged in the log channel (default on).
 func (s Services) LogConnectsOn() bool { return s.LogConnects == nil || *s.LogConnects }
+
+// LogEventNames are the events log_events takes.
+var LogEventNames = []string{"connect", "quit", "nick", "oper", "kill", "server", "bans", "other", "umode", "host", "channel"}
+
+// logEventsDefault are the events logged when log_events is unset.
+var logEventsDefault = []string{"connect", "quit", "nick", "oper", "kill", "server", "bans", "other"}
+
+// LogEventOn reports whether event (one of LogEventNames) goes to the log
+// channel.
+func (s Services) LogEventOn(event string) bool {
+	if s.LogEvents == nil {
+		switch event {
+		case "connect", "quit", "nick":
+			if !s.LogConnectsOn() {
+				return false // an old config with log_connects = false
+			}
+		}
+		return slices.Contains(logEventsDefault, event)
+	}
+	for _, e := range s.LogEvents {
+		if e == "*" || strings.EqualFold(e, event) {
+			return true
+		}
+	}
+	return false
+}
+
+// checkLogEvents reports a log_events name that isn't one.
+func (s Services) checkLogEvents() error {
+	for _, e := range s.LogEvents {
+		if e != "*" && !slices.Contains(LogEventNames, strings.ToLower(e)) {
+			return fmt.Errorf("services log_events %q is not an event; use %s or \"*\"", e, strings.Join(LogEventNames, ", "))
+		}
+	}
+	return nil
+}
 
 func setDur(d *Duration, v time.Duration) {
 	if d.Duration <= 0 {
@@ -713,8 +764,15 @@ func (c *Config) Check() error {
 		return fmt.Errorf("server prefixes %q must be \"@+\" or \"~&@%%+\"", c.Server.Prefixes)
 	case c.Services.LogChannel != "" && (!strings.HasPrefix(c.Services.LogChannel, "#") || len(c.Services.LogChannel) > 50 || strings.ContainsAny(c.Services.LogChannel, " ,\a")):
 		return fmt.Errorf("services log_channel %q must be a channel like \"#services\" (or empty for none)", c.Services.LogChannel)
+	case c.Services.LogFileMaxMB < 1 || c.Services.LogFileMaxMB > 100000:
+		return fmt.Errorf("services log_file_max_mb %d must be 1 to 100000", c.Services.LogFileMaxMB)
+	case strings.ContainsAny(c.Services.LogFile, "\x00\r\n"):
+		return fmt.Errorf("services log_file %q is not a file name", c.Services.LogFile)
 	case len(c.Listen) == 0:
 		return fmt.Errorf("add at least one [[listen]] port")
+	}
+	if err := c.Services.checkLogEvents(); err != nil {
+		return err
 	}
 	for _, l := range c.Listen {
 		if l.Address == "" {
@@ -758,6 +816,9 @@ func (c *Config) Check() error {
 		return err
 	}
 	if err := c.checkAntiSpam(); err != nil {
+		return err
+	}
+	if err := c.checkMessages(); err != nil {
 		return err
 	}
 	if err := c.CheckRPC(); err != nil {

@@ -30,7 +30,7 @@ func TestSpamfilterBlocksChannelText(t *testing.T) {
 	v.send("PRIVMSG #lobby :hello all")
 	a.expect("PRIVMSG #lobby :hello all")
 	a.quiet("nitro")
-	b.expect("Notice -- Vic had their message to #lobby filtered as it matched *free nitro* (No nitro spam)")
+	b.expect("FILTER: Vic had their message to #lobby filtered as it matched *free nitro* (No nitro spam)")
 
 	// Several targets: only the caught one is dropped.
 	spamRule(t, b, "p block - No_dms_with_links *bit.ly/*")
@@ -51,7 +51,7 @@ func TestSpamfilterWarnLetsThrough(t *testing.T) {
 	}
 	v.send("PRIVMSG #lobby :best crypto doubler ever")
 	a.expect("PRIVMSG #lobby :best crypto doubler ever")
-	b.expect("Notice -- WARNING: Vic's message to #lobby matched *crypto doubler* (Trying out)")
+	b.expect("FILTER: WARNING: Vic's message to #lobby matched *crypto doubler* (Trying out)")
 	v.quiet("blocked")
 }
 
@@ -206,4 +206,33 @@ func TestSpamfilterTempShun(t *testing.T) {
 	w.expect(" 366 Vic2 #lobby ")
 	w.send("PRIVMSG #lobby :hi again")
 	a.expect("PRIVMSG #lobby :hi again")
+}
+
+// SPAMFILTER del takes the id or the words of add (with or without the
+// type), and says when no rule is like that.
+func TestSpamfilterDelBySpec(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	spamRule(t, b, "p block - No_dms_with_links *bit.ly/*")
+	spamRule(t, b, "-regex u kill - Bot_nicks ^[a-z]{3}[0-9]{5}!")
+	b.send("SPAMFILTER del -simple p block - No_dms_with_links *other*")
+	b.expect("there is no spam filter like that")
+	b.send("SPAMFILTER del -simple p block - No_dms_with_links *bit.ly/*")
+	b.expect("*** Spamfilter: Removed rule 1: *bit.ly/* on private")
+	b.send("SPAMFILTER del -regex u kill - Bot_nicks ^[a-z]{3}[0-9]{5}!")
+	b.expect("*** Spamfilter: Removed rule 2: ")
+	b.send("SPAMFILTER del -simple p block - No_dms_with_links *bit.ly/*")
+	b.expect("there is no spam filter like that")
+}
+
+// Adding and removing a rule tells opers in InspIRCd 4's m_filter words.
+func TestSpamfilterNoticeWords(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	b.send("SPAMFILTER add c gline 1h Spammers_go *buy followers*")
+	b.expect("*** FILTER: Boss added filter '*buy followers*', type 'gline', duration '1 hour', flags 'c', reason: Spammers go")
+	b.send("SPAMFILTER add cp block - No_nitro_spam *free nitro*")
+	b.expect("*** FILTER: Boss added filter '*free nitro*', type 'block', flags 'cp', reason: No nitro spam")
+	b.send("SPAMFILTER del cp block - No_nitro_spam *free nitro*")
+	b.expect("*** FILTER: Boss removed filter '*free nitro*': No nitro spam")
 }

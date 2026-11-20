@@ -35,6 +35,10 @@ func (s *Services) RegisterAccount(uid, account, email, pw string, done func(Reg
 		done(RegResult{Code: "TEMPORARILY_UNAVAILABLE", Account: account, Text: "Services are not available right now"})
 		return
 	}
+	if s.readonly {
+		done(RegResult{Code: "TEMPORARILY_UNAVAILABLE", Account: account, Text: readonlyRefusal})
+		return
+	}
 	u := c.user
 	if account == "*" {
 		account = u.Nick
@@ -143,6 +147,10 @@ func (s *Services) VerifyAccount(uid, account, code string, done func(RegResult)
 	c := s.clients[uid]
 	if c == nil || s.off {
 		done(RegResult{Code: "TEMPORARILY_UNAVAILABLE", Account: account, Text: "Services are not available right now"})
+		return
+	}
+	if s.readonly {
+		done(RegResult{Code: "TEMPORARILY_UNAVAILABLE", Account: account, Text: readonlyRefusal})
 		return
 	}
 	a, _ := s.store.AccountByID(c.accountID)

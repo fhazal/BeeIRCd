@@ -409,6 +409,7 @@ func (s *Server) rehash(by string) (*control.Rehash, error) {
 	if old.Services.LogChannel != fresh.Services.LogChannel {
 		s.svc.SyncLogChannel(old.Services.LogChannel)
 	}
+	s.svc.SyncLogFile() // a new path, or try again after an error
 	s.linkRehash()
 	if !samePlace(old.Map.Place(old.Server.Name), fresh.Map.Place(fresh.Server.Name)) || old.FindPlaceByIP() != fresh.FindPlaceByIP() {
 		s.startPlaceLookup() // the owner's place may be gone: find one from the IP

@@ -50,6 +50,7 @@ var nsMoreColumns = []struct{ name, def string }{
 	{"unconfirmed", "INTEGER NOT NULL DEFAULT 0"},
 	{"confirm_code", "TEXT NOT NULL DEFAULT ''"},
 	{"language", "TEXT NOT NULL DEFAULT ''"},
+	{"neverop", "INTEGER NOT NULL DEFAULT 0"},
 }
 
 func migrateNSMore(db *sql.DB) error {

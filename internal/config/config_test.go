@@ -141,3 +141,53 @@ func TestZeroDurationsKept(t *testing.T) {
 		t.Errorf("defaults %v / %v", c.Services.UnconfirmedExpireOr(), c.Mail.DelayOr())
 	}
 }
+
+// log_events picks the log channel's event lines; unset keeps the old
+// default, and log_connects = false still drops connect, quit and nick.
+func TestLogEvents(t *testing.T) {
+	c, err := Load(write(t, good))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range LogEventNames {
+		want := e != "umode" && e != "host" && e != "channel"
+		if got := c.Services.LogEventOn(e); got != want {
+			t.Errorf("default %s = %v, want %v", e, got, want)
+		}
+	}
+	c, err = Load(write(t, good+"\n[services]\nlog_connects = false\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for e, want := range map[string]bool{"connect": false, "quit": false, "nick": false, "oper": true, "kill": true, "bans": true, "channel": false} {
+		if got := c.Services.LogEventOn(e); got != want {
+			t.Errorf("log_connects = false: %s = %v, want %v", e, got, want)
+		}
+	}
+	// A set list wins over log_connects.
+	c, err = Load(write(t, good+"\n[services]\nlog_connects = false\nlog_events = [\"connect\", \"Channel\"]\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for e, want := range map[string]bool{"connect": true, "channel": true, "quit": false, "oper": false} {
+		if got := c.Services.LogEventOn(e); got != want {
+			t.Errorf("list: %s = %v, want %v", e, got, want)
+		}
+	}
+	c, err = Load(write(t, good+"\n[services]\nlog_events = [\"*\"]\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range LogEventNames {
+		if !c.Services.LogEventOn(e) {
+			t.Errorf("\"*\": %s off", e)
+		}
+	}
+	c, err = Load(write(t, good+"\n[services]\nlog_events = []\n"))
+	if err != nil || c.Services.LogEventOn("oper") {
+		t.Errorf("empty list: %v, oper %v", err, err == nil && c.Services.LogEventOn("oper"))
+	}
+	if _, err := Load(write(t, good+"\n[services]\nlog_events = [\"oper\", \"joins\"]\n")); err == nil || !strings.Contains(err.Error(), `log_events "joins" is not an event`) {
+		t.Errorf("unknown event: %v", err)
+	}
+}

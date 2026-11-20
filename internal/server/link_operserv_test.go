@@ -122,9 +122,9 @@ func TestLinkServerBlocks(t *testing.T) {
 	}
 }
 
-// /as server <leaf> ...: STATUS always (admins); commands only with
-// [link] remote_admin = true on the leaf. AdminServ on the hub refuses
-// people from the leaf unless the hub allows it too.
+// /as server <leaf> ...: STATUS always (admins); commands only for admins
+// with network reach (and [link] outside_admins = "network" on the leaf,
+// the default). AdminServ on the hub refuses leaf admins with home reach.
 func TestLinkRemoteAdmin(t *testing.T) {
 	hub, leaf := linkedPair(t)
 	op := login(t, hub.s, "op")
@@ -133,8 +133,11 @@ func TestLinkRemoteAdmin(t *testing.T) {
 	op.send("AS SERVER leaf.test.local STATUS")
 	op.expect("[leaf.test.local AdminServ] leaf.test.local: BeeIRCd ")
 	op.send("AS SERVER leaf.test.local SHOW max-users")
-	op.expect("remote_admin = false")
-	leaf.s.onLoop(func() { leaf.s.cfg.Link.RemoteAdmin = true })
+	op.expect("Your admin reach is hub.test.local only.")
+	hub.s.onLoop(func() {
+		hub.s.operUp(hub.s.clients[hub.s.net.UserByNick("op").UID], &store.Oper{Class: "netadmin", Reach: store.ReachNetwork})
+	})
+	waitReach(t, leaf, "op", store.ReachNetwork)
 	op.send("AS SERVER leaf.test.local SHOW max-users")
 	op.expect("[leaf.test.local AdminServ]   max-users")
 	op.send("AS SERVER leaf.test.local RESTART")
@@ -144,7 +147,7 @@ func TestLinkRemoteAdmin(t *testing.T) {
 	netadminOn(t, leaf, lop, "lop")
 	hub.seen(t, "lop")
 	lop.send("AS SHOW max-users") // the hub's AdminServ: not for leaf people
-	lop.expect("only takes commands from people on it")
+	lop.expect("Your admin reach is leaf.test.local only.")
 	lop.send("AS SERVER leaf.test.local STATUS")
 	lop.expect("[leaf.test.local AdminServ] leaf.test.local: BeeIRCd ")
 }

@@ -165,6 +165,24 @@ func (d *Doc) Set(table, key, value string) {
 	d.lines = append(d.lines, "["+table+"]", key+" = "+value)
 }
 
+// Unset removes key from table (nothing happens if it isn't there).
+func (d *Doc) Unset(table, key string) {
+	re := keyRe(key)
+	for h, l := range d.lines {
+		if header(l) != table {
+			continue
+		}
+		start, end := d.section(h)
+		for i := start + 1; i < end; i++ {
+			if re.MatchString(d.lines[i]) {
+				d.lines = append(d.lines[:i], d.lines[i+1:]...)
+				return
+			}
+		}
+		return
+	}
+}
+
 // value reads key's raw value in the section [start, end).
 func (d *Doc) value(start, end int, key string) (string, bool) {
 	re := keyRe(key)

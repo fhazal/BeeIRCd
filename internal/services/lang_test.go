@@ -19,7 +19,7 @@ import (
 // texts (read from the running bots).
 
 // langSkip are files whose lines are for opers, logs or the Hive Panel.
-var langSkip = regexp.MustCompile(`^(operserv.*|osoper|defcon|netbans|kline|operdata|link_bans|panel_.*|web.*|api|logchan|spamfilter|core|lang)\.go$`)
+var langSkip = regexp.MustCompile(`^(operserv.*|osoper|defcon|netbans|kline|operdata|link_bans|panel_.*|web.*|api|logchan|spamfilter|core|lang|global)\.go$`)
 
 // replyFuncs take the format (or text) as their argument at the index.
 var replyFuncs = map[string]int{"cs": 1, "ns": 1, "ms": 1, "hs": 1, "he": 1, "bs": 1, "say": 2, "svcReply": 2, "tr": 1, "trFor": 2}

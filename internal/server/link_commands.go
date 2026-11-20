@@ -222,7 +222,7 @@ func (s *Server) squitBy(who, source, name, reason string) (text string, ok bool
 		return "", true
 	}
 	r.via.send(fmt.Sprintf(":%s SQUIT %s :%s", source, r.name, reason))
-	gone, users := s.splitOff(r.sid, s.links.servers[r.uplink].nameOr(r.uplink), r.name)
+	gone, users := s.splitOff(r.sid, s.links.servers[r.uplink].nameOr(r.uplink), r.name, reason)
 	s.linkBroadcast(r.via, fmt.Sprintf(":%s SQUIT %s :%s", r.uplink, r.name, reason))
 	s.remoteSplit(r.name, s.links.servers[r.uplink].nameOr(r.uplink), reason, gone, users)
 	return "", true
@@ -455,8 +455,9 @@ func (s *Server) cmdKline(c *Client, m irc.Message) {
 		}
 		u := o.user
 		if irc.MatchUserHost(strings.ToLower(match), u.TrueIdent(), u.RealHost, u.IP) {
-			s.reply(o, irc.ErrYoureBannedCreep, "You are banned from this server: "+reason)
-			s.quit(o, "K-Lined: "+reason)
+			s.svc.LogBanHit(store.BanKline, mask, o.logMask(o.nick), c.user.Nick, reason)
+			s.reply(o, irc.ErrYoureBannedCreep, s.cfg.Messages.BanText("You are banned from this server: "+reason))
+			s.banQuit(o, "K-Lined", reason)
 			hit++
 		}
 	}
@@ -464,11 +465,12 @@ func (s *Server) cmdKline(c *Client, m irc.Message) {
 	if life > 0 {
 		until = "for " + config.DurationWords(life)
 	}
+	now := time.Now()
 	var expires time.Time
 	if life > 0 {
-		expires = time.Now().Add(life)
+		expires = now.Add(life)
 	}
-	s.snoBanAdded('x', c.user.Nick, store.BanKline, strings.ToLower(mask), reason, expires)
+	s.snoBanAdded('x', c.user.Nick, store.BanKline, strings.ToLower(mask), reason, now, expires)
 	s.notice(c, fmt.Sprintf("*** K-line on %s added %s.", strings.ToLower(mask), until))
 }
 

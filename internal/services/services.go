@@ -46,6 +46,15 @@ type service struct {
 	fallback func(c *Client, text string)
 }
 
+// helpName is what to type before "help": the alias, or "msg Nick" for a
+// service without one (Global).
+func (sv *service) helpName() string {
+	if sv.alias != "" {
+		return sv.alias
+	}
+	return "msg " + sv.user.Nick
+}
+
 // command finds a command by name or hidden alias.
 func (sv *service) command(name string) (svcCmd, bool) {
 	name = strings.ToUpper(name)
@@ -93,13 +102,18 @@ func (s *Services) startServices() {
 	for name, cmd := range operServMoreCommands() {
 		osCmds[name] = cmd
 	}
+	osCmds["RELOAD"] = svcCmd{"RELOAD", "read beeircd.conf again",
+		"Reloads the config the way /REHASH does (flag a). Changes that need a\nrestart wait for one, as with /REHASH.", osReload}
+	osCmds["LOGSEARCH"] = svcCmd{"LOGSEARCH [+<days>d] [+<limit>l] <pattern>", "search the services log file",
+		"Searches the services log file ([services] log_file) and the one before\nit for lines matching pattern (flag a). It matches anywhere\nin a line; * and ? are wildcards. +<days>d looks back that many days (7), +<limit>l\nshows up to that many of the newest matches (50, at most 500).\nExample: LOGSEARCH +30d +100l *used DROP*", osLogSearch}
 	osCmds["OPER"] = svcCmd{"OPER LIST | INFO [class] | ADD <nick> <class> | DEL <nick>", "show and change the oper list",
 		"OPER LIST            the opers and their classes\nOPER INFO [class]    what each class may do\nOPER ADD <nick> <class>   (flag a) like /as oper <nick> add class <class> host *@*\nOPER DEL <nick>            (flag a)\nThe full oper commands are in AdminServ: /as help oper", osOper}
 	s.operServ = s.addService("OperServ", "os", "Operator Services", "OperServ is the toolbox for IRC operators. Commands:", osCmds)
 	s.operServ.need = 'o'
 	s.operServ.aliases = operServAliases
 	s.hostServ = s.addService("HostServ", "hs", "vHost Service", "HostServ gives nicks a vHost, a host shown instead of yours. Commands:", hostServCommands())
-	s.global = s.addService("Global", "", "Network Announcements", "Global sends network notices. It takes no commands.", map[string]svcCmd{})
+	s.global = s.addService("Global", "", "Network Announcements", "Global sends network notices for IRC operators. Commands:", globalCommands())
+	s.global.need = 'o'
 	s.botServ = s.addService("BotServ", "bs", "Bot Service", "BotServ puts a bot in your channel that sits there with op status. Commands:", botServCommands())
 	s.helpServ = s.addService("HelpServ", "he", "Help Service", helpServIntro, helpServCommands())
 	s.helpServ.fallback = s.helpAnswer
@@ -173,7 +187,7 @@ func (s *Services) toService(c *Client, sv *service, text string) {
 		s.say(c, sv, "%s is for server admins (oper flag a).", sv.user.Nick)
 		s.logDenied(c, sv)
 		return
-	case sv.alias == "":
+	case sv.alias == "" && len(sv.cmds) == 0:
 		s.svcReply(c, sv, sv.intro)
 		return
 	case s.defconOperOnly(c, sv):
@@ -203,16 +217,20 @@ func (s *Services) toService(c *Client, sv *service, text string) {
 	}
 	cmd, ok := sv.command(name)
 	if !ok {
-		s.say(c, sv, "Unknown command %s. Type /%s help for a list.", fields[0], sv.alias)
+		s.say(c, sv, "Unknown command %s. Type /%s help for a list.", fields[0], sv.helpName())
+		return
+	}
+	real := name
+	if r, isAlias := sv.aliases[name]; isAlias {
+		real = r
+	}
+	if s.readonlyBlocks(c, sv, real, args) {
 		return
 	}
 	c.csUsedOn = ""
 	cmd.run(s, c, args)
 	if sv == s.chanServ && c.csUsedOn != "" {
-		if real, isAlias := sv.aliases[name]; isAlias {
-			name = real
-		}
-		s.csLogUse(c, name, args)
+		s.csLogUse(c, real, args)
 		c.csUsedOn = ""
 	}
 }
@@ -746,6 +764,9 @@ func (s *Services) forceNick(c *Client, nick string) {
 // expireAccounts drops accounts nobody used for nick_expire, except those
 // in use right now.
 func (s *Services) expireAccounts(now time.Time) {
+	if s.readonly || s.noexpire {
+		return
+	}
 	old, err := s.store.Expired(now.Add(-s.cfg.Services.NickExpire.Duration))
 	if err != nil {
 		s.log.Printf("services database: %v", err)

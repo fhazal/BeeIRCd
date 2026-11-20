@@ -569,6 +569,7 @@ func (s *Server) shutdown(reason string) {
 	s.saveReputation(time.Now())
 	s.saveWhowas(time.Now())
 	s.svc.CloseOutside()
+	s.svc.CloseLogFile()
 	if err := s.store.Close(); err != nil {
 		s.log.Printf("closing services database: %v", err)
 	}

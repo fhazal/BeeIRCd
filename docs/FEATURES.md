@@ -106,7 +106,7 @@ Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few 
 | **MemoServ**: memos to nicks and to channels, number lists, IGNORE, CANCEL, CHECK, RSEND (read receipts), INFO, SENDALL, STAFF, notify by notice or mail | ✅ |
 | **HostServ**: ON, OFF, GROUP, REQUEST; opers SET, SETALL, DEL, DELALL, LIST, WAITING, ACTIVATE, REJECT | ✅ |
 | **BotServ**: channel bots, ASSIGN, SAY, ACT, GREET, 10 kickers, BADWORDS, fantasy commands (`!op`, `!kick`, `!mute` ...) | ✅ |
-| **OperServ**: STATS, GLOBAL, AKILL, ZLINE, SNLINE, SHUN, SQLINE, EXCEPTION, KILL, MODE, KICK, FORBID, SESSION, NEWS, IGNORE, USERLIST, CHANLIST, SEEN, CHANKILL, SVSNICK, SVSJOIN, SVSPART | ✅ |
+| **OperServ**: STATS, GLOBAL, AKILL, ZLINE, SNLINE, SHUN, SQLINE, EXCEPTION, KILL, MODE, KICK, FORBID, SESSION, NEWS, IGNORE, USERLIST, CHANLIST, SEEN, CHANKILL, SVSNICK, SVSJOIN, SVSPART, RELOAD, LOGSEARCH | ✅ |
 | **AdminServ**: server settings, MOTD, ports, opers and classes from IRC, with HISTORY, DIFF and UNDO | ✅ |
 | Mail (SMTP with STARTTLS or TLS on 465, or a sendmail program) with Anope's templates; easy setup in the Hive Panel (Gmail, Outlook, Zoho presets, test mail with plain-words errors, SPF / DKIM / DMARC check) and `beeircd mail-test` | ✅ |
 | Services log channel, lines exactly as Anope writes them | ✅ |

@@ -22,6 +22,10 @@ type fakeHost struct {
 	notices []string // "to: text"
 	posts   chan func()
 	opers   map[string]string // UID -> oper flags
+	said    []string          // channel messages: "Bot #chan: text"
+
+	rehashes  []string // who asked for a rehash
+	rehashErr error    // what Rehash answers
 }
 
 func (h *fakeHost) Emit(ev state.Event) error {
@@ -36,11 +40,17 @@ func (h *fakeHost) Notice(from, to, text string) {
 		h.notices = append(h.notices, u.Nick+": "+text)
 	}
 }
-func (h *fakeHost) Numeric(uid, code string, params ...string)                                  {}
-func (h *fakeHost) DefaultHost(uid string) string                                               { return "" }
-func (h *fakeHost) ChannelMessage(from, channel string, status byte, privmsg bool, text string) {}
-func (h *fakeHost) ServerNotice(uid, text string)                                               {}
-func (h *fakeHost) Snotice(letter byte, text string)                                            {}
+func (h *fakeHost) Numeric(uid, code string, params ...string) {}
+func (h *fakeHost) DefaultHost(uid string) string              { return "" }
+func (h *fakeHost) ChannelMessage(from, channel string, status byte, privmsg bool, text string) {
+	nick := from
+	if u := h.net.UserByUID(from); u != nil {
+		nick = u.Nick
+	}
+	h.said = append(h.said, nick+" "+channel+": "+text)
+}
+func (h *fakeHost) ServerNotice(uid, text string)    {}
+func (h *fakeHost) Snotice(letter byte, text string) {}
 func (h *fakeHost) Disconnect(uid, reason string) {
 	h.Emit(&state.UserQuit{UID: uid, Reason: reason})
 }
@@ -54,10 +64,14 @@ func (h *fakeHost) CheckModeParam(channel string, m byte, arg string) (string, s
 
 func (h *fakeHost) ApplyChannelModes(uid, srcUID, channel, modes string, args []string) {
 }
-func (h *fakeHost) ApplySetting(uid, bot, key, value string)            {}
-func (h *fakeHost) Post(f func())                                       { h.posts <- f }
-func (h *fakeHost) Stats() HostStats                                    { return HostStats{Started: time.Now()} }
-func (h *fakeHost) ResetPeak()                                          {}
+func (h *fakeHost) ApplySetting(uid, bot, key, value string) {}
+func (h *fakeHost) Post(f func())                            { h.posts <- f }
+func (h *fakeHost) Stats() HostStats                         { return HostStats{Started: time.Now()} }
+func (h *fakeHost) ResetPeak()                               {}
+func (h *fakeHost) Rehash(by string) error {
+	h.rehashes = append(h.rehashes, by)
+	return h.rehashErr
+}
 func (h *fakeHost) ForceJoin(uid, channel string)                       {}
 func (h *fakeHost) JoinBlocked(uid, channel, key string) (string, bool) { return "", false }
 

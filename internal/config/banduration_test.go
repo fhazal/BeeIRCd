@@ -30,7 +30,7 @@ func TestParseBanDuration(t *testing.T) {
 
 func TestDurationWords(t *testing.T) {
 	for d, want := range map[time.Duration]string{
-		150 * time.Second:  "2 minutes, 30 seconds",
+		150 * time.Second:  "2 minutes and 30 seconds",
 		time.Hour:          "1 hour",
 		5 * time.Second:    "5 seconds",
 		8 * 24 * time.Hour: "8 days",
