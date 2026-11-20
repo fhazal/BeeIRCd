@@ -137,6 +137,9 @@ func limitText(n int) string {
 // expireBans drops network bans, forbids and session exceptions that ran
 // out.
 func (s *Services) expireBans(now time.Time) {
+	if s.readonly {
+		return
+	}
 	gone, err := s.store.PurgeExpired(now)
 	if err != nil {
 		s.log.Printf("services database: %v", err)

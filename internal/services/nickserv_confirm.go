@@ -150,6 +150,9 @@ func nsResend(s *Services, c *Client, args []string) {
 // expireUnconfirmed drops accounts not confirmed within unconfirmed_expire
 // of registering, except those in use right now.
 func (s *Services) expireUnconfirmed(now time.Time) {
+	if s.readonly {
+		return
+	}
 	d := s.cfg.Services.UnconfirmedExpireOr()
 	if d <= 0 {
 		return

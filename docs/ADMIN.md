@@ -390,6 +390,19 @@ restart ends it too. It applies to the server you type it on.
   and may still be changed or removed. Off by default; opers change it
   for someone with `SASET NEVEROP <nick> ON|OFF`. INFO shows it to the
   owner and opers.
+- **OperServ `SET`** (Anope's os_set) flips services-wide switches.
+  `SET LIST` shows them to any oper; changing one needs oper flag `a`.
+  The switches live in memory only: **a restart turns them all off
+  again**. Every change goes to the `a` server notices and the #services
+  log channel.
+  - `SET READONLY ON|OFF`: nothing is saved. Commands that would change
+    data answer "Services are in read-only mode; this can't be changed
+    right now." Looking still works (INFO, LIST, STATUS, ACCESS LIST,
+    ...), and so do IDENTIFY, LOGOUT, RECOVER, channel status commands
+    (OP, KICK, BAN, ...), KILL and OperServ SET itself. Nicks, channels,
+    bans and suspensions don't expire while it is on. Hive Panel forms
+    that run a services command are refused too; the panel's own ban,
+    channel and settings forms and web sign-up are not.
 
 ### For everyone
 

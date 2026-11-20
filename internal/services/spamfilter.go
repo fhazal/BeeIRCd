@@ -243,6 +243,9 @@ func (s *Services) RemoteSpamFilter(f spamfilter.Filter, add bool) bool {
 // expireSpamFilters drops rules that ran out (every server does at the
 // same time, so nothing is sent over links).
 func (s *Services) expireSpamFilters(now time.Time) {
+	if s.readonly {
+		return
+	}
 	gone, err := s.store.PurgeSpamFilters(now)
 	if err != nil {
 		s.log.Printf("services database: %v", err)

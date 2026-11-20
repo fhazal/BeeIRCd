@@ -102,6 +102,9 @@ type Services struct {
 	cfg  *config.Config
 	// botSeq numbers bots on the services pseudo-server.
 	botSeq int
+	// readonly is OperServ SET READONLY: no command, expiry or web form
+	// changes the services data. Runtime only, off after a restart.
+	readonly bool
 	// defcon is OperServ DEFCON (0 = 5, normal).
 	defcon int
 	log    *log.Logger

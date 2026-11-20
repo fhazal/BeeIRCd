@@ -916,3 +916,4 @@
 "read" = "dibaca"
 "new" = "baharu"
 "%s has NEVEROP on and can't be added to access lists." = "%s menghidupkan NEVEROP dan tidak boleh ditambah ke senarai akses."
+"Services are in read-only mode; this can't be changed right now." = "Services dalam mod baca sahaja; ini tidak boleh diubah sekarang."

@@ -206,13 +206,17 @@ func (s *Services) toService(c *Client, sv *service, text string) {
 		s.say(c, sv, "Unknown command %s. Type /%s help for a list.", fields[0], sv.alias)
 		return
 	}
+	real := name
+	if r, isAlias := sv.aliases[name]; isAlias {
+		real = r
+	}
+	if s.readonlyBlocks(c, sv, real, args) {
+		return
+	}
 	c.csUsedOn = ""
 	cmd.run(s, c, args)
 	if sv == s.chanServ && c.csUsedOn != "" {
-		if real, isAlias := sv.aliases[name]; isAlias {
-			name = real
-		}
-		s.csLogUse(c, name, args)
+		s.csLogUse(c, real, args)
 		c.csUsedOn = ""
 	}
 }
@@ -746,6 +750,9 @@ func (s *Services) forceNick(c *Client, nick string) {
 // expireAccounts drops accounts nobody used for nick_expire, except those
 // in use right now.
 func (s *Services) expireAccounts(now time.Time) {
+	if s.readonly {
+		return
+	}
 	old, err := s.store.Expired(now.Add(-s.cfg.Services.NickExpire.Duration))
 	if err != nil {
 		s.log.Printf("services database: %v", err)
