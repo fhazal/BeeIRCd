@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/fhazal/beeircd/internal/state"
+	"github.com/fhazal/beeircd/internal/store"
 )
 
 // OperServ SET READONLY refuses commands that change data, lets the ones
@@ -99,5 +100,50 @@ func TestReadOnlyStopsExpiry(t *testing.T) {
 	}
 	if a, _ := svc.store.AccountByNick("Bee"); a != nil {
 		t.Errorf("Bee did not expire with READONLY off")
+	}
+}
+
+// While NOEXPIRE is on nothing expires and run-out forbids still count;
+// once it is off they expire as usual.
+func TestNoExpire(t *testing.T) {
+	svc, h, later := expireSetup(t)
+	os := h.net.UserByNick("OperServ")
+	boss := helpUser(t, h, "1LFAAAAAB", "Boss")
+	h.opers = map[string]string{boss.UID: "oa"}
+	svc.Message(boss.UID, os, "SET NOEXPIRE ON")
+	if got := noticeTo(h, "Boss"); !strings.Contains(got, "Nothing expires now") || !svc.noexpire {
+		t.Fatalf("SET NOEXPIRE ON: %q", got)
+	}
+	svc.Message(boss.UID, os, "SET LIST")
+	if got := noticeTo(h, "Boss"); !strings.Contains(got, "NOEXPIRE   ON") {
+		t.Errorf("SET LIST: %q", got)
+	}
+	past := time.Now().Add(-time.Hour)
+	svc.forbids[store.ForbidNick] = append(svc.forbids[store.ForbidNick],
+		store.Forbid{Name: "Spam*", Reason: "r", SetBy: "Boss", SetAt: past.Add(-time.Hour), Expires: past})
+
+	svc.expireChannels(later)
+	svc.expireAccounts(later)
+	if reg, _ := svc.store.ChannelByName("#hive"); reg == nil {
+		t.Fatalf("#hive expired with NOEXPIRE on")
+	}
+	if a, _ := svc.store.AccountByNick("Bee"); a == nil {
+		t.Fatalf("Bee expired with NOEXPIRE on")
+	}
+	if _, ok := svc.forbidden(store.ForbidNick, "Spammer"); !ok {
+		t.Errorf("run-out forbid dropped with NOEXPIRE on")
+	}
+
+	svc.Message(boss.UID, os, "SET NOEXPIRE OFF")
+	if got := noticeTo(h, "Boss"); !strings.Contains(got, "Expiry is back on") || svc.noexpire {
+		t.Fatalf("SET NOEXPIRE OFF: %q", got)
+	}
+	if _, ok := svc.forbidden(store.ForbidNick, "Spammer"); ok {
+		t.Errorf("run-out forbid still counts with NOEXPIRE off")
+	}
+	svc.expireChannels(later)
+	svc.expireAccounts(later)
+	if reg, _ := svc.store.ChannelByName("#hive"); reg != nil {
+		t.Errorf("#hive did not expire with NOEXPIRE off")
 	}
 }

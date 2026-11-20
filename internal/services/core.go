@@ -105,6 +105,10 @@ type Services struct {
 	// readonly is OperServ SET READONLY: no command, expiry or web form
 	// changes the services data. Runtime only, off after a restart.
 	readonly bool
+	// noexpire is OperServ SET NOEXPIRE: nicks, channels, bans, forbids and
+	// session exceptions never expire, and run-out ones stay in force.
+	// Runtime only, off after a restart.
+	noexpire bool
 	// defcon is OperServ DEFCON (0 = 5, normal).
 	defcon int
 	log    *log.Logger

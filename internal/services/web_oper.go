@@ -274,7 +274,7 @@ func (s *Services) WebSessions(max int) (limit int, busiest []SessionHost, excep
 	if len(busiest) > max {
 		busiest = busiest[:max]
 	}
-	now := time.Now()
+	now := s.banNow() // NOEXPIRE keeps run-out entries in force
 	for _, e := range s.sessionExcepts {
 		if e.Expires.IsZero() || now.Before(e.Expires) {
 			excepts = append(excepts, e)

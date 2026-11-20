@@ -231,7 +231,7 @@ func (s *Services) DnsblExempt(ip string) bool {
 	if s.exempt("", "", ip) {
 		return true
 	}
-	now := time.Now()
+	now := s.banNow() // NOEXPIRE keeps run-out entries in force
 	for _, e := range s.allExcepts() {
 		if (e.Expires.IsZero() || now.Before(e.Expires)) && irc.MatchHost(e.Mask, ip) {
 			return true

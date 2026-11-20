@@ -408,6 +408,13 @@ restart ends it too. It applies to the server you type it on.
     +i/+k/bans, suspended channels too), as long as you are identified.
     It ends when you turn it off, lose oper flag `a` or quit; each of
     those is logged. `SET LIST` marks you "(super admin)".
+  - `SET NOEXPIRE ON|OFF`: nothing expires. Nicks, channels and
+    unconfirmed accounts stay, and AKILLs and the other bans, forbids and
+    session exceptions stay in force even once their time has run out
+    (as on Anope). New entries and changes still save as usual.
+    Suspensions and spam filters still expire. Bans sent to linked
+    servers carry their expiry time, so a linked server can still drop
+    one on its own.
 
 ### For everyone
 

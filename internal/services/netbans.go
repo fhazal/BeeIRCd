@@ -64,7 +64,7 @@ func snoDate(t time.Time) string { return t.UTC().Format("Mon 2 Jan 2006 15:04:0
 
 // liveBans returns the bans of kind still in force, oldest first.
 func (s *Services) liveBans(kind string) []store.NetBan {
-	now := time.Now()
+	now := s.banNow() // NOEXPIRE keeps run-out entries in force
 	var out []store.NetBan
 	for _, b := range s.netbans {
 		if b.Kind == kind && b.Live(now) {
@@ -137,7 +137,7 @@ func (s *Services) firstBan(kind, ident, host, ip, realname string) *store.NetBa
 // firstBanSoft is firstBan; soft bans (a % mask, which logged-in people
 // pass) count only when soft is true.
 func (s *Services) firstBanSoft(kind, ident, host, ip, realname string, soft bool) *store.NetBan {
-	now := time.Now()
+	now := s.banNow() // NOEXPIRE keeps run-out entries in force
 	for i := range s.netbans {
 		b := &s.netbans[i]
 		if b.Kind == kind && (soft || !b.Soft()) && b.Live(now) && s.banMatches(b, ident, host, ip, realname) {
@@ -150,7 +150,7 @@ func (s *Services) firstBanSoft(kind, ident, host, ip, realname string, soft boo
 // exempt reports whether an ELINE covers ident at host/ip. With ident ""
 // (before the ident is known) only the host part counts.
 func (s *Services) exempt(ident, host, ip string) bool {
-	now := time.Now()
+	now := s.banNow() // NOEXPIRE keeps run-out entries in force
 	for _, b := range s.netbans {
 		if b.Kind != store.BanEline || !b.Live(now) {
 			continue

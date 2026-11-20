@@ -1,10 +1,12 @@
 package services
 
-// OperServ SET, as Anope's os_set: the READONLY and SUPERADMIN switches.
+// OperServ SET, as Anope's os_set: the READONLY, SUPERADMIN and NOEXPIRE
+// switches.
 // They live in memory only, so a restart turns them off again.
 
 import (
 	"strings"
+	"time"
 )
 
 // readonlyRefusal is what a command that would change data gets while
@@ -72,6 +74,7 @@ func osSet(s *Services, c *Client, args []string) {
 	what := strings.ToUpper(argAt(args, 0))
 	if what == "LIST" {
 		s.os(c, "READONLY   %s", onOffWord(s.readonly))
+		s.os(c, "NOEXPIRE   %s", onOffWord(s.noexpire))
 		if s.isSuperAdmin(c) {
 			s.os(c, "SUPERADMIN ON (super admin)")
 		} else {
@@ -80,8 +83,8 @@ func osSet(s *Services, c *Client, args []string) {
 		return
 	}
 	on, ok := onOff(argAt(args, 1))
-	if (what != "READONLY" && what != "SUPERADMIN") || !ok {
-		s.os(c, "Syntax: SET {READONLY | SUPERADMIN} {ON | OFF} | SET LIST")
+	if (what != "READONLY" && what != "SUPERADMIN" && what != "NOEXPIRE") || !ok {
+		s.os(c, "Syntax: SET {READONLY | SUPERADMIN | NOEXPIRE} {ON | OFF} | SET LIST")
 		return
 	}
 	if !s.needFlag(c, s.operServ, 'a') {
@@ -93,6 +96,8 @@ func osSet(s *Services, c *Client, args []string) {
 		s.readonly = on
 	case "SUPERADMIN":
 		c.superAdmin = on // for c only: nobody turns it on for someone else
+	case "NOEXPIRE":
+		s.noexpire = on
 	}
 	s.audit(c, s.operServ, "SET %s %s", what, word)
 	s.osLog(c, "to turn %s %s", what, strings.ToLower(word))
@@ -102,6 +107,10 @@ func osSet(s *Services, c *Client, args []string) {
 		s.os(c, "You are now a super admin: founder on every registered channel, until you turn it off, de-oper or quit.")
 	case what == "SUPERADMIN":
 		s.os(c, "You are no longer a super admin.")
+	case what == "NOEXPIRE" && on:
+		s.os(c, "Nothing expires now: nicks, channels, bans and exceptions stay, even run-out ones, until NOEXPIRE is off or services restart.")
+	case what == "NOEXPIRE":
+		s.os(c, "Expiry is back on.")
 	case on:
 		s.os(c, "Services are now in read-only mode: nothing is saved or expires until READONLY is off or services restart.")
 	default:
@@ -130,6 +139,16 @@ func (s *Services) dropSuperAdmin(c *Client, why string) {
 	c.superAdmin = false
 	s.snotice('a', "%s turned SUPERADMIN off (%s)", c.user.Nick, why)
 	s.logTo(s.operServ, "ADMIN: "+anopeMask(c.user)+" is no longer a super admin ("+why+")")
+}
+
+// banNow is the time bans, forbids and session exceptions are checked
+// against. While NOEXPIRE is on it is the zero time, so an entry whose
+// expiry has passed still counts.
+func (s *Services) banNow() time.Time {
+	if s.noexpire {
+		return time.Time{}
+	}
+	return time.Now()
 }
 
 func onOffWord(on bool) string {

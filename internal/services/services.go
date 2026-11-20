@@ -750,7 +750,7 @@ func (s *Services) forceNick(c *Client, nick string) {
 // expireAccounts drops accounts nobody used for nick_expire, except those
 // in use right now.
 func (s *Services) expireAccounts(now time.Time) {
-	if s.readonly {
+	if s.readonly || s.noexpire {
 		return
 	}
 	old, err := s.store.Expired(now.Add(-s.cfg.Services.NickExpire.Duration))

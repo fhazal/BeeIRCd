@@ -148,7 +148,7 @@ func (s *Services) applyFounderChanges(changes []store.FounderChange, why string
 // chan_expire, except those in use right now (NOEXPIRE and suspended
 // channels never expire).
 func (s *Services) expireChannels(now time.Time) {
-	if s.readonly {
+	if s.readonly || s.noexpire {
 		return
 	}
 	old, err := s.store.ExpiredChannels(now.Add(-s.cfg.Services.ChanExpire.Duration))

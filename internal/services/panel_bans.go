@@ -217,7 +217,7 @@ func nameBanKind(name string) string {
 
 // NameBans are the live nick and channel forbids, newest first.
 func (s *Services) NameBans() []NameBan {
-	now := time.Now()
+	now := s.banNow() // NOEXPIRE keeps run-out entries in force
 	var out []NameBan
 	for _, kind := range []string{store.ForbidNick, store.ForbidChan} {
 		for _, f := range s.forbids[kind] {
