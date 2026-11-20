@@ -205,6 +205,7 @@ type Client struct {
 	webFlags     string       // the Hive Panel's stand-in for an oper: their oper flags
 	webDone      func()       // the stand-in's command finished later (a password being hashed)
 	superAdmin   bool         // OperServ SET SUPERADMIN: founder on every registered channel
+	globalQueue  []string     // Global QUEUE: your lines, kept until you quit
 }
 
 // operFlags are c's oper flags: from the server for someone on IRC, from

@@ -30,7 +30,7 @@ func operServCommands() map[string]svcCmd {
 			"DEFCON alone shows the level; DEFCON <n> sets it (flag a). 5 is normal.\n4  no new nick or channel registrations\n3  also no new memos (opers still may)\n2  also: people who connect now are disconnected\n1  also: services answer IRC operators only\nEveryone gets a Global notice when it changes.", osDefcon},
 		"STATS": {"STATS [AKILL | HASH | UPLINK | UPTIME | ALL | RESET]", "people, channels, opers, uptime",
 			"STATS alone shows how busy the network is. AKILL counts the network bans,\nHASH the size of the tables, UPLINK the server links, UPTIME people and\nuptime; ALL shows everything. RESET makes the people peak the number online\nnow. Any oper.", osStats},
-		"GLOBAL": {"GLOBAL <text>", "a notice to everyone",
+		"GLOBAL": {"GLOBAL [text]", "a notice to everyone",
 			"Sends a notice from Global to everyone on the network.\nExample: /os global The server restarts at 22:00 UTC.", osGlobal},
 		"AKILL": {"AKILL ADD|DEL|LIST|VIEW|CLEAR ...", "ban from the whole network",
 			"AKILL ADD [+expiry] <user@host|nick> <reason>   expiry like +30m, +12h, +7d;\n    without it the AKILL lasts 30 days, +0 keeps it until removed\nAKILL DEL {<mask> | <num> | <list>}   numbers from LIST, like 2 or 1-3,5\nAKILL LIST [<mask> | <list>]\nAKILL VIEW [<mask> | <list>]   with who set it and when\nAKILL CLEAR\nThe host may be a CIDR range, like *@203.0.113.0/24. A nick bans that\nperson's IP. ~C:country or ~A:network bans a place (GeoIP), like ~C:NL or\n~A:64500; SHUN and EXCEPTION BAN take them too. People who match are\ndisconnected at once. Opers type /GLINE for the same list.\nExample: /os akill add +7d *@203.0.113.* spam bots", osNetBan(store.BanAkill)},
@@ -180,27 +180,6 @@ func osStats(s *Services, c *Client, args []string) {
 		s.os(c, "Maximum users: %d", hs.PeakUsers)
 		s.os(c, "Services up %s.", durWords(time.Since(hs.Started)))
 	}
-}
-
-func osGlobal(s *Services, c *Client, args []string) {
-	if !s.needFlag(c, s.operServ, 'g') {
-		return
-	}
-	text := strings.Join(args, " ")
-	if text == "" {
-		s.os(c, "Syntax: GLOBAL <text>")
-		return
-	}
-	n := 0
-	for _, oc := range s.clients {
-		if !oc.closed {
-			s.host.Notice(s.global.user.UID, oc.user.UID, text)
-			n++
-		}
-	}
-	s.audit(c, s.operServ, "GLOBAL %s", text)
-	s.osLog(c, "")
-	s.os(c, "Sent to everyone online (%s).", plural(n, "person"))
 }
 
 // parseExpiry reads Anope's "+7d" ("+0" for until removed; a bare number

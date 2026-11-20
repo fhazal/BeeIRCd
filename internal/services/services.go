@@ -46,6 +46,15 @@ type service struct {
 	fallback func(c *Client, text string)
 }
 
+// helpName is what to type before "help": the alias, or "msg Nick" for a
+// service without one (Global).
+func (sv *service) helpName() string {
+	if sv.alias != "" {
+		return sv.alias
+	}
+	return "msg " + sv.user.Nick
+}
+
 // command finds a command by name or hidden alias.
 func (sv *service) command(name string) (svcCmd, bool) {
 	name = strings.ToUpper(name)
@@ -101,7 +110,8 @@ func (s *Services) startServices() {
 	s.operServ.need = 'o'
 	s.operServ.aliases = operServAliases
 	s.hostServ = s.addService("HostServ", "hs", "vHost Service", "HostServ gives nicks a vHost, a host shown instead of yours. Commands:", hostServCommands())
-	s.global = s.addService("Global", "", "Network Announcements", "Global sends network notices. It takes no commands.", map[string]svcCmd{})
+	s.global = s.addService("Global", "", "Network Announcements", "Global sends network notices for IRC operators. Commands:", globalCommands())
+	s.global.need = 'o'
 	s.botServ = s.addService("BotServ", "bs", "Bot Service", "BotServ puts a bot in your channel that sits there with op status. Commands:", botServCommands())
 	s.helpServ = s.addService("HelpServ", "he", "Help Service", helpServIntro, helpServCommands())
 	s.helpServ.fallback = s.helpAnswer
@@ -175,7 +185,7 @@ func (s *Services) toService(c *Client, sv *service, text string) {
 		s.say(c, sv, "%s is for server admins (oper flag a).", sv.user.Nick)
 		s.logDenied(c, sv)
 		return
-	case sv.alias == "":
+	case sv.alias == "" && len(sv.cmds) == 0:
 		s.svcReply(c, sv, sv.intro)
 		return
 	case s.defconOperOnly(c, sv):
@@ -205,7 +215,7 @@ func (s *Services) toService(c *Client, sv *service, text string) {
 	}
 	cmd, ok := sv.command(name)
 	if !ok {
-		s.say(c, sv, "Unknown command %s. Type /%s help for a list.", fields[0], sv.alias)
+		s.say(c, sv, "Unknown command %s. Type /%s help for a list.", fields[0], sv.helpName())
 		return
 	}
 	real := name

@@ -39,7 +39,7 @@ func (s *Services) serviceHelp(c *Client, sv *service, args []string) {
 			name = real
 		}
 		if !ok || !s.canUse(c, sv, name) {
-			s.say(c, sv, "No help for %s. Type /%s help for a list.", args[0], sv.alias)
+			s.say(c, sv, "No help for %s. Type /%s help for a list.", args[0], sv.helpName())
 			return
 		}
 		s.say(c, sv, "Syntax: %s", cmd.syntax)
@@ -97,9 +97,9 @@ func (s *Services) serviceHelp(c *Client, sv *service, args []string) {
 	}
 	s.svcReply(c, sv, " ")
 	if shownGroups > 0 {
-		s.say(c, sv, "Every command with a line each: /%s help all", sv.alias)
+		s.say(c, sv, "Every command with a line each: /%s help all", sv.helpName())
 	}
-	s.say(c, sv, "More on one command: /%s help <command>", sv.alias)
+	s.say(c, sv, "More on one command: /%s help <command>", sv.helpName())
 }
 
 // wrapNames joins names with ", " into lines of about width characters.
@@ -165,6 +165,7 @@ func (s *Services) helpSetup() {
 	}
 	bs.cmdNeed = map[string]byte{"BOT": 'b'}
 
+	s.global.cmdNeed = map[string]byte{"GLOBAL": 'g', "QUEUE": 'g', "SERVER": 'g'}
 	s.operServ.cmdNeed = map[string]byte{
 		"GLOBAL": 'g', "RELOAD": 'a', "LOGONNEWS": 'g', "OPERNEWS": 'g', "RANDOMNEWS": 'g', "AKILL": 'k', "ZLINE": 'k', "SNLINE": 'k', "SHUN": 'k', "SQLINE": 's', "KILL": 'k', "SESSION": 'k', "EXCEPTION": 'k',
 		"MODE": 's', "KICK": 's', "FORBID": 's',

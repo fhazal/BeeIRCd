@@ -421,6 +421,18 @@ restart ends it too. It applies to the server you type it on.
   restart wait for one. Answers "Reloaded the config." or the error. It
   goes to the `a` server notices and the #services log channel, and still
   works while `SET READONLY` is on (it is config, not services data).
+- **Global commands** (Anope's gl_global, gl_queue, gl_server; oper flag
+  `g`, `/msg Global help`). `GLOBAL [text]` is the same as OperServ
+  GLOBAL: a notice from Global to everyone online. With no text it sends
+  your queue and empties it. `QUEUE ADD <text>`, `QUEUE DEL <num>`,
+  `QUEUE LIST` and `QUEUE CLEAR` build a notice of several lines: your own
+  queue of at most 10 lines, kept in memory until you quit. `SERVER
+  <server> [text]` is GLOBAL for the people on one server (name matched
+  without regard to case; "No server named X." when nobody is known
+  there); with no text it sends your queue to that server. Each line goes
+  out as its own notice, in order. Every send is audited and logged, and
+  you are told how many people got it. Global answers IRC operators only
+  and is never held back by `SET READONLY`.
 
 ### For everyone
 
