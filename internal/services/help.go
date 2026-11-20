@@ -167,7 +167,7 @@ func (s *Services) helpSetup() {
 
 	s.global.cmdNeed = map[string]byte{"GLOBAL": 'g', "QUEUE": 'g', "SERVER": 'g'}
 	s.operServ.cmdNeed = map[string]byte{
-		"GLOBAL": 'g', "RELOAD": 'a', "LOGONNEWS": 'g', "OPERNEWS": 'g', "RANDOMNEWS": 'g', "AKILL": 'k', "ZLINE": 'k', "SNLINE": 'k', "SHUN": 'k', "SQLINE": 's', "KILL": 'k', "SESSION": 'k', "EXCEPTION": 'k',
+		"GLOBAL": 'g', "RELOAD": 'a', "LOGSEARCH": 'a', "LOGONNEWS": 'g', "OPERNEWS": 'g', "RANDOMNEWS": 'g', "AKILL": 'k', "ZLINE": 'k', "SNLINE": 'k', "SHUN": 'k', "SQLINE": 's', "KILL": 'k', "SESSION": 'k', "EXCEPTION": 'k',
 		"MODE": 's', "KICK": 's', "FORBID": 's',
 		"CHANKILL": 'k', "SVSNICK": 's', "SVSJOIN": 's', "SVSPART": 's', "UMODE": 's', "IGNORE": 'k', "SEEN": 's',
 	}

@@ -421,6 +421,17 @@ restart ends it too. It applies to the server you type it on.
   restart wait for one. Answers "Reloaded the config." or the error. It
   goes to the `a` server notices and the #services log channel, and still
   works while `SET READONLY` is on (it is config, not services data).
+- **OperServ `LOGSEARCH [+<days>d] [+<limit>l] <pattern>`** (Anope's
+  os_logsearch, oper flag `a`) searches the services log file
+  (`[services] log_file`) and the one before it (`<file>.1`). A pattern
+  without `*` or `?` matches anywhere in a line, not caring about case;
+  one with them must match the whole line, time first. `+<days>d` looks
+  that many days back (7), `+<limit>l` shows that many matches (50, at
+  most 500): the newest ones, oldest first, then "Showing N of M
+  matches." or "No matches.". The files are read beside the server, so a
+  big search doesn't hold it up. Without a log file it answers
+  "Services don't log to a file; set [services] log_file first." It
+  works while `SET READONLY` is on.
 - **Global commands** (Anope's gl_global, gl_queue, gl_server; oper flag
   `g`, `/msg Global help`). `GLOBAL [text]` is the same as OperServ
   GLOBAL: a notice from Global to everyone online. With no text it sends
