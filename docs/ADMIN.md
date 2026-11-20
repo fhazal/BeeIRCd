@@ -415,6 +415,12 @@ restart ends it too. It applies to the server you type it on.
     Suspensions and spam filters still expire. Bans sent to linked
     servers carry their expiry time, so a linked server can still drop
     one on its own.
+- **OperServ `RELOAD`** (Anope's os_reload, oper flag `a`) reads
+  `beeircd.conf` again, exactly like `/REHASH`: a file that doesn't pass
+  the checks is refused and the old settings stay, and changes that need a
+  restart wait for one. Answers "Reloaded the config." or the error. It
+  goes to the `a` server notices and the #services log channel, and still
+  works while `SET READONLY` is on (it is config, not services data).
 
 ### For everyone
 

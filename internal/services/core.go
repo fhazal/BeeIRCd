@@ -69,6 +69,9 @@ type Host interface {
 	Stats() HostStats
 	// ResetPeak makes the people peak the number online now (STATS RESET).
 	ResetPeak()
+	// Rehash re-reads beeircd.conf like /REHASH (OperServ RELOAD). Services
+	// run on the loop, so it must not post to the loop and wait.
+	Rehash(by string) error
 	// JoinBlocked says why uid may not join channel with key the normal
 	// way: the numeric ("" = it may) and whether an invite would get it in
 	// (bans, +i, +k, +l, +R), as JOIN itself decides.

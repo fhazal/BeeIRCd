@@ -23,6 +23,9 @@ type fakeHost struct {
 	posts   chan func()
 	opers   map[string]string // UID -> oper flags
 	said    []string          // channel messages: "Bot #chan: text"
+
+	rehashes  []string // who asked for a rehash
+	rehashErr error    // what Rehash answers
 }
 
 func (h *fakeHost) Emit(ev state.Event) error {
@@ -61,10 +64,14 @@ func (h *fakeHost) CheckModeParam(channel string, m byte, arg string) (string, s
 
 func (h *fakeHost) ApplyChannelModes(uid, srcUID, channel, modes string, args []string) {
 }
-func (h *fakeHost) ApplySetting(uid, bot, key, value string)            {}
-func (h *fakeHost) Post(f func())                                       { h.posts <- f }
-func (h *fakeHost) Stats() HostStats                                    { return HostStats{Started: time.Now()} }
-func (h *fakeHost) ResetPeak()                                          {}
+func (h *fakeHost) ApplySetting(uid, bot, key, value string) {}
+func (h *fakeHost) Post(f func())                            { h.posts <- f }
+func (h *fakeHost) Stats() HostStats                         { return HostStats{Started: time.Now()} }
+func (h *fakeHost) ResetPeak()                               {}
+func (h *fakeHost) Rehash(by string) error {
+	h.rehashes = append(h.rehashes, by)
+	return h.rehashErr
+}
 func (h *fakeHost) ForceJoin(uid, channel string)                       {}
 func (h *fakeHost) JoinBlocked(uid, channel, key string) (string, bool) { return "", false }
 
