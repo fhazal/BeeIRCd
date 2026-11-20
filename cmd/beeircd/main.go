@@ -180,6 +180,9 @@ func runServer(args []string, stderr io.Writer) int {
 	if child == nil && !*noGate && gate.Supported {
 		return gate.Run(logger, func(d gate.Deliver) gate.Front { return server.NewFront(logger, d) })
 	}
+	if child != nil {
+		ignoreHandoverSignal()
+	}
 	startProfile(logger)
 	startMemStats(logger)
 	cfg, err := config.Load(*path)
@@ -192,6 +195,12 @@ func runServer(args []string, stderr io.Writer) int {
 		srv, err = server.NewBehindGate(cfg, logger, child)
 	} else {
 		srv, err = server.New(cfg, logger)
+	}
+	if errors.Is(err, server.ErrHandoverBroken) {
+		// Taking over the last server's clients broke half-way: they are
+		// gone, and a clean start is the way out.
+		logger.Print(err)
+		return gate.ExitRestart
 	}
 	if err != nil {
 		logger.Print(err)
@@ -213,6 +222,11 @@ func runServer(args []string, stderr io.Writer) int {
 	stopHUP := onHangup(srv.Rehash) // SIGHUP re-reads beeircd.conf
 	defer stopHUP()
 	err = srv.Serve(ctx)
+	if errors.Is(err, server.ErrHandover) {
+		stop()
+		logger.Printf("handed over to the next server process")
+		return gate.ExitHandover
+	}
 	if errors.Is(err, server.ErrRestart) {
 		stop()
 		logger.Printf("restarting")
