@@ -8,6 +8,8 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -195,4 +197,53 @@ func TestGateThrottle(t *testing.T) {
 	if !zl {
 		t.Fatal("no throttle ZLINE")
 	}
+}
+
+// A server that fails to start closes its gate link but leaves the client
+// ports open in the gate, for the next server the gate starts.
+func TestGateKeepsPortsWhenStartFails(t *testing.T) {
+	free, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := free.Addr().String()
+	free.Close()
+	busy, err := net.Listen("tcp", "127.0.0.1:0") // the RPC port is taken
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer busy.Close()
+
+	off := false
+	dir := t.TempDir()
+	cfg := &config.Config{
+		Server:   config.Server{Name: "irc.test.local", Network: "BeeNet", SID: "0BE", ResolveHosts: &off},
+		Listen:   []config.Listen{{Address: addr}},
+		TLS:      config.TLS{Cert: filepath.Join(dir, "cert.pem"), Key: filepath.Join(dir, "key.pem"), SelfSigned: true}, // the RPC API is HTTPS
+		Cloak:    config.Cloak{Enabled: &off, Secret: "0123456789abcdef-test"},
+		Services: config.Services{Database: filepath.Join(dir, "services.db")},
+		Update:   config.Update{Check: &off},
+		GeoIP:    config.GeoIP{Enabled: &off},
+	}
+	cfg.SetDefaults()
+	if err := cfg.Check(); err != nil {
+		t.Fatal(err)
+	}
+	cfg.RPC.Listen = busy.Addr().String()
+
+	quiet := log.New(io.Discard, "", 0)
+	lp, err := gate.NewLoop(func(d gate.Deliver) gate.Front { return NewFront(quiet, d) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lp.Close()
+	_, err = NewBehindGate(cfg, quiet, lp.Child())
+	if err == nil || !strings.Contains(err.Error(), "rpc") {
+		t.Fatalf("the server started with its RPC port taken, or failed before it: %v", err)
+	}
+	conn, err := net.DialTimeout("tcp", addr, time.Second)
+	if err != nil {
+		t.Fatalf("the gate closed the client port when the server failed to start: %v", err)
+	}
+	conn.Close()
 }

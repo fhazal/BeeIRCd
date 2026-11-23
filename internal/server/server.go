@@ -291,12 +291,12 @@ func newServer(cfg *config.Config, logger *log.Logger, child *gate.Child, r *res
 		s.tlsConf = tlsConf
 	}
 	if err := s.openPorts(cfg.Listen); err != nil {
-		s.closeListeners()
+		s.closeListeners(false)
 		db.Close()
 		return nil, err
 	}
 	if err := s.linkSetup(); err != nil {
-		s.closeListeners()
+		s.closeListeners(false)
 		db.Close()
 		return nil, err
 	}
@@ -308,7 +308,7 @@ func newServer(cfg *config.Config, logger *log.Logger, child *gate.Child, r *res
 	if err := s.openRPC(); err != nil {
 		s.closeRPC()
 		s.closeControl()
-		s.closeListeners()
+		s.closeListeners(false)
 		db.Close()
 		return nil, err
 	}
@@ -317,7 +317,7 @@ func newServer(cfg *config.Config, logger *log.Logger, child *gate.Child, r *res
 		if err := s.takeOver(r); err != nil {
 			s.closeRPC()
 			s.closeControl()
-			s.closeListeners()
+			s.closeListeners(false)
 			db.Close()
 			return nil, err
 		}
@@ -572,14 +572,19 @@ func (s *Server) post(f func()) {
 	}
 }
 
-func (s *Server) closeListeners() {
+// closeListeners closes the ports and the gate link. With closeGatePorts
+// (a real stop) the gate closes its client ports too; without it (newServer
+// failed) the gate keeps them for the next server it starts.
+func (s *Server) closeListeners(closeGatePorts bool) {
 	s.lmu.Lock()
 	defer s.lmu.Unlock()
 	for _, l := range s.listeners {
 		l.Close()
 	}
 	if s.gate != nil {
-		s.gate.Sync(gate.Spec{}) // the gate closes the ports too
+		if closeGatePorts {
+			s.gate.Sync(gate.Spec{})
+		}
 		s.gate.Close()
 	}
 }
@@ -588,7 +593,7 @@ func (s *Server) shutdown(reason string) {
 	s.log.Printf("stopping: %s", reason)
 	snap := s.historySnapshot() // before everyone quits and channels go
 	close(s.done)
-	s.closeListeners()
+	s.closeListeners(true)
 	s.closeLinks(reason)
 	s.closeControl()
 	s.closeRPC()
