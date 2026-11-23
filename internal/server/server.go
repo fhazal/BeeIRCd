@@ -92,6 +92,9 @@ type Server struct {
 	renamedAt map[string]time.Time
 	// roBy are the servers behind links whose services are read-only.
 	roBy map[string]bool
+	// renamedFrom is each rename of the last week by the old name (folded),
+	// for servers split off when it happened (in memory only).
+	renamedFrom map[string]renameRecord
 	// 7a connect throttle and unregistered caps; throttleSkip says which
 	// IPs skip them (LAN), replaceable in tests.
 	throttle     connThrottle

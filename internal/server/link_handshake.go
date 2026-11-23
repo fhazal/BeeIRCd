@@ -157,6 +157,9 @@ type linkConn struct {
 	netjoin   *netjoinBatch         // JOINs of their burst, for batch clients
 	preLines  int                   // lines before the handshake was done
 	denied    bool                  // the handshake refused it (not a broken connection)
+	// renameBack: channels their burst brought back under a name we renamed
+	// away while they were split off, to rename there too (rename.go).
+	renameBack []string
 
 	mu      sync.Mutex
 	queue   []string
@@ -703,6 +706,7 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 			s.lnotice("Received end of netburst from \x02%s\x02 (burst time: %d ms)", r.name, l.synced.Milliseconds())
 			s.sendPlaces(l)
 			s.sendExcepts(l)
+			s.renameAfterSplit(l)
 		}
 		s.linkBroadcast(l, ":"+r.sid+" EOS")
 	case "SQUIT":
@@ -784,6 +788,9 @@ func (s *Server) linkSINFO(l *linkConn, m irc.Message) {
 		if o != l && o.up && !o.closed && o.peer.Bee {
 			o.send(r.sinfo)
 		}
+	}
+	if l.eos { // a rename after the split may have waited for this
+		s.renameAfterSplit(l)
 	}
 }
 

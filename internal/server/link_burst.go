@@ -501,6 +501,9 @@ func (s *Server) remoteSJoin(l *linkConn, source string, c *link.Channel) {
 		return
 	}
 	ch := s.net.Channel(c.Name)
+	if ch == nil {
+		defer s.renameNoteBack(l, c)
+	}
 	removeTheirs, merge := false, false
 	if ch != nil {
 		switch {

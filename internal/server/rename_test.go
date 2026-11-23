@@ -534,6 +534,88 @@ func TestRenameLinkClashTree(t *testing.T) {
 	bob.expect("PRIVMSG #new :one channel")
 }
 
+// A channel renamed while the servers are split is one channel under the
+// new name after the relink, with everyone in it, whichever side renamed
+// it: the side that renamed it renames the other's copy too.
+func TestRenameLinkDuringSplit(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	for _, n := range []*linkNode{hub, leaf} {
+		n.s.do(func() { n.s.cfg.Server.IRCv3Drafts = true })
+	}
+	alice := capLogin(t, hub.s, "alice", renameCap)
+	bob := login(t, leaf.s, "bob")
+	op := login(t, hub.s, "op")
+	netadminOn(t, hub, op, "op")
+	hub.seen(t, "bob")
+	leaf.seen(t, "alice")
+	joinAll("#a", alice) // alice's channel, renamed on the hub
+	alice.send("TOPIC #a :before the split")
+	alice.expect("TOPIC #a :before the split")
+	joinLinked(t, leaf, bob, "#a")
+	alice.expect(":bob!~bob@127.0.0.1 JOIN #a")
+	joinAll("#r", bob) // bob's, renamed on the leaf
+	joinLinked(t, hub, alice, "#r")
+	bob.expect(":alice!~alice@127.0.0.1 JOIN #r")
+	var tsA, tsR int64
+	hub.s.onLoop(func() { tsA, tsR = hub.s.net.Channel("#a").TS, hub.s.net.Channel("#r").TS })
+
+	op.send("SQUIT leaf.test.local testing")
+	waitLink(t, "split", func() bool { return hub.user("bob") == nil && leaf.user("alice") == nil })
+	alice.send("RENAME #a #b :moving")
+	alice.expect(":alice!~alice@127.0.0.1 RENAME #a #b :moving")
+	bob.send("RENAME #r #s :moving too")
+	bob.expect(":bob!~bob@127.0.0.1 PART #r :moving too")
+	bob.expect(":bob!~bob@127.0.0.1 JOIN #s")
+	if got, _ := channelOn(leaf, "#a"); got != "#a" {
+		t.Fatal("the rename crossed the split")
+	}
+
+	leaf.s.onLoop(func() {
+		for _, r := range leaf.s.links.retry {
+			r.next = time.Time{}
+		}
+	})
+	waitLink(t, "relink", func() bool { return hub.user("bob") != nil && leaf.user("alice") != nil })
+	au, bu := hub.user("alice").UID, hub.user("bob").UID
+	for _, tt := range []struct {
+		name, old string
+		ts        int64
+	}{{"#b", "#a", tsA}, {"#s", "#r", tsR}} {
+		got := sameChannel(t, tt.name, tt.old, hub, leaf)
+		for _, want := range []string{"ts=" + itoa(int(tt.ts)) + " ", ":" + au, ":" + bu} {
+			if !strings.Contains(got, want) {
+				t.Errorf("%s: want %s in %s", tt.name, want, got)
+			}
+		}
+		if n := strings.Count(got, ":0"); n != 2 {
+			t.Errorf("%s: want 2 members, have %d: %s", tt.name, n, got)
+		}
+	}
+	if got := chanState(leaf.s, "#b"); !strings.Contains(got, `topic="before the split"`) {
+		t.Errorf("the topic didn't come along: %s", got)
+	}
+
+	// What people see: bob his old #a become #b, alice (with the cap) the
+	// leaf's #r become #s; each the other come in.
+	bob.expect(":alice!~alice@127.0.0.1 JOIN #s")
+	bob.expect(":bob!~bob@127.0.0.1 PART #a :moving")
+	bob.expect(":bob!~bob@127.0.0.1 JOIN #b")
+	bob.expect(" 332 bob #b :before the split")
+	if names := bob.expect(" 353 bob "); !strings.Contains(names, "alice") {
+		t.Errorf("bob's names: %s", names)
+	}
+	alice.expect(":bob!~bob@127.0.0.1 JOIN #b")
+	alice.expect("RENAME #r #s :moving too")
+	alice.expect(":bob!~bob@127.0.0.1 JOIN #s")
+	bob.send("PRIVMSG #b :one channel")
+	alice.expect("PRIVMSG #b :one channel")
+	alice.send("PRIVMSG #s :this one too")
+	bob.expect("PRIVMSG #s :this one too")
+	if !hub.logHas("Channel #a came back from leaf.test.local") || !leaf.logHas("Channel #r came back from hub.test.local") {
+		t.Error("no note to opers of the rename after the split")
+	}
+}
+
 func TestRenameAware(t *testing.T) {
 	for sw, want := range map[string]bool{
 		"BeeIRCd-1.5.0":             true,

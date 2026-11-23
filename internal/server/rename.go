@@ -133,6 +133,16 @@ func (s *Server) renameCheck(u *state.User, oper bool, oldName, newName string) 
 			return ch, cannotRename(ch.Name + " was renamed a moment ago; it can be renamed again in " + minutesText(left))
 		}
 	}
+	if nick, server, sw := s.renameStuck(ch); server != "" {
+		return ch, cannotRename(nick + " is on " + server + ", which runs " + sw +
+			" and can't rename channels; renaming now would split " + ch.Name + " in two")
+	}
+	return ch, nil
+}
+
+// renameStuck is a member of ch on a server that can't follow a rename,
+// with that server and what it runs; server is "" when there is none.
+func (s *Server) renameStuck(ch *state.Channel) (nick, server, software string) {
 	for uid := range ch.Members {
 		if s.ours(uid) {
 			continue
@@ -142,11 +152,10 @@ func (s *Server) renameCheck(u *state.User, oper bool, oldName, newName string) 
 			if mu := s.net.UserByUID(uid); mu != nil {
 				nick = mu.Nick
 			}
-			return ch, cannotRename(nick + " is on " + server + ", which runs " + sw +
-				" and can't rename channels; renaming now would split " + ch.Name + " in two")
+			return nick, server, sw
 		}
 	}
-	return ch, nil
+	return "", "", ""
 }
 
 func minutesText(d time.Duration) string {
@@ -233,7 +242,7 @@ func (s *Server) renamePrepare(e *state.Rename) func() {
 	if ch == nil {
 		return nil
 	}
-	oldName := ch.Name
+	oldName, ts := ch.Name, ch.TS
 	if dst := s.net.Channel(e.New); e.Merge && dst != nil && dst != ch {
 		before := make(map[string]bool, len(dst.Members))
 		for uid := range dst.Members {
@@ -241,12 +250,14 @@ func (s *Server) renamePrepare(e *state.Rename) func() {
 		}
 		return func() {
 			s.renameMove(oldName, dst.Name)
+			s.renameRemember(oldName, dst.Name, e.Reason, ts)
 			s.renameMergeDeliver(e, ch, dst, before)
 		}
 	}
 	return func() {
 		newName := ch.Name
 		s.renameMove(oldName, newName)
+		s.renameRemember(oldName, newName, e.Reason, ts)
 		s.renameDeliver(e, ch, oldName)
 	}
 }
@@ -530,6 +541,148 @@ func (s *Server) remoteRename(l *linkConn, it *link.Bee) {
 	if err := s.emitFrom(l, it.Source, e); err != nil {
 		s.log.Printf("link %s: RENAME %s to %s: %v", l.peer.Name, it.Args[0], it.Args[1], err)
 	}
+}
+
+// ---- after a netsplit ----
+
+// A server split off while a channel was renamed still has it under the
+// old name and bursts it back so on the relink. Each server keeps the
+// renames it saw for a while (in memory). When a BeeIRCd link that knows
+// RENAME brings back a channel under a name renamed away here, with the
+// age it had then, it comes in as usual, and at the end of that burst it
+// is renamed here too: merged into the new name by the SJOIN rules when
+// that is in use, as with a rename that meets a channel just made. BEE
+// RENAME takes it to every server, the one that was split off too, so the
+// channel is one again. Other links, and a channel with someone on a
+// server that can't follow a rename, stay as before: two channels.
+
+const (
+	renameKeep    = 7 * 24 * time.Hour // how long a rename is remembered
+	renameKeepMax = 1000               // and how many at most
+)
+
+// renameRecord is a rename seen here, kept by the old name.
+type renameRecord struct {
+	name   string // the new name
+	reason string
+	ts     int64 // the channel's age then
+	at     time.Time
+}
+
+// renameRemember keeps the rename of oldName (age ts) to newName.
+func (s *Server) renameRemember(oldName, newName, reason string, ts int64) {
+	oldKey, newKey := irc.Fold(oldName), irc.Fold(newName)
+	if s.renamedFrom == nil {
+		s.renamedFrom = map[string]renameRecord{}
+	}
+	now := time.Now()
+	for k, r := range s.renamedFrom {
+		if now.Sub(r.at) >= renameKeep {
+			delete(s.renamedFrom, k)
+		}
+	}
+	delete(s.renamedFrom, newKey) // that name is this channel's now
+	if oldKey == newKey {
+		return // only the case changed: the old spelling is the same channel
+	}
+	if _, ok := s.renamedFrom[oldKey]; !ok && len(s.renamedFrom) >= renameKeepMax {
+		oldest := ""
+		for k, r := range s.renamedFrom {
+			if oldest == "" || r.at.Before(s.renamedFrom[oldest].at) {
+				oldest = k
+			}
+		}
+		delete(s.renamedFrom, oldest)
+	}
+	s.renamedFrom[oldKey] = renameRecord{name: newName, reason: reason, ts: ts, at: now}
+}
+
+// renameTarget is the name channel name, of age ts, was renamed to here,
+// after any later renames of it too; "" when it wasn't.
+func (s *Server) renameTarget(name string, ts int64) string {
+	target, key := "", irc.Fold(name)
+	seen := map[string]bool{}
+	for !seen[key] && len(seen) < 16 {
+		seen[key] = true
+		r, ok := s.renamedFrom[key]
+		if !ok || r.ts != ts || time.Since(r.at) >= renameKeep {
+			break
+		}
+		target, key = r.name, irc.Fold(r.name)
+	}
+	return target
+}
+
+// renameNoteBack notes channel c, just made here by l's burst, when it
+// was renamed away here while l was split off.
+func (s *Server) renameNoteBack(l *linkConn, c *link.Channel) {
+	if l.eos || !renameLink(l) || s.net.Channel(c.Name) == nil || s.renameTarget(c.Name, c.TS) == "" {
+		return
+	}
+	for _, name := range l.renameBack {
+		if irc.Fold(name) == irc.Fold(c.Name) {
+			return
+		}
+	}
+	l.renameBack = append(l.renameBack, c.Name)
+}
+
+// renameAfterSplit renames the channels l's burst brought back under an
+// old name, at the end of the burst; one with members on servers behind l
+// that haven't said yet what they run (SINFO comes after the burst) waits
+// for that.
+func (s *Server) renameAfterSplit(l *linkConn) {
+	if len(l.renameBack) == 0 {
+		return
+	}
+	var wait []string
+	for _, name := range l.renameBack {
+		ch := s.net.Channel(name)
+		if ch == nil {
+			continue
+		}
+		target := s.renameTarget(ch.Name, ch.TS)
+		if target == "" || irc.Fold(target) == irc.Fold(ch.Name) {
+			continue
+		}
+		if !s.renameKnown(l, ch) {
+			wait = append(wait, name)
+			continue
+		}
+		if nick, server, sw := s.renameStuck(ch); server != "" {
+			s.sno('l', "Channel %s came back from %s, which was split off when it was renamed to %s; %s is on %s, which runs %s and can't rename channels, so the two stay apart",
+				ch.Name, l.peer.Name, target, nick, server, sw)
+			continue
+		}
+		e := &state.Rename{Old: ch.Name, New: target, Reason: s.renamedFrom[irc.Fold(ch.Name)].reason}
+		if dst := s.net.Channel(target); dst != nil && dst != ch {
+			s.renameSettle(ch, dst)
+			e.New, e.Merge = dst.Name, true
+		}
+		s.sno('l', "Channel %s came back from %s, which was split off when it was renamed to %s; it is renamed there too", ch.Name, l.peer.Name, e.New)
+		if err := s.emit(e); err != nil {
+			s.log.Printf("RENAME %s to %s after the split from %s: %v", ch.Name, e.New, l.peer.Name, err)
+		}
+	}
+	l.renameBack = wait
+}
+
+// renameKnown reports whether every server behind l that ch has members on
+// has said what it runs.
+func (s *Server) renameKnown(l *linkConn, ch *state.Channel) bool {
+	for uid := range ch.Members {
+		for sid, hops := uidServer(uid), 0; sid != "" && sid != s.cfg.Server.SID && hops < 64; hops++ {
+			r := s.links.servers[sid]
+			if r == nil || r.via != l {
+				break
+			}
+			if r.software == "" {
+				return false
+			}
+			sid = r.uplink
+		}
+	}
+	return true
 }
 
 // ---- Hive Panel ----
