@@ -103,6 +103,25 @@ func TestRename(t *testing.T) {
 	}
 }
 
+// A change of case only neither waits for the ten minutes nor starts them.
+func TestRenameCaseOnlyWait(t *testing.T) {
+	s := testServer(t, draftsOn)
+	a := capLogin(t, s, "alice", renameCap)
+	joinAll("#panel", a)
+	a.send("RENAME #panel #panelr")
+	a.expect(":alice!~alice@127.0.0.1 RENAME #panel #panelr")
+	a.send("RENAME #panelr #Panelr") // right after a rename
+	a.expect(":alice!~alice@127.0.0.1 RENAME #panelr #Panelr")
+	a.send("RENAME #Panelr #other") // the wait of the first rename still runs
+	a.expect("FAIL RENAME CANNOT_RENAME #Panelr #other :#Panelr was renamed a moment ago")
+
+	renameAgain(s, "#panelr")
+	a.send("RENAME #Panelr #PANELR")
+	a.expect(":alice!~alice@127.0.0.1 RENAME #Panelr #PANELR")
+	a.send("RENAME #PANELR #other") // the change of case started no wait
+	a.expect(":alice!~alice@127.0.0.1 RENAME #PANELR #other")
+}
+
 // With the drafts off there is no cap and no command.
 func TestRenameDraftsOff(t *testing.T) {
 	s := testServer(t, nil)

@@ -127,10 +127,10 @@ func (s *Server) renameCheck(u *state.User, oper bool, oldName, newName string) 
 		if f, ok := s.svc.Forbidden(store.ForbidChan, newName); ok {
 			return ch, cannotRename(newName + " is forbidden by the network: " + orStr(f.Reason, "no reason given"))
 		}
-	}
-	if at, ok := s.renamedAt[irc.Fold(ch.Name)]; ok {
-		if left := renameCooldown - time.Since(at); left > 0 {
-			return ch, cannotRename(ch.Name + " was renamed a moment ago; it can be renamed again in " + minutesText(left))
+		if at, ok := s.renamedAt[irc.Fold(ch.Name)]; ok { // the wait is for new names only
+			if left := renameCooldown - time.Since(at); left > 0 {
+				return ch, cannotRename(ch.Name + " was renamed a moment ago; it can be renamed again in " + minutesText(left))
+			}
 		}
 	}
 	if nick, server, sw := s.renameStuck(ch); server != "" {
@@ -277,8 +277,10 @@ func (s *Server) renameMove(oldName, newName string) {
 			delete(s.renamedAt, k)
 		}
 	}
-	delete(s.renamedAt, oldKey)
-	s.renamedAt[newKey] = now
+	if oldKey != newKey { // a change of case only keeps the wait as it was
+		delete(s.renamedAt, oldKey)
+		s.renamedAt[newKey] = now
+	}
 	if s.hist.store != nil {
 		s.hist.store.Rename(oldName, newName)
 		s.hist.dirty = true
