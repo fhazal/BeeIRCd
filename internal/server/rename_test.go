@@ -567,6 +567,8 @@ func TestReadOnlyOnLeaf(t *testing.T) {
 	operOn(t, hub.s, alice)
 	bob := capLogin(t, leaf.s, "bob", renameCap, "batch", metadataCap)
 	hub.seen(t, "bob")
+	bob.send("PRIVMSG NickServ :REGISTER " + pw)
+	bob.expect("bob is now registered")
 	bob.send("JOIN #loose")
 	bob.expect(" 366 bob #loose ")
 
@@ -581,6 +583,8 @@ func TestReadOnlyOnLeaf(t *testing.T) {
 	bob.expect("FAIL RENAME CANNOT_RENAME #loose #free :Services are in read-only mode")
 	bob.send("METADATA * SET color #ff0000")
 	bob.expect("FAIL METADATA KEY_NO_PERMISSION bob color :Services are in read-only mode")
+	bob.send("PRIVMSG NickServ :SET GREET hello")
+	bob.expect("read-only mode")
 
 	alice.send("PRIVMSG OperServ :SET READONLY OFF")
 	alice.expect("no longer in read-only mode")
