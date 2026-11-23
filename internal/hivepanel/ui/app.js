@@ -673,10 +673,10 @@
   }
   // plainIRC drops IRC bold, colour, italics and the like from a topic.
   const plainIRC = t => (t || '').replace(/\x03(\d{1,2}(,\d{1,2})?)?|\x04([0-9a-fA-F]{6}(,[0-9a-fA-F]{6})?)?|[\x02\x0f\x11\x16\x1d\x1e\x1f]/g, '').trim();
-  // greeting: good morning / afternoon / evening, by the viewer's clock.
+  // greeting: good night (0-4), morning, afternoon, evening, by the viewer's clock.
   function greeting() {
     const hr = new Date().getHours();
-    return hr < 5 ? 'Good evening' : hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
+    return hr < 5 ? 'Good night' : hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
   }
 
   // ovCard: a card with the header strip (icon box, title, one line about it)
