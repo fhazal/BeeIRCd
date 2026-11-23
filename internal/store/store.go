@@ -92,6 +92,7 @@ type Store struct {
 	db    *sql.DB
 	c     *cache
 	bs    *bsCache // BotServ tables (botserv.go)
+	md    *mdCache // IRCv3 metadata (metadata.go)
 	notes []string // what the migrations changed, for the server log
 }
 
@@ -181,7 +182,7 @@ func Open(path string) (*Store, error) {
 		}
 		return fail(err)
 	}
-	if _, err := db.Exec(schema + channelSchema + operSchema + chanExtraSchema + netbanSchema + nsMoreSchema + msMoreSchema + hostServSchema + historySchema + panelSchema + botServSchema + botKickSchema + spamfilterSchema + helpServSchema + readMarkerSchema + reputationSchema + whowasSchema); err != nil {
+	if _, err := db.Exec(schema + channelSchema + operSchema + chanExtraSchema + netbanSchema + nsMoreSchema + msMoreSchema + hostServSchema + historySchema + panelSchema + botServSchema + botKickSchema + spamfilterSchema + helpServSchema + readMarkerSchema + reputationSchema + whowasSchema + metadataSchema); err != nil {
 		return fail(err)
 	}
 	if err := migrateLevels(db); err != nil {
@@ -225,7 +226,11 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return fail(err)
 	}
-	return &Store{db: db, c: c, bs: bs, notes: notes}, nil
+	md, err := loadMetadata(db)
+	if err != nil {
+		return fail(err)
+	}
+	return &Store{db: db, c: c, bs: bs, md: md, notes: notes}, nil
 }
 
 // Notes says what opening the database changed in it (old settings that

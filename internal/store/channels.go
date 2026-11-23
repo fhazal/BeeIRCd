@@ -322,6 +322,7 @@ func (s *Store) DeleteChannel(id int64) error {
 	}
 	s.c.dropChannel(id)
 	s.bsDropChannel(id)
+	delete(s.md.channels, id)
 	return nil
 }
 
@@ -524,10 +525,12 @@ func (s *Store) DeleteAccount(id int64) ([]FounderChange, error) {
 		} else {
 			s.c.dropChannel(o.id)
 			s.bsDropChannel(o.id)
+			delete(s.md.channels, o.id)
 		}
 	}
 	s.c.dropAccount(id)
 	s.bsDropAccount(id)
+	delete(s.md.accounts, id)
 	return changes, nil
 }
 

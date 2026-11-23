@@ -2,6 +2,7 @@ package state
 
 import (
 	"errors"
+	"maps"
 	"strconv"
 	"strings"
 	"time"
@@ -492,6 +493,7 @@ func (u *User) Copy() *User {
 		cp.Modes[k] = v
 	}
 	cp.Channels = make(map[string]*Channel)
+	cp.Metadata = maps.Clone(u.Metadata)
 	return &cp
 }
 
@@ -531,6 +533,7 @@ func (n *Network) Clone() *Network {
 		for k, v := range ch.Invited {
 			cc.Invited[k] = v
 		}
+		cc.Metadata = maps.Clone(ch.Metadata)
 		for uid, m := range ch.Members {
 			u := c.users[uid]
 			cc.Members[uid] = &Member{User: u, Ranks: m.Ranks, Hidden: m.Hidden, Joined: m.Joined}
