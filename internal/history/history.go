@@ -132,6 +132,32 @@ func (s *Store) SetLimit(channel string, limit Limit) {
 	}
 }
 
+// Rename moves channel old's history to the name new (IRCv3
+// channel-rename): CHATHISTORY then answers under the new name, and the
+// lines read as sent to it. A history already kept under new is replaced.
+func (s *Store) Rename(old, new string) {
+	oldKey, newKey := s.fold(old), s.fold(new)
+	l := s.logs[oldKey]
+	if l == nil {
+		return
+	}
+	if oldKey != newKey {
+		s.Drop(new)
+		delete(s.logs, oldKey)
+		s.logs[newKey] = l
+	}
+	l.name = new
+	lines := make([]Line, len(l.lines)) // a fresh slice: replays may hold the old one
+	var size int64
+	for i, line := range l.lines {
+		line.Target = new
+		lines[i] = line
+		size += line.size()
+	}
+	s.bytes += size - l.bytes
+	l.lines, l.bytes = lines, size
+}
+
 // Drop forgets a channel's history (-H).
 func (s *Store) Drop(channel string) {
 	key := s.fold(channel)

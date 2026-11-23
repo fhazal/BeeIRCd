@@ -156,6 +156,16 @@ type Invite struct {
 	Remove bool
 }
 
+// Rename gives channel Old the name New (IRCv3 draft/channel-rename). The
+// channel keeps its members, modes, lists and topic. Source is the UID or
+// SID that asked; Reason may be empty.
+type Rename struct {
+	Source string
+	Old    string
+	New    string
+	Reason string
+}
+
 func (*UserAdd) event()        {}
 func (*UserQuit) event()       {}
 func (*NickChange) event()     {}
@@ -172,6 +182,7 @@ func (*RealnameChange) event() {}
 func (*Invite) event()         {}
 func (*Reveal) event()         {}
 func (*ChannelTS) event()      {}
+func (*Rename) event()         {}
 
 // Errors from Apply.
 var (
@@ -179,6 +190,7 @@ var (
 	ErrNoSuchChannel = errors.New("no such channel")
 	ErrNotOnChannel  = errors.New("not on that channel")
 	ErrNotHidden     = errors.New("already seen in that channel")
+	ErrChannelInUse  = errors.New("that channel name is in use")
 )
 
 // Apply carries out ev. It is the only way the network changes.
@@ -298,6 +310,8 @@ func (n *Network) Apply(ev Event) error {
 			return ErrNoSuchUser
 		}
 		u.Realname = e.Realname
+	case *Rename:
+		return n.rename(e.Old, e.New)
 	case *Invite:
 		if n.users[e.UID] == nil {
 			return ErrNoSuchUser
@@ -311,6 +325,28 @@ func (n *Network) Apply(ev Event) error {
 		}
 	default:
 		return errors.New("unknown event")
+	}
+	return nil
+}
+
+// rename moves channel old to the name new: the same *Channel, under its new
+// key in the network and in each member's list. A change of case only is
+// allowed; a different channel already holding new is not.
+func (n *Network) rename(old, new string) error {
+	ch := n.Channel(old)
+	if ch == nil {
+		return ErrNoSuchChannel
+	}
+	oldKey, newKey := irc.Fold(ch.Name), irc.Fold(new)
+	if other := n.channels[newKey]; other != nil && other != ch {
+		return ErrChannelInUse
+	}
+	delete(n.channels, oldKey)
+	n.channels[newKey] = ch
+	ch.Name = new
+	for _, m := range ch.Members {
+		delete(m.User.Channels, oldKey)
+		m.User.Channels[newKey] = ch
 	}
 	return nil
 }
@@ -592,6 +628,9 @@ func CopyEvent(ev Event) Event {
 		cp := *e
 		return &cp
 	case *ChannelTS:
+		cp := *e
+		return &cp
+	case *Rename:
 		cp := *e
 		return &cp
 	}

@@ -273,6 +273,8 @@ func (s *Services) Event(ev state.Event) {
 		if c := s.clients[e.UID]; c != nil {
 			c.closed = true
 		}
+	case *state.Rename:
+		s.renamed(e) // now, so lookups by the new name work at once
 	}
 	s.pending = append(s.pending, ev)
 }
