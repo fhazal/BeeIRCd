@@ -192,6 +192,8 @@ func TestMetadataAccount(t *testing.T) {
 	// A registered channel keeps its keys with ChanServ.
 	again.send("JOIN #hive")
 	again.expect(" 366 guest #hive ")
+	again.send("METADATA #hive SET color #123456") // before REGISTER: saved by it
+	again.expect(" 761 guest #hive color * :#123456")
 	again.send("PRIVMSG ChanServ :REGISTER #hive")
 	again.expect("registered")
 	again.send("METADATA #hive SET status :buzzing")
@@ -208,8 +210,9 @@ func TestMetadataAccount(t *testing.T) {
 	}
 	again.send("JOIN #hive")
 	again.expect(" 366 guest #hive ")
-	again.send("METADATA #hive GET status")
+	again.send("METADATA #hive GET status color")
 	again.expect(" 761 guest #hive status * :buzzing")
+	again.expect(" 761 guest #hive color * :#123456")
 
 	// An unregistered channel forgets its keys when it empties.
 	again.send("JOIN #tmp")

@@ -240,6 +240,11 @@ func csRegister(s *Services, c *Client, args []string) {
 		reg.Topic, reg.TopicBy, reg.TopicAt = live.Topic, live.TopicBy, live.TopicAt
 		s.store.SaveChannel(reg)
 	}
+	for k, v := range live.Metadata { // IRCv3 metadata set before it was registered
+		if err := s.store.SetChannelMetadata(reg.ID, k, v); err != nil {
+			s.log.Printf("services database: metadata of %s: %v", reg.Name, err)
+		}
+	}
 	s.log.Printf("registered channel %s to %s", reg.Name, a.Name)
 	s.cs(c, "%s is registered to %s. You are its Founder.", reg.Name, a.Name)
 	s.csLog(c, reg.Name, false, "")
