@@ -643,8 +643,8 @@ func (s Services) LogConnectsOn() bool { return s.LogConnects == nil || *s.LogCo
 // LogEventNames are the events log_events takes.
 var LogEventNames = []string{"connect", "quit", "nick", "oper", "kill", "server", "bans", "other", "umode", "host", "channel"}
 
-// logEventsDefault are the events logged when log_events is unset.
-var logEventsDefault = []string{"connect", "quit", "nick", "oper", "kill", "server", "bans", "other"}
+// LogEventsDefault are the events logged when log_events is unset.
+var LogEventsDefault = []string{"connect", "quit", "nick", "oper", "kill", "server", "bans", "other"}
 
 // LogEventOn reports whether event (one of LogEventNames) goes to the log
 // channel.
@@ -656,7 +656,7 @@ func (s Services) LogEventOn(event string) bool {
 				return false // an old config with log_connects = false
 			}
 		}
-		return slices.Contains(logEventsDefault, event)
+		return slices.Contains(LogEventsDefault, event)
 	}
 	for _, e := range s.LogEvents {
 		if e == "*" || strings.EqualFold(e, event) {

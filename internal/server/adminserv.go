@@ -152,7 +152,7 @@ func outsideAdminsEnc(_ *config.Config, v string) (string, string) {
 
 // logEventsEnc checks the [services] log_events value: event names with
 // commas or spaces, "*" for all, OFF for none, DEFAULT to drop the key.
-func logEventsEnc(_ *config.Config, v string) (string, string) {
+func logEventsEnc(c *config.Config, v string) (string, string) {
 	v = strings.TrimSpace(v)
 	switch strings.ToLower(v) {
 	case "default":
@@ -175,6 +175,17 @@ func logEventsEnc(_ *config.Config, v string) (string, string) {
 	}
 	if len(out) == 0 {
 		return "", "log-events takes event names like connect,quit,kill (or * for all, OFF for none, DEFAULT)."
+	}
+	// Exactly the default events (the panel's tick boxes all back as they
+	// were): drop the key, so a later change of the default still applies.
+	if len(out) == len(config.LogEventsDefault) && c.Services.LogConnectsOn() {
+		same := true
+		for _, e := range config.LogEventsDefault {
+			same = same && slices.Contains(out, e)
+		}
+		if same {
+			return "", ""
+		}
 	}
 	return tomlArray(out), ""
 }

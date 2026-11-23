@@ -96,6 +96,13 @@ func TestLogEventsSetting(t *testing.T) {
 	if r := set("*"); r.Changed == nil || r.Changed.New != "*" || !strings.Contains(saved(), `log_events = ["*"]`) {
 		t.Fatalf("*: %+v\n%s", r, saved())
 	}
+	// Ticking exactly the default events again removes the key.
+	if r := set("oper, connect,quit,nick,kill,server,bans,other"); r.Changed == nil || r.Changed.New != "connect,quit,nick,oper,kill,server,bans,other" || strings.Contains(saved(), "log_events") {
+		t.Fatalf("default list: %+v\n%s", r, saved())
+	}
+	if r := set("*"); r.Changed == nil {
+		t.Fatalf("*: %+v", r)
+	}
 	if r := set("off"); r.Changed == nil || r.Changed.New != "off" {
 		t.Fatalf("off: %+v", r)
 	}
