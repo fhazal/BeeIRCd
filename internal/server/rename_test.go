@@ -208,13 +208,18 @@ func TestRenameRegistered(t *testing.T) {
 	e.send("CS INFO #hive")
 	e.expect("Be kind, stay curious")
 
-	// READONLY stops renames of registered channels, even an oper's.
+	// READONLY stops renames, even an oper's.
 	renameAgain(s, "#hive")
 	readOnlyOn(t, b)
 	f.send("RENAME #hive #comb")
 	f.expect("FAIL RENAME CANNOT_RENAME #hive #comb :Services are in read-only mode")
 	b.send("RENAME #hive #comb")
 	b.expect("FAIL RENAME CANNOT_RENAME #hive #comb :Services are in read-only mode")
+	// An unregistered channel too: its read markers and AJOINs would move.
+	b.send("JOIN #loose")
+	b.expect(" JOIN #loose")
+	b.send("RENAME #loose #free")
+	b.expect("FAIL RENAME CANNOT_RENAME #loose #free :Services are in read-only mode")
 }
 
 // The Hive Panel's Rename button goes the same way as RENAME.
