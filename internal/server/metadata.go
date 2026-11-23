@@ -619,7 +619,9 @@ func (s *Server) metadataAfter(ev state.Event) {
 	switch e := ev.(type) {
 	case *state.UserAdd:
 		// Logged in with SASL before registering: no Login event comes.
-		if e.User.Account != "" && !e.User.Service && s.ours(e.User.UID) {
+		// Not for a server's burst: those users bring their own keys.
+		r := s.links.servers[uidServer(e.User.UID)]
+		if e.User.Account != "" && !e.User.Service && (s.ours(e.User.UID) || r != nil && r.synced) {
 			s.metadataAfter(&state.Login{UID: e.User.UID, Account: e.User.Account})
 		}
 	case *state.Login:

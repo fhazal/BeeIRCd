@@ -425,3 +425,50 @@ func TestMetadataSASLLogin(t *testing.T) {
 	c.send("METADATA * GET color")
 	c.expect(" 761 Bee Bee color * :#ffcc00")
 }
+
+// SASL on a leaf: the hub (services) sends the account's keys over.
+func TestLinkMetadataSASL(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	for _, n := range []*linkNode{hub, leaf} {
+		n.s.do(func() { n.s.cfg.Server.IRCv3Drafts = true })
+	}
+	bob := mdClient(t, leaf.s, "bob")
+	hub.seen(t, "bob")
+	bob.send("NS REGISTER " + pw)
+	bob.expect(" MODE bob +r")
+	bob.send("METADATA * SET color #abcdef")
+	bob.expect(" 761 bob bob color ")
+	waitLink(t, "bob's color kept on the hub", func() bool {
+		var v string
+		hub.s.onLoop(func() {
+			if a, _ := hub.s.store.AccountByNick("bob"); a != nil {
+				v = hub.s.store.AccountMetadata(a.ID)["color"]
+			}
+		})
+		return v == "#abcdef"
+	})
+	bob.send("QUIT")
+	bob.expect("ERROR")
+	waitLink(t, "bob gone", func() bool { return hub.user("bob") == nil })
+
+	c := raw(t, leaf.s)
+	c.nick = "*"
+	c.send("CAP REQ :sasl batch " + metadataCap)
+	c.send("NICK bob2")
+	c.send("USER bob 0 * :Bob")
+	c.send("AUTHENTICATE PLAIN")
+	c.expect("AUTHENTICATE +")
+	c.send("AUTHENTICATE " + saslPlain("bob", pw))
+	c.expect(" 903 ")
+	c.send("CAP END")
+	c.expect(" 001 bob2 ")
+	waitLink(t, "bob2's color back on the leaf", func() bool {
+		var v string
+		leaf.s.onLoop(func() {
+			if u := leaf.s.net.UserByNick("bob2"); u != nil {
+				v = u.Metadata["color"]
+			}
+		})
+		return v == "#abcdef"
+	})
+}
