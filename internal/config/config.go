@@ -179,7 +179,8 @@ type Server struct {
 	Casemapping string `toml:"casemapping"`
 	// IRCv3Drafts offers the IRCv3 drafts that aren't final yet
 	// (read-marker, multiline, message-redaction, account-registration,
-	// pre-away, extended-isupport, channel-rename) to clients that ask.
+	// pre-away, extended-isupport, metadata-2, channel-rename) to clients
+	// that ask.
 	// Off by default.
 	IRCv3Drafts bool `toml:"ircv3_drafts"`
 	// IdentLookup asks the ident server (port 113) of each connecting
