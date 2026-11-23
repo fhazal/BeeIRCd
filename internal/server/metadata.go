@@ -617,6 +617,11 @@ func (s *Server) metadataBurst(t mdTarget) []*link.Bee {
 // keys come back on login and a channel's are loaded on its first join.
 func (s *Server) metadataAfter(ev state.Event) {
 	switch e := ev.(type) {
+	case *state.UserAdd:
+		// Logged in with SASL before registering: no Login event comes.
+		if e.User.Account != "" && !e.User.Service && s.ours(e.User.UID) {
+			s.metadataAfter(&state.Login{UID: e.User.UID, Account: e.User.Account})
+		}
 	case *state.Login:
 		u := s.net.UserByUID(e.UID)
 		if u == nil || u.Account == "" || s.svc.Off() {

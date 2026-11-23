@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"strconv"
 	"strings"
 	"testing"
@@ -395,4 +396,32 @@ func TestPanelMetadata(t *testing.T) {
 	if r := clear("", "#nowhere"); r.Error != "No such channel." {
 		t.Errorf("meta-clear #nowhere: %+v", r)
 	}
+}
+
+func TestMetadataSASLLogin(t *testing.T) {
+	s := testServer(t, draftsOn)
+	bee := mdClient(t, s, "Bee")
+	bee.send("NS REGISTER " + pw)
+	bee.expect(":irc.test.local MODE Bee +r")
+	bee.send("METADATA * SET color #ffcc00")
+	bee.expect(" 761 Bee Bee color * :#ffcc00")
+	bee.send("QUIT")
+	bee.gone()
+
+	// Logged in with SASL before registering: the account's keys come back.
+	c := raw(t, s)
+	c.nick = "Bee"
+	c.send("CAP REQ :sasl batch " + metadataCap)
+	c.expect("CAP * ACK :sasl batch " + metadataCap)
+	c.send("NICK Bee")
+	c.send("USER bee 0 * :Bee")
+	c.send("AUTHENTICATE PLAIN")
+	c.expect("AUTHENTICATE +")
+	c.send("AUTHENTICATE " + base64.StdEncoding.EncodeToString([]byte("\x00Bee\x00"+pw)))
+	c.expect(" 903 Bee ")
+	c.send("CAP END")
+	c.expect(" 001 Bee ")
+	c.expect(" 761 Bee Bee color * :#ffcc00") // in the welcome batch
+	c.send("METADATA * GET color")
+	c.expect(" 761 Bee Bee color * :#ffcc00")
 }
