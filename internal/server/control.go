@@ -22,6 +22,7 @@ import (
 
 	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/control"
+	"github.com/fhazal/beeircd/internal/gate"
 	"github.com/fhazal/beeircd/internal/history"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/version"
@@ -136,6 +137,12 @@ func (s *Server) controlConn(conn net.Conn) {
 		if !s.onLoop(func() { s.quitReason = reason }) {
 			stopping()
 		}
+	case control.CmdHandover:
+		if err := s.RequestHandover(); err != nil {
+			resp.Error = err.Error()
+		} else {
+			resp.Done = &control.Done{Text: "handing over"}
+		}
 	case control.CmdRehash:
 		var err error
 		if !s.onLoop(func() { resp.Rehash, err = s.rehash("beeircd rehash") }) {
@@ -188,6 +195,10 @@ func (s *Server) statusInfo() *control.Status {
 		Links:           s.linkStatus(),
 		MaxUsers:        s.cfg.Limits.MaxUsers,
 		ServicesOn:      !s.svc.Off(),
+	}
+	st.Gate, st.Local, st.Handover = "off", s.localUsers(), s.hand.took
+	if s.gate != nil {
+		st.Gate = gate.Proto
 	}
 	sum := s.store.Summary()
 	st.Nicks, st.RegChans, st.Memos = sum.Nicks, sum.Channels, sum.Memos
@@ -429,8 +440,10 @@ func (s *Server) rehash(by string) (*control.Rehash, error) {
 			out.NeedsRestart = append(out.NeedsRestart, "certificate: "+err.Error()+" (the old one stays)")
 		case changed:
 			out.Applied = append(out.Applied, "certificate read again")
+			s.certGen++
 		}
 	}
+	s.syncGate() // the certificate and handshake time limit, behind the gate
 	s.sno('r', "Rehash done: %s", rehashSummary(out))
 	return out, nil
 }
@@ -469,6 +482,7 @@ func (s *Server) certTick(now time.Time) {
 		s.sno('a', "The certificate file changed but doesn't load (%v); the old one stays", err)
 	case changed:
 		s.certErr = ""
+		s.certsChanged()
 		s.sno('a', "New certificate loaded, valid until %s", s.certs.Leaf().NotAfter.Format("2 Jan 2006"))
 	}
 }

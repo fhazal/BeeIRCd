@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"github.com/fhazal/beeircd/internal/config"
+	"github.com/fhazal/beeircd/internal/gate"
+	"github.com/fhazal/beeircd/internal/history"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/services"
 	"github.com/fhazal/beeircd/internal/state"
@@ -109,6 +111,7 @@ type Server struct {
 	origin      *linkOrigin                 // where the next emitted event came from
 	banFrom     *linkConn                   // the link a ban change came from, while it is applied
 	wg          sync.WaitGroup
+	hand        handState // passing the clients on to the next server process (handover.go)
 
 	// Services. The store is shared: the server reads oper entries and
 	// SASL accounts from it, services own the rest.
@@ -120,6 +123,14 @@ type Server struct {
 	lmu        sync.Mutex // guards listeners against Addrs from other goroutines
 	stopAfter  int        // stopRestart or stopDie once AdminServ asked
 	stopReason string
+
+	// acc runs the client ports' accept loops in one process. Behind the
+	// gate (internal/gate) the gate holds the client ports instead; gate
+	// is nil when this process holds them itself.
+	acc       *acceptor
+	gate      *gate.Child
+	certFiles *gate.TLSFiles // the certificate the gate loads for TLS ports
+	certGen   int            // bumped after each certificate reload, for the gate
 
 	// resolve looks up a hostname for an IP; replaceable in tests.
 	resolve func(ctx context.Context, ip string) (string, bool)
@@ -147,11 +158,24 @@ type listener struct {
 	websocket    bool
 	origins      []string
 	tlsConf      *tls.Config // captured: accept goroutines must not read Server.tlsConf
+	conf         config.Listen
+}
+
+// newListener sets up a client port as conf says, on ln.
+func newListener(conf config.Listen, ln net.Listener, tlsConf *tls.Config) listener {
+	l := listener{Listener: ln, tls: conf.TLS, addr: conf.Address, proxy: conf.Proxy, tlsConf: tlsConf,
+		websocket: conf.WebSocket, origins: conf.Origins, conf: conf}
+	for _, m := range conf.ProxyFrom {
+		n, _ := config.ParseCIDR(m) // checked by config.Check
+		l.proxyFrom = append(l.proxyFrom, n)
+	}
+	return l
 }
 
 const (
-	stopRestart = 1
-	stopDie     = 2
+	stopRestart  = 1
+	stopDie      = 2
+	stopHandover = 3 // the clients went to the next server process (handover.go)
 )
 
 // ErrRestart is returned by Serve when an admin asked for a restart.
@@ -159,7 +183,26 @@ var ErrRestart = errors.New("restart requested")
 
 // New opens the configured ports. Call Serve to start answering.
 func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
+	return newServer(cfg, logger, nil, nil)
+}
+
+// NewBehindGate is New for the server process the gate runs: the gate
+// (child's other end) holds the client ports, this process the rest. When
+// the gate passes on the clients of the server process before this one,
+// they are taken over (handover.go); ErrHandoverBroken means that broke
+// half-way and the process should end.
+func NewBehindGate(cfg *config.Config, logger *log.Logger, child *gate.Child) (*Server, error) {
+	var r *resume
+	if h := child.Handover(); h != nil {
+		r = resumeFromGate(child, h)
+	}
+	return newServer(cfg, logger, child, r)
+}
+
+func newServer(cfg *config.Config, logger *log.Logger, child *gate.Child, r *resume) (*Server, error) {
 	s := &Server{
+		gate:         child,
+		hand:         handState{freeze: make(chan struct{})},
 		cfg:          cfg,
 		log:          logger,
 		net:          state.NewNetwork(cfg.Server.SID),
@@ -183,6 +226,7 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 		noticeAt:     make(map[string]time.Time),
 		dnsbl:        dnsblState{cache: make(map[string]dnsblResult), hits: make(map[string]int), off: make(map[string]bool)},
 	}
+	s.acc = &acceptor{log: logger, wg: &s.wg, done: s.done, hand: s.handToLoop}
 	if err := os.MkdirAll(filepath.Dir(cfg.Services.Database), 0o750); err != nil {
 		return nil, err
 	}
@@ -235,29 +279,20 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 		var err error
 		// With Let's Encrypt a stand-in self-signed pair lets the TLS
 		// ports open at once; the real one replaces it in the background.
-		certs, err := tlsutil.NewReloader(cfg.TLS.Cert, cfg.TLS.Key, cfg.TLS.SelfSigned || cfg.TLS.ACME, cfg.TLS.Domains(cfg.Server.Name)[0])
+		files := gate.TLSFiles{Cert: cfg.TLS.Cert, Key: cfg.TLS.Key, SelfSigned: cfg.TLS.SelfSigned || cfg.TLS.ACME, Host: cfg.TLS.Domains(cfg.Server.Name)[0]}
+		certs, err := tlsutil.NewReloader(files.Cert, files.Key, files.SelfSigned, files.Host)
 		if err != nil {
 			db.Close()
 			return nil, err
 		}
-		s.certs, s.certChecked = certs, time.Now()
+		s.certs, s.certChecked, s.certFiles = certs, time.Now(), &files
 		tlsConf = certs.Config()
 		s.tlsConf = tlsConf
 	}
-	for _, l := range cfg.Listen {
-		ln, err := net.Listen("tcp", l.Address)
-		if err != nil {
-			s.closeListeners()
-			db.Close()
-			return nil, fmt.Errorf("listen on %s: %w", l.Address, err)
-		}
-		li := listener{Listener: ln, tls: l.TLS, addr: l.Address, proxy: l.Proxy, tlsConf: tlsConf,
-			websocket: l.WebSocket, origins: l.Origins}
-		for _, m := range l.ProxyFrom {
-			n, _ := config.ParseCIDR(m) // checked by config.Check
-			li.proxyFrom = append(li.proxyFrom, n)
-		}
-		s.listeners = append(s.listeners, li)
+	if err := s.openPorts(cfg.Listen); err != nil {
+		s.closeListeners()
+		db.Close()
+		return nil, err
 	}
 	if err := s.linkSetup(); err != nil {
 		s.closeListeners()
@@ -276,6 +311,16 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 		db.Close()
 		return nil, err
 	}
+	if r != nil {
+		// Last, when nothing else can stop this server from starting.
+		if err := s.takeOver(r); err != nil {
+			s.closeRPC()
+			s.closeControl()
+			s.closeListeners()
+			db.Close()
+			return nil, err
+		}
+	}
 	return s, nil
 }
 
@@ -293,9 +338,14 @@ func (s *Server) Addrs() []net.Addr {
 // Serve runs until ctx is cancelled, then closes every connection.
 func (s *Server) Serve(ctx context.Context) error {
 	s.lmu.Lock()
-	for _, l := range s.listeners {
+	if s.gate != nil {
 		s.wg.Add(1)
-		go s.acceptLoop(l)
+		go s.gateLoop()
+	} else {
+		for _, l := range s.listeners {
+			s.wg.Add(1)
+			go s.acceptLoop(l)
+		}
 	}
 	s.lmu.Unlock()
 	if s.links.ln != nil {
@@ -356,6 +406,10 @@ func (s *Server) Serve(ctx context.Context) error {
 				if len(s.events) == 0 {
 					s.flushWrites()
 				}
+			}
+			if s.stopAfter == stopHandover {
+				s.finishHandover()
+				return ErrHandover
 			}
 			if s.stopAfter != 0 {
 				reason := "Server shutting down"
@@ -428,19 +482,34 @@ func (s *Server) tickEvery() time.Duration {
 	return d
 }
 
-func (s *Server) acceptLoop(l listener) {
-	defer s.wg.Done()
+// acceptor runs the accept loops of the client ports and the slow first
+// steps (PROXY header, TLS wrap, WebSocket upgrade) off the loop. hand gets
+// each connection once it is ready for IRC: the server's loop in one
+// process, or the server process behind the gate (Front). False from hand
+// means it was not taken (stopping); the acceptor then closes it.
+type acceptor struct {
+	log  *log.Logger
+	wg   *sync.WaitGroup
+	done <-chan struct{}
+	hand func(conn net.Conn, isTLS bool) bool
+}
+
+// acceptLoop starts the accept loop of one client port.
+func (s *Server) acceptLoop(l listener) { s.acc.acceptLoop(l) }
+
+func (a *acceptor) acceptLoop(l listener) {
+	defer a.wg.Done()
 	for {
 		conn, err := l.Accept()
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) {
 				return
 			}
-			s.log.Printf("accept: %v", err)
+			a.log.Printf("accept: %v", err)
 			select {
 			case <-time.After(100 * time.Millisecond):
 				continue
-			case <-s.done:
+			case <-a.done:
 				return
 			}
 		}
@@ -452,24 +521,33 @@ func (s *Server) acceptLoop(l listener) {
 			tc.SetNoDelay(false)
 		}
 		if l.websocket {
-			s.wg.Add(1)
-			go s.acceptWebSocket(conn, l)
+			a.wg.Add(1)
+			go a.acceptWebSocket(conn, l)
 			continue
 		}
 		if l.proxy {
-			s.wg.Add(1)
-			go s.acceptProxied(conn, l)
+			a.wg.Add(1)
+			go a.acceptProxied(conn, l)
 			continue
 		}
 		if l.tls {
 			conn = tls.Server(conn, l.tlsConf)
 		}
-		select {
-		case s.events <- func() { s.newClient(conn, l.tls) }:
-		case <-s.done:
+		if !a.hand(conn, l.tls) {
 			conn.Close()
 			return
 		}
+	}
+}
+
+// handToLoop gives a ready client connection to the loop; false once the
+// server is stopping.
+func (s *Server) handToLoop(conn net.Conn, isTLS bool) bool {
+	select {
+	case s.events <- func() { s.newClient(conn, isTLS) }:
+		return true
+	case <-s.done:
+		return false
 	}
 }
 
@@ -487,6 +565,10 @@ func (s *Server) closeListeners() {
 	for _, l := range s.listeners {
 		l.Close()
 	}
+	if s.gate != nil {
+		s.gate.Sync(gate.Spec{}) // the gate closes the ports too
+		s.gate.Close()
+	}
 }
 
 func (s *Server) shutdown(reason string) {
@@ -500,6 +582,12 @@ func (s *Server) shutdown(reason string) {
 	for _, c := range s.clients {
 		s.quit(c, reason)
 	}
+	s.finishStop(snap)
+}
+
+// finishStop is the end of every stop: it waits for the connections to
+// close, saves what is kept across restarts and closes the database.
+func (s *Server) finishStop(snap history.Snapshot) {
 	finished := make(chan struct{})
 	go func() { s.wg.Wait(); close(finished) }()
 	select {

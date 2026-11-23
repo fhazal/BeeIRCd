@@ -23,6 +23,7 @@ type liveCheck struct {
 	cert, key     string
 	pw            string
 	admin         string // an oper account to try one wrong /oper password on ("" = skip)
+	logChan       string // the services log channel, +O on the server ("" = skip that check)
 	passed, total int
 	failed        []string
 	all           []*client
@@ -55,6 +56,7 @@ func main() {
 	flag.StringVar(&lc.key, "key", "zt-key.pem", "its key")
 	flag.StringVar(&lc.pw, "pw", "zt9-pass-word", "password for the zt* test accounts")
 	flag.StringVar(&lc.admin, "admin", "", "oper account for one wrong-password /oper check (counts toward its lockout)")
+	flag.StringVar(&lc.logChan, "logchan", "#services", "the services log channel (config log_channel), \"\" when there is none")
 	suites := flag.String("suites", "core,opers,modes,bots", "which checks: core (services and IRCv3), opers, modes, bots (BotServ), net (needs -net)")
 	netList := flag.String("net", "", "net suite: hub=host:port,leaf1=host:port,leaf2=host:port (server names; the hub runs services)")
 	cut := flag.String("cut", "", "net suite: shell command that cuts leaf2's link")

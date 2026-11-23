@@ -30,6 +30,15 @@ type fakeSystem struct {
 	panel      bool // the Hive Panel service (beeircd-web) is running
 	quit       string
 	calls      []string
+
+	// The door keeper: gate is what the running server's status says
+	// ("" = a server from before the hand-over), progGate what
+	// `beeircd gate-proto` prints for any program ("" = unknown command).
+	gate, progGate string
+	handoverErr    bool   // the running server refuses the hand-over
+	handoverWhy    string // the new server took nobody over, this is why
+	pid            int    // the running server process
+	took           *control.Handover
 }
 
 func progVersion(file string) string {
@@ -38,11 +47,15 @@ func progVersion(file string) string {
 }
 
 // releaseServer serves a signed release of version v (signed with sign).
-func releaseServer(t *testing.T, v string, sign ed25519.PrivateKey) *httptest.Server {
+// gate is the release file's door keeper protocol (none: an old release).
+func releaseServer(t *testing.T, v string, sign ed25519.PrivateKey, gate ...string) *httptest.Server {
 	t.Helper()
 	prog := []byte("PROGRAM " + v)
 	m := release.Manifest{Version: v, Date: "2026-11-20", Notes: "· Fixes a crash\n· Faster joins",
 		Files: map[string]string{"beeircd-linux-amd64": release.Sum(prog)}}
+	if len(gate) > 0 {
+		m.Gate = gate[0]
+	}
 	man, _ := json.Marshal(m)
 	files := map[string][]byte{"/release.json": man, "/release.json.sig": release.Sign(man, sign), "/beeircd-linux-amd64": prog}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -86,6 +99,11 @@ func testUpdater(t *testing.T, current, url string, fs *fakeSystem, answers stri
 				return o.String(), errors.New("exit 1")
 			}
 			return o.String(), nil
+		case len(args) == 1 && args[0] == "gate-proto":
+			if fs.progGate == "" {
+				return "Unknown command \"gate-proto\".", errors.New("exit 2")
+			}
+			return fs.progGate + "\n", nil
 		case len(args) > 0 && args[0] == "check":
 			if fs.checkFails {
 				return "  ✓ config reads cleanly\n  ✗ [limits] flood_rate \"fast\" is not a number", errors.New("exit 1")
@@ -105,6 +123,8 @@ func testUpdater(t *testing.T, current, url string, fs *fakeSystem, answers stri
 			} else {
 				fs.running = ""
 			}
+			fs.pid++
+			fs.took = nil
 			return "", nil
 		case name == "journalctl":
 			return "Nov 20 14:12:31 beeircd[5201]: listen on :6697: address already in use", nil
@@ -120,7 +140,20 @@ func testUpdater(t *testing.T, current, url string, fs *fakeSystem, answers stri
 			if fs.running == "" {
 				return nil, control.ErrNotRunning
 			}
-			return &control.Response{Status: &control.Status{Version: fs.running, Online: 48, PID: 4242}}, nil
+			return &control.Response{Status: &control.Status{Version: fs.running, Online: 48, Local: 47, PID: 4242 + fs.pid,
+				Gate: fs.gate, Handover: fs.took}}, nil
+		case control.CmdHandover:
+			fs.calls = append(fs.calls, "handover")
+			if fs.handoverErr {
+				return nil, errors.New("a hand-over is already running")
+			}
+			// The door keeper starts the installed program.
+			fs.running, fs.pid = progVersion(exe), fs.pid+1
+			fs.took = &control.Handover{Kept: 46, Of: 47}
+			if fs.handoverWhy != "" {
+				fs.took = &control.Handover{Problem: fs.handoverWhy}
+			}
+			return &control.Response{}, nil
 		}
 		return nil, control.ErrNotRunning
 	}
@@ -201,7 +234,7 @@ func TestUpdateRollsBackWhenNewOneFails(t *testing.T) {
 		t.Fatalf("exit %d\n%s", code, out)
 	}
 	text := out.String()
-	for _, want := range []string{"1.0.1 didn't answer within", "rolled back: 1.0.0 is running again (pid 4242)", "address already in use", "journalctl -u beeircd"} {
+	for _, want := range []string{"1.0.1 didn't answer within", "rolled back: 1.0.0 is running again (pid 4244)", "address already in use", "journalctl -u beeircd"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("output lacks %q:\n%s", want, text)
 		}

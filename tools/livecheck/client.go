@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"regexp"
 	"strings"
@@ -60,6 +61,10 @@ func (c *client) wait(pattern string, t ...time.Duration) string {
 			}
 		}
 		c.read(200 * time.Millisecond)
+	}
+	// Show what came instead, so a FAIL says what the server sent.
+	for _, l := range c.lines[max(0, len(c.lines)-3):] {
+		fmt.Println("     saw: " + l)
 	}
 	return ""
 }

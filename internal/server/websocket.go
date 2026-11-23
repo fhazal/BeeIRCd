@@ -43,9 +43,9 @@ var (
 )
 
 // acceptWebSocket does the TLS and HTTP handshake off the loop, then hands
-// the connection to the loop like any other.
-func (s *Server) acceptWebSocket(conn net.Conn, l listener) {
-	defer s.wg.Done()
+// the connection on like any other.
+func (a *acceptor) acceptWebSocket(conn net.Conn, l listener) {
+	defer a.wg.Done()
 	if l.proxy && !l.proxyAllowed(conn.RemoteAddr()) {
 		conn.Close() // not our proxy: nobody else may claim an address
 		return
@@ -62,9 +62,7 @@ func (s *Server) acceptWebSocket(conn net.Conn, l listener) {
 		return
 	}
 	conn.SetDeadline(time.Time{})
-	select {
-	case s.events <- func() { s.newClient(ws, ws.secure) }:
-	case <-s.done:
+	if !a.hand(ws, ws.secure) {
 		raw.Close()
 	}
 }

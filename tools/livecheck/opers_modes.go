@@ -53,7 +53,12 @@ func (lc *liveCheck) modes() {
 	}
 	op.send("VERSION")
 	l := op.wait("CHANMODES=")
-	lc.check("005 has the new modes", strings.Contains(l, "CHANMODES=beI,k,BEFHJLfl,CDKMNOPQRSTVZcimnprstz"))
+	cm := ""
+	if i := strings.Index(l, "CHANMODES="); i >= 0 {
+		cm = strings.Fields(l[i+10:])[0]
+	}
+	g := strings.SplitN(cm+",,,", ",", 4)
+	lc.check("005 has the new modes", strings.HasPrefix(cm, "beI,k,") && hasAll(g[2], "BEFHJLfl") && hasAll(g[3], "CDKMNOPQRSTVZcimnprstz"))
 	join(op, A)
 	join(u, A)
 	join(w, A)

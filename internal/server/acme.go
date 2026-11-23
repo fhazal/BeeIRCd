@@ -102,6 +102,7 @@ func (s *Server) acmeLoop(cfg acmecert.Config) {
 		s.post(func() {
 			s.acme.fails, s.acme.lastErr, s.acme.retryAt = 0, "", time.Time{}
 			s.certErr = ""
+			s.certsChanged()
 			s.sno('a', "Let's Encrypt: new certificate for %s, valid until %s", names, leaf.NotAfter.Format("2 Jan 2006"))
 		})
 	}

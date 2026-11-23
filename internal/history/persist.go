@@ -118,6 +118,13 @@ func (s *Store) Load(path, secret string, now time.Time) (channels, lines int, e
 	if err := gob.NewDecoder(io.LimitReader(zr, 1<<30)).Decode(&snap); err != nil {
 		return 0, 0, err
 	}
+	channels, lines = s.Restore(snap, now)
+	return channels, lines, nil
+}
+
+// Restore puts a snapshot's lines into s and returns what s holds then.
+// Lines older than their channel's age limit are dropped on the way in.
+func (s *Store) Restore(snap Snapshot, now time.Time) (channels, lines int) {
 	for _, sl := range snap {
 		lim := Limit{Lines: sl.Lines, Age: sl.Age}
 		for _, line := range sl.Log {
@@ -129,5 +136,5 @@ func (s *Store) Load(path, secret string, now time.Time) (channels, lines int, e
 		channels++
 		lines += len(l.lines)
 	}
-	return channels, lines, nil
+	return channels, lines
 }
