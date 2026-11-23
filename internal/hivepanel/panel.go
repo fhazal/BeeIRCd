@@ -197,6 +197,9 @@ func New(o Options) *Panel {
 	m.HandleFunc("POST /api/chan-unsuspend", p.withOper(p.chanAct(control.CmdChanUnsuspend)))
 	m.HandleFunc("GET /api/my-nick", p.withOper(p.simple(control.CmdMyNick)))
 	m.HandleFunc("POST /api/my-set", p.withOper(p.mySet))
+	m.HandleFunc("POST /api/my-meta", p.withOper(p.myMeta))
+	m.HandleFunc("POST /api/meta-clear", p.withOper(p.act(control.CmdMetaClear)))
+	m.HandleFunc("POST /api/chan-meta-clear", p.withOper(p.chanAct(control.CmdMetaClear)))
 	m.HandleFunc("POST /api/chat-key", p.withOper(p.simple(control.CmdChatKey)))
 	m.HandleFunc("GET /api/my-home", p.withOper(p.simple(control.CmdMyHome)))
 	m.HandleFunc("GET /api/my-memos", p.withOper(p.simple(control.CmdMyMemos)))
@@ -455,6 +458,17 @@ func (p *Panel) mySet(w http.ResponseWriter, r *http.Request, oc operCtx) {
 		return
 	}
 	p.send(w, oc, control.Request{Cmd: control.CmdMySet, Name: in.Name, Value: in.Value}, 10*time.Second)
+}
+
+// myMeta sets or removes one of a member's own IRCv3 metadata keys
+// (avatar, color, status): {"name", "value"}, an empty value removes it.
+func (p *Panel) myMeta(w http.ResponseWriter, r *http.Request, oc operCtx) {
+	var in struct{ Name, Value string }
+	if json.NewDecoder(r.Body).Decode(&in) != nil || in.Name == "" || len(in.Value) > 400 {
+		writeErr(w, http.StatusBadRequest, "Bad request.")
+		return
+	}
+	p.send(w, oc, control.Request{Cmd: control.CmdMyMeta, Name: in.Name, Value: in.Value}, 10*time.Second)
 }
 
 // memoAct reads or deletes one of the signed-in person's own memos.

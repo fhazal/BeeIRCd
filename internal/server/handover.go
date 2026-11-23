@@ -181,6 +181,8 @@ type clientSnap struct {
 	IdentAnswer    string
 	Silence        []string
 	Knocks         []time.Time
+	MdSubs         map[string]bool
+	MdSets         []time.Time
 	GreetWait      bool
 	GreetHeld      []string
 
@@ -539,7 +541,7 @@ func (s *Server) snapClient(c *Client) clientSnap {
 		SoftReason: c.softReason, SessionLate: c.sessionLate,
 		Monitor: c.monitor, Watch: c.watch, CalleridAt: c.calleridAt, DCCWarned: c.dccWarned,
 		AmsgText: c.amsgText, AmsgTarget: c.amsgTarget, AmsgAt: c.amsgAt, NickLocked: c.nickLocked,
-		IdentAnswer: c.identAnswer, Silence: c.silence, Knocks: c.knocks, GreetWait: c.greetWait, GreetHeld: c.greetHeld,
+		IdentAnswer: c.identAnswer, Silence: c.silence, Knocks: c.knocks, MdSubs: c.mdSubs, MdSets: c.mdSets, GreetWait: c.greetWait, GreetHeld: c.greetHeld,
 		Oper: s.opers[c], NoLag: c.noLag.Load(), OperFlags: c.operFlags, OperTitle: c.operTitle, OperClass: c.operClass,
 		OperSwhois: c.operSwhois, OperVhost: c.operVhost, OperAccount: c.operAccount, OperReach: c.operReach, Snomask: c.snomask,
 		ConnectedAt: c.connectedAt, LastRecv: c.lastRecv, LastMsg: c.lastMsg, PingSent: c.pingSent,
@@ -807,7 +809,7 @@ func (s *Server) restoreClient(cs *clientSnap, uid string, u *state.User, conn n
 		softReason: cs.SoftReason, sessionLate: cs.SessionLate,
 		monitor: cs.Monitor, watch: cs.Watch, dccWarned: cs.DCCWarned,
 		amsgText: cs.AmsgText, amsgTarget: cs.AmsgTarget, amsgAt: cs.AmsgAt, nickLocked: cs.NickLocked,
-		identAnswer: cs.IdentAnswer, silence: cs.Silence, knocks: cs.Knocks, greetWait: cs.GreetWait, greetHeld: cs.GreetHeld,
+		identAnswer: cs.IdentAnswer, silence: cs.Silence, knocks: cs.Knocks, mdSubs: cs.MdSubs, mdSets: cs.MdSets, greetWait: cs.GreetWait, greetHeld: cs.GreetHeld,
 		operFlags: cs.OperFlags, operTitle: cs.OperTitle, operClass: cs.OperClass, operSwhois: cs.OperSwhois,
 		operVhost: cs.OperVhost, operAccount: cs.OperAccount, operReach: cs.OperReach, snomask: cs.Snomask,
 		floodBurst: s.cfg.Limits.FloodBurst, floodRate: s.cfg.Limits.FloodRate,

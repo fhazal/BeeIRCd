@@ -25,7 +25,7 @@ var capabilities = []string{
 
 // draftCaps are the IRCv3 drafts offered while [server] ircv3_drafts is
 // on.
-var draftCaps = []string{readMarkerCap, preAwayCap, extISupportCap, multilineCap, redactCap, accountRegCap, renameCap}
+var draftCaps = []string{readMarkerCap, preAwayCap, extISupportCap, multilineCap, redactCap, accountRegCap, metadataCap, renameCap}
 
 // preAwayCap lets AWAY come before registration (IRCv3 draft/pre-away).
 const preAwayCap = "draft/pre-away"
@@ -52,6 +52,8 @@ func (s *Server) capValue(name string) string {
 		return "sasl=PLAIN,EXTERNAL"
 	case accountRegCap:
 		return s.accountRegValue()
+	case metadataCap:
+		return metadataValue()
 	case multilineCap:
 		return multilineCap + "=max-bytes=" + strconv.Itoa(mlMaxBytes) + ",max-lines=" + strconv.Itoa(mlMaxLines)
 	}
@@ -124,7 +126,12 @@ func (s *Server) cmdCap(c *Client, m irc.Message) {
 		if v >= 302 {
 			c.caps["cap-notify"] = true // implied by CAP LS 302
 		}
-		s.capReply(c, "LS", s.capLS(v >= 302, s.stsValue(c, v >= 302)))
+		ls := s.capLS(v >= 302, s.stsValue(c, v >= 302))
+		if v >= 302 {
+			s.capReplyLong(c, "LS", ls)
+		} else {
+			s.capReply(c, "LS", ls)
+		}
 	case "LIST":
 		var on []string
 		for _, name := range s.offered() {
@@ -167,6 +174,24 @@ func (s *Server) cmdCap(c *Client, m irc.Message) {
 
 func (s *Server) capReply(c *Client, sub, text string) {
 	c.send(irc.Message{Source: s.cfg.Server.Name, Command: "CAP", Params: []string{c.target(), sub, text}, Trailing: true}.String())
+}
+
+// capReplyLong sends a CAP 302 reply over as many lines as it needs, each
+// but the last marked with "*", so no line passes 512 bytes.
+func (s *Server) capReplyLong(c *Client, sub, text string) {
+	// ":<server> CAP <nick> <sub> * :" plus CRLF
+	room := irc.MaxLine - len(s.cfg.Server.Name) - len(c.target()) - len(sub) - 14
+	var line []string
+	n := 0
+	for _, w := range strings.Fields(text) {
+		if len(line) > 0 && n+1+len(w) > room {
+			c.send(irc.Message{Source: s.cfg.Server.Name, Command: "CAP", Params: []string{c.target(), sub, "*", strings.Join(line, " ")}, Trailing: true}.String())
+			line, n = nil, -1
+		}
+		line = append(line, w)
+		n += 1 + len(w)
+	}
+	s.capReply(c, sub, strings.Join(line, " "))
 }
 
 func (s *Server) cmdPass(c *Client, m irc.Message) {
@@ -451,6 +476,7 @@ func (s *Server) welcome(c *Client) {
 	s.replyBare(c, irc.RplMyInfo, cfg.Name, version.Name+"-"+version.Version, userModes, s.channelModes(), s.channelModesWithParam())
 	s.sendISupport(c)
 	s.lusers(c)
+	s.metadataWelcome(c)
 	s.motd(c)
 	s.randomQuote(c)
 	c.send(irc.Message{Source: u.Nick, Command: "MODE", Params: []string{u.Nick, u.ModeString()}}.String())

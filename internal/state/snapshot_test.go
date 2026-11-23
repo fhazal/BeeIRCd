@@ -196,7 +196,7 @@ func TestSnapshotLoadSkipsConflicts(t *testing.T) {
 // ChannelSnap and Load copy Channel field by field. A new Channel field
 // must be added to both; this count is the reminder.
 func TestSnapshotCoversChannel(t *testing.T) {
-	if n := reflect.TypeOf(Channel{}).NumField(); n != 13 {
+	if n := reflect.TypeOf(Channel{}).NumField(); n != 14 {
 		t.Fatalf("Channel has %d fields: add the new one to ChannelSnap, Snapshot and Load, then update this count", n)
 	}
 	if n := reflect.TypeOf(Member{}).NumField(); n != 4 {

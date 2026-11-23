@@ -8,6 +8,7 @@ package server
 
 import (
 	"fmt"
+	"maps"
 	"sort"
 	"strconv"
 	"strings"
@@ -150,7 +151,8 @@ func (s *Server) panelPerson(po *control.PanelOper, uid string) *control.Person 
 	}
 	seeHosts := strings.IndexByte(po.Flags, 'h') >= 0
 	geo := seeHosts && s.geoOn()
-	p := &control.Person{PersonBrief: brief(u, geo), Ident: u.Ident, Realname: u.Realname, TLS: u.TLS, Away: u.Away, Modes: u.ModeString()}
+	p := &control.Person{PersonBrief: brief(u, geo), Ident: u.Ident, Realname: u.Realname, TLS: u.TLS, Away: u.Away, Modes: u.ModeString(),
+		Metadata: maps.Clone(u.Metadata)}
 	if seeHosts {
 		p.RealHost, p.IP = u.RealHost, irc.DisplayIP(u.IP)
 	}

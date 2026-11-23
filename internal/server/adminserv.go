@@ -565,7 +565,7 @@ func baseSettings() []setting {
 			get:   func(c *config.Config) string { return c.Link.OutsideAdmins },
 			apply: func(d, s *config.Config) { d.Link.OutsideAdmins = s.Link.OutsideAdmins },
 			enc:   outsideAdminsEnc},
-		{name: "ircv3-drafts", table: "server", key: "ircv3_drafts", help: "offer the IRCv3 drafts (read-marker, multiline, message-redaction, account-registration, pre-away, extended-isupport, channel-rename) to clients that ask", kind: 'b',
+		{name: "ircv3-drafts", table: "server", key: "ircv3_drafts", help: "offer the IRCv3 drafts (read-marker, multiline, message-redaction, account-registration, pre-away, extended-isupport, metadata, channel-rename) to clients that ask", kind: 'b',
 			get: func(c *config.Config) string { return onoff(c.Server.IRCv3Drafts) }, apply: func(d, s *config.Config) { d.Server.IRCv3Drafts = s.Server.IRCv3Drafts },
 			after: func(s *Server, old string) { s.draftsChanged(old == "off") }},
 		{name: "members", table: "web", key: "members", help: "people with a registered nick may sign in to the Hive Panel with their NickServ password, to their own pages only", kind: 'b',

@@ -29,7 +29,7 @@ func TestPanelFlagMatrix(t *testing.T) {
 		control.CmdOpers: 'a', control.CmdOperSave: 'a', control.CmdOperDel: 'a',
 		control.CmdLinks: 'c', control.CmdLinkConnect: 'c', control.CmdLinkSplit: 'c', control.CmdLinkSave: 'c', control.CmdLinkDel: 'c', control.CmdMapPlace: 'c',
 		control.CmdChannels: 0, control.CmdChannel: 0, control.CmdChanNotice: 'g',
-		control.CmdChanTopic: 's', control.CmdChanSuspend: 's', control.CmdChanUnsuspend: 's',
+		control.CmdChanTopic: 's', control.CmdChanSuspend: 's', control.CmdChanUnsuspend: 's', control.CmdMetaClear: 0,
 		control.CmdAccounts: 's', control.CmdAccount: 's', control.CmdGlobal: 'g', // the Services tabs and serv-do: TestPanelOperPages
 	}
 	who := []string{"Boss"}
@@ -56,7 +56,7 @@ func TestPanelFlagMatrix(t *testing.T) {
 		}
 	}
 	// Every command the panel has is in the matrix.
-	if len(need) != 39 {
+	if len(need) != 40 {
 		t.Errorf("matrix has %d commands", len(need))
 	}
 }

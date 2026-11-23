@@ -36,6 +36,7 @@ func (s *Server) emit(ev state.Event) error {
 	}
 	s.dropGoneHistory(histGone)
 	s.linkOut(ev, org)
+	s.metadataAfter(ev)
 	for _, sink := range s.sinks {
 		sink(ev)
 	}

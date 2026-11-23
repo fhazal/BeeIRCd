@@ -72,6 +72,8 @@ type User struct {
 	NickTS   int64
 	Modes    map[byte]bool
 	Channels map[string]*Channel // by folded name
+	// Metadata holds the user's IRCv3 metadata keys (avatar, status, ...).
+	Metadata map[string]string
 }
 
 // TrueIdent is the ident the user connected with.
@@ -244,6 +246,9 @@ type Channel struct {
 	net     *Network             // for ~i:#chan (inherit) bans
 	// Params holds the argument of the other parameter modes (f F H L E B J).
 	Params map[byte]string
+	// Metadata holds the channel's IRCv3 metadata keys; nil until the
+	// server has loaded them (from ChanServ, for a registered channel).
+	Metadata map[string]string
 }
 
 // ParamModes are the channel modes that take an argument when set and none

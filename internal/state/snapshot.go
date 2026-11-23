@@ -1,6 +1,7 @@
 package state
 
 import (
+	"maps"
 	"sort"
 	"time"
 
@@ -36,6 +37,9 @@ type ChannelSnap struct {
 	Lists   map[string][]ListEntry // "b", "e", "I"
 	Invited []string
 	Params  map[string]string // by mode letter
+	// Metadata is nil both for "not loaded" and "none": a channel that
+	// comes back with none loads it again on the next join.
+	Metadata map[string]string
 }
 
 // MemberSnap is one member of a ChannelSnap.
@@ -60,7 +64,7 @@ func (n *Network) Snapshot() *Snapshot {
 	sort.SliceStable(s.Users, func(i, j int) bool { return s.Users[i].UID < s.Users[j].UID })
 	for _, ch := range n.Channels() {
 		c := ChannelSnap{Name: ch.Name, TS: ch.TS, Modes: string(sortedKeys(ch.Modes)), Key: ch.Key, Limit: ch.Limit,
-			Topic: ch.Topic, TopicBy: ch.TopicBy, TopicAt: ch.TopicAt}
+			Topic: ch.Topic, TopicBy: ch.TopicBy, TopicAt: ch.TopicAt, Metadata: maps.Clone(ch.Metadata)}
 		for _, m := range ch.Members {
 			c.Members = append(c.Members, MemberSnap{UID: m.User.UID, Ranks: m.Ranks, Hidden: m.Hidden, Joined: m.Joined})
 		}
@@ -194,6 +198,7 @@ func (n *Network) Load(s *Snapshot) (skipped []string) {
 			}
 			ch.Params[m[0]] = v
 		}
+		ch.Metadata = maps.Clone(c.Metadata)
 		ch.Invited = make(map[string]bool)
 		for _, uid := range c.Invited {
 			if in[uid] {

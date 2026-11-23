@@ -61,6 +61,7 @@ func init() {
 		"TAGMSG":       {1, false, (*Server).cmdTagmsg},
 		"CHATHISTORY":  {1, false, (*Server).cmdChathistory},
 		"MARKREAD":     {0, false, (*Server).cmdMarkread},
+		"METADATA":     {0, false, (*Server).cmdMetadata},
 		"ISUPPORT":     {0, true, (*Server).cmdISupport},
 		"BATCH":        {1, false, (*Server).cmdBatch},
 		"REDACT":       {0, false, (*Server).cmdRedact},

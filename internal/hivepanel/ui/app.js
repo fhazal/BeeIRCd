@@ -2359,6 +2359,8 @@
         items.push(item('Country', p.country ? (p.country_name || p.country) + ' (' + p.country + ')' : 'not known'));
         items.push(item('Network', p.asn ? 'AS' + p.asn + (p.as_org ? ' · ' + p.as_org : '') : 'not known', null, true));
       }
+      const metaKeys = Object.keys(p.metadata || {}).sort();
+      if (metaKeys.length) items.push(item('Metadata', metaKeys.map(k => k + ': ' + p.metadata[k]).join(' · '), null, true));
 
       // notice
       const note = h('input', { class: 'in', id: 'note-' + p.uid, type: 'text', maxlength: '400', placeholder: 'Type a message', autocomplete: 'off' });
@@ -2389,6 +2391,22 @@
           } catch (e) { toastErr(e.message); }
         }));
         put(confirmBox, h('span', { class: 'f' }, 'Report ' + (p.ip ? p.ip + ' (' + p.nick + ')' : p.nick) + ' to the spam blocklists? Other networks will block this address too.'), go, cancel);
+        confirmBox.hidden = false;
+        go.focus();
+      }
+      function askMetaClear() {
+        const go = h('button', { type: 'button', class: 'btn bad', text: 'Clear metadata' });
+        const cancel = h('button', { type: 'button', class: 'btn ghost', text: 'Cancel' });
+        cancel.addEventListener('click', () => { confirmBox.hidden = true; });
+        go.addEventListener('click', () => busy(go, async () => {
+          try {
+            const d = await api('POST', '/api/meta-clear', { uid: p.uid });
+            toast([d.done.text]);
+            confirmBox.hidden = true;
+            load();
+          } catch (e) { toastErr(e.message); }
+        }));
+        put(confirmBox, h('span', { class: 'f' }, 'Clear the avatar, status and every other metadata key of ' + p.nick + '?' + (p.account ? ' Their account forgets them too.' : '')), go, cancel);
         confirmBox.hidden = false;
         go.focus();
       }
@@ -2427,7 +2445,12 @@
           ends.push(rb);
         }
       }
-      put(box, 
+      if (metaKeys.length) {
+        const mb = h('button', { type: 'button', class: 'btn ghost', text: 'Clear metadata' });
+        mb.addEventListener('click', askMetaClear);
+        ends.push(mb);
+      }
+      put(box,
         h('div', { class: 'dl' }, items),
         h('div', { class: 'acts' },
           h('div', { class: 'grow' }, h('label', { class: 'f', for: 'note-' + p.uid }, 'Notice to ' + p.nick, note), send),
@@ -4000,6 +4023,26 @@
       save.addEventListener('click', () => busy(save, async () => {
         try { await mySet('GREET', greet.value.trim()); } catch (e) { toastErr(e.message); }
       }));
+      // IRCv3 metadata (avatar, colour, status): only while the server offers it.
+      const meta = d.metadata || {};
+      const metaRow = (key, label, type, max, hold, hint) => {
+        const id = 'my-meta-' + key;
+        const input = h('input', { class: 'in' + (key === 'status' ? '' : ' mono'), id, type, maxlength: String(max), value: meta[key] || '', placeholder: hold });
+        const btn = h('button', { type: 'button', class: 'btn', text: 'Save' });
+        btn.addEventListener('click', () => busy(btn, async () => {
+          try {
+            const r = await api('POST', '/api/my-meta', { name: key, value: input.value.trim() });
+            toast([r.done ? r.done.text : 'Saved.']);
+          } catch (e) { toastErr(e.message); }
+        }));
+        return h('div', { class: 'my-row' }, h('label', { class: 'f', for: id }, label, h('div', { class: 'my-inline' }, input, btn)),
+          h('span', { class: 'hint', text: hint }));
+      };
+      const metaRows = d.metaOn ? [
+        metaRow('avatar', 'Avatar', 'url', 300, 'https://example.org/me.png', 'A picture IRC apps show next to your nick. An https link. Empty removes it.'),
+        metaRow('color', 'Colour', 'text', 7, '#f5c400', 'The colour IRC apps may give your nick, as #rrggbb. Empty removes it.'),
+        metaRow('status', 'Status', 'text', 300, 'Out for lunch', 'A short line about you that IRC apps may show. Empty removes it.'),
+      ] : [];
       put(settings,
         sw('my-kill', 'Protect my nick', 'Someone using it without your password is renamed (now ' + (KILL_TEXT[d.kill] || d.kill) + ').',
           d.kill !== 'off', 'KILL', on => on ? 'ON' : 'OFF'),
@@ -4008,7 +4051,8 @@
         sw('my-autoop', 'Get my status when I join', 'ChanServ gives you @ or + in your channels.', d.autoOp, 'AUTOOP', on => on ? 'ON' : 'OFF'),
         sw('my-private', 'Keep me out of the nick list', 'NickServ LIST doesn\'t show you.', d.private, 'PRIVATE', on => on ? 'ON' : 'OFF'),
         h('div', { class: 'my-row' }, h('label', { class: 'f', for: 'my-greet' }, 'Greet message', h('div', { class: 'my-inline' }, greet, save)),
-          h('span', { class: 'hint', text: 'A channel bot says it when you join, where the channel allows greets. Empty removes it.' })));
+          h('span', { class: 'hint', text: 'A channel bot says it when you join, where the channel allows greets. Empty removes it.' })),
+        ...metaRows);
       const reg = new Date(d.registered);
       put(about,
         h('div', { class: 'row' }, h('span', { text: 'Registered' }), h('span', { class: 'end mono', text: isNaN(reg) ? '' : reg.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) })),
@@ -4588,6 +4632,8 @@
         items.push(item('Modes', modes, 'mono', !!c.mlock || modes.length > 28));
       }
       if (c.description) items.push(item('Description', c.description, null, true));
+      const metaKeys = Object.keys(c.metadata || {}).sort();
+      if (metaKeys.length) items.push(item('Metadata', metaKeys.map(k => k + ': ' + c.metadata[k]).join(' · '), null, true));
       if (c.suspended) items.push(item('Suspended', 'by ' + c.suspended_by + ' · ' + (c.suspend_why || 'no reason') + (c.suspend_till ? ' · until ' + day(c.suspend_till) : ' · until unsuspended'), 'badword', true));
       const parts = [h('div', { class: 'dl' }, items)];
       if (c.open) {
@@ -4676,6 +4722,21 @@
           });
           end.append(sb);
         }
+      }
+      if (metaKeys.length) {
+        const mb = h('button', { type: 'button', class: 'btn ghost', text: 'Clear metadata' });
+        mb.addEventListener('click', () => {
+          const go = h('button', { type: 'button', class: 'btn bad', text: 'Clear metadata' });
+          const no = h('button', { type: 'button', class: 'btn ghost', text: 'Cancel' });
+          no.addEventListener('click', cancel);
+          go.addEventListener('click', () => busy(go, async () => {
+            try { toast([(await api('POST', '/api/chan-meta-clear', { name: c.name })).done.text]); ask.hidden = true; load(); }
+            catch (e) { toastErr(e.message); }
+          }));
+          put(ask, h('span', { class: 'f' }, 'Clear every metadata key of ' + c.name + '?' + (c.registered ? ' ChanServ forgets them too.' : '')), go, no);
+          ask.hidden = false; go.focus();
+        });
+        end.append(mb);
       }
       if (end.childNodes.length) acts.append(end);
       if (acts.childNodes.length) parts.push(acts);

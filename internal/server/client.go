@@ -92,12 +92,14 @@ type Client struct {
 	amsgText    string          // [blockamsg]: the last channel text, where it went and when
 	amsgTarget  string
 	amsgAt      time.Time
-	nickLocked  bool        // NICKLOCK: may not change nick
-	identBusy   bool        // an ident lookup is running (ident.go)
-	identAnswer string      // the username their identd gave
-	silence     []string    // SILENCE masks (nick!ident@host)
-	knocks      []time.Time // recent KNOCKs, for the knock flood limit
-	operFlags   string      // oper flags like "abcghks", "" when not an oper
+	nickLocked  bool            // NICKLOCK: may not change nick
+	identBusy   bool            // an ident lookup is running (ident.go)
+	identAnswer string          // the username their identd gave
+	silence     []string        // SILENCE masks (nick!ident@host)
+	knocks      []time.Time     // recent KNOCKs, for the knock flood limit
+	mdSubs      map[string]bool // METADATA SUB keys (metadata.go)
+	mdSets      []time.Time     // recent METADATA SETs, for the rate limit
+	operFlags   string          // oper flags like "abcghks", "" when not an oper
 	operTitle   string
 	operClass   string    // oper class in use ("" = flags only)
 	operSwhois  []string  // extra WHOIS lines (320) while opered
