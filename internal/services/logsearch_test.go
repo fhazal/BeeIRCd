@@ -117,3 +117,27 @@ func TestOperServLogSearch(t *testing.T) {
 		t.Errorf("LOGSEARCH in read-only mode: %q", got)
 	}
 }
+
+// LOGSEARCH must not find its own audit line.
+func TestOperServLogSearchSkipsOwnAuditLine(t *testing.T) {
+	svc, h := newServices(t)
+	opsv := h.net.UserByNick("OperServ")
+	boss := helpUser(t, h, "1LFAAAAAB", "Boss")
+	h.opers = map[string]string{boss.UID: "oa"}
+	path := filepath.Join(t.TempDir(), "services.log")
+	svc.cfg.Services.LogFile = path
+	svc.logw = startLogWriter(path, 10<<20, nil) // audit lines go to the searched file
+	t.Cleanup(svc.CloseLogFile)
+
+	svc.Message(boss.UID, opsv, "LOGSEARCH zzfoo")
+	if got := logSearchReply(t, h, "Boss", "No matches."); strings.Contains(got, "LOGSEARCH") {
+		t.Fatalf("LOGSEARCH found its own audit line: %q", got)
+	}
+	// The line is still written, so a second search finds the first one.
+	svc.CloseLogFile()
+	svc.logw = startLogWriter(path, 10<<20, nil)
+	svc.Message(boss.UID, opsv, "LOGSEARCH zzfoo")
+	if got := logSearchReply(t, h, "Boss", "Showing 1 of 1 matches."); !strings.Contains(got, "for zzfoo") {
+		t.Fatalf("audit line missing: %q", got)
+	}
+}

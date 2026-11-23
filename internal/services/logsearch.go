@@ -51,7 +51,8 @@ func osLogSearch(s *Services, c *Client, args []string) {
 		s.os(c, "Services don't log to a file; set [services] log_file first.")
 		return
 	}
-	s.osLog(c, "for %s", pattern)
+	// The audit line is written after the search, or the search would find it.
+	auditPattern := pattern
 	// Lines start with the time and service, so the pattern is always
 	// wrapped in * (as Anope does): "kill*" finds kills too.
 	if !strings.HasPrefix(pattern, "*") {
@@ -64,6 +65,7 @@ func osLogSearch(s *Services, c *Client, args []string) {
 	go func() {
 		found, total := searchLogFiles([]string{path + ".1", path}, pattern, since, limit)
 		s.post(func() {
+			s.osLog(c, "for %s", auditPattern)
 			if c.closed {
 				return
 			}
