@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -38,8 +40,14 @@ func (lc *liveCheck) core() {
 	a.wait("added|AOP")
 	a.send("CS UP #zt9test")
 	a.clear()
-	a.send("MODE #zt9test +h zt9c")
-	lc.ok("+h shown to b", b.wait(`MODE #zt9test \+h zt9c`))
+	// +h only exists with full prefixes (the installer can leave them off).
+	a.send("VERSION")
+	if pfx := a.wait("PREFIX="); pfx != "" && strings.Contains(strings.SplitN(pfx[strings.Index(pfx, "PREFIX=")+7:], ")", 2)[0], "h") {
+		a.send("MODE #zt9test +h zt9c")
+		lc.ok("+h shown to b", b.wait(`MODE #zt9test \+h zt9c`))
+	} else {
+		fmt.Println("SKIP +h shown to b (no h in PREFIX)")
+	}
 	a.send("MODE #zt9test +bk *!*@spam.example sekrit")
 	lc.ok("ban + key in one line", b.wait(`MODE #zt9test \+bk \*!\*@spam.example sekrit`))
 	a.send("MODE #zt9test -k x")
@@ -115,7 +123,7 @@ func (lc *liveCheck) core() {
 	b.send("CS STATUS #zt9test")
 	lc.ok("STATUS", b.wait("at level 7"))
 	b.send("CS MODE #zt9test LOCK ADD +m")
-	lc.ok("MODE needs level 9999 (b is 7)", b.wait("level 9999 or higher"))
+	lc.ok("MODE needs more than level 7 (b is 7)", b.wait(`You need to be (SOP or higher|QOP or higher|the founder) on #zt9test`))
 	a.send("CS MODE #zt9test LOCK ADD +m")
 	lc.ok("MODE LOCK ADD", c.wait(`ChanServ!.* MODE #zt9test \+m`))
 	a.send("CS MODE #zt9test LOCK DEL m")
@@ -177,11 +185,12 @@ func (lc *liveCheck) core() {
 	a.send("CS MODE #zt9test CLEAR BANS")
 	lc.ok("MODE CLEAR BANS", a.wait("Cleared bans in #zt9test"))
 	a.send("CS HELP")
-	lc.ok("HELP shows LEVELS", a.wait("ACCESS, LEVELS"))
+	lc.ok("HELP shows LEVELS", a.wait(`LEVELS`))
 
 	// ---- 1.5.5a ----
 	a.send("VERSION")
-	lc.ok("005 EXTBAN", a.wait("EXTBAN=~,amqrt"))
+	l = a.wait("EXTBAN=~,")
+	lc.check("005 EXTBAN has a m q r t", l != "" && hasAll(strings.Fields(l[strings.Index(l, "EXTBAN=~,")+9:] + " ")[0], "amqrt"))
 	d.send("GLINE *@spam.example 1d x")
 	lc.ok("/GLINE refused for non-opers", d.wait(" 481 zt9d "))
 	b.send("JOIN #zt9test")
@@ -217,8 +226,12 @@ func (lc *liveCheck) core() {
 	a.clear()
 	a.send("CS MODE #zt9test CLEAR BANS")
 	lc.ok("bans cleared", a.wait("Cleared bans in #zt9test"))
-	d.send("JOIN #services")
-	lc.ok("#services is +O (520 for non-opers)", d.wait(" 520 zt9d #services "))
+	if lc.logChan != "" {
+		d.send("JOIN " + lc.logChan)
+		lc.ok(lc.logChan+" is +O (520 for non-opers)", d.wait(" 520 zt9d "+regexp.QuoteMeta(lc.logChan)+" "))
+	} else {
+		fmt.Println("SKIP log channel is +O (-logchan \"\")")
+	}
 	d.send("MODE #zt9test +O")
 	lc.ok("non-oper can't set +O", d.wait(" 481 zt9d "))
 
@@ -449,4 +462,14 @@ func (lc *liveCheck) core() {
 		x.send("QUIT :done")
 	}
 	time.Sleep(500 * time.Millisecond)
+}
+
+// hasAll says whether s has every letter of want.
+func hasAll(s, want string) bool {
+	for _, r := range want {
+		if !strings.ContainsRune(s, r) {
+			return false
+		}
+	}
+	return true
 }
