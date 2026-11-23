@@ -66,8 +66,7 @@ func (s *Services) csJoin(c *Client, ch *state.Channel, created bool) {
 		return
 	}
 	if lvl.level > store.LevelNone {
-		reg.LastUsed = time.Now()
-		s.store.SaveChannel(reg)
+		s.markChannelUsed(reg)
 	}
 	s.csAutoModes(reg, ch, u)
 	for _, e := range s.store.EntryMsgs(reg) {
@@ -75,6 +74,16 @@ func (s *Services) csJoin(c *Client, ch *state.Channel, created bool) {
 	}
 	s.chanMemoNotice(c, reg)
 	s.bsJoined(c, reg, ch)
+}
+
+// markChannelUsed sets reg's "last used" time and saves it. While READONLY
+// is on nothing is changed or saved.
+func (s *Services) markChannelUsed(reg *store.Channel) {
+	if s.readonly {
+		return
+	}
+	reg.LastUsed = time.Now()
+	s.store.SaveChannel(reg)
 }
 
 // csOnIdentify gives a user who just identified the modes they earn in the
@@ -86,8 +95,7 @@ func (s *Services) csOnIdentify(c *Client) {
 			continue
 		}
 		if s.clientLevel(c, reg).level > store.LevelNone {
-			reg.LastUsed = time.Now()
-			s.store.SaveChannel(reg)
+			s.markChannelUsed(reg)
 			s.csAutoModes(reg, ch, c.user)
 		}
 		s.chanMemoNotice(c, reg)

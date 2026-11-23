@@ -671,7 +671,7 @@ func (s *Services) seenEvent(ev state.Event) {
 // SaveSeen writes changed SEEN entries to the database (every minute, and
 // at shutdown).
 func (s *Services) SaveSeen() {
-	if len(s.seenDirty) == 0 && len(s.seenGone) == 0 {
+	if (len(s.seenDirty) == 0 && len(s.seenGone) == 0) || s.readonly { // READONLY: nothing is saved; it goes out once it is off
 		return
 	}
 	var changed []store.Seen

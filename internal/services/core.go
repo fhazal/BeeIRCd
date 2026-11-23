@@ -381,10 +381,7 @@ func (s *Services) connected(c *Client) {
 	if c.user.Account != "" {
 		if a, err := s.store.AccountByNick(c.user.Account); err == nil && a != nil {
 			c.accountID = a.ID
-			a.LastSeen, a.LastHost = time.Now(), c.user.Ident+"@"+c.user.RealHost
-			if err := s.store.SaveAccount(a); err != nil {
-				s.log.Printf("services database: %v", err)
-			}
+			s.markSeen(a, c.user.Ident+"@"+c.user.RealHost)
 			s.memoSummary(c, a)
 			s.afterLogin(c, a)
 			s.buddyOnline(c, a)

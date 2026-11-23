@@ -1685,7 +1685,7 @@ func csDown(s *Services, c *Client, args []string) {
 
 // csSaveTopic keeps the topic for KEEPTOPIC.
 func (s *Services) csSaveTopic(reg *store.Channel, ch *state.Channel) {
-	if !reg.KeepTopic {
+	if !reg.KeepTopic || s.readonly { // READONLY: nothing is stored
 		return
 	}
 	reg.Topic, reg.TopicBy, reg.TopicAt = ch.Topic, ch.TopicBy, ch.TopicAt

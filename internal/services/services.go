@@ -407,7 +407,7 @@ func (s *Services) check(busy *bool, gone func() bool, key int64, src, name stri
 				s.extLogged = time.Now()
 				s.log.Printf("outside logins ([auth] source = %q): %v", s.cfg.Auth.Source, extErr)
 			}
-			if upgraded != "" {
+			if upgraded != "" && !s.readonly { // READONLY: no background writes
 				if a, _ := s.store.AccountByID(key); a != nil && a.PassHash == hash {
 					a.PassHash = upgraded
 					if err := s.store.SaveAccount(a); err != nil {
@@ -539,7 +539,6 @@ func (s *Services) login(c *Client, a *store.Account) {
 	if c.accountID != 0 {
 		s.logout(c, false)
 	}
-	now := time.Now()
 	// 900 (and 903) first, then the ACCOUNT line the user's own
 	// account-notify gets: clients wait for 900 as the answer.
 	s.reply(c, irc.RplLoggedIn, u.Prefix(), a.Name, "You are now logged in as "+a.Name)
@@ -549,10 +548,7 @@ func (s *Services) login(c *Client, a *store.Account) {
 	s.emit(&state.Login{UID: u.UID, Account: a.Name})
 	c.accountID = a.ID
 	c.enforceAt = time.Time{}
-	a.LastSeen, a.LastHost = now, u.TrueIdent()+"@"+u.RealHost
-	if err := s.store.SaveAccount(a); err != nil {
-		s.log.Printf("services database: %v", err)
-	}
+	s.markSeen(a, u.TrueIdent()+"@"+u.RealHost)
 	s.setRegistered(c, true)
 	s.csOnIdentify(c)
 	s.memoSummary(c, a)
@@ -589,7 +585,17 @@ func (s *Services) touchAccount(c *Client) {
 	if err != nil || a == nil {
 		return
 	}
-	a.LastSeen, a.LastHost = time.Now(), c.user.Ident+"@"+c.user.RealHost
+	s.markSeen(a, c.user.Ident+"@"+c.user.RealHost)
+}
+
+// markSeen sets a's "last seen" time and host and saves them. While
+// READONLY is on nothing is changed or saved (as in Anope: no database
+// writes), so the time stays as it was.
+func (s *Services) markSeen(a *store.Account, host string) {
+	if s.readonly {
+		return
+	}
+	a.LastSeen, a.LastHost = time.Now(), host
 	if err := s.store.SaveAccount(a); err != nil {
 		s.log.Printf("services database: %v", err)
 	}
@@ -597,7 +603,7 @@ func (s *Services) touchAccount(c *Client) {
 
 // saveQuit keeps "last seen" and the quit message of someone leaving.
 func (s *Services) saveQuit(c *Client, reason string) {
-	if c.accountID == 0 {
+	if c.accountID == 0 || s.readonly {
 		return
 	}
 	a, err := s.store.AccountByID(c.accountID)
@@ -688,10 +694,7 @@ func (s *Services) nickCheck(c *Client) {
 	}
 	onAccess := s.onAccess(c, a)
 	if onAccess && !a.Secure {
-		a.LastSeen, a.LastHost = time.Now(), u.TrueIdent()+"@"+u.RealHost
-		if err := s.store.SaveAccount(a); err != nil {
-			s.log.Printf("services database: %v", err)
-		}
+		s.markSeen(a, u.TrueIdent()+"@"+u.RealHost)
 		return
 	}
 	immed := a.Enforce && !onAccess && s.killMode(a) == store.KillImmed

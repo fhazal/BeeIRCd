@@ -261,3 +261,59 @@ func TestNoExpireSpamFilters(t *testing.T) {
 		t.Errorf("run-out spam filter still matches with NOEXPIRE off")
 	}
 }
+
+// While READONLY is on the services' own background writes stop: "last
+// seen" and quit message, "last used" of a channel, and the KEEPTOPIC topic.
+// Nothing reaches the database; with READONLY off they are saved again.
+func TestReadOnlyBackgroundWrites(t *testing.T) {
+	svc, h := newServices(t)
+	bee := regChannel(t, svc, h, "1LFAAAAAA", "Bee")
+	c := svc.clients[bee.UID]
+	if c == nil || c.accountID == 0 {
+		t.Fatal("Bee is not identified")
+	}
+	old := time.Now().Add(-48 * time.Hour).Truncate(time.Second)
+	a, _ := svc.store.AccountByID(c.accountID)
+	a.LastSeen, a.LastHost, a.LastQuit = old, "old@host", "old quit"
+	if err := svc.store.SaveAccount(a); err != nil {
+		t.Fatal(err)
+	}
+	reg, _ := svc.store.ChannelByName("#hive")
+	reg.LastUsed, reg.KeepTopic, reg.Topic = old, true, "old topic"
+	if err := svc.store.SaveChannel(reg); err != nil {
+		t.Fatal(err)
+	}
+	live := svc.net.Channel("#hive")
+	live.Topic, live.TopicBy, live.TopicAt = "new topic", "Bee", time.Now()
+
+	svc.readonly = true
+	svc.touchAccount(c)
+	svc.saveQuit(c, "gone fishing")
+	svc.csOnIdentify(c)
+	svc.csTopicChanged(live)
+
+	a, _ = svc.store.AccountByID(c.accountID)
+	if !a.LastSeen.Equal(old) || a.LastHost != "old@host" || a.LastQuit != "old quit" {
+		t.Errorf("account last seen written in read-only mode: %v %q %q", a.LastSeen, a.LastHost, a.LastQuit)
+	}
+	reg, _ = svc.store.ChannelByName("#hive")
+	if !reg.LastUsed.Equal(old) {
+		t.Errorf("channel last used written in read-only mode: %v", reg.LastUsed)
+	}
+	if reg.Topic != "old topic" {
+		t.Errorf("KEEPTOPIC stored %q in read-only mode", reg.Topic)
+	}
+
+	svc.readonly = false
+	svc.saveQuit(c, "gone fishing")
+	svc.csOnIdentify(c)
+	svc.csTopicChanged(live)
+	a, _ = svc.store.AccountByID(c.accountID)
+	if !a.LastSeen.After(old) || a.LastQuit != "gone fishing" {
+		t.Errorf("account last seen not saved with READONLY off: %v %q", a.LastSeen, a.LastQuit)
+	}
+	reg, _ = svc.store.ChannelByName("#hive")
+	if !reg.LastUsed.After(old) || reg.Topic != "new topic" {
+		t.Errorf("channel not saved with READONLY off: %v %q", reg.LastUsed, reg.Topic)
+	}
+}

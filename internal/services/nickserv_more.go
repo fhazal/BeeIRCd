@@ -537,10 +537,7 @@ func nsUpdate(s *Services, c *Client, args []string) {
 	if !ok {
 		return
 	}
-	a.LastSeen, a.LastHost = time.Now(), c.user.Ident+"@"+c.user.RealHost
-	if err := s.store.SaveAccount(a); err != nil {
-		s.log.Printf("services database: %v", err)
-	}
+	s.markSeen(a, c.user.Ident+"@"+c.user.RealHost)
 	s.csOnIdentify(c)
 	s.memoSummary(c, a)
 	s.hsLogin(c)
