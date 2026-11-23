@@ -167,6 +167,11 @@ func (s *Server) panelChannel(name string) *control.ChannelInfo {
 	} else {
 		info.ChannelBrief = control.ChannelBrief{Name: reg.Name}
 	}
+	if ch != nil {
+		info.Metadata = s.panelChanMeta(ch, ch.Name)
+	} else {
+		info.Metadata = s.panelChanMeta(nil, reg.Name)
+	}
 	if reg != nil {
 		info.Registered, info.Suspended = true, reg.Suspended(now)
 		info.Founder, info.RegisteredAt, info.LastUsed, info.Description = reg.Founder, reg.Registered, reg.LastUsed, reg.Description

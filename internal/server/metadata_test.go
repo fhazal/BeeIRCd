@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/fhazal/beeircd/internal/config"
+	"github.com/fhazal/beeircd/internal/control"
 )
 
 func mdClient(t *testing.T, s *Server, nick string) *tc {
@@ -305,4 +306,90 @@ func TestLinkMetadata(t *testing.T) {
 		})
 		return v == "#010203"
 	})
+}
+
+// The Hive Panel: a member edits their own keys (My nick), an oper clears
+// a person's or a channel's.
+func TestPanelMetadata(t *testing.T) {
+	s, _, _ := fileServer(t, membersOn)
+	e := registered(t, s, "ember")
+	m := memberSession(t, s, "ember", pw)
+	myMeta := func(key, value string) *control.Response {
+		q := as(m, control.CmdMyMeta)
+		q.Name, q.Value = key, value
+		return panelAsk(t, s, q)
+	}
+	if r := myMeta("color", "#ff0000"); !strings.Contains(r.Error, "off") {
+		t.Errorf("my-meta with the drafts off: %+v", r)
+	}
+	if my := panelAsk(t, s, as(m, control.CmdMyNick)).MyNick; my == nil || my.MetaOn {
+		t.Errorf("my-nick with the drafts off: %+v", my)
+	}
+	s.do(func() { s.cfg.Server.IRCv3Drafts = true })
+
+	if r := myMeta("color", "#ff0000"); r.Done == nil || r.Done.Text != "Your color is saved." {
+		t.Fatalf("my-meta color: %+v", r)
+	}
+	for _, bad := range [][2]string{{"color", "red"}, {"avatar", "http://example.org/a.png"}, {"shoe-size", "9"}} {
+		if r := myMeta(bad[0], bad[1]); r.Error == "" {
+			t.Errorf("my-meta %s %s: %+v", bad[0], bad[1], r)
+		}
+	}
+	if r := myMeta("status", ""); r.Done == nil || r.Done.Text != "Your status is not set." {
+		t.Errorf("removing a key not set: %+v", r)
+	}
+	my := panelAsk(t, s, as(m, control.CmdMyNick)).MyNick
+	if my == nil || !my.MetaOn || my.Metadata["color"] != "#ff0000" {
+		t.Fatalf("my-nick: %+v", my)
+	}
+	var uid, live string
+	s.onLoop(func() {
+		if u := s.net.UserByNick("ember"); u != nil {
+			uid, live = u.UID, u.Metadata["color"]
+		}
+	})
+	if live != "#ff0000" {
+		t.Errorf("ember online has color %q", live)
+	}
+
+	// Clearing is for opers; members get no say.
+	if r := panelAsk(t, s, func() control.Request { q := as(m, control.CmdMetaClear); q.UID = uid; return q }()); r.Denied != "flag" {
+		t.Errorf("meta-clear by a member: %+v", r)
+	}
+	boss(t, s)
+	op := control.Request{As: "Boss", IP: "127.0.0.1"}
+	clear := func(uid, name string) *control.Response {
+		q := as(op, control.CmdMetaClear)
+		q.UID, q.Name = uid, name
+		return panelAsk(t, s, q)
+	}
+	if r := clear(uid, ""); r.Done == nil || r.Done.Text != "The metadata of ember is cleared." {
+		t.Fatalf("meta-clear ember: %+v", r)
+	}
+	if my := panelAsk(t, s, as(m, control.CmdMyNick)).MyNick; my == nil || len(my.Metadata) != 0 {
+		t.Errorf("ember's account still has %+v", my)
+	}
+	if r := clear(uid, ""); r.Done == nil || r.Done.Text != "ember has no metadata." {
+		t.Errorf("meta-clear again: %+v", r)
+	}
+
+	// A channel: live keys, and a registered one with none.
+	e.send("JOIN #kampung")
+	e.expect(" 366 ember #kampung ")
+	e.send("PRIVMSG ChanServ :REGISTER #kampung")
+	e.expect("#kampung is registered")
+	ann := mdClient(t, s, "Ann")
+	ann.send("JOIN #open")
+	ann.expect(" 366 Ann #open ")
+	ann.send("METADATA #open SET color #00ff00")
+	ann.expect(" 761 Ann #open color ")
+	if r := clear("", "#open"); r.Done == nil || r.Done.Text != "The metadata of #open is cleared." {
+		t.Errorf("meta-clear #open: %+v", r)
+	}
+	if r := clear("", "#kampung"); r.Done == nil || r.Done.Text != "#kampung has no metadata." {
+		t.Errorf("meta-clear #kampung: %+v", r)
+	}
+	if r := clear("", "#nowhere"); r.Error != "No such channel." {
+		t.Errorf("meta-clear #nowhere: %+v", r)
+	}
 }

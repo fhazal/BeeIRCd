@@ -1,6 +1,7 @@
 package server
 
 import (
+	"maps"
 	"net/url"
 	"regexp"
 	"slices"
@@ -9,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/fhazal/beeircd/internal/control"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/link"
 	"github.com/fhazal/beeircd/internal/services"
@@ -710,4 +712,116 @@ func (s *Server) metadataWelcome(c *Client) {
 		lines = append(lines, s.mdKeyLine(c, t, k))
 	}
 	s.mdBatch(c, "metadata", c.user.Nick, lines)
+}
+
+// ---------- Hive Panel ----------
+
+// panelMyMeta sets (or with value "" removes) key on po's own account and
+// on everyone logged in to it now, with the same checks as METADATA SET.
+func (s *Server) panelMyMeta(po *control.PanelOper, ip, key, value string) *control.Response {
+	a, err := s.store.AccountByNick(po.Account)
+	if err != nil || a == nil {
+		return &control.Response{Error: "Your account no longer exists.", Denied: "signin"}
+	}
+	if !s.cfg.Server.IRCv3Drafts {
+		return &control.Response{Error: "Metadata is off on this server (ircv3_drafts)."}
+	}
+	if !slices.Contains(mdKeys, key) {
+		return &control.Response{Error: "That key isn't one this server takes (" + strings.Join(mdKeys, ", ") + ")."}
+	}
+	if s.svc.ReadOnly() {
+		return &control.Response{Error: services.ReadonlyRefusal}
+	}
+	value = strings.TrimSpace(value)
+	kept := s.store.AccountMetadata(a.ID)
+	if value != "" {
+		if why := s.mdCheck(key, value); why != "" {
+			return &control.Response{Error: why + "."}
+		}
+		if key == "status" || key == "display-name" {
+			if r := s.svc.SpamSet().First(spamfilter.Away, value); r != nil && spamfilter.Known(r.Action) {
+				return &control.Response{Error: "A spam filter of this network does not allow that text."}
+			}
+		}
+		if _, ok := kept[key]; !ok && len(kept) >= mdMaxKeys {
+			return &control.Response{Error: "You have the most keys you may have."}
+		}
+	} else if _, ok := kept[key]; !ok {
+		return &control.Response{Done: &control.Done{Text: "Your " + key + " is not set."}}
+	}
+	if err := s.store.SetAccountMetadata(a.ID, key, value); err != nil {
+		s.log.Printf("services database: metadata: %v", err)
+		return &control.Response{Error: "Something went wrong on the server."}
+	}
+	for _, u := range s.net.Users() {
+		if u.Account != "" && irc.Fold(u.Account) == irc.Fold(a.Name) {
+			s.mdApply(nil, nil, mdTarget{u: u}, key, value, false)
+		}
+	}
+	if value == "" {
+		s.panelEvent(po.Account, ip, "removed their "+key)
+		return &control.Response{Done: &control.Done{Text: "Your " + key + " is removed."}}
+	}
+	s.panelEvent(po.Account, ip, "set their "+key)
+	return &control.Response{Done: &control.Done{Text: "Your " + key + " is saved."}}
+}
+
+// panelMetaClear deletes all metadata of a person (uid) or a channel
+// (name) for an oper; it is logged like METADATA CLEAR.
+func (s *Server) panelMetaClear(po *control.PanelOper, ip, uid, name string) control.Response {
+	if s.svc.ReadOnly() {
+		return control.Response{Error: services.ReadonlyRefusal}
+	}
+	who := po.Account + " (Hive Panel)"
+	n, what := 0, ""
+	if uid != "" {
+		u, problem := s.panelTarget(uid)
+		if problem != "" {
+			return control.Response{Error: problem}
+		}
+		n, what = s.mdClearAll(mdTarget{u: u}, who), u.Nick
+	} else {
+		ch := s.net.Channel(name)
+		if ch != nil {
+			n, what = s.mdClearAll(mdTarget{ch: ch}, who), ch.Name
+		}
+		if !s.svc.Off() { // a registered channel no one is in keeps its keys too
+			if rc, _ := s.store.ChannelByName(name); rc != nil {
+				if kept := len(s.store.ChannelMetadata(rc.ID)); kept > 0 {
+					if err := s.store.ClearChannelMetadata(rc.ID); err != nil {
+						s.log.Printf("services database: metadata: %v", err)
+						return control.Response{Error: "Something went wrong on the server."}
+					}
+					if n == 0 {
+						s.sno('a', "%s cleared the metadata of %s", who, rc.Name)
+					}
+					n = max(n, kept)
+				}
+				what = rc.Name
+			}
+		}
+		if what == "" {
+			return control.Response{Error: "No such channel."}
+		}
+	}
+	if n == 0 {
+		return control.Response{Done: &control.Done{Text: what + " has no metadata."}}
+	}
+	s.panelEvent(po.Account, ip, "cleared the metadata of "+what)
+	return control.Response{Done: &control.Done{Text: "The metadata of " + what + " is cleared."}}
+}
+
+// panelChanMeta is a channel's keys for the panel: live, or kept by
+// ChanServ when no one is in it.
+func (s *Server) panelChanMeta(ch *state.Channel, name string) map[string]string {
+	if ch != nil && ch.Metadata != nil {
+		return maps.Clone(ch.Metadata)
+	}
+	if s.svc.Off() {
+		return nil
+	}
+	if rc, _ := s.store.ChannelByName(name); rc != nil {
+		return s.store.ChannelMetadata(rc.ID)
+	}
+	return nil
 }

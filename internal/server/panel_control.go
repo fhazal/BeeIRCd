@@ -306,7 +306,7 @@ func (s *Server) panelEvents(po *control.PanelOper) ([]control.Event, error) {
 // svcHere are the panel commands that read or change this server's own
 // services, so they need services running here, not on the hub.
 var svcHere = map[string]bool{control.CmdAccounts: true, control.CmdAccount: true, control.CmdSvcData: true,
-	control.CmdServDo: true, control.CmdGlobal: true}
+	control.CmdServDo: true, control.CmdGlobal: true, control.CmdMyMeta: true}
 
 func (s *Server) panelControl(req control.Request, setDeadline func(time.Duration)) (control.Response, bool) {
 	var resp control.Response
@@ -357,6 +357,10 @@ func (s *Server) panelControl(req control.Request, setDeadline func(time.Duratio
 		return run('m', func(po *control.PanelOper) { resp = *s.panelChatKey(po) }), true
 	case control.CmdMySet:
 		return run('m', func(po *control.PanelOper) { resp = *s.panelMySet(po, req.IP, req.Name, req.Value) }), true
+	case control.CmdMyMeta:
+		return run('m', func(po *control.PanelOper) { resp = *s.panelMyMeta(po, req.IP, req.Name, req.Value) }), true
+	case control.CmdMetaClear:
+		return run(0, func(po *control.PanelOper) { resp = s.panelMetaClear(po, req.IP, req.UID, req.Name) }), true
 	case control.CmdMyHome:
 		return run('m', func(po *control.PanelOper) { resp = *s.panelHome(po) }), true
 	case control.CmdMyMemos:

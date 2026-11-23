@@ -50,7 +50,7 @@ func (f *fakeServer) ask(r control.Request, _ time.Duration) (*control.Response,
 			return &control.Response{Chan: &control.MyChan{Name: r.Name, Level: "Founder"}}, nil
 		case control.CmdChanDo, control.CmdChanMemo:
 			return &control.Response{Done: &control.Done{Text: fmt.Sprintf("%s %s %s %s %s %s %d", r.Cmd, r.Name, r.Kind, r.Value, r.Mask, r.Reason, r.ID)}}, nil
-		case control.CmdMemoRead, control.CmdMemoDel, control.CmdMemoSend:
+		case control.CmdMemoRead, control.CmdMemoDel, control.CmdMemoSend, control.CmdMyMeta:
 			return &control.Response{Done: &control.Done{Text: fmt.Sprintf("%s %d %s %s", r.Cmd, r.ID, r.Name, r.Value)}}, nil
 		}
 		return &control.Response{Error: "Only opers can do that.", Denied: "flag"}, nil
@@ -111,6 +111,8 @@ func (f *fakeServer) ask(r control.Request, _ time.Duration) (*control.Response,
 		return &control.Response{Done: &control.Done{Text: r.Cmd + " " + r.UID + " " + r.Value + " " + r.Life}}, nil
 	case control.CmdSet:
 		return &control.Response{Changed: &control.Changed{Name: r.Name, Old: "5", New: r.Value, ID: 7}}, nil
+	case control.CmdMetaClear:
+		return &control.Response{Done: &control.Done{Text: r.Cmd + " uid=" + r.UID + " name=" + r.Name}}, nil
 	}
 	return &control.Response{Error: "nope"}, nil
 }
@@ -655,6 +657,42 @@ func TestMemberHomeAndMemoRoutes(t *testing.T) {
 	// From another site: refused like every POST.
 	if w := rg.do("POST", "/api/memo-send", `{"to":"ayu","text":"x"}`, tok, map[string]string{"X-Hive": ""}); w.Code == 200 {
 		t.Errorf("memo-send without X-Hive: %d", w.Code)
+	}
+}
+
+func TestMetadataRoutes(t *testing.T) {
+	rg := newRig(t)
+	w := rg.do("POST", "/api/login", `{"nick":"Bel","password":"mpw"}`, "", nil)
+	var member string
+	for _, c := range w.Result().Cookies() {
+		if c.Name == cookieName {
+			member = c.Value
+		}
+	}
+	// A member sets their own key.
+	if w := rg.do("POST", "/api/my-meta", `{"name":"color","value":"#f5c400"}`, member, nil); w.Code != 200 || !strings.Contains(w.Body.String(), "my-meta 0 color #f5c400") {
+		t.Errorf("my-meta: %d %s", w.Code, w.Body)
+	}
+	for _, body := range []string{`{}`, `{"value":"x"}`, `{"name":"status","value":"` + strings.Repeat("x", 401) + `"}`, `nope`} {
+		if w := rg.do("POST", "/api/my-meta", body, member, nil); w.Code != http.StatusBadRequest {
+			t.Errorf("my-meta %.30s: %d", body, w.Code)
+		}
+	}
+	// Clearing is for opers only.
+	if w := rg.do("POST", "/api/meta-clear", `{"uid":"0BEAAAAAB"}`, member, nil); w.Code == 200 {
+		t.Errorf("meta-clear for a member: %d %s", w.Code, w.Body)
+	}
+	tok := rg.login()
+	if w := rg.do("POST", "/api/meta-clear", `{"uid":"0BEAAAAAB"}`, tok, nil); w.Code != 200 || !strings.Contains(w.Body.String(), "meta-clear uid=0BEAAAAAB name=") {
+		t.Errorf("meta-clear: %d %s", w.Code, w.Body)
+	}
+	if w := rg.do("POST", "/api/chan-meta-clear", `{"name":"#bee"}`, tok, nil); w.Code != 200 || !strings.Contains(w.Body.String(), "meta-clear uid= name=#bee") {
+		t.Errorf("chan-meta-clear: %d %s", w.Code, w.Body)
+	}
+	for path, body := range map[string]string{"/api/meta-clear": `{}`, "/api/chan-meta-clear": `{"uid":"x"}`} {
+		if w := rg.do("POST", path, body, tok, nil); w.Code != http.StatusBadRequest {
+			t.Errorf("%s %s: %d", path, body, w.Code)
+		}
 	}
 }
 

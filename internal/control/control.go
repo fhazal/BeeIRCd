@@ -46,6 +46,10 @@ const (
 	CmdBan    = "ban"    // UID + Value (reason) + Life -> Done (flag k: OperServ AKILL)
 	CmdWhere  = "where"  // -> Where (flag h; error when GeoIP is off)
 
+	// CmdMetaClear deletes all IRCv3 metadata of a person (UID) or a
+	// channel (Name); any oper, like METADATA CLEAR on IRC.
+	CmdMetaClear = "meta-clear" // UID or Name -> Done
+
 	// Bans page, all flag k like OperServ's ban commands.
 	CmdBans     = "bans"      // Kind -> Bans
 	CmdBanAdd   = "ban-add"   // Kind + Mask + Reason + Life -> Done
@@ -84,6 +88,7 @@ const (
 	CmdMyNick  = "my-nick"  // -> MyNick
 	CmdMySet   = "my-set"   // Name (NickServ SET option) + Value -> Done (NickServ's answer)
 	CmdChatKey = "chat-key" // -> Chat (a one-time SASL key for BeeRoom, 60 s)
+	CmdMyMeta  = "my-meta"  // Name (avatar, color, status, ...) + Value ("" removes) -> Done
 
 	// Member Home and Memos (members and opers, their own account only).
 	CmdMyHome   = "my-home"   // -> Home
@@ -275,6 +280,8 @@ type Person struct {
 	Local    bool      `json:"local"`             // on this server
 	// CountryName is the country's English name (flag h, GeoIP on).
 	CountryName string `json:"country_name,omitempty"`
+	// Metadata is their IRCv3 metadata (avatar, color, status, ...).
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 // Where is how many people connect from each country and network (GeoIP,
@@ -451,6 +458,8 @@ type ChannelInfo struct {
 	SuspendedBy  string    `json:"suspended_by,omitempty"`
 	SuspendWhy   string    `json:"suspend_why,omitempty"`
 	SuspendTill  time.Time `json:"suspend_till,omitzero"`
+	// Metadata is the channel's IRCv3 metadata (live, or kept by ChanServ).
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 // Done is what an action did, in words.
@@ -620,6 +629,10 @@ type MyNick struct {
 	Private    bool        `json:"private"`
 	Greet      string      `json:"greet,omitempty"`
 	Channels   []MyChannel `json:"channels"`
+	// Metadata is the IRCv3 metadata kept on the account (avatar, color,
+	// status, ...); IRC apps that support it show it.
+	Metadata map[string]string `json:"metadata,omitempty"`
+	MetaOn   bool              `json:"metaOn"` // metadata is offered (ircv3_drafts on)
 }
 
 // MyChannel is one channel where the member is founder or on the list.
