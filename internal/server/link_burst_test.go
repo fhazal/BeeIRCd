@@ -146,6 +146,11 @@ func TestLinkBurst(t *testing.T) {
 	if j := bob.expect("JOIN #bee"); !strings.Contains(j, "batch="+id) || !strings.Contains(j, "carol!") {
 		t.Errorf("join %q not in batch %s", j, id)
 	}
+	// carol's op comes with her: without the MODE, bob's client shows her
+	// without @ until he rejoins
+	if m := bob.expect("MODE #bee +o"); !strings.HasSuffix(m, " carol") || !strings.HasPrefix(m, ":hub.test.local ") {
+		t.Errorf("carol's op on the netjoin: %q", m)
+	}
 	bob.expect("BATCH -" + id)
 	if m := alice.expect("MODE #bee -"); !strings.Contains(m, "b") || !strings.Contains(m, "o") || !strings.Contains(m, "alice") {
 		t.Errorf("alice's op and the hub's ban should go: %q", m)

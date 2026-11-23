@@ -88,6 +88,25 @@ func (s *Server) prepare(ev state.Event) func() {
 			// +D: only they see it, until they talk; +u: only the ops do.
 			to := seers(ch, u)
 			s.deliverAll(to, join)
+			// Ranks that come with the join (a link's burst after a split,
+			// a remote join): the others see them as a MODE, as they
+			// would see an op given later; the joiner sees them in NAMES.
+			if e.Ranks != 0 {
+				var chg []state.ModeChange
+				for _, ri := range state.Ranks {
+					if e.Ranks&ri.Rank != 0 {
+						chg = append(chg, state.ModeChange{Add: true, Mode: ri.Mode, UID: u.UID, Arg: u.Nick})
+					}
+				}
+				for _, line := range modeLines(fromState(chg)) {
+					mode := s.outFrom("", "MODE", append([]string{ch.Name}, line...)...)
+					for _, o := range to {
+						if o != u {
+							s.deliverTo(o, mode)
+						}
+					}
+				}
+			}
 			if u.Away != "" {
 				away := s.out(u, "AWAY", u.Away).text()
 				away.needCap = "away-notify"
