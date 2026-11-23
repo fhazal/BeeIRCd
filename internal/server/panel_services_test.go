@@ -125,4 +125,14 @@ func TestLogEventsSetting(t *testing.T) {
 	if u := ask(control.Request{Cmd: control.CmdUndo, ID: r.Changed.ID}); u.Changed == nil || u.Changed.New != "connect,quit,nick,oper,kill,server,bans,other" {
 		t.Errorf("undo: %+v", u)
 	}
+	// It was unset, so undo unsets it again rather than writing the default list.
+	if strings.Contains(saved(), "log_events") {
+		t.Errorf("undo wrote the default list:\n%s", saved())
+	}
+	// A set value is put back as it was.
+	set("kill")
+	r = set("nick")
+	if u := ask(control.Request{Cmd: control.CmdUndo, ID: r.Changed.ID}); u.Changed == nil || u.Changed.New != "kill" || !strings.Contains(saved(), `log_events = ["kill"]`) {
+		t.Errorf("undo to a set value: %+v\n%s", u, saved())
+	}
 }

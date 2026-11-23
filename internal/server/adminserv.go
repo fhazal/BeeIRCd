@@ -737,6 +737,12 @@ func (s *Server) setSetting(who string, st setting, value string) (old, now stri
 		return "", "", 0, problem
 	}
 	old = st.get(s.cfg)
+	// HISTORY keeps what UNDO must write back. An unset log-events shows as
+	// its default list, but undo has to unset it, not write that list.
+	back := old
+	if st.key == "log_events" && st.table == "services" && s.cfg.Services.LogEvents == nil {
+		back = "DEFAULT"
+	}
 	if s.cfg.Path == "" {
 		return "", "", 0, "This server wasn't started from a config file, so settings can't be saved."
 	}
@@ -757,7 +763,7 @@ func (s *Server) setSetting(who string, st setting, value string) (old, now stri
 		st.after(s, old)
 	}
 	now = st.get(s.cfg)
-	id = s.recordBy(who, "set", st.name, old, now)
+	id = s.recordBy(who, "set", st.name, back, now)
 	return old, now, id, ""
 }
 
