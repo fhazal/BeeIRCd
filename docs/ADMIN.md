@@ -1315,7 +1315,28 @@ Unknown settings are refused, so a typo shows up in `beeircd check`.
 | `ping_cookie` | `false` | Every new connection must answer a PING with a random word before it is let in; this stops programs that send without reading |
 | `web_redirect` | – | A web address, like `"https://chat.example.org/"`: browsers that open an IRC port by mistake are sent there. Browsers refuse ports 6665–6669 and 6697 themselves (ERR_UNSAFE_PORT) and never reach the server, so this only helps on a port like 8067; or link people straight to the web chat or the Hive Panel |
 | `oper_tag` | – | A short text after every oper's rank in WHOIS, like `"(IRCop)"`: "is a Network Administrator (IRCop)" |
-| `ircv3_drafts` | `false` | Offer the IRCv3 drafts that aren't final yet to clients that ask: `draft/read-marker` (read position shared by all your devices), `draft/pre-away` (bouncers and phones set AWAY while connecting), `draft/extended-isupport` (the 005 list before sign-in with `ISUPPORT`), `draft/multiline` (a pasted block of up to 24 lines or 4096 bytes is one message, checked once by the spam filter and flood rules; clients without it and other servers get the lines one by one), `draft/message-redaction` (`REDACT` takes a message back: the sender for 15 minutes, channel ops and IRC operators at any time; clients with it hide the message, +H history forgets it, other BeeIRCd servers pass it on; clients without it still show the message), `draft/account-registration` (`REGISTER <nick|*> <email|*> <password>` and `VERIFY <nick> <code>` from a client's sign-up screen, with NickServ's rules: `force_email`, `registration`, `reg_delay`; offered on the server that runs services, once the connection is complete). Clients that don't ask see no change. AdminServ `SET ircv3-drafts` switches it live (clients with cap-notify hear CAP NEW / DEL) |
+| `ircv3_drafts` | `false` | Offer the IRCv3 drafts that aren't final yet to clients that ask: `draft/read-marker` (read position shared by all your devices), `draft/pre-away` (bouncers and phones set AWAY while connecting), `draft/extended-isupport` (the 005 list before sign-in with `ISUPPORT`), `draft/multiline` (a pasted block of up to 24 lines or 4096 bytes is one message, checked once by the spam filter and flood rules; clients without it and other servers get the lines one by one), `draft/message-redaction` (`REDACT` takes a message back: the sender for 15 minutes, channel ops and IRC operators at any time; clients with it hide the message, +H history forgets it, other BeeIRCd servers pass it on; clients without it still show the message), `draft/account-registration` (`REGISTER <nick|*> <email|*> <password>` and `VERIFY <nick> <code>` from a client's sign-up screen, with NickServ's rules: `force_email`, `registration`, `reg_delay`; offered on the server that runs services, once the connection is complete), `draft/metadata-2` (avatar, colour, status and more on people and channels) and `draft/channel-rename` (`RENAME`); both are described under "Metadata and channel rename" below. Clients that don't ask see no change. AdminServ `SET ircv3-drafts` switches it live (clients with cap-notify hear CAP NEW / DEL) |
+
+### Metadata and channel rename
+
+Two of the IRCv3 drafts behind `ircv3_drafts` (AdminServ `ircv3-drafts`) need a few words more.
+
+**Metadata** (`draft/metadata-2`, the `METADATA` command) gives people and channels small labelled values that apps can show: `avatar`, `display-name`, `color`, `status`, `pronouns`, `homepage` and `bot`.
+
+- Limits: 20 keys on one person or channel, 20 subscriptions per client, 300 bytes per value. Setting or clearing is limited to 10 times per 30 seconds per client (opers are not limited).
+- `avatar` and `homepage` must be `https://` addresses. BeeIRCd never opens them, it only passes the text on. `color` must be like `#ffcc00`. `status` and `display-name` go through the spam filter and the bad-words list (`[censor]`).
+- People set their own keys. On a channel you need `+o` or more. IRC operators can't set other people's keys but can clear them, and every such clear is logged to the server notices.
+- NickServ keeps the keys of a logged-in person on the account and gives them back at the next login. A person who is not logged in keeps theirs until they quit. ChanServ keeps the keys of a registered channel; an unregistered channel loses them when the last person leaves.
+- With services in read-only mode (`READONLY`), setting and clearing fail.
+- Linked BeeIRCd servers pass the keys on. People on UnrealIRCd or InspIRCd servers simply have none.
+- Hive Panel: **My nick** lets a member edit their avatar, colour and status (only while `ircv3_drafts` is on). Opers get **Clear metadata** on the user and channel pages.
+
+**Channel rename** (`draft/channel-rename`): `/RENAME #old #new [reason]` gives a channel a new name and moves everything with it: members, modes, lists, topic, history, read markers and all ChanServ data.
+
+- Who: ops of an unregistered channel; the founder (or anyone with ChanServ SET access) of a registered one; IRC operators always.
+- Refused when the new name is in use, registered or forbidden, when it changes the type prefix (`#` stays `#`), when the channel was renamed in the last 10 minutes, when services are in read-only mode, or when someone in the channel is on an UnrealIRCd or InspIRCd server (or a BeeIRCd older than 1.5), because the channel would split in two. A registered channel can't be renamed on a server that doesn't run services; do it on the services server.
+- Clients without the capability see the person leave the old name and join the new one (PART, then JOIN, TOPIC and NAMES).
+- Hive Panel: the channel page has a **Rename** button.
 
 ### Auto-join
 

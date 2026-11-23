@@ -92,7 +92,9 @@ How to set each one up is in [ADMIN.md](ADMIN.md); installing is in [INSTALL.md]
 | UTF8ONLY (`[limits] utf8_only`, off by default) | ✅ |
 | standard-replies: FAIL, WARN and NOTE with codes for BeeIRCd's own errors (spam filter, K-lines, SETHOST/CHGHOST, OPER, SANICK, SATOPIC, nick collisions); clients without it keep the server notices | ✅ |
 | IRCv3 drafts behind `[server] ircv3_drafts` (off by default): draft/read-marker (read position shared by all your devices, across linked servers), draft/pre-away (AWAY while connecting), draft/extended-isupport (ISUPPORT command, 005 before sign-in, in a batch), draft/multiline (up to 24 lines / 4096 bytes as one message; others and other servers get plain lines), draft/message-redaction (REDACT: your own message for 15 minutes, channel ops and opers any time; leaves +H history, crosses BeeIRCd links), draft/account-registration (REGISTER / VERIFY from the client's sign-up screen, NickServ's rules; on the services server) | ✅ |
-| draft/account-registration on leaf servers, draft/metadata, draft/channel-rename | 📋 |
+| draft/metadata-2 (same switch): METADATA with avatar, display-name, color, status, pronouns, homepage and bot on people and channels; kept by NickServ / ChanServ, passed between BeeIRCd servers; Hive Panel My nick and Clear metadata | ✅ |
+| draft/channel-rename (same switch): `/RENAME #old #new [reason]` moves members, modes, lists, topic, history, read markers and ChanServ data; refused if anyone in the channel is on UnrealIRCd / InspIRCd; Rename button in the Hive Panel | ✅ |
+| draft/account-registration on leaf servers | 📋 |
 | STARTTLS | not supported (deprecated) |
 
 ## Services
