@@ -4629,6 +4629,26 @@
           ask.hidden = false; t.focus(); t.select();
         });
         end.append(tb);
+        const rb = h('button', { type: 'button', class: 'btn', text: 'Rename' });
+        rb.addEventListener('click', () => {
+          const to = h('input', { class: 'in mono', type: 'text', value: c.name, maxlength: '64', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'New name' });
+          const why = h('input', { class: 'in', type: 'text', maxlength: '200', autocomplete: 'off', placeholder: 'Reason (optional, people see it)', 'aria-label': 'Reason' });
+          const go = h('button', { type: 'button', class: 'btn main', text: 'Rename' });
+          const no = h('button', { type: 'button', class: 'btn ghost', text: 'Cancel' });
+          no.addEventListener('click', cancel);
+          const run = () => busy(go, async () => {
+            const name = to.value.trim();
+            if (!name || name === c.name) { to.classList.add('wrong'); to.focus(); return; }
+            try { toast([(await api('POST', '/api/chan-rename', { name: c.name, text: name, reason: why.value })).done.text]); ask.hidden = true; open = null; load(); }
+            catch (e) { toastErr(e.message); }
+          });
+          go.addEventListener('click', run);
+          for (const i of [to, why]) i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
+          ask.classList.remove('bad-ask');
+          put(ask, h('label', { class: 'f' }, 'New name for ' + c.name + ' · everyone, modes, history and ChanServ data move with it', to), why, go, no);
+          ask.hidden = false; to.focus(); to.select();
+        });
+        end.append(rb);
       }
       if (c.registered && has('s')) {
         if (c.suspended) {

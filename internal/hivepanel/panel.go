@@ -192,6 +192,7 @@ func New(o Options) *Panel {
 	m.HandleFunc("GET /api/channel", p.withOper(p.channel))
 	m.HandleFunc("POST /api/chan-notice", p.withOper(p.chanAct(control.CmdChanNotice)))
 	m.HandleFunc("POST /api/chan-topic", p.withOper(p.chanAct(control.CmdChanTopic)))
+	m.HandleFunc("POST /api/chan-rename", p.withOper(p.chanAct(control.CmdChanRename)))
 	m.HandleFunc("POST /api/chan-suspend", p.withOper(p.chanAct(control.CmdChanSuspend)))
 	m.HandleFunc("POST /api/chan-unsuspend", p.withOper(p.chanAct(control.CmdChanUnsuspend)))
 	m.HandleFunc("GET /api/my-nick", p.withOper(p.simple(control.CmdMyNick)))
