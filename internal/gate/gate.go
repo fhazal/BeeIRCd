@@ -49,6 +49,8 @@
 // A bug here hits every user, so this package stays small and plain.
 package gate
 
+//lint:file-ignore U1000 on other systems these helpers are used only by gate_linux.go
+
 import (
 	"errors"
 	"io"
