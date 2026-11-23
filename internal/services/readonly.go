@@ -103,6 +103,12 @@ func osSet(s *Services, c *Client, args []string) {
 	if !s.needFlag(c, s.operServ, 'a') {
 		return
 	}
+	if what == "SUPERADMIN" && on && c.accountID == 0 {
+		// ChanServ asks for an identified account before it looks at the
+		// level, so super admin without one would do nothing.
+		s.os(c, "Identify first: /ns identify <password>")
+		return
+	}
 	word := onOffWord(on)
 	switch what {
 	case "READONLY":

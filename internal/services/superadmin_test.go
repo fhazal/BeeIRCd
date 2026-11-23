@@ -74,3 +74,25 @@ func TestSuperAdmin(t *testing.T) {
 		t.Errorf("SUPERADMIN stayed on after quit")
 	}
 }
+
+// SET SUPERADMIN ON is refused for an oper who hasn't identified: ChanServ
+// wants an account before it checks the level, so it would do nothing.
+func TestSuperAdminNeedsIdentify(t *testing.T) {
+	svc, h := newServices(t)
+	os := h.net.UserByNick("OperServ")
+	regChannel(t, svc, h, "1LFAAAAAA", "Bee")
+	boss := helpUser(t, h, "1LFAAAAAB", "Boss")
+	h.opers = map[string]string{boss.UID: "oa"}
+
+	svc.Message(boss.UID, os, "SET SUPERADMIN ON")
+	if got := noticeTo(h, "Boss"); !strings.Contains(got, "Identify first") {
+		t.Fatalf("SET SUPERADMIN ON without an account: %q", got)
+	}
+	if svc.clients[boss.UID].superAdmin {
+		t.Errorf("SUPERADMIN turned on for an oper who is not identified")
+	}
+	svc.Message(boss.UID, os, "SET LIST")
+	if got := noticeTo(h, "Boss"); strings.Contains(got, "(super admin)") {
+		t.Errorf("SET LIST shows super admin: %q", got)
+	}
+}
