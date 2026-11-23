@@ -152,7 +152,11 @@ func (s *Server) spamDoAs(c *Client, r *spamfilter.Rule, t byte, cmd, to, text s
 		if t == spamfilter.Quit || t == spamfilter.Part {
 			return spamStop // the quit or part still happens
 		}
-		s.stdReply(c, "FAIL", cmd, "SPAMFILTER_BLOCKED", "Your message to "+orStr(to, "the server")+" was blocked: "+reason, "")
+		text := "Your message to " + orStr(to, "the server") + " was blocked: " + reason
+		if cmd == "METADATA" {
+			text = "That value for " + orStr(to, "the server") + " was refused by the spam filter: " + reason
+		}
+		s.stdReply(c, "FAIL", cmd, "SPAMFILTER_BLOCKED", text, "")
 		return spamStop
 	case spamfilter.Kill:
 		s.quit(c, "Spam filter: "+reason)

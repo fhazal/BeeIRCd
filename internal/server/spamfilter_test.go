@@ -236,3 +236,16 @@ func TestSpamfilterNoticeWords(t *testing.T) {
 	b.send("SPAMFILTER del cp block - No_nitro_spam *free nitro*")
 	b.expect("*** FILTER: Boss removed filter '*free nitro*': No nitro spam")
 }
+
+// A metadata value the spam filter blocks says it was the spam filter.
+func TestSpamfilterBlocksMetadataValue(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	s.do(func() { s.cfg.Server.IRCv3Drafts = true })
+	b := boss(t, s)
+	spamRule(t, b, "a block - No_ads *visit my shop*")
+	v := mdClient(t, s, "Vic")
+	v.send("METADATA * SET status :visit my shop")
+	v.expect("Vic was refused by the spam filter: No ads")
+	v.send("METADATA * SET status :hello")
+	v.expect(" 761 Vic Vic status * :hello")
+}
