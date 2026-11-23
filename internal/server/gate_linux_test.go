@@ -13,6 +13,7 @@ import (
 
 	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/gate"
+	"github.com/fhazal/beeircd/internal/store"
 )
 
 // BEEIRCD_TEST_GATE=1 runs every test server behind a gate in this process
@@ -113,4 +114,85 @@ func TestGatePorts(t *testing.T) {
 	}
 	c.send("PING :still here")
 	c.expect("PONG")
+}
+
+// gateHas waits until the server has sent the gate a deny list with n
+// entries (gateSync runs on the loop, so the gate has it then too).
+func gateHas(t *testing.T, s *Server, n int) {
+	t.Helper()
+	for end := time.Now().Add(5 * time.Second); time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
+		got := -1
+		s.onLoop(func() { got = len(s.gateDeny.sent) })
+		if got == n {
+			return
+		}
+	}
+	t.Fatalf("the gate never got a deny list of %d", n)
+}
+
+// A ZLINEd IP is closed on a TLS port before any TLS handshake, with the
+// same notice as without the gate; once the ZLINE is gone it gets in.
+func TestGateZline(t *testing.T) {
+	old := newTestServer
+	newTestServer = gatedServer
+	s, _, _ := fileServer(t, "")
+	newTestServer = old
+	if s.gate == nil {
+		t.Fatal("the server isn't behind the gate")
+	}
+	b := boss(t, s)
+	addBan(s, store.NetBan{Kind: store.BanZline, Mask: "127.0.0.1", Reason: "gate test"})
+	gateHas(t, s, 1)
+
+	conn, err := net.Dial("tcp", s.Addrs()[1].String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	expectClosed(t, conn) // no handshake: it never sent a ClientHello
+	b.expect("*** XLINE: Z-line 127.0.0.1 stopped a connection from 127.0.0.1")
+	c := raw(t, s) // the plain port still gets the reason
+	c.expect("ERROR :Closing Link: 127.0.0.1 (Z-lined: gate test)")
+	b.expect("*** XLINE: Z-line 127.0.0.1 stopped a connection from 127.0.0.1")
+
+	b.send("OS ZLINE DEL 127.0.0.1")
+	b.expect("ZLINE on 127.0.0.1 removed.")
+	gateHas(t, s, 0)
+	certLogin(t, s, "welcomeback", nil)
+}
+
+// A throttled IP is refused in the gate once the server refused it, and
+// those refusals count toward the throttle ZLINE as they would here.
+func TestGateThrottle(t *testing.T) {
+	old := newTestServer
+	newTestServer = gatedServer
+	s := testServerWith(t, func(c *config.Config) { c.Limits.ConnectRate = "1:60" }, noExempt)
+	newTestServer = old
+	certLogin(t, s, "first", nil)
+	refused := rawTLS(t, s, nil) // the server refuses it after TLS: strike 1
+	refused.expect("Throttled: reconnecting too fast")
+	gateHas(t, s, 1)
+	for i := 0; i < 2; i++ { // strikes 2 and 3, in the gate
+		conn, err := net.Dial("tcp", s.Addrs()[1].String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		expectClosed(t, conn)
+		conn.Close()
+	}
+	for end := time.Now().Add(5 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+		var throttled, zlined int
+		s.onLoop(func() { throttled, zlined = int(s.safety().Throttled), int(s.safety().Zlined) })
+		if throttled == 3 && zlined == 1 {
+			break
+		}
+		if time.Now().After(end) {
+			t.Fatalf("throttled %d, Z-lined %d; want 3 and 1", throttled, zlined)
+		}
+	}
+	var zl bool
+	s.onLoop(func() { zl = s.svc.ZlineFor("127.0.0.1") != nil })
+	if !zl {
+		t.Fatal("no throttle ZLINE")
+	}
 }

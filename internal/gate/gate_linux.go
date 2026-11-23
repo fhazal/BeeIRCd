@@ -247,6 +247,12 @@ func (d *door) stop() {
 // deliver hands one client to the running server; during a hand-over it
 // waits for the next one. False: nobody took it, the caller closes conn.
 func (d *door) deliver(conn net.Conn, info Info) bool {
+	if conn == nil { // only a note about a refused client: never waits
+		d.mu.Lock()
+		l := d.cur
+		d.mu.Unlock()
+		return l != nil && l.refused(info)
+	}
 	var giveUp *time.Timer
 	for {
 		d.mu.Lock()
@@ -355,7 +361,8 @@ func fileConn(f *os.File) (*net.UnixConn, error) {
 type connMsg struct {
 	// Op: "" a new client (with its fd), "hand" hand over now (no fd),
 	// "old" a client of the last server (with its fd; ID is that
-	// server's name for it).
+	// server's name for it), "refused" a client the gate closed itself
+	// (Spec.Deny; no fd; an older server skips it).
 	Op string `json:"o,omitempty"`
 	ID string `json:"i,omitempty"`
 	Info
@@ -609,6 +616,22 @@ func (l *link) send(info Info, fd int) (handing bool, err error) {
 	return false, err
 }
 
+// refused tells the server about a client the gate closed (Spec.Deny),
+// unless it is handing over.
+func (l *link) refused(info Info) bool {
+	msg, err := json.Marshal(connMsg{Op: "refused", Info: info})
+	if err != nil {
+		return false
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.handing {
+		return false
+	}
+	_, _, err = l.conns.WriteMsgUnix(msg, nil, nil)
+	return err == nil
+}
+
 // pump copies bytes between a client and its pipe to the server until one
 // side ends, then closes both. A clean close by the client shuts only the
 // pipe's writing side (the server reads EOF and may still answer with its
@@ -753,6 +776,9 @@ func (c *Child) Accept() (net.Conn, error) {
 		}
 		if m.Op == "hand" && len(fds) == 0 {
 			return nil, ErrHandover
+		}
+		if m.Op == "refused" && len(fds) == 0 {
+			return nil, &Refused{m.Info}
 		}
 		if m.Op != "" || len(fds) != 1 {
 			closeAll(fds) // not a new client (an "old" one nobody waited for)

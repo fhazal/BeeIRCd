@@ -47,24 +47,8 @@ func (s *Server) throttleExempt(ip string) bool {
 func (s *Server) admitConn(c *Client, now time.Time) string {
 	lim := s.cfg.Limits
 	if !s.throttleExempt(c.ip) {
-		if n, per, ok := lim.ConnectLimit(); ok {
-			t := &s.throttle
-			h := t.hits[c.ip]
-			if h == nil {
-				if len(t.hits) >= throttleMaxIPs {
-					t.hits = make(map[string]*ipHits)
-				}
-				h = &ipHits{start: now}
-				t.hits[c.ip] = h
-			}
-			if now.Sub(h.start) >= per {
-				h.start, h.n = now, 0
-			}
-			h.n++
-			if h.n > n {
-				s.throttled(c.ip, h, n, per, now)
-				return "Throttled: reconnecting too fast, try again later"
-			}
+		if s.throttleCount(c.ip, now) {
+			return "Throttled: reconnecting too fast, try again later"
 		}
 		if s.throttle.unreg[c.ip] >= lim.MaxUnregisteredPerIP {
 			return "Too many connections from your IP still logging in"
@@ -78,6 +62,35 @@ func (s *Server) admitConn(c *Client, now time.Time) string {
 	s.throttle.unreg[c.ip]++
 	s.throttle.unregAll++
 	return ""
+}
+
+// throttleCount counts a connection from ip (not exempt) and reports
+// whether the connect throttle refuses it. The gate's early refusals of a
+// throttled IP come here too, so they count the same.
+func (s *Server) throttleCount(ip string, now time.Time) bool {
+	n, per, ok := s.cfg.Limits.ConnectLimit()
+	if !ok {
+		return false
+	}
+	t := &s.throttle
+	h := t.hits[ip]
+	if h == nil {
+		if len(t.hits) >= throttleMaxIPs {
+			t.hits = make(map[string]*ipHits)
+		}
+		h = &ipHits{start: now}
+		t.hits[ip] = h
+	}
+	if now.Sub(h.start) >= per {
+		h.start, h.n = now, 0
+	}
+	h.n++
+	if h.n <= n {
+		return false
+	}
+	s.throttled(ip, h, n, per, now)
+	s.gateLearn(ip)
+	return true
 }
 
 // throttled notes a refusal and bans an IP that keeps at it.
@@ -130,6 +143,7 @@ func (s *Server) throttleTick(now time.Time) {
 			delete(t.hits, ip)
 		}
 	}
+	s.syncGateDeny() // drops gate entries that ran out
 	// snoticeEvery keys (some per address) wait a minute at most.
 	for k, at := range s.noticeAt {
 		if now.Sub(at) >= 10*time.Minute {

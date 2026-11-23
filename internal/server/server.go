@@ -131,6 +131,7 @@ type Server struct {
 	gate      *gate.Child
 	certFiles *gate.TLSFiles // the certificate the gate loads for TLS ports
 	certGen   int            // bumped after each certificate reload, for the gate
+	gateDeny  gateDenyState  // the IPs the gate refuses before TLS (gatedeny.go)
 
 	// resolve looks up a hostname for an IP; replaceable in tests.
 	resolve func(ctx context.Context, ip string) (string, bool)
@@ -259,7 +260,7 @@ func newServer(cfg *config.Config, logger *log.Logger, child *gate.Child, r *res
 		in := s.geo.set.Lookup(ip)
 		return in.Country, in.ASN
 	})
-	svc.OnOperData(func() { s.syncQlines(); s.syncExcepts() })
+	svc.OnOperData(func() { s.syncQlines(); s.syncExcepts(); s.gateDenyChanged() })
 	s.sinks = append(s.sinks, svc.Event)
 	svc.OnServerHelp(s.helpLines)
 	svc.Start()
@@ -486,12 +487,17 @@ func (s *Server) tickEvery() time.Duration {
 // steps (PROXY header, TLS wrap, WebSocket upgrade) off the loop. hand gets
 // each connection once it is ready for IRC: the server's loop in one
 // process, or the server process behind the gate (Front). False from hand
-// means it was not taken (stopping); the acceptor then closes it.
+// means it was not taken (stopping); the acceptor then closes it. refuse
+// (the gate's Front only) closes a client the server refuses anyway
+// before any TLS or WebSocket work: on TLS and WebSocket ports, once the
+// client's address is known (after a PROXY header; never on a WebSocket
+// port behind a proxy, whose address comes with the HTTP request).
 type acceptor struct {
-	log  *log.Logger
-	wg   *sync.WaitGroup
-	done <-chan struct{}
-	hand func(conn net.Conn, isTLS bool) bool
+	log    *log.Logger
+	wg     *sync.WaitGroup
+	done   <-chan struct{}
+	hand   func(conn net.Conn, isTLS bool) bool
+	refuse func(conn net.Conn, l listener) bool
 }
 
 // acceptLoop starts the accept loop of one client port.
@@ -519,6 +525,9 @@ func (a *acceptor) acceptLoop(l listener) {
 		// firewall) per line.
 		if tc, ok := conn.(*net.TCPConn); ok {
 			tc.SetNoDelay(false)
+		}
+		if a.refuse != nil && !l.proxy && (l.tls || l.websocket) && a.refuse(conn, l) {
+			continue
 		}
 		if l.websocket {
 			a.wg.Add(1)

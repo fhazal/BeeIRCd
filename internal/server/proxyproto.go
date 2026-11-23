@@ -160,6 +160,9 @@ func (a *acceptor) acceptProxied(conn net.Conn, l listener) {
 	}
 	conn.SetReadDeadline(time.Time{})
 	var c net.Conn = &proxyConn{Conn: conn, r: r, remote: remote}
+	if l.tls && a.refuse != nil && a.refuse(c, l) {
+		return
+	}
 	if l.tls {
 		c = tls.Server(c, l.tlsConf)
 	}

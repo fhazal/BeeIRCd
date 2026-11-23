@@ -122,7 +122,25 @@ type Spec struct {
 	TLS     *TLSFiles     // nil: no TLS port
 	CertGen int           // the server bumps it after reloading the certificate
 	Wait    time.Duration // how long a TLS handshake may take
+	// Deny: clients the server refuses anyway (a ZLINE, the connect
+	// throttle). The gate closes them before any TLS or WebSocket work and
+	// tells the server (Child.Accept returns a *Refused). An older gate
+	// ignores it; a Spec without it (an older server) clears the list.
+	Deny []Deny `json:",omitempty"`
 }
+
+// Deny is one entry of Spec.Deny.
+type Deny struct {
+	Net   string `json:"n"`           // an IP prefix ("192.0.2.7/32", "2001:db8::/32")
+	Until int64  `json:"u,omitempty"` // Unix milliseconds it ends at; 0: at the next Sync
+}
+
+// Refused is the error Child.Accept returns for a client the gate closed
+// itself (Spec.Deny): there is no connection, only who it was, so the
+// server can count and log it the way it does a client it refuses.
+type Refused struct{ Info Info }
+
+func (r *Refused) Error() string { return "gate: refused " + r.Info.Remote }
 
 // Result answers a Sync: per port in Spec order, the bound address or the
 // error text (the same text net.Listen gives).
@@ -133,7 +151,9 @@ type Result struct {
 }
 
 // Deliver hands one ready client to the child. False: it couldn't (no
-// child, or the child went away); the caller closes conn.
+// child, or the child went away); the caller closes conn. A nil conn only
+// tells the child about a client the gate refused (Spec.Deny); that never
+// waits for a hand-over.
 type Deliver func(conn net.Conn, info Info) bool
 
 // Front owns the client ports inside the gate (internal/server.Front).

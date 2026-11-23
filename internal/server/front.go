@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/netip"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -28,6 +29,7 @@ type Front struct {
 	wg      sync.WaitGroup // accept goroutines; nobody waits: the gate exits
 	done    chan struct{}
 	wait    atomic.Int64 // how long a TLS handshake may take, in nanoseconds
+	deny    atomic.Pointer[denyList]
 
 	mu      sync.Mutex // guards the rest; Apply runs one at a time
 	closed  bool
@@ -47,7 +49,7 @@ type frontPort struct {
 func NewFront(logger *log.Logger, deliver gate.Deliver) *Front {
 	f := &Front{deliver: deliver, done: make(chan struct{})}
 	f.wait.Store(int64(30 * time.Second))
-	f.acc = &acceptor{log: logger, wg: &f.wg, done: f.done, hand: f.hand}
+	f.acc = &acceptor{log: logger, wg: &f.wg, done: f.done, hand: f.hand, refuse: f.refuse}
 	return f
 }
 
@@ -66,6 +68,7 @@ func (f *Front) Apply(spec gate.Spec) gate.Result {
 	if spec.Wait > 0 {
 		f.wait.Store(int64(spec.Wait))
 	}
+	f.deny.Store(newDenyList(spec.Deny))
 	if err := f.setTLS(spec); err != nil {
 		res.Err = err.Error()
 		return res
@@ -151,6 +154,86 @@ func (f *Front) Close() {
 		p.l.Close()
 	}
 	f.ports = nil
+}
+
+// refuse closes a client the server refuses anyway (Spec.Deny) before
+// any TLS or WebSocket work, and tells the server, which counts and logs
+// it as its own refusal. True: it was refused.
+func (f *Front) refuse(conn net.Conn, l listener) bool {
+	d := f.deny.Load()
+	if d == nil {
+		return false
+	}
+	ip, ok := addrOf(conn.RemoteAddr())
+	if !ok || !d.has(ip, time.Now()) {
+		return false
+	}
+	info := gate.Info{Remote: conn.RemoteAddr().String(), Local: conn.LocalAddr().String(), TLS: l.tls, WebSocket: l.websocket}
+	conn.Close()
+	f.deliver(nil, info)
+	return true
+}
+
+// denyList is Spec.Deny, ready for lookups: single addresses in a map,
+// wider prefixes in a list.
+type denyList struct {
+	ips  map[netip.Addr]int64 // until, Unix ms; 0: no end
+	nets []denyNet
+}
+
+type denyNet struct {
+	p     netip.Prefix
+	until int64
+}
+
+// newDenyList reads Spec.Deny; nil when it is empty. Entries that don't
+// parse are skipped.
+func newDenyList(in []gate.Deny) *denyList {
+	if len(in) == 0 {
+		return nil
+	}
+	d := &denyList{ips: make(map[netip.Addr]int64)}
+	for _, e := range in {
+		p, err := netip.ParsePrefix(e.Net)
+		if err != nil {
+			continue
+		}
+		if p.IsSingleIP() {
+			d.ips[p.Addr()] = e.Until
+		} else {
+			d.nets = append(d.nets, denyNet{p, e.Until})
+		}
+	}
+	return d
+}
+
+// has reports whether ip is refused at now. ip is unmapped, as the server
+// sees it.
+func (d *denyList) has(ip netip.Addr, now time.Time) bool {
+	ms := now.UnixMilli()
+	if until, ok := d.ips[ip]; ok && (until == 0 || ms < until) {
+		return true
+	}
+	for _, n := range d.nets {
+		if (n.until == 0 || ms < n.until) && n.p.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// addrOf is the IP of a client address, unmapped (an IPv4 client on an
+// IPv6 socket is its IPv4 address, as the server sees it).
+func addrOf(a net.Addr) (netip.Addr, bool) {
+	if ta, ok := a.(*net.TCPAddr); ok {
+		ip, ok := netip.AddrFromSlice(ta.IP)
+		return ip.Unmap(), ok
+	}
+	ap, err := netip.ParseAddrPort(a.String())
+	if err != nil {
+		return netip.Addr{}, false
+	}
+	return ap.Addr().Unmap(), true
 }
 
 // hand takes a client the acceptor made ready. A TLS client shakes hands

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"time"
 
 	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/gate"
@@ -34,6 +35,7 @@ func (s *Server) openPorts(confs []config.Listen) error {
 		}
 		return nil
 	}
+	s.gateDeny.sent = s.gateDenyList(time.Now()) // the ZLINEs there are already
 	ls, errs, err := s.gateSync(confs)
 	if err != nil {
 		return err
@@ -83,7 +85,7 @@ func (s *Server) listenConfs() []config.Listen {
 // only) and the error text, "" when it is open; err is for a gate that
 // didn't answer or a certificate it couldn't load (no port changed then).
 func (s *Server) gateSync(confs []config.Listen) ([]listener, []string, error) {
-	spec := gate.Spec{Ports: confs, CertGen: s.certGen, Wait: s.cfg.Limits.RegisterTimeout.Duration}
+	spec := gate.Spec{Ports: confs, CertGen: s.certGen, Wait: s.cfg.Limits.RegisterTimeout.Duration, Deny: s.gateDeny.sent}
 	if s.certs != nil {
 		spec.TLS = s.certFiles
 	}
@@ -142,6 +144,12 @@ func (s *Server) gateLoop() {
 			// came before it is on the loop already.
 			s.post(s.startHandover)
 			return
+		}
+		var refused *gate.Refused
+		if errors.As(err, &refused) {
+			ip := gateRefusedIP(refused)
+			s.post(func() { s.gateRefused(ip) })
+			continue
 		}
 		if err != nil {
 			return // closed, or the gate is gone (main stops the server)

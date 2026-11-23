@@ -196,6 +196,7 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 	if z := s.svc.ZlineFor(ip); z != nil {
 		s.svc.LogBanHit(z.Kind, z.Mask, ip, z.SetBy, z.Reason)
 		s.sno('x', "Z-line %s stopped a connection from %s", z.Mask, ip)
+		s.gateLearn(ip)
 		s.quit(c, "Z-lined: "+z.Reason)
 		return
 	}
