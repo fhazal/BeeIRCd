@@ -69,7 +69,18 @@ func (s *Server) remoteSpam(l *linkConn, raw irc.Message, it *link.SpamFilter) {
 	if it.Expires > 0 {
 		f.Expires = time.Unix(it.Expires, 0)
 	}
-	if !s.svc.RemoteSpamFilter(f, it.Add) {
+	changed, stale := s.svc.RemoteSpamFilter(f, it.Add)
+	if stale {
+		// We removed this rule while l was split off, and l (or a server
+		// behind it) still has it: tell l to remove it too, rather than
+		// take it back. Only l: everyone else already had the removal.
+		s.log.Printf("link %s: it still has the filter '%s', removed here while it was split off; asked it to remove it too", l.peer.Name, f.Match)
+		for _, line := range l.codecOf().Encode(s.spamItem(f, false)) {
+			l.send(line)
+		}
+		return
+	}
+	if !changed {
 		return
 	}
 	for _, o := range s.upLinks(l) {

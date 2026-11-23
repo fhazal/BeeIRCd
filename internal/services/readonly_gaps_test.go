@@ -326,11 +326,11 @@ func TestNoExpireRemoteSpamFilter(t *testing.T) {
 	past := time.Now().Add(-time.Hour)
 	f := spamfilter.Filter{Type: spamfilter.Simple, Match: "*free nitro*", Targets: "cp", Action: spamfilter.Block,
 		Reason: "r", SetBy: "Boss", SetAt: past.Add(-time.Hour), Expires: past}
-	if svc.RemoteSpamFilter(f, true) {
+	if changed, _ := svc.RemoteSpamFilter(f, true); changed {
 		t.Fatalf("run-out remote spam filter taken with NOEXPIRE off")
 	}
 	svc.noexpire = true
-	if !svc.RemoteSpamFilter(f, true) {
+	if changed, _ := svc.RemoteSpamFilter(f, true); !changed {
 		t.Fatalf("run-out remote spam filter refused with NOEXPIRE on")
 	}
 	svc.expireSpamFilters(time.Now())

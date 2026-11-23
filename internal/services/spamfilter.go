@@ -206,9 +206,12 @@ func (s *Services) DelSpamFilter(id int64, by string) (spamfilter.Filter, error)
 }
 
 // RemoteSpamFilter applies a rule change from another server and reports
-// whether anything changed. Rules from links are checked only for size:
-// the oper who set them was checked on their own server.
-func (s *Services) RemoteSpamFilter(f spamfilter.Filter, add bool) bool {
+// whether anything changed and, for an added rule, whether it is stale:
+// this very rule (or an older one) was removed here while the other server
+// was split off, so the removal stands and the other server should drop it
+// too. Rules from links are checked only for size: the oper who set them
+// was checked on their own server.
+func (s *Services) RemoteSpamFilter(f spamfilter.Filter, add bool) (changed, stale bool) {
 	var have *spamfilter.Filter
 	for i := range s.spam.list {
 		if s.spam.list[i].Key() == f.Key() {
@@ -217,33 +220,45 @@ func (s *Services) RemoteSpamFilter(f spamfilter.Filter, add bool) bool {
 	}
 	if !add {
 		if have == nil {
-			return false
+			return false, false
 		}
 		if _, err := s.store.DelSpamFilter(have.ID); err != nil {
 			s.log.Printf("services database: %v", err)
-			return false
+			return false, false
 		}
 		delete(s.spam.hits, have.ID)
 	} else {
 		if !f.Live(s.KeepNow()) || f.Match == "" || len(f.Match) > spamfilter.MaxMatch || len(f.Reason) > 4*spamfilter.MaxReason { // NOEXPIRE: a run-out rule is kept, as local ones are
-			return false
+			return false, false
 		}
 		if have != nil && (have.SetAt.After(f.SetAt) || have.Reason == f.Reason && have.BanTime == f.BanTime && have.Expires.Equal(f.Expires)) {
-			return false // ours is newer, or the same (after a split both sides send theirs)
+			return false, false // ours is newer, or the same (after a split both sides send theirs)
+		}
+		if have == nil {
+			// Removed here after it was set (the other server was split
+			// off then): the removal is the newer change. A rule set again
+			// later is newer still and comes through.
+			set, removed, err := s.store.RemovedSpamFilter(f, time.Now())
+			if err != nil {
+				s.log.Printf("services database: %v", err)
+			}
+			if removed && !f.SetAt.After(set) {
+				return false, true
+			}
 		}
 		if len(s.SpamFilters()) >= spamfilter.MaxFilters && have == nil {
 			s.log.Printf("refused spam filter %q from another server: %d rules already", f.Match, spamfilter.MaxFilters)
-			return false
+			return false, false
 		}
 		if _, err := s.store.AddSpamFilter(f); err != nil {
 			s.log.Printf("services database: %v", err)
-			return false
+			return false, false
 		}
 	}
 	if err := s.loadSpamFilters(); err != nil {
 		s.log.Printf("services database: %v", err)
 	}
-	return true
+	return true, false
 }
 
 // expireSpamFilters drops rules that ran out (every server does at the

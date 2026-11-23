@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/fhazal/beeircd/internal/config"
+	"github.com/fhazal/beeircd/internal/spamfilter"
 	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
 )
@@ -237,5 +238,47 @@ func TestRemoteBanRemovedDuringSplit(t *testing.T) {
 	other := store.NetBan{Kind: store.BanShun, Mask: "*@192.0.2.34", Reason: "new", SetBy: "op", SetAt: set}
 	if changed, stale := s.RemoteBan(other, true); !changed || stale {
 		t.Errorf("new ban: changed %v, stale %v", changed, stale)
+	}
+}
+
+// A spam filter removed here while another server was split off stays
+// removed when that server sends it back (it is stale), whoever removed
+// it; one set again later, or one set during the split, comes through.
+func TestRemoteSpamFilterRemovedDuringSplit(t *testing.T) {
+	s, _ := newServices(t)
+	set := time.Now().Add(-time.Hour).Truncate(time.Second)
+	mk := func(match string) spamfilter.Filter {
+		return spamfilter.Filter{Type: spamfilter.Simple, Match: match, Targets: "cp", Action: spamfilter.Block, Reason: "x", SetBy: "op", SetAt: set}
+	}
+	a, b := mk("*by oper*"), mk("*by remote*")
+	for _, f := range []spamfilter.Filter{a, b} {
+		if changed, _ := s.RemoteSpamFilter(f, true); !changed {
+			t.Fatalf("%s not added", f.Match)
+		}
+	}
+	// One removed by an oper here, one by another server's removal.
+	if _, err := s.DelSpamFilter(s.SpamFilters()[0].ID, "oper"); err != nil {
+		t.Fatal(err)
+	}
+	if changed, _ := s.RemoteSpamFilter(b, false); !changed {
+		t.Fatal("remote removal not applied")
+	}
+	older := b
+	older.SetAt = set.Add(-time.Minute)
+	for _, f := range []spamfilter.Filter{a, b, older} {
+		if changed, stale := s.RemoteSpamFilter(f, true); changed || !stale {
+			t.Errorf("%s (set %v) back: changed %v, stale %v", f.Match, f.SetAt, changed, stale)
+		}
+	}
+	if len(s.SpamFilters()) != 0 {
+		t.Errorf("rules back: %+v", s.SpamFilters())
+	}
+	again := a
+	again.SetAt, again.Reason = set.Add(time.Minute), "set again"
+	if changed, stale := s.RemoteSpamFilter(again, true); !changed || stale {
+		t.Errorf("rule set again: changed %v, stale %v", changed, stale)
+	}
+	if changed, stale := s.RemoteSpamFilter(mk("*new*"), true); !changed || stale {
+		t.Errorf("new rule: changed %v, stale %v", changed, stale)
 	}
 }

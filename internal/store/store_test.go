@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/fhazal/beeircd/internal/spamfilter"
 )
 
 func open(t *testing.T) (*Store, string) {
@@ -600,5 +602,99 @@ func TestOperReach(t *testing.T) {
 	}
 	if o, _ := s2.OperByAccount(a.ID); o.Network() {
 		t.Fatal("reach not set back to home")
+	}
+}
+
+// A removed spam filter that goes over links is remembered (also over a
+// restart) until it would have run out, a week at most; adding it again
+// forgets it.
+func TestRemovedSpamFilters(t *testing.T) {
+	s, path := open(t)
+	now := time.Now()
+	set := now.Add(-time.Hour).Truncate(time.Second)
+	mk := func(match, action string, exp time.Time) spamfilter.Filter {
+		return spamfilter.Filter{Type: spamfilter.Simple, Match: match, Targets: "cp", Action: action, Reason: "r", SetBy: "B", SetAt: set, Expires: exp}
+	}
+	timed := mk("timed", spamfilter.Block, now.Add(time.Hour))
+	perm := mk("perm", spamfilter.Kill, time.Time{})
+	local := mk("local", "nothing", time.Time{})
+	for _, f := range []spamfilter.Filter{timed, perm, local} {
+		id, err := s.AddSpamFilter(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ok, err := s.DelSpamFilter(id); !ok || err != nil {
+			t.Fatalf("DelSpamFilter %s: %v %v", f.Match, ok, err)
+		}
+	}
+	if ok, err := s.DelSpamFilter(9999); ok || err != nil {
+		t.Errorf("removed a rule that wasn't there: %v %v", ok, err)
+	}
+	s.Close()
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	removed := func(f spamfilter.Filter, at time.Time) bool {
+		t.Helper()
+		got, ok, err := s.RemovedSpamFilter(f, at)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ok && !got.Equal(set) {
+			t.Errorf("%s: set at %v, want %v", f.Match, got, set)
+		}
+		return ok
+	}
+	if !removed(timed, now) || !removed(perm, now) {
+		t.Fatal("removal not remembered over a restart")
+	}
+	if removed(local, now) {
+		t.Error("remembered a rule that doesn't go over links")
+	}
+	other := perm
+	other.Targets = "u"
+	if removed(other, now) {
+		t.Error("a rule with other targets counted as removed")
+	}
+	if removed(timed, now.Add(2*time.Hour)) {
+		t.Error("remembered past the rule's own expiry")
+	}
+	if !removed(perm, now.Add(6*24*time.Hour)) || removed(perm, now.Add(RemovedBanKeep+time.Minute)) {
+		t.Error("a permanent rule's removal isn't kept for a week")
+	}
+	again := perm
+	again.SetAt = now
+	if _, err := s.AddSpamFilter(again); err != nil {
+		t.Fatal(err)
+	}
+	if removed(perm, now) {
+		t.Error("adding the rule again didn't forget the removal")
+	}
+
+	// PurgeSpamFilters forgets old ones and keeps only the newest RemovedBanMax.
+	ins := `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
+		INSERT INTO spamfilter_removed SELECT 'simple', 'cp', 'block', 'm' || i, 1, i, ? FROM n`
+	if _, err := s.db.Exec(ins, RemovedBanMax+5, now.Add(time.Hour).Unix()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.PurgeSpamFilters(now.Add(2 * time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	s.db.QueryRow("SELECT COUNT(*) FROM spamfilter_removed").Scan(&n)
+	if n != 0 {
+		t.Errorf("%d left after their time", n)
+	}
+	if _, err := s.db.Exec(ins, RemovedBanMax+5, now.Add(time.Hour).Unix()); err != nil {
+		t.Fatal(err)
+	}
+	s.PurgeSpamFilters(now)
+	s.db.QueryRow("SELECT COUNT(*) FROM spamfilter_removed").Scan(&n)
+	_, oldest, _ := s.RemovedSpamFilter(mk("m5", spamfilter.Block, time.Time{}), now)
+	_, next, _ := s.RemovedSpamFilter(mk("m6", spamfilter.Block, time.Time{}), now)
+	if n != RemovedBanMax || oldest || !next {
+		t.Errorf("cap: %d kept, m5 %v, m6 %v", n, oldest, next)
 	}
 }
