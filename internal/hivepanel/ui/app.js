@@ -962,6 +962,7 @@
                 note.value = ''; sure.hidden = true;
               } catch (e) { put(res, line('bad', e.message)); res.hidden = false; }
             }));
+            sure.classList.toggle('bad-ask', false);
             put(sure, h('span', { class: 'f', text: 'Send this notice to ' + n + ' on the network, from OperServ?' }), go, cancel);
             sure.hidden = false; go.focus();
           };
@@ -2182,6 +2183,7 @@
         cancel.addEventListener('click', () => { sure.hidden = true; });
         go.addEventListener('click', () => { const b = body(); if (b) run(go, b); });
         for (const f of fields) if (f.tagName === 'INPUT') f.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go.click(); } });
+        sure.classList.toggle('bad-ask', goCls === 'bad');
         put(sure, h('span', { class: 'f', text: label }), ...fields, go, cancel);
         sure.hidden = false;
         (fields.find(f => f.tagName === 'INPUT') || go).focus();
@@ -2390,6 +2392,7 @@
             confirmBox.hidden = true;
           } catch (e) { toastErr(e.message); }
         }));
+        confirmBox.classList.toggle('bad-ask', true);
         put(confirmBox, h('span', { class: 'f' }, 'Report ' + (p.ip ? p.ip + ' (' + p.nick + ')' : p.nick) + ' to the spam blocklists? Other networks will block this address too.'), go, cancel);
         confirmBox.hidden = false;
         go.focus();
@@ -2406,6 +2409,7 @@
             load();
           } catch (e) { toastErr(e.message); }
         }));
+        confirmBox.classList.toggle('bad-ask', true);
         put(confirmBox, h('span', { class: 'f' }, 'Clear the avatar, status and every other metadata key of ' + p.nick + '?' + (p.account ? ' Their account forgets them too.' : '')), go, cancel);
         confirmBox.hidden = false;
         go.focus();
@@ -2427,6 +2431,7 @@
             load();
           } catch (e) { toastErr(e.message); }
         }));
+        confirmBox.classList.toggle('bad-ask', true);
         put(confirmBox, ...[
           h('label', { class: 'f' }, kind === 'kill' ? 'Disconnect ' + p.nick + '?' : 'Ban ' + p.nick + ' from the whole network' + (p.ip ? ' (*@' + p.ip + ')' : '') + '?', reason),
           kind === 'ban' ? life : null, go, cancel].filter(Boolean));
@@ -3861,6 +3866,7 @@
           if (!who.value.trim()) { who.focus(); return; }
           run(ok, 'SET', 'FOUNDER', '', who.value.trim()).then(done => { if (done) location.hash = '#/mychannels'; });
         });
+        ask.classList.toggle('bad-ask', false);
         put(ask, h('label', { class: 'f' }, 'New founder', who), h('label', { class: 'f' }, 'Type ' + d.name + ' to confirm', again), ok, no);
         ask.hidden = false; who.focus();
       });
@@ -3878,6 +3884,7 @@
             } catch (e) { toastErr(e.message); }
           });
         });
+        ask.classList.toggle('bad-ask', true);
         put(ask, h('label', { class: 'f' }, 'The access list, AKICKs and settings go. Type ' + d.name + ' to drop it', again), ok, no);
         ask.hidden = false; again.focus();
       });
@@ -4354,6 +4361,7 @@
           const cancel = h('button', { type: 'button', class: 'btn ghost', text: 'Cancel' });
           cancel.addEventListener('click', () => { sure.hidden = true; });
           go.addEventListener('click', () => k.run(go, { kind: 'defcon', value: String(n) }));
+          sure.classList.toggle('bad-ask', n !== 5);
           put(sure, h('span', { class: 'f', text: 'Set DEFCON ' + n + ' (' + words + ')?' + (n === 5 ? '' : ' Opers are told, and it stays until someone sets it back.') }), go, cancel);
           sure.hidden = false;
           go.focus();
@@ -4717,6 +4725,7 @@
               try { toast([(await api('POST', '/api/chan-suspend', { name: c.name, reason: reason.value, life: life.value })).done.text]); open = null; load(); }
               catch (e) { toastErr(e.message); }
             }));
+            ask.classList.toggle('bad-ask', true);
             put(ask, h('label', { class: 'f' }, 'Suspend ' + c.name + '? Everyone but opers is removed and can\'t come back.', reason), life, go, no);
             ask.hidden = false; reason.focus();
           });
@@ -4733,6 +4742,7 @@
             try { toast([(await api('POST', '/api/chan-meta-clear', { name: c.name })).done.text]); ask.hidden = true; load(); }
             catch (e) { toastErr(e.message); }
           }));
+          ask.classList.toggle('bad-ask', true);
           put(ask, h('span', { class: 'f' }, 'Clear every metadata key of ' + c.name + '?' + (c.registered ? ' ChanServ forgets them too.' : '')), go, no);
           ask.hidden = false; go.focus();
         });

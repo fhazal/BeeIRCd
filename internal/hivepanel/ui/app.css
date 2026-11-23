@@ -301,7 +301,8 @@ tr.detail td{background:var(--field);padding:16px 18px 18px;height:auto}
 .acts .grow{display:flex;gap:10px;align-items:flex-end;flex:1 1 420px;min-width:0}
 .acts .grow .f{flex:1 1 auto;min-width:0}
 .acts .end{display:flex;gap:10px;flex:none}
-.confirm{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-top:14px;padding:14px;border:1px solid var(--bad-line);border-radius:6px;background:var(--bad-soft)}
+.confirm{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:6px;background:var(--card2)}
+.confirm.bad-ask{border-color:var(--bad-line);background:var(--bad-soft)}
 .confirm .f{flex:1 1 240px}
 .confirm select.in{flex:0 0 160px}
 .confirm[hidden]{display:none}
