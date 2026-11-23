@@ -47,7 +47,7 @@ func operServMoreCommands() map[string]svcCmd {
 		"SEEN": {"SEEN {STATS | CLEAR <time>}", "the SEEN data",
 			"SEEN STATS   how many nicks SEEN knows\nSEEN CLEAR <time>   forget the nicks seen within that time, like 1h", osSeen},
 		"SET": {"SET {READONLY | SUPERADMIN | NOEXPIRE} {ON | OFF} | SET LIST", "switch services modes (flag a)",
-			"SET LIST                show the switches\nSET READONLY {ON | OFF}  (flag a) nothing is saved: commands that change\n    data are refused, and nicks, channels and bans don't expire\nSET SUPERADMIN {ON | OFF}  (flag a) for you only: you count as founder on\n    every registered channel; ends when you turn it off, de-oper or quit\nSET NOEXPIRE {ON | OFF}  (flag a) nicks, channels, AKILLs and other bans,\n    forbids and session exceptions don't expire; run-out ones stay in force\nThe switches live in memory: a restart turns them all off again.", osSet},
+			"SET LIST                show the switches\nSET READONLY {ON | OFF}  (flag a) nothing is saved: commands that change\n    data are refused, and nicks, channels and bans don't expire\nSET SUPERADMIN {ON | OFF}  (flag a) for you only: you count as founder on\n    every registered channel; ends when you turn it off, de-oper or quit\nSET NOEXPIRE {ON | OFF}  (flag a) nicks, channels, suspensions, AKILLs and\n    other bans, spam filters, forbids and session exceptions don't expire;\n    run-out ones stay in force\nThe switches live in memory: a restart turns them all off again.", osSet},
 	}
 }
 

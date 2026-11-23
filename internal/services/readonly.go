@@ -5,6 +5,7 @@ package services
 // They live in memory only, so a restart turns them off again.
 
 import (
+	"errors"
 	"strings"
 	"time"
 )
@@ -12,6 +13,18 @@ import (
 // readonlyRefusal is what a command that would change data gets while
 // READONLY is on.
 const readonlyRefusal = "Services are in read-only mode; this can't be changed right now."
+
+// ReadonlyRefusal is readonlyRefusal for the server's own commands
+// (AdminServ) and other callers outside services.
+const ReadonlyRefusal = readonlyRefusal
+
+// ErrReadOnly is readonlyRefusal as an error, for calls that answer with
+// one (spam filters). Callers put it in their own words with a capital and
+// a full stop, as they do with every other error.
+var ErrReadOnly = errors.New("services are in read-only mode; this can't be changed right now")
+
+// ReadOnly reports whether OperServ SET READONLY is on.
+func (s *Services) ReadOnly() bool { return s.readonly }
 
 // readonlyAllow lists, per service, the commands that still work while
 // READONLY is on: those that only look, log you in or out, or act on the
@@ -142,10 +155,21 @@ func (s *Services) dropSuperAdmin(c *Client, why string) {
 }
 
 // banNow is the time bans, forbids and session exceptions are checked
-// against. While NOEXPIRE is on it is the zero time, so an entry whose
+// against. While NOEXPIRE or READONLY is on it is the zero time, so an entry whose
 // expiry has passed still counts.
 func (s *Services) banNow() time.Time {
-	if s.noexpire {
+	if s.noexpire || s.readonly {
+		return time.Time{}
+	}
+	return time.Now()
+}
+
+// KeepNow is the time suspensions and spam filters are checked against.
+// While NOEXPIRE or READONLY is on (nothing expires) it is the zero time,
+// so one whose expiry has passed stays in force until it is lifted by hand
+// or the switch goes off.
+func (s *Services) KeepNow() time.Time {
+	if s.noexpire || s.readonly {
 		return time.Time{}
 	}
 	return time.Now()

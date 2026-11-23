@@ -90,6 +90,9 @@ func (s *Services) PanelBan(by, kind, arg, reason string, life time.Duration) (m
 // BanVia is PanelBan for any way in: via ("Hive Panel", "RPC") is named
 // in the notice to opers.
 func (s *Services) BanVia(by, via, kind, arg, reason string, life time.Duration) (mask string, hit int, problem string) {
+	if s.readonly {
+		return "", 0, readonlyRefusal
+	}
 	if !panelKind(kind) {
 		return "", 0, "That isn't a kind of ban."
 	}
@@ -167,6 +170,9 @@ func (s *Services) PanelBanDel(by, kind, mask string) (removed string, problem s
 
 // BanDelVia is PanelBanDel for any way in (see BanVia).
 func (s *Services) BanDelVia(by, via, kind, mask string) (removed string, problem string) {
+	if s.readonly {
+		return "", readonlyRefusal
+	}
 	if !panelKind(kind) {
 		return "", "That isn't a kind of ban."
 	}
@@ -235,6 +241,9 @@ func (s *Services) NameBans() []NameBan {
 // to opers (see BanVia). It returns how many people it moved off the nick
 // or out of the channel, and problem says why not.
 func (s *Services) NameBanVia(by, via, name, reason string, life time.Duration) (hit int, problem string) {
+	if s.readonly {
+		return 0, readonlyRefusal
+	}
 	name = strings.TrimSpace(name)
 	kind := nameBanKind(name)
 	if name == "" || strings.ContainsAny(name, " ,\r\n") {
@@ -276,6 +285,9 @@ func (s *Services) NameBanVia(by, via, name, reason string, life time.Duration) 
 // NameBanDelVia lifts the nick or channel forbid on name. problem says
 // why not.
 func (s *Services) NameBanDelVia(by, via, name string) (problem string) {
+	if s.readonly {
+		return readonlyRefusal
+	}
 	name = strings.TrimSpace(name)
 	gone, err := s.store.DelForbid(nameBanKind(name), name)
 	if err != nil {

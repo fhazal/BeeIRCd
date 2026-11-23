@@ -1138,6 +1138,13 @@ func asOper(s *Server, c *Client, args []string) {
 		s.as(c, "%s is the server admin from beeircd.conf; change it there.", a.Name)
 		return
 	}
+	switch strings.ToUpper(args[1]) {
+	case "ADD", "SET", "DEL", "DISABLE", "ENABLE": // oper entries are services data
+		if s.svc.ReadOnly() {
+			s.as(c, "%s", services.ReadonlyRefusal)
+			return
+		}
+	}
 	cur, err := s.store.OperByAccount(a.ID)
 	if err != nil {
 		s.dbErr(c, s.adminServ, err)
@@ -1511,6 +1518,10 @@ func asOper(s *Server, c *Client, args []string) {
 func (s *Server) ownerLook(c *Client, a *store.Account, what string, rest []string) {
 	if len(rest) == 0 {
 		s.as(c, "Syntax: OPER %s SET TITLE|SWHOIS|VHOST <value> (OFF clears it)", a.Name)
+		return
+	}
+	if s.svc.ReadOnly() { // the look is kept in the oper entry, services data
+		s.as(c, "%s", services.ReadonlyRefusal)
 		return
 	}
 	cur, err := s.store.OperByAccount(a.ID)

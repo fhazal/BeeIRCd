@@ -17,7 +17,7 @@ func (s *Services) csJoinLevel(c *Client, name string) int {
 		return store.LevelNone
 	}
 	reg, err := s.store.ChannelByName(name)
-	if err != nil || reg == nil || reg.Suspended(time.Now()) {
+	if err != nil || reg == nil || reg.Suspended(s.KeepNow()) {
 		return store.LevelNone
 	}
 	return s.clientLevel(c, reg).level
@@ -30,7 +30,7 @@ func (s *Services) csJoin(c *Client, ch *state.Channel, created bool) {
 		return
 	}
 	u := c.user
-	if reg.Suspended(time.Now()) {
+	if reg.Suspended(s.KeepNow()) {
 		if !c.isOper() {
 			s.csKickUser(ch, u, "This channel is suspended: "+reg.SuspendReason)
 		}
@@ -82,7 +82,7 @@ func (s *Services) csJoin(c *Client, ch *state.Channel, created bool) {
 func (s *Services) csOnIdentify(c *Client) {
 	for _, ch := range c.user.Channels {
 		reg, err := s.store.ChannelByName(ch.Name)
-		if err != nil || reg == nil || reg.Suspended(time.Now()) {
+		if err != nil || reg == nil || reg.Suspended(s.KeepNow()) {
 			continue
 		}
 		if s.clientLevel(c, reg).level > store.LevelNone {

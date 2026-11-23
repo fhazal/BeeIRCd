@@ -8,6 +8,7 @@ import (
 
 	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/irc"
+	"github.com/fhazal/beeircd/internal/services"
 	"github.com/fhazal/beeircd/internal/store"
 )
 
@@ -413,6 +414,10 @@ func asUndo(s *Server, c *Client, args []string) {
 			s.as(c, "Class %s is back to how it was before #%d.", oc.Name, ch.ID)
 		}
 	case "oper":
+		if s.svc.ReadOnly() { // oper entries are services data
+			s.as(c, "%s", services.ReadonlyRefusal)
+			return
+		}
 		if ch.Old == "password" || ch.New == "password" {
 			s.as(c, "Password changes can't be undone. Set a new one: /as oper %s set password <password>", ch.Key)
 			return

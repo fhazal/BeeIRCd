@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/fhazal/beeircd/internal/control"
@@ -60,7 +59,7 @@ func visibleCount(ch *state.Channel) int {
 }
 
 func (s *Server) panelChannels(req control.Request) *control.Channels {
-	now := time.Now()
+	now := s.svc.KeepNow() // NOEXPIRE and READONLY keep run-out suspensions in force
 	regs := map[string]*store.Channel{}
 	out := &control.Channels{}
 	for _, r := range s.svc.RegChannels() {
@@ -134,7 +133,7 @@ func (s *Server) panelChannels(req control.Request) *control.Channels {
 }
 
 func (s *Server) panelChannel(name string) *control.ChannelInfo {
-	now := time.Now()
+	now := s.svc.KeepNow() // NOEXPIRE and READONLY keep run-out suspensions in force
 	ch := s.net.Channel(name)
 	reg := s.svc.RegChannel(name)
 	if ch == nil && reg == nil {

@@ -141,7 +141,7 @@ func (s *Services) csChan(c *Client, name string, need int) (*store.Channel, acc
 	if !ok {
 		return nil, access{}, false
 	}
-	if reg.Suspended(time.Now()) && !c.can('s') && !s.isSuperAdmin(c) {
+	if reg.Suspended(s.KeepNow()) && !c.can('s') && !s.isSuperAdmin(c) {
 		s.cs(c, "%s is suspended: %s", reg.Name, reg.SuspendReason)
 		return nil, access{}, false
 	}
@@ -317,7 +317,7 @@ func csInfo(s *Services, c *Client, args []string) {
 	} else {
 		s.cs(c, "  Last used     %s (%s)", showTime(reg.LastUsed), s.agoFor(c, reg.LastUsed))
 	}
-	if reg.Suspended(time.Now()) {
+	if reg.Suspended(s.KeepNow()) {
 		until := "until UNSUSPEND"
 		if reg.SuspendUntil.Unix() != 0 {
 			until = "until " + showTime(reg.SuspendUntil)
@@ -976,7 +976,7 @@ func csUnbanEverywhere(s *Services, c *Client) {
 	n := 0
 	for _, reg := range all {
 		live := s.net.Channel(reg.Name)
-		if live == nil || reg.Suspended(time.Now()) || !s.userHas(reg, c.user, "UNBAN") {
+		if live == nil || reg.Suspended(s.KeepNow()) || !s.userHas(reg, c.user, "UNBAN") {
 			continue
 		}
 		if lift := bansOn(live, c.user, ""); len(lift) > 0 {
@@ -1530,7 +1530,7 @@ func csList(s *Services, c *Client, args []string) {
 		n++
 		if n <= 100 {
 			desc := reg.Description
-			if reg.Suspended(time.Now()) {
+			if reg.Suspended(s.KeepNow()) {
 				desc = "[suspended] " + desc
 			}
 			s.cs(c, "  %-20s %s", reg.Name, desc)

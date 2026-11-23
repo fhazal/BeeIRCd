@@ -99,7 +99,7 @@ func nsCert(s *Services, c *Client, args []string) {
 		for _, f := range certs {
 			s.ns(c, "    %s", f)
 		}
-	case a.Suspended(time.Now()):
+	case a.Suspended(s.KeepNow()):
 		s.ns(c, "Nick %s is suspended.", a.Name)
 	case sub == "ADD":
 		if len(certs) >= s.cfg.Services.CertMax {
@@ -169,7 +169,7 @@ func (s *Services) certLogin(c *Client) {
 		return
 	}
 	a := s.store.AccountByCert(u.CertFP)
-	if a == nil || a.Suspended(time.Now()) || s.loginsFull(c, a) {
+	if a == nil || a.Suspended(s.KeepNow()) || s.loginsFull(c, a) {
 		return
 	}
 	s.login(c, a)
@@ -226,7 +226,7 @@ func nsAjoin(s *Services, c *Client, args []string) {
 		for i, e := range list {
 			s.ns(c, "  %-6d  %-18s  %s", i+1, e.Channel, e.Key)
 		}
-	case a.Suspended(time.Now()):
+	case a.Suspended(s.KeepNow()):
 		s.ns(c, "Nick %s is suspended.", a.Name)
 	case sub == "ADD":
 		key := argAt(rest, 1)
@@ -314,7 +314,7 @@ func (s *Services) autoJoin(c *Client, a *store.Account) {
 			return
 		}
 		reg, _ := s.store.ChannelByName(e.Channel)
-		if reg != nil && reg.Suspended(time.Now()) {
+		if reg != nil && reg.Suspended(s.KeepNow()) {
 			continue
 		}
 		if _, ok := s.forbidden(store.ForbidChan, e.Channel); ok && !c.isOper() {
@@ -412,7 +412,7 @@ func nsSuspend(s *Services, c *Client, args []string) {
 		s.ns(c, "You may not suspend other Services Operators' nicknames.")
 		return
 	}
-	if a.Suspended(time.Now()) {
+	if a.Suspended(s.KeepNow()) {
 		s.ns(c, "%s is already suspended.", a.Name)
 		return
 	}
@@ -501,7 +501,7 @@ func (s *Services) unsuspendAccount(a *store.Account) {
 // expireAccountSuspends lifts suspensions that ran out (Anope logs
 // "Expiring suspend for nick").
 func (s *Services) expireAccountSuspends(now time.Time) {
-	if s.readonly {
+	if s.readonly || s.noexpire {
 		return
 	}
 	for _, a := range s.store.SuspendedAccounts() {
@@ -586,7 +586,7 @@ func nsList(s *Services, c *Client, args []string) {
 		s.dbErr(c, s.nickServ, err)
 		return
 	}
-	now := time.Now()
+	now := s.KeepNow() // NOEXPIRE and READONLY keep run-out suspensions in force
 	type row struct{ nick, mask string }
 	var rows []row
 	count, shown := 0, 0

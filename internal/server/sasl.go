@@ -138,7 +138,7 @@ func (s *Server) saslDone(c *Client, a *store.Account) string {
 	}
 	// The same doors as NS IDENTIFY: a suspended account stays shut, and
 	// max_logins counts SASL logins too.
-	if fresh.Suspended(time.Now()) {
+	if fresh.Suspended(s.svc.KeepNow()) {
 		return "SASL authentication failed: account " + fresh.Name + " is suspended"
 	}
 	if s.accountID(c) != fresh.ID && s.svc.LoginsFull(fresh.ID) {
@@ -174,7 +174,7 @@ func (s *Server) saslExternal(c *Client, authz string, decodeErr error) {
 	case a == nil:
 		s.svc.LogSASLExternal(who, "", c.certfp, false)
 		s.reply(c, irc.ErrSaslFail, "SASL authentication failed")
-	case authz != "" && !irc.EqualFold(authz, a.Name) || a.Suspended(time.Now()):
+	case authz != "" && !irc.EqualFold(authz, a.Name) || a.Suspended(s.svc.KeepNow()):
 		s.svc.LogSASLExternal(who, "", c.certfp, false)
 		s.reply(c, irc.ErrSaslFail, "SASL authentication failed")
 	default:

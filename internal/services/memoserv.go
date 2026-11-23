@@ -128,7 +128,12 @@ func (s *Services) msBox(c *Client, args []string) (*memoBox, []string, bool) {
 	return &memoBox{acct: a, reg: reg, memos: s.store.ChanMemos(reg), s: s, c: c}, args[1:], true
 }
 
+// boxMarkRead marks m read and sends its receipt. While READONLY is on it
+// does nothing: the memo is still shown, and stays unread.
 func (s *Services) boxMarkRead(b *memoBox, m store.Memo) error {
+	if s.readonly {
+		return nil
+	}
 	if b.reg != nil {
 		return s.store.MarkChanMemoRead(m.ID)
 	}
@@ -271,7 +276,7 @@ func (s *Services) memoToChannel(c *Client, from *store.Account, name, text stri
 		s.ms(c, "%s isn't registered with ChanServ.", name)
 		return
 	}
-	if reg.Suspended(time.Now()) {
+	if reg.Suspended(s.KeepNow()) {
 		s.ms(c, "%s is suspended.", reg.Name)
 		return
 	}

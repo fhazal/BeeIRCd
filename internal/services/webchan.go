@@ -165,7 +165,7 @@ func (s *Services) WebChanMemo(id int64, ip, name string, memoID int64, del bool
 			var out []string
 			s.msLog(s.webClient(a, ip, "DEL", &out), v.Reg.Name, "on a memo from %s", m.From)
 		}
-	case !m.Read:
+	case !m.Read && !s.readonly: // READONLY: shown, but left unread
 		err = s.store.MarkChanMemoRead(m.ID)
 	}
 	if err != nil {

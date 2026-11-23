@@ -679,7 +679,7 @@ func (s *Services) nickCheck(c *Client) {
 	if a == nil || c.accountID == a.ID {
 		return
 	}
-	if a.Suspended(time.Now()) {
+	if a.Suspended(s.KeepNow()) {
 		s.ns(c, "Nick %s is suspended.", u.Nick)
 		return
 	}

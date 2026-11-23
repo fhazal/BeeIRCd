@@ -48,9 +48,13 @@ func (s *Services) PanelChanTopic(by, channel, text string) string {
 	if live == nil {
 		return channel + " is empty right now."
 	}
+	reg := s.RegChannel(live.Name)
+	if reg != nil && s.readonly { // it would be kept, as ChanServ TOPIC (refused too)
+		return readonlyRefusal
+	}
 	topic := irc.Truncate(strings.Join(strings.Fields(text), " "), s.cfg.Limits.TopicLen)
 	s.emit(&state.Topic{Source: s.chanServ.user.UID, Channel: live.Name, Text: topic, By: by, At: time.Now()})
-	if reg := s.RegChannel(live.Name); reg != nil {
+	if reg != nil {
 		s.csSaveTopic(reg, live)
 	}
 	s.snotice('a', "%s (Hive Panel) set the topic of %s", by, live.Name)
@@ -61,11 +65,14 @@ func (s *Services) PanelChanTopic(by, channel, text string) string {
 // PanelChanSuspend closes a registered channel like ChanServ SUSPEND:
 // non-opers are kicked out and can't come back. life 0 = until unsuspended.
 func (s *Services) PanelChanSuspend(by, channel, reason string, life time.Duration) (kicked int, problem string) {
+	if s.readonly {
+		return 0, readonlyRefusal
+	}
 	reg := s.RegChannel(channel)
 	switch {
 	case reg == nil:
 		return 0, channel + " isn't registered with ChanServ, so it can't be suspended."
-	case reg.Suspended(time.Now()):
+	case reg.Suspended(s.KeepNow()):
 		return 0, reg.Name + " is suspended already (by " + reg.SuspendedBy + ")."
 	}
 	reason = irc.Truncate(strings.Join(strings.Fields(reason), " "), 200)
@@ -89,6 +96,9 @@ func (s *Services) PanelChanSuspend(by, channel, reason string, life time.Durati
 
 // PanelChanUnsuspend opens a suspended channel again.
 func (s *Services) PanelChanUnsuspend(by, channel string) string {
+	if s.readonly {
+		return readonlyRefusal
+	}
 	reg := s.RegChannel(channel)
 	switch {
 	case reg == nil:

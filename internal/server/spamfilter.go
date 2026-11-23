@@ -156,6 +156,9 @@ func (s *Server) spamDo(c *Client, r *spamfilter.Rule, t byte, to, text string) 
 		return spamGone
 	case spamfilter.Shun:
 		s.svc.SpamBan(store.BanShun, c.ip, reason, r.BanTime)
+		if s.svc.ReadOnly() {
+			c.tempShun = true // READONLY stores no SHUN: this connection only
+		}
 		return spamGone
 	case spamfilter.Gline, spamfilter.Kline:
 		s.svc.SpamBan(store.BanAkill, c.ip, reason, r.BanTime)

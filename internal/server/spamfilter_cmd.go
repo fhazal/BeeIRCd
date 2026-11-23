@@ -74,6 +74,10 @@ func (s *Server) cmdSpamfilter(c *Client, m irc.Message) {
 			}
 		}
 		f, err := s.svc.DelSpamFilter(id, c.user.Nick)
+		if errors.Is(err, services.ErrReadOnly) {
+			say("%s", services.ReadonlyRefusal)
+			return
+		}
 		if err != nil {
 			say("%v.", err)
 			return

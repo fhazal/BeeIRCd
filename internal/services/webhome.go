@@ -32,7 +32,7 @@ func (s *Services) webAccount(id int64) (*store.Account, string) {
 	if a == nil {
 		return nil, "Your account no longer exists."
 	}
-	if a.Suspended(time.Now()) {
+	if a.Suspended(s.KeepNow()) {
 		return nil, a.Name + " is suspended."
 	}
 	return a, ""
@@ -79,7 +79,7 @@ func (s *Services) WebMemoRead(id, memoID int64) string {
 	if !ok {
 		return "That memo is gone."
 	}
-	if !m.Read {
+	if !m.Read && !s.readonly { // READONLY: shown, but left unread
 		if err := s.store.MarkRead(m.ID); err != nil {
 			s.log.Printf("services database: %v", err)
 			return "Something went wrong on the server."

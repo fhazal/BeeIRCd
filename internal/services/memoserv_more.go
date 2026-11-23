@@ -143,7 +143,7 @@ func nsResetPass(s *Services, c *Client, args []string) {
 	switch {
 	case a == nil:
 		s.ns(c, "Nick %s isn't registered.", args[0])
-	case a.Suspended(time.Now()):
+	case a.Suspended(s.KeepNow()):
 		s.ns(c, "Nick %s is suspended.", a.Name)
 	case !strings.EqualFold(args[1], a.Email):
 		s.ns(c, "Incorrect email address.")
@@ -172,7 +172,7 @@ func nsConfirmReset(s *Services, c *Client, args []string) {
 	switch {
 	case !ok:
 		s.ns(c, "Invalid passcode.")
-	case a.Suspended(time.Now()):
+	case a.Suspended(s.KeepNow()):
 		s.ns(c, "Nick %s is suspended.", a.Name)
 	case time.Since(ri.at) > time.Hour:
 		delete(s.resets, a.ID)

@@ -263,7 +263,13 @@ func (s *Services) OperBan(zline bool, ip, reason, setBy string, life time.Durat
 	s.autoBan(kind, ip, reason, setBy, life)
 }
 
+// autoBan stores a ban the server adds on its own. While READONLY is on
+// nothing is stored (as on Anope, whose akills added then aren't saved):
+// the caller still deals with the person in front of it.
 func (s *Services) autoBan(kind, ip, reason, setBy string, life time.Duration) {
+	if s.readonly {
+		return
+	}
 	mask := ip
 	if kind != store.BanZline {
 		mask = "*@" + ip

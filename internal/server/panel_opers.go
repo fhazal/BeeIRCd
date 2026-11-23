@@ -17,6 +17,7 @@ import (
 
 	"github.com/fhazal/beeircd/internal/control"
 	"github.com/fhazal/beeircd/internal/irc"
+	"github.com/fhazal/beeircd/internal/services"
 	"github.com/fhazal/beeircd/internal/store"
 )
 
@@ -135,6 +136,9 @@ func (s *Server) panelOperTarget(name string) (*store.Account, *store.Oper, stri
 // panelOperSave adds or changes an entry for po. hash is the new oper
 // password, already hashed ("" = keep / none).
 func (s *Server) panelOperSave(po *control.PanelOper, ip string, req control.Request, hash string) control.Response {
+	if s.svc != nil && s.svc.ReadOnly() { // oper entries are services data
+		return control.Response{Error: services.ReadonlyRefusal}
+	}
 	fail := func(f string, a ...any) control.Response { return control.Response{Error: fmt.Sprintf(f, a...)} }
 	a, cur, problem := s.panelOperTarget(req.Name)
 	if problem != "" {
@@ -244,6 +248,9 @@ func (s *Server) panelOperSave(po *control.PanelOper, ip string, req control.Req
 
 // panelOperDel removes an entry for po.
 func (s *Server) panelOperDel(po *control.PanelOper, ip, name string) control.Response {
+	if s.svc != nil && s.svc.ReadOnly() { // oper entries are services data
+		return control.Response{Error: services.ReadonlyRefusal}
+	}
 	a, cur, problem := s.panelOperTarget(name)
 	if problem != "" {
 		return control.Response{Error: problem}
@@ -279,6 +286,9 @@ func (s *Server) panelOperDel(po *control.PanelOper, ip, name string) control.Re
 // panelOperUndo puts an oper entry back as it was before HISTORY entry ch,
 // when po could have made that change.
 func (s *Server) panelOperUndo(po *control.PanelOper, ip string, ch store.Change) control.Response {
+	if s.svc != nil && s.svc.ReadOnly() { // oper entries are services data
+		return control.Response{Error: services.ReadonlyRefusal}
+	}
 	if ch.Old == "password" || ch.New == "password" {
 		return control.Response{Error: "Password changes can't be undone. Set a new one."}
 	}

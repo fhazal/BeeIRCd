@@ -501,6 +501,9 @@ func (s *Services) csLogUse(c *Client, command string, args []string) {
 		}
 		switch l.Method {
 		case "MEMO":
+			if s.readonly {
+				continue // READONLY: a memo would be saved; the live methods still go
+			}
 			if err := s.store.AddChanMemo(reg, s.chanServ.user.Nick, text, time.Now()); err != nil {
 				s.log.Printf("services database: %v", err)
 			}
@@ -606,7 +609,7 @@ func csSuspend(s *Services, c *Client, args []string) {
 	if !ok {
 		return
 	}
-	if reg.Suspended(time.Now()) {
+	if reg.Suspended(s.KeepNow()) {
 		s.cs(c, "%s is suspended already (by %s). UNSUSPEND it first to change that.", reg.Name, reg.SuspendedBy)
 		return
 	}
@@ -676,7 +679,7 @@ func (s *Services) unsuspend(reg *store.Channel) {
 
 // expireSuspends opens channels whose suspension ran out.
 func (s *Services) expireSuspends(now time.Time) {
-	if s.readonly {
+	if s.readonly || s.noexpire {
 		return
 	}
 	all, err := s.store.Channels()
@@ -737,7 +740,7 @@ func regTS(reg *store.Channel) int64 {
 // lock goes back.
 func (s *Services) csLostTS(ch *state.Channel) {
 	reg, err := s.store.ChannelByName(ch.Name)
-	if err != nil || reg == nil || reg.Suspended(time.Now()) {
+	if err != nil || reg == nil || reg.Suspended(s.KeepNow()) {
 		return
 	}
 	s.csMode(ch, mlockChanges(reg, ch))
@@ -842,7 +845,7 @@ func (s *Services) startPersist() {
 		return
 	}
 	for _, reg := range all {
-		if reg.Persist && !reg.Suspended(time.Now()) {
+		if reg.Persist && !reg.Suspended(s.KeepNow()) {
 			s.persistJoin(reg)
 		}
 	}

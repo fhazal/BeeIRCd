@@ -400,9 +400,21 @@ restart ends it too. It applies to the server you type it on.
     right now." Looking still works (INFO, LIST, STATUS, ACCESS LIST,
     ...), and so do IDENTIFY, LOGOUT, RECOVER, channel status commands
     (OP, KICK, BAN, ...), KILL and OperServ SET itself. Nicks, channels,
-    bans and suspensions don't expire while it is on. Hive Panel forms
-    that run a services command are refused too; the panel's own ban,
-    channel and settings forms and web sign-up are not.
+    bans, suspensions and spam filters don't expire while it is on, and
+    run-out suspensions and spam filters stay in force. Hive Panel and
+    web chat forms that change services data are refused too: the
+    panel's ban and name-ban forms (and the same over RPC), channel
+    suspend and unsuspend, the topic of a registered channel, spam
+    filter changes (also `/SPAMFILTER`), and web sign-up. The panel's
+    config settings are not. In AdminServ, `OPER` ADD, SET, DEL, DISABLE
+    and ENABLE and `UNDO` of an oper change are refused; the commands
+    that change `beeircd.conf` (SET, MOTD, PORT, CLASS, DNSBL,
+    SPAMREPORT, the admin's own oper password) still work. Bans the
+    server adds on its own (spam filters, DNSBL, the connect throttle,
+    CLEARCHAN G and Z) aren't stored, as on Anope; the person is still
+    dealt with, and a SHUN holds for that connection only. MemoServ
+    READ shows memos but leaves them unread, and a ChanServ LOG set to
+    MEMO isn't written.
   - `SET SUPERADMIN ON|OFF`: for yourself only. While on you count as
     founder on every registered channel (ChanServ commands, join past
     +i/+k/bans, suspended channels too), as long as you are identified.
@@ -411,8 +423,8 @@ restart ends it too. It applies to the server you type it on.
   - `SET NOEXPIRE ON|OFF`: nothing expires. Nicks, channels and
     unconfirmed accounts stay, and AKILLs and the other bans, forbids and
     session exceptions stay in force even once their time has run out
-    (as on Anope). New entries and changes still save as usual.
-    Suspensions and spam filters still expire. Bans sent to linked
+    (as on Anope), and so do suspensions and spam filters. New entries
+    and changes still save as usual. Bans sent to linked
     servers carry their expiry time, so a linked server can still drop
     one on its own.
 - **OperServ `RELOAD`** (Anope's os_reload, oper flag `a`) reads

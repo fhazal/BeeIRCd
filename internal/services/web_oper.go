@@ -115,7 +115,7 @@ func (s *Services) WebAccounts(query string) []AccountRow {
 		}
 		return strings.Contains(x, q)
 	}
-	now := time.Now()
+	now := s.KeepNow() // NOEXPIRE and READONLY keep run-out suspensions in force
 	var out []AccountRow
 	for _, a := range s.store.AllAccounts() {
 		own := byAccount[irc.Fold(a.Name)]
@@ -170,7 +170,7 @@ func (s *Services) WebAccount(nick string) *AccountView {
 	}
 	v := &AccountView{
 		AccountRow: AccountRow{Name: a.Name, Email: a.Email, Registered: a.Registered, LastSeen: a.LastSeen, Nicks: len(nicks),
-			Online: len(s.onlineClients(a.ID)), Suspended: a.Suspended(time.Now()), Oper: s.isServicesOper(a), Unconfirmed: a.Unconfirmed},
+			Online: len(s.onlineClients(a.ID)), Suspended: a.Suspended(s.KeepNow()), Oper: s.isServicesOper(a), Unconfirmed: a.Unconfirmed},
 		NickList: nicks, LastHost: a.LastHost, Admin: s.isAdminAccount(a), NoExpire: a.NoExpire,
 	}
 	if v.Suspended {

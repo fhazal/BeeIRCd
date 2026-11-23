@@ -231,7 +231,7 @@ func nsIdentify(s *Services, c *Client, args []string) {
 		s.ns(c, "You're already identified as %s.", a.Name)
 		return
 	}
-	if a.Suspended(time.Now()) {
+	if a.Suspended(s.KeepNow()) {
 		s.ns(c, "Nick %s is suspended.", a.Name)
 		return
 	}
@@ -317,7 +317,7 @@ func nsRecover(s *Services, c *Client, args []string) {
 		s.ns(c, "You are using %s already.", c.user.Nick)
 		return
 	}
-	if a.Suspended(time.Now()) {
+	if a.Suspended(s.KeepNow()) {
 		s.ns(c, "Nick %s is suspended.", a.Name)
 		return
 	}
@@ -355,7 +355,7 @@ func nsGroup(s *Services, c *Client, args []string) {
 	if !ok {
 		return
 	}
-	if a.Suspended(time.Now()) {
+	if a.Suspended(s.KeepNow()) {
 		s.ns(c, "Nick %s is suspended.", a.Name)
 		return
 	}
@@ -887,7 +887,7 @@ func nsInfo(s *Services, c *Client, args []string) {
 	if g := s.store.Greet(a.ID); g != "" {
 		s.ns(c, "  Greet         %s", g)
 	}
-	if a.Suspended(time.Now()) {
+	if a.Suspended(s.KeepNow()) {
 		// ns_suspend show = "suspended, by, reason, on, expires" (everyone).
 		s.ns(c, "  Suspended     This nickname is suspended.")
 		s.ns(c, "  Suspended by  %s", a.SuspendedBy)

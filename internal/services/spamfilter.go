@@ -43,7 +43,7 @@ func (s *Services) loadSpamFilters() error {
 	if err != nil {
 		return err
 	}
-	set, bad := spamfilter.NewSet(list, time.Now())
+	set, bad := spamfilter.NewSet(list, s.KeepNow()) // NOEXPIRE and READONLY keep run-out rules in force
 	s.spam.list, s.spam.set, s.spam.bad = list, set, map[int64]bool{}
 	s.spam.due = time.Time{}
 	for _, f := range list {
@@ -76,7 +76,7 @@ func (s *Services) SpamSet() *spamfilter.Set { return s.spam.set }
 
 // SpamFilters is every live rule, oldest first.
 func (s *Services) SpamFilters() []spamfilter.Filter {
-	now := time.Now()
+	now := s.KeepNow() // NOEXPIRE and READONLY keep run-out rules in force
 	var out []spamfilter.Filter
 	for _, f := range s.spam.list {
 		if f.Live(now) {
@@ -118,6 +118,9 @@ var ErrSpamDuplicate = errors.New("that rule is there already")
 // AddSpamFilter adds rule f for oper by (checked first: spamfilter.Check
 // and, unless force, the safety net). It returns the stored rule.
 func (s *Services) AddSpamFilter(f spamfilter.Filter, by string, force bool) (spamfilter.Filter, error) {
+	if s.readonly {
+		return f, ErrReadOnly
+	}
 	t, err := spamfilter.NormTargets(f.Targets)
 	if err != nil {
 		return f, err
@@ -173,6 +176,9 @@ func (e *SafetyError) Error() string {
 
 // DelSpamFilter removes rule id for oper by.
 func (s *Services) DelSpamFilter(id int64, by string) (spamfilter.Filter, error) {
+	if s.readonly {
+		return spamfilter.Filter{}, ErrReadOnly
+	}
 	var f spamfilter.Filter
 	found := false
 	for _, have := range s.SpamFilters() {
@@ -243,7 +249,7 @@ func (s *Services) RemoteSpamFilter(f spamfilter.Filter, add bool) bool {
 // expireSpamFilters drops rules that ran out (every server does at the
 // same time, so nothing is sent over links).
 func (s *Services) expireSpamFilters(now time.Time) {
-	if s.readonly {
+	if s.readonly || s.noexpire {
 		return
 	}
 	gone, err := s.store.PurgeSpamFilters(now)
@@ -323,6 +329,9 @@ func shortDur(d time.Duration) string {
 // SpamBan sets the network ban a rule's action asks for: kind is
 // store.BanShun, BanAkill or BanZline, on ip; life 0 = until removed.
 func (s *Services) SpamBan(kind, ip, reason string, life time.Duration) {
+	if s.readonly { // nothing is stored; the server still acts on the person (see autoBan)
+		return
+	}
 	mask := ip
 	if kind != store.BanZline {
 		mask = "*@" + ip

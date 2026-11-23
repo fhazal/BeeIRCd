@@ -312,7 +312,7 @@ func (s *Server) saslServe(l *linkConn, from, uid, mode, data string, extra []st
 		switch {
 		case err != nil || ss.certfp == "":
 			done(false)
-		case a == nil || authz != "" && !irc.EqualFold(authz, a.Name) || a.Suspended(time.Now()):
+		case a == nil || authz != "" && !irc.EqualFold(authz, a.Name) || a.Suspended(s.svc.KeepNow()):
 			s.svc.LogSASLExternal(who, "", ss.certfp, false)
 			done(false)
 		default:
@@ -345,7 +345,7 @@ func (s *Server) saslServe(l *linkConn, from, uid, mode, data string, extra []st
 		})
 		return
 	}
-	if err != nil || a == nil || a.Suspended(time.Now()) {
+	if err != nil || a == nil || a.Suspended(s.svc.KeepNow()) {
 		done(false)
 		return
 	}
