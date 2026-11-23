@@ -17,10 +17,12 @@ Classic IRC feel · services in the box · IRCv3 · light on a 1-CPU VPS
 
 [![Website](https://img.shields.io/badge/Website-beeircd.org-f5b301?style=for-the-badge)](https://beeircd.org)
 
+**[Install](docs/INSTALL.md)** · **[Run it](docs/ADMIN.md)** · **[Features](docs/FEATURES.md)** · **[What's new](https://github.com/fhazal/BeeIRCd/releases/latest)** · **[Progress](https://beeircd.org)**
+
 </div>
 
 > [!NOTE]
-> BeeIRCd is a free, open-source IRC server by **BajuBesi Labs**, written from scratch in Go. **1.1 is out**: the server with its services, server linking, the Hive Panel web admin and BeeRoom web chat, now with a spam filter and moving from Anope.
+> BeeIRCd is a free, open-source IRC server by **BajuBesi Labs**, written from scratch in Go. **1.4 is out**: updates now keep people connected. On Linux a small door keeper holds the ports and hands everyone over to the new version, so nobody sees a quit.
 
 ---
 
@@ -30,6 +32,7 @@ Running an IRC network usually means two programs that have to be wired together
 
 - 🧩 **All in one**: server and services in a single binary, no separate services package to link and babysit.
 - 🔗 **Linking**: grow one server into a network. Links are TLS with pinned keys, no passwords, to other BeeIRCd servers, UnrealIRCd 6 or InspIRCd 4.
+- 🔄 **Updates without goodbyes**: `beeircd update` hands every connection to the new version. Nicks, channels, logins and chat history stay; nobody reconnects.
 - 🍯 **Hive Panel**: a web admin built in (`beeircd web`). Opers sign in with their oper account and see only what their flags allow.
 - 🛡️ **Services you already know**: commands, syntax and replies follow **Anope 2.0** (the stable line), so admins and users feel at home.
 - 👑 **AdminServ**: run the server from IRC itself, ConferenceRoom style: settings, MOTD, ports, opers and classes, with history and undo.
@@ -49,6 +52,9 @@ Running an IRC network usually means two programs that have to be wired together
 - AKILL, Z-lines, SHUN, SQLINE / SNLINE, DNS blocklists (DroneBL, EFnetRBL)
 - Oper classes, oper vhosts and swhois, `/oper <nick> <password>` or a TLS client certificate
 - Spam filter: `/SPAMFILTER` and `STATS F` with UnrealIRCd's syntax, shared over links
+- Seamless updates and restarts through the door keeper (Linux)
+- Auto-join, soft bans with a login prompt, spam reports to DroneBL
+- English and Malay, per person or as the network default
 
 </td><td width="50%" valign="top">
 
@@ -57,9 +63,11 @@ Running an IRC network usually means two programs that have to be wired together
 - **ChanServ**: access levels, xOP lists, AKICK, MLOCK, SET options
 - **MemoServ**: memos, channel memos, notify by mail
 - **HostServ**: vhosts with requests and approval
-- **OperServ**: AKILL, sessions, news, SEEN, IGNORE
+- **OperServ**: AKILL, sessions, news, SEEN, IGNORE, READONLY, NOEXPIRE, LOGSEARCH
 - **BotServ**: channel bots, kickers, bad words, fantasy commands
 - **AdminServ**: live server settings with HISTORY / DIFF / UNDO
+- **Global**: network notices, multi-line with QUEUE, or to one server
+- A `#services` log channel, Anope style, kept on disk too
 - **Moving from Anope**: `beeircd import-anope` brings anope.db over, passwords too
 
 </td></tr>
@@ -93,9 +101,11 @@ Running an IRC network usually means two programs that have to be wired together
 
 **✅ Tested**
 - Unit, integration and fuzz tests, race detector in CI
-- [irctest](https://github.com/progval/irctest) conformance: 270 passing
+- [irctest](https://github.com/progval/irctest) conformance: 348 passing
 - Linking test: 5,100 users on three servers, one cut off and rejoined 16 times, all agree after each
 - 6 hour soak with 2,000 users, and fuzzing of every parser before each release
+- Links checked against UnrealIRCd 6 and InspIRCd 4 before every release
+- 50 bots kept connected through update, rollback and restart
 - Live checks against a real test network after every deploy
 
 </td></tr>
@@ -109,6 +119,10 @@ The full list, with what is planned and what is only an idea, is in [docs/FEATUR
 | --- | --- | --- |
 | 1.0 | Server and services, linking (BeeIRCd and UnrealIRCd 6), Hive Panel, BeeRoom web chat | ✅ Released |
 | 1.1 | Spam filter, moving from Anope, opers by certificate, a calmer "What happened" page | ✅ Released |
+| 1.2 | UnrealIRCd's web panel works with BeeIRCd, languages (English, Malay), IRCv3 drafts | ✅ Released |
+| 1.3 | Auto-join, soft bans with a login prompt, spam reports, oper tools on every panel page | ✅ Released |
+| 1.4 | Updates keep people connected, Anope-style services log, OperServ READONLY / NOEXPIRE | ✅ Released |
+| 1.4.1 | Read-only mode covers every form, small fixes | 🔜 Next |
 
 ## 📦 Installing
 
