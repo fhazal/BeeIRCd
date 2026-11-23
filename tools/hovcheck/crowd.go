@@ -143,12 +143,6 @@ func (b *bot) send(lines ...string) {
 	}
 }
 
-func (b *bot) up() bool {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.gone == ""
-}
-
 func (b *bot) read() {
 	r := newLineReader(b.conn)
 	for {
