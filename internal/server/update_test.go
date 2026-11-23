@@ -53,3 +53,35 @@ func TestUpdateCheckOff(t *testing.T) {
 		}
 	})
 }
+
+// QA 1.5.1: the check kept its first [update] after a rehash.
+func TestUpdateCheckFollowsRehash(t *testing.T) {
+	var calls atomic.Int32
+	var lastURL atomic.Value
+	lastURL.Store("")
+	on := true
+	s := testServerWith(t, func(c *config.Config) { c.Update.Check = &on }, func(s *Server) {
+		s.upd.first, s.upd.every = time.Millisecond, 10*time.Millisecond
+		s.upd.fetch = func(ctx context.Context, url string) (*release.Manifest, error) {
+			calls.Add(1)
+			lastURL.Store(url)
+			return &release.Manifest{Version: "99.0.0", Date: "2026-11-20"}, nil
+		}
+	})
+	waitFor(t, s, "the first check", func() bool { return s.upd.latest != nil })
+	if u := lastURL.Load().(string); u != release.DefaultURL {
+		t.Errorf("first check went to %q, want the default", u)
+	}
+	// A rehash points it somewhere else.
+	s.onLoop(func() { s.cfg.Update.URL = "https://example.org/rel" })
+	waitFor(t, s, "the new address", func() bool { return lastURL.Load().(string) == "https://example.org/rel" })
+	// A rehash switches it off: no more checks, the found release goes.
+	off := false
+	s.onLoop(func() { s.cfg.Update.Check = &off })
+	waitFor(t, s, "the row to go", func() bool { return s.upd.latest == nil })
+	n := calls.Load()
+	time.Sleep(60 * time.Millisecond)
+	if got := calls.Load(); got > n+1 { // one may have been on its way
+		t.Errorf("%d checks after check = false", got-n)
+	}
+}

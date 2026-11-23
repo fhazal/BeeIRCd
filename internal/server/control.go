@@ -423,6 +423,7 @@ func (s *Server) rehash(by string) (*control.Rehash, error) {
 	}
 	s.svc.SyncLogFile() // a new path, or try again after an error
 	s.linkRehash()
+	s.startUpdateCheck() // switched on now; the running check reads [update] each time
 	if !samePlace(old.Map.Place(old.Server.Name), fresh.Map.Place(fresh.Server.Name)) || old.FindPlaceByIP() != fresh.FindPlaceByIP() {
 		s.startPlaceLookup() // the owner's place may be gone: find one from the IP
 		s.announcePlace()

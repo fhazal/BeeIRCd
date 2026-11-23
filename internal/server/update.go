@@ -22,8 +22,9 @@ type updState struct {
 }
 
 // updateLoop looks once a day for a newer signed release. It sends nothing
-// about the server: one GET for release.json and its signature.
-func (s *Server) updateLoop(url string) {
+// about the server: one GET for release.json and its signature. It reads
+// [update] again before each check, so a rehash is followed.
+func (s *Server) updateLoop() {
 	defer s.wg.Done()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -46,6 +47,18 @@ func (s *Server) updateLoop(url string) {
 		case <-time.After(wait):
 		}
 		wait = every
+		var on bool
+		var url string
+		got := make(chan struct{})
+		s.post(func() { on, url = s.updateSetting(); close(got) })
+		select {
+		case <-got:
+		case <-s.done:
+			return
+		}
+		if !on {
+			continue
+		}
 		m, err := fetch(ctx, url)
 		if ctx.Err() != nil {
 			return
@@ -90,10 +103,19 @@ func (s *Server) startUpdateCheck() {
 	if s.upd.every == 0 {
 		s.upd.every = 24 * time.Hour
 	}
-	url := s.cfg.Update.URL
+	s.wg.Add(1)
+	go s.updateLoop()
+}
+
+// updateSetting is [update] as the loop has it now: a rehash can switch the
+// check off or point it somewhere else. Off also drops what was found.
+func (s *Server) updateSetting() (on bool, url string) {
+	on, url = s.cfg.Update.CheckOn(), s.cfg.Update.URL
 	if url == "" {
 		url = release.DefaultURL
 	}
-	s.wg.Add(1)
-	go s.updateLoop(url)
+	if !on {
+		s.upd.latest = nil
+	}
+	return on, url
 }
