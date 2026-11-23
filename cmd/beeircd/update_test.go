@@ -202,7 +202,7 @@ func TestUpdateHappyPath(t *testing.T) {
 		t.Fatalf("exit %d\n%s", code, out)
 	}
 	text := out.String()
-	for _, want := range []string{"BeeIRCd 1.0.0 → 1.0.1", "released 20 Nov 2026", "Fixes a crash", "the 48 people online are disconnected",
+	for _, want := range []string{"BeeIRCd 1.0.0 → 1.0.1", "released 20 Nov 2026", "Fixes a crash", "the 47 people online are disconnected",
 		"signature checked", "checksum matches", "1.0.1 reads your config cleanly", "✓ backup beeircd-", "1.0.0 kept as",
 		"restarted · 1.0.1 answering", "--rollback"} {
 		if !strings.Contains(text, want) {
