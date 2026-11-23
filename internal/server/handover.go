@@ -430,9 +430,7 @@ func (s *Server) handoverNow() {
 		// As at a restart: everyone is told and disconnected, and the
 		// next server starts empty.
 		s.log.Printf("hand-over failed: %v; disconnecting %d clients as at a restart", err, len(keep))
-		for _, c := range keep {
-			handoverDrop(c.conn, c.host, reason)
-		}
+		handoverDropAll(keep, reason)
 	} else {
 		s.log.Printf("hand-over: %d clients and %d channels given to the next server process (%d KB)", len(keep), s.net.ChannelCount(), len(b)>>10)
 		if !s.hand.keepConns {
@@ -508,10 +506,20 @@ func (s *Server) stopWriters(cs []*Client, reason string) []*Client {
 // handoverDrop tells a client that can't come along and closes its
 // connection. It writes to the connection itself: the client's writer is
 // gone.
-func handoverDrop(conn net.Conn, host, reason string) {
-	conn.SetWriteDeadline(time.Now().Add(handoverGoodbye))
+// until is the write deadline: callers dropping many clients give them all
+// one, so stalled clients hold the loop handoverGoodbye in all, not each.
+func handoverDrop(conn net.Conn, host, reason string, until time.Time) {
+	conn.SetWriteDeadline(until)
 	conn.Write([]byte("ERROR :Closing Link: " + host + " (" + reason + ")" + crlf))
 	conn.Close()
+}
+
+// handoverDropAll drops cs with one shared write deadline.
+func handoverDropAll(cs []*Client, reason string) {
+	until := time.Now().Add(handoverGoodbye)
+	for _, c := range cs {
+		handoverDrop(c.conn, c.host, reason, until)
+	}
 }
 
 // snapClient copies c for the next server process. c's reader and writer
@@ -726,7 +734,7 @@ func (s *Server) takeOver(r *resume) (err error) {
 			if u == nil || u.Service || s.clients[uid] != nil {
 				// Not on the network: one of our bots has the nick now.
 				if conn, err := r.conn(cs.UID, cs.Pipe); err == nil {
-					handoverDrop(conn, cs.Host, "Server restarting")
+					handoverDrop(conn, cs.Host, "Server restarting", time.Now().Add(handoverGoodbye))
 				}
 				continue
 			}

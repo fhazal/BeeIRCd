@@ -52,7 +52,7 @@ func (h *handed) resume(done func(kept int, problem string)) *resume {
 		},
 		close: func() {
 			for id, c := range h.conns {
-				handoverDrop(c, "*", "Server restarting")
+				handoverDrop(c, "*", "Server restarting", time.Now().Add(handoverGoodbye))
 				delete(h.conns, id)
 			}
 		},
@@ -425,6 +425,23 @@ func TestHandoverOtherVersionDropsClients(t *testing.T) {
 	again := login(t, n, "Alice")
 	again.send("JOIN #hive")
 	again.expect(" 366 Alice #hive ")
+}
+
+// When the hand-over fails, clients that don't read their goodbye share one
+// short deadline: they hold the loop handoverGoodbye in all, not each.
+func TestHandoverDropStalledClientsShareDeadline(t *testing.T) {
+	const n = 8
+	cs := make([]*Client, n)
+	for i := range cs {
+		a, b := net.Pipe() // nobody reads b: a's write stalls
+		t.Cleanup(func() { b.Close() })
+		cs[i] = &Client{conn: a, host: "stalled.example"}
+	}
+	start := time.Now()
+	handoverDropAll(cs, "Server restarting")
+	if took := time.Since(start); took > 3*handoverGoodbye {
+		t.Fatalf("dropping %d stalled clients took %v, want about %v", n, took, handoverGoodbye)
+	}
 }
 
 // A snapshot of a server with another name or SID is not used either.
