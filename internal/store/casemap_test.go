@@ -31,6 +31,9 @@ func TestCasemappingMove(t *testing.T) {
 	if _, err := st.CreateAccount("Belon", "x", "", now); err != nil {
 		t.Fatal(err)
 	}
+	if err := st.AddAjoin(a, "#Room", "Secret[Key]"); err != nil {
+		t.Fatal(err)
+	}
 	if got, _ := st.AccountByNick("nick{A}"); got == nil || got.ID != a.ID {
 		t.Fatal("rfc1459: nick{A} should be Nick[a]")
 	}
@@ -55,6 +58,10 @@ func TestCasemappingMove(t *testing.T) {
 	}
 	if v, ok := st.VHostOf("Nick[a]"); !ok || v.Host != "vh.example" {
 		t.Errorf("vhost lost: %+v %v", v, ok)
+	}
+	// An AJOIN entry's channel password is not a name: it stays as typed.
+	if aj := st.Ajoins(a); len(aj) != 1 || aj[0].Key != "Secret[Key]" {
+		t.Errorf("ajoin key changed: %+v", aj)
 	}
 	if err := st.Check(); err != nil {
 		t.Error(err)

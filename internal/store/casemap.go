@@ -23,7 +23,6 @@ var foldedKeys = []struct{ table, key, from string }{
 	{"forbids", "name_key", "name"},
 	{"svc_ignores", "mask_key", "mask"},
 	{"channels", "name_key", "name"},
-	{"ajoin", "chan_key", "channel"},
 }
 
 // nickChildren point at nicks(nick_key) and move with it.
