@@ -126,12 +126,9 @@ func (s *Server) cmdCap(c *Client, m irc.Message) {
 		if v >= 302 {
 			c.caps["cap-notify"] = true // implied by CAP LS 302
 		}
-		ls := s.capLS(v >= 302, s.stsValue(c, v >= 302))
-		if v >= 302 {
-			s.capReplyLong(c, "LS", ls)
-		} else {
-			s.capReply(c, "LS", ls)
-		}
+		// CAP 3.1 has the "*" continuation too, so a long list splits for
+		// every client instead of passing 512 bytes.
+		s.capReplyLong(c, "LS", s.capLS(v >= 302, s.stsValue(c, v >= 302)))
 	case "LIST":
 		var on []string
 		for _, name := range s.offered() {
@@ -176,7 +173,7 @@ func (s *Server) capReply(c *Client, sub, text string) {
 	c.send(irc.Message{Source: s.cfg.Server.Name, Command: "CAP", Params: []string{c.target(), sub, text}, Trailing: true}.String())
 }
 
-// capReplyLong sends a CAP 302 reply over as many lines as it needs, each
+// capReplyLong sends a CAP reply over as many lines as it needs, each
 // but the last marked with "*", so no line passes 512 bytes.
 func (s *Server) capReplyLong(c *Client, sub, text string) {
 	// ":<server> CAP <nick> <sub> * :" plus CRLF

@@ -301,3 +301,38 @@ func TestUTF8Only(t *testing.T) {
 	x.send("PRIVMSG ember :café")
 	y.expect("PRIVMSG ember :café")
 }
+
+// A long server name, a long nick and the drafts: CAP LS without 302 still
+// splits with "*" (CAP 3.1) and no line passes 512 bytes.
+func TestCapLSLongNo302(t *testing.T) {
+	s := testServer(t, func(cfg *config.Config) {
+		cfg.Server.Name = strings.Repeat("h", 46) + ".bee.example.org"
+		cfg.Server.IRCv3Drafts = true
+		cfg.Limits.NickLen = 30
+	})
+	c := raw(t, s)
+	nick := strings.Repeat("N", 30)
+	c.send("NICK " + nick)
+	c.send("CAP LS")
+	var all []string
+	for {
+		l := c.expect(" CAP " + nick + " LS ")
+		if len(l)+2 > 512 {
+			t.Fatalf("CAP LS line is %d bytes: %s", len(l)+2, l)
+		}
+		i := strings.Index(l, " LS ")
+		rest := l[i+4:]
+		more := strings.HasPrefix(rest, "* ")
+		all = append(all, strings.Fields(strings.TrimPrefix(strings.TrimPrefix(rest, "* "), ":"))...)
+		if !more {
+			break
+		}
+	}
+	want := strings.Fields(s.capLS(false, ""))
+	if len(strings.Join(want, " ")) < 420 {
+		t.Fatalf("CAP LS is too short to need a split")
+	}
+	if strings.Join(all, " ") != strings.Join(want, " ") {
+		t.Errorf("CAP LS lost caps:\n got %v\nwant %v", all, want)
+	}
+}
