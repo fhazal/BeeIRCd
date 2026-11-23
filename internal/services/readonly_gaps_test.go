@@ -317,3 +317,32 @@ func TestReadOnlyBackgroundWrites(t *testing.T) {
 		t.Errorf("channel not saved with READONLY off: %v %q", reg.LastUsed, reg.Topic)
 	}
 }
+
+// A spam filter learned from a linked server that has already run out is
+// refused normally; while NOEXPIRE is on it is kept and stays in force,
+// like a local one.
+func TestNoExpireRemoteSpamFilter(t *testing.T) {
+	svc, _ := newServices(t)
+	past := time.Now().Add(-time.Hour)
+	f := spamfilter.Filter{Type: spamfilter.Simple, Match: "*free nitro*", Targets: "cp", Action: spamfilter.Block,
+		Reason: "r", SetBy: "Boss", SetAt: past.Add(-time.Hour), Expires: past}
+	if svc.RemoteSpamFilter(f, true) {
+		t.Fatalf("run-out remote spam filter taken with NOEXPIRE off")
+	}
+	svc.noexpire = true
+	if !svc.RemoteSpamFilter(f, true) {
+		t.Fatalf("run-out remote spam filter refused with NOEXPIRE on")
+	}
+	svc.expireSpamFilters(time.Now())
+	if list, _ := svc.store.SpamFilters(); len(list) != 1 {
+		t.Fatalf("remote spam filter purged with NOEXPIRE on")
+	}
+	if svc.SpamSet().First('p', "free nitro now") == nil {
+		t.Errorf("remote spam filter not in force with NOEXPIRE on")
+	}
+	svc.noexpire = false
+	svc.expireSpamFilters(time.Now())
+	if list, _ := svc.store.SpamFilters(); len(list) != 0 {
+		t.Errorf("remote spam filter kept with NOEXPIRE off")
+	}
+}

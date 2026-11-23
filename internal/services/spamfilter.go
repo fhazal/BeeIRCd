@@ -225,7 +225,7 @@ func (s *Services) RemoteSpamFilter(f spamfilter.Filter, add bool) bool {
 		}
 		delete(s.spam.hits, have.ID)
 	} else {
-		if !f.Live(time.Now()) || f.Match == "" || len(f.Match) > spamfilter.MaxMatch || len(f.Reason) > 4*spamfilter.MaxReason {
+		if !f.Live(s.KeepNow()) || f.Match == "" || len(f.Match) > spamfilter.MaxMatch || len(f.Reason) > 4*spamfilter.MaxReason { // NOEXPIRE: a run-out rule is kept, as local ones are
 			return false
 		}
 		if have != nil && (have.SetAt.After(f.SetAt) || have.Reason == f.Reason && have.BanTime == f.BanTime && have.Expires.Equal(f.Expires)) {
