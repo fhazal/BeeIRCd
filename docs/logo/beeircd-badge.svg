@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 260" width="260" height="260" role="img" aria-label="BeeIRCd"><title>BeeIRCd</title><defs>
+ <radialGradient id="gY" cx=".4" cy=".3" r=".78"><stop offset="0" stop-color="#ffe680"/><stop offset=".5" stop-color="#ffc21a"/><stop offset="1" stop-color="#ec9600"/></radialGradient>
+ <radialGradient id="gBody" cx=".36" cy=".28" r=".82"><stop offset="0" stop-color="#ffe98f"/><stop offset=".5" stop-color="#ffc11a"/><stop offset="1" stop-color="#e38c00"/></radialGradient>
+ <linearGradient id="gWing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#d3e4ff"/></linearGradient>
+ <linearGradient id="gFace" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe066"/><stop offset=".55" stop-color="#ffc21a"/><stop offset="1" stop-color="#f2a600"/></linearGradient>
+ <linearGradient id="gSide" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c47c00"/><stop offset="1" stop-color="#7f4c00"/></linearGradient>
+ <clipPath id="cBody"><ellipse cx="130" cy="180" rx="36" ry="40"/></clipPath>
+ <clipPath id="cHead"><circle cx="130" cy="114" r="45"/></clipPath>
+ <clipPath id="cMouth"><path d="M110 127Q130 155 150 127Z"/></clipPath>
+ <clipPath id="cHex"><path d="M130 23 227 79v112l-97 56-97-56V79z"/></clipPath>
+</defs>
+<path d="M130 23 227 79v112l-97 56-97-56V79z" fill="url(#gY)"/>
+<g clip-path="url(#cHex)">
+ <g fill="#fff" opacity=".22"><path d="M130 135 100 0h60zM130 135 260 70v50zM130 135 260 200l-30 60zM130 135 160 260h-60zM130 135 0 200v-60zM130 135 0 70 30 10z"/></g>
+ <path d="M33 175 130 231 227 175v30l-97 56-97-56z" fill="#a85f00" opacity=".3"/>
+</g>
+<path d="M130 37 215 86v98l-85 49-85-49V86z" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="3" stroke-linejoin="round"/>
+<path d="M130 23 227 79v112l-97 56-97-56V79z" fill="none" stroke="#151515" stroke-width="12" stroke-linejoin="round"/>
+<g transform="translate(0 2)">
+<g transform="translate(14 46) rotate(-14 42 27)">
+ <path d="M22 0H62A22 22 0 0 1 84 22V32A22 22 0 0 1 62 54L72 70 48 54H22A22 22 0 0 1 0 32V22A22 22 0 0 1 22 0Z" transform="translate(3 5)" fill="#000" opacity=".18"/>
+ <path d="M22 0H62A22 22 0 0 1 84 22V32A22 22 0 0 1 62 54L72 70 48 54H22A22 22 0 0 1 0 32V22A22 22 0 0 1 22 0Z" fill="url(#gWing)" stroke="#151515" stroke-width="7" stroke-linejoin="round"/>
+ <path d="M14 14Q18 8 26 8" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+ <path d="M34 15 30 41M48 15 44 41M25 23H55M23 34H53" stroke="#151515" stroke-width="5.5" stroke-linecap="round"/>
+</g>
+<g transform="translate(162 46) rotate(14 42 27)">
+ <path d="M22 0H62A22 22 0 0 1 84 22V32A22 22 0 0 1 62 54H36L12 70 22 54A22 22 0 0 1 0 32V22A22 22 0 0 1 22 0Z" transform="translate(3 5)" fill="#000" opacity=".18"/>
+ <path d="M22 0H62A22 22 0 0 1 84 22V32A22 22 0 0 1 62 54H36L12 70 22 54A22 22 0 0 1 0 32V22A22 22 0 0 1 22 0Z" fill="url(#gWing)" stroke="#151515" stroke-width="7" stroke-linejoin="round"/>
+ <path d="M14 14Q18 8 26 8" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+ <circle cx="26" cy="27" r="5.5" fill="#151515"/><circle cx="42" cy="27" r="5.5" fill="#151515"/><circle cx="58" cy="27" r="5.5" fill="#151515" opacity=".4"/>
+</g>
+<path d="M121 214 130 236 139 214z" fill="#151515" stroke="#151515" stroke-width="5" stroke-linejoin="round"/>
+<ellipse cx="130" cy="180" rx="36" ry="40" fill="url(#gBody)"/>
+<g clip-path="url(#cBody)">
+ <ellipse cx="146" cy="196" rx="34" ry="38" fill="#b86a00" opacity=".22"/>
+ <g fill="#151515"><path d="M90 170q40 12 80 0v14q-40 12-80 0z"/><path d="M90 194q40 12 80 0v14q-40 12-80 0z"/></g>
+ <ellipse cx="114" cy="160" rx="9" ry="5" transform="rotate(-30 114 160)" fill="#fff" opacity=".5"/>
+</g>
+<ellipse cx="130" cy="180" rx="36" ry="40" fill="none" stroke="#151515" stroke-width="8"/>
+<path d="M114 74Q106 52 90 42M146 74Q154 52 170 42" fill="none" stroke="#151515" stroke-width="6" stroke-linecap="round"/>
+<circle cx="88" cy="40" r="8" fill="#ffc21a" stroke="#151515" stroke-width="5.5"/>
+<circle cx="172" cy="40" r="8" fill="#ffc21a" stroke="#151515" stroke-width="5.5"/>
+<path d="M184 30a16 16 0 0 1 2 18M193 21a28 28 0 0 1 4 34" fill="none" stroke="#151515" stroke-width="5" stroke-linecap="round"/>
+<circle cx="130" cy="114" r="45" fill="url(#gBody)"/>
+<g clip-path="url(#cHead)"><circle cx="146" cy="130" r="44" fill="#b86a00" opacity=".18"/></g>
+<circle cx="130" cy="114" r="45" fill="none" stroke="#151515" stroke-width="8"/>
+<ellipse cx="111" cy="88" rx="15" ry="7" transform="rotate(-24 111 88)" fill="#fff" opacity=".55"/>
+<path d="M99 92q10-7 21-3M141 89q11-4 21 3" fill="none" stroke="#151515" stroke-width="5.5" stroke-linecap="round"/>
+<ellipse cx="112" cy="110" rx="10.5" ry="13.5" fill="#151515"/><ellipse cx="148" cy="110" rx="10.5" ry="13.5" fill="#151515"/>
+<circle cx="115.5" cy="104" r="4.2" fill="#fff"/><circle cx="151.5" cy="104" r="4.2" fill="#fff"/>
+<circle cx="108.5" cy="115" r="1.8" fill="#fff"/><circle cx="144.5" cy="115" r="1.8" fill="#fff"/>
+<ellipse cx="96" cy="128" rx="8" ry="5" fill="#ff7a59" opacity=".6"/><ellipse cx="164" cy="128" rx="8" ry="5" fill="#ff7a59" opacity=".6"/>
+<path d="M110 127Q130 155 150 127Z" fill="#2a1200"/>
+<g clip-path="url(#cMouth)"><ellipse cx="130" cy="147" rx="11" ry="8" fill="#ff6b6b"/><rect x="117" y="126" width="26" height="5" rx="2" fill="#fff"/></g>
+<path d="M110 127Q130 155 150 127Z" fill="none" stroke="#151515" stroke-width="5" stroke-linejoin="round"/>
+</g>
+</svg>

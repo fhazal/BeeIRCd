@@ -188,7 +188,7 @@ BeeIRCd is free software under the [GNU Affero General Public License v3.0 or la
 
 <div align="center">
 
-<img src="docs/mascot.webp" alt="Bee, the BeeIRCd mascot" width="72">
+<img src="docs/logo/beeircd.svg" alt="BeeIRCd" width="300">
 
 **The Hive of IRC**
 
