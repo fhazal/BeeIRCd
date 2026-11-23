@@ -90,6 +90,38 @@ func TestLogFileRehash(t *testing.T) {
 	}
 }
 
+// A rehash that changes only the size cap waits for the old writer before
+// the new one opens the same file: every line lands, in order.
+func TestLogFileRehashSizeOnly(t *testing.T) {
+	svc, _ := newServices(t)
+	path := filepath.Join(t.TempDir(), "services.log")
+	withLogFile(t, svc, path, time.Now())
+	const n = 200
+	for i := 0; i < n; i++ {
+		svc.logTo(svc.global, "line")
+	}
+	old := svc.logw
+	svc.cfg.Services.LogFileMaxMB = 5
+	svc.SyncLogFile()
+	select {
+	case <-old.done:
+	default:
+		t.Fatal("SyncLogFile started a new writer while the old one still ran")
+	}
+	if svc.logw == old || svc.logw == nil {
+		t.Fatal("no new writer")
+	}
+	svc.logTo(svc.global, "after")
+	svc.CloseLogFile()
+	got := readLog(t, path)
+	if c := strings.Count(got, "Global: line\n"); c != n {
+		t.Errorf("file has %d of %d lines", c, n)
+	}
+	if !strings.HasSuffix(got, "Global: after\n") {
+		t.Errorf("last line is not the one after the rehash: %q", got[max(0, len(got)-60):])
+	}
+}
+
 // Past the size cap the file becomes <file>.1, replacing an older one.
 func TestLogFileRotation(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "services.log")

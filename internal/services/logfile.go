@@ -143,8 +143,14 @@ func (s *Services) SyncLogFile() {
 		if w.path == path && w.max == max && !w.failed.Load() {
 			return
 		}
-		w.close() // it finishes the lines it has on its own
+		// Let the old writer finish before a new one opens the file: two
+		// writers on one path would interleave lines, and the old one's
+		// rotation could rename the file out from under the new one.
+		w.close()
 		s.logw = nil
+		if !w.wait(2 * time.Second) {
+			s.log.Printf("the services log file %s did not close in time", w.path)
+		}
 	}
 	if path == "" {
 		return
