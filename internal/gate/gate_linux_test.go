@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -36,7 +37,8 @@ func TestMain(m *testing.M) {
 // exits as BEEIRCD_GATE_TEST_MODE says. It counts its runs in the test's
 // directory, so a restarted one knows it is the second. The hand-over
 // modes: "hand" and "ask" hand the client to the next run, "hang" never
-// answers the request, "crash" makes the run that takes over die.
+// answers the request, "crash" makes the run that takes over die, "stuck"
+// never takes a client in its first run.
 func fakeChild() int {
 	dir, mode := os.Getenv("BEEIRCD_GATE_TEST_DIR"), os.Getenv("BEEIRCD_GATE_TEST_MODE")
 	runs, _ := os.ReadFile(filepath.Join(dir, "runs"))
@@ -71,6 +73,16 @@ func fakeChild() int {
 		c.Resumed(1, "")
 	} else {
 		os.WriteFile(filepath.Join(dir, fmt.Sprintf("addr.%d", n)), []byte(res.Addrs[0]), 0o600)
+		if mode == "stuck" {
+			if n == 0 {
+				// Its loop hangs: it takes no clients, so the gate's
+				// socket to it fills up.
+				os.WriteFile(filepath.Join(dir, "pid.0"), []byte(fmt.Sprint(os.Getpid())), 0o600)
+				select {}
+			}
+			<-term
+			return 0
+		}
 		if conn, err = c.Accept(); err != nil {
 			return 2
 		}
@@ -472,6 +484,86 @@ func TestGateHandoverTimeout(t *testing.T) {
 	}
 	fmt.Fprintf(c2, "bye\r\n")
 	gateExit(t, code, 7)
+}
+
+// A server whose loop is stuck stops taking clients and the gate's socket
+// to it fills up. Asking it to hand over must not hang the gate: it still
+// kills the server after handWait and starts the next one.
+func TestGateHandoverStuckServer(t *testing.T) {
+	shortWaits(t, 500*time.Millisecond)
+	wmem, err := os.ReadFile("/proc/sys/net/core/wmem_default")
+	if err != nil {
+		t.Skip(err)
+	}
+	var buf int
+	fmt.Sscan(string(wmem), &buf)
+	n := buf/256 + 200 // a message with an fd costs well over 256 bytes of it
+	var lim syscall.Rlimit
+	if syscall.Getrlimit(syscall.RLIMIT_NOFILE, &lim); n > 4000 || lim.Cur < uint64(3*n+200) {
+		t.Skipf("socket buffer %d bytes, %d files: too many clients to fill it", buf, lim.Cur)
+	}
+	dir := t.TempDir()
+	t.Setenv("BEEIRCD_GATE_TEST_DIR", dir)
+	t.Setenv("BEEIRCD_GATE_TEST_MODE", "stuck")
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	deliver := make(chan Deliver, 1)
+	code := make(chan int, 1)
+	go func() {
+		code <- run(log.New(io.Discard, "", 0), exe, nil, func(d Deliver) Front {
+			deliver <- d
+			return newTestFront(true)(d)
+		})
+	}()
+	d := <-deliver
+	childAddr(t, dir, 0)
+	t.Cleanup(func() {
+		if b, err := os.ReadFile(filepath.Join(dir, "pid.0")); err == nil && t.Failed() {
+			var pid int
+			if fmt.Sscan(string(b), &pid); pid > 0 {
+				syscall.Kill(pid, syscall.SIGKILL) // don't leave it behind
+			}
+		}
+	})
+	var mu sync.Mutex
+	var ends []net.Conn
+	t.Cleanup(func() {
+		mu.Lock()
+		defer mu.Unlock()
+		for _, c := range ends {
+			c.Close()
+		}
+	})
+	var passed atomic.Int64
+	for range n {
+		a, b := net.Pipe()
+		mu.Lock()
+		ends = append(ends, a, b)
+		mu.Unlock()
+		go func() {
+			if d(a, Info{Remote: "192.0.2.9:1234", Local: "192.0.2.1:6667"}) {
+				passed.Add(1)
+			}
+		}()
+	}
+	// Wait until the socket is full: no more clients get through.
+	for last := int64(-1); ; {
+		time.Sleep(200 * time.Millisecond)
+		got := passed.Load()
+		if got == last && got > 0 {
+			break
+		}
+		last = got
+	}
+	if got := passed.Load(); got >= int64(n) {
+		t.Fatalf("all %d clients got through; the socket never filled up", got)
+	}
+	syscall.Kill(os.Getpid(), syscall.SIGUSR2)
+	childAddr(t, dir, 1) // the stuck one was killed, the next one runs
+	syscall.Kill(os.Getpid(), syscall.SIGTERM)
+	gateExit(t, code, 0)
 }
 
 // A new server that dies while taking over is started once more, empty;

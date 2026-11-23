@@ -104,9 +104,15 @@ func run(logger *log.Logger, exe string, args []string, newFront func(Deliver) F
 			switching = true
 			logger.Printf("gate: hand-over: asking the server to pass its clients on")
 			d.hold()
-			if err := l.askHandover(); err != nil {
-				logger.Printf("gate: hand-over: %v", err)
-			}
+			// Not here: a server whose loop is stuck stops reading its
+			// clients, the socket to it fills up and the write waits for
+			// good. This loop must stay free to kill it at late and to
+			// pass on signals.
+			go func() {
+				if err := l.askHandover(); err != nil {
+					logger.Printf("gate: hand-over: %v", err)
+				}
+			}()
 			late = time.After(handWait)
 		}
 	wait:
