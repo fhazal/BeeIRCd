@@ -166,12 +166,34 @@ scripts/check.sh
 
 ## 📜 Licence
 
-GNU Affero General Public License v3.0 or later, see [LICENSE](LICENSE). If you run a changed BeeIRCd for other people, you share your changes.
+<table><tr><td valign="top" width="50%">
+
+**✅ You can**
+- Run it for any network, big or small, free or paid
+- Change it, fork it and share it
+- Use it at work or in a business
+
+</td><td valign="top" width="50%">
+
+**📋 When you do**
+- Keep the licence and copyright notices
+- Share your changes if you run a changed BeeIRCd for other people (that is the "Affero" part)
+- Give your changes the same licence
+
+</td></tr></table>
+
+BeeIRCd is free software under the [GNU Affero General Public License v3.0 or later](LICENSE). It comes with no warranty.
 
 ---
 
 <div align="center">
 
-A **BajuBesi Labs** project · [beeircd.org](https://beeircd.org)
+<img src="docs/mascot.webp" alt="Bee, the BeeIRCd mascot" width="72">
+
+**The Hive of IRC**
+
+[Website](https://beeircd.org) · [Install](docs/INSTALL.md) · [Releases](https://github.com/fhazal/BeeIRCd/releases) · [Report a bug](https://github.com/fhazal/BeeIRCd/issues)
+
+<sub>Made with ☕ by <b>BajuBesi Labs</b> · © 2026</sub>
 
 </div>
