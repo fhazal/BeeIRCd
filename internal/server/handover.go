@@ -60,6 +60,10 @@ const (
 	handoverVersion = 1
 )
 
+// HandoverVersion is the snapshot format this program writes and loads
+// (`beeircd handover-version`, Status.HandoverVersion).
+const HandoverVersion = handoverVersion
+
 // How long the old server waits at each step; tests shorten them.
 var (
 	handoverReadWait   = 5 * time.Second        // for readers to stop

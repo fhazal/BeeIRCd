@@ -127,6 +127,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 		// over from the door keeper running now?
 		fmt.Fprintln(stdout, gateProto())
 		return 0
+	case cmd == "handover-version":
+		// Also run on the NEW program: can it load the snapshot the
+		// server running now writes?
+		fmt.Fprintln(stdout, server.HandoverVersion)
+		return 0
 	case cmd == "install":
 		return cmdInstall(args[1:], stdout, stderr)
 	case cmd == "uninstall":

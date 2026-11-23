@@ -28,8 +28,9 @@ type switchPlan struct {
 
 // planSwitch decides it from the running server's status and what the new
 // program says for gate-proto (next; "" when it can't say: it is from
-// before the hand-over). nextVersion names the new program in the text.
-func planSwitch(st *control.Status, next, nextVersion string) switchPlan {
+// before the hand-over) and handover-version (nextSnap; 0 when not known
+// yet, before the download). nextVersion names the new program in the text.
+func planSwitch(st *control.Status, next string, nextSnap int, nextVersion string) switchPlan {
 	switch {
 	case st.Gate == "":
 		return switchPlan{why: "the server running now can't hand people over yet"}
@@ -43,6 +44,8 @@ func planSwitch(st *control.Status, next, nextVersion string) switchPlan {
 		return switchPlan{why: "BeeIRCd " + nextVersion + " can't take people over"}
 	case next != st.Gate:
 		return switchPlan{why: "the door keeper itself changed"}
+	case nextSnap != 0 && nextSnap != max(st.HandoverVersion, 1):
+		return switchPlan{why: "the hand-over format changed"}
 	}
 	return switchPlan{handover: true}
 }
@@ -62,6 +65,18 @@ func (u *updater) newGateProto(exe string) string {
 		return ""
 	}
 	return out
+}
+
+// newHandoverVersion asks the program file exe which hand-over snapshot
+// format it loads; 1 when it doesn't know the question (it is from before
+// the question, when 1 was the only format).
+func (u *updater) newHandoverVersion(exe string) int {
+	out, err := u.run(exe, "handover-version")
+	n, nerr := strconv.Atoi(strings.TrimSpace(out))
+	if err != nil || nerr != nil || n < 1 {
+		return 1
+	}
+	return n
 }
 
 // switchNote is the line before the question: what happens to the people

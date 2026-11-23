@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -12,19 +13,24 @@ import (
 func TestPlanSwitch(t *testing.T) {
 	for _, c := range []struct {
 		name, gate, os, next string
+		snap, nextSnap       int // the running server's and the new program's hand-over format
 		handover             bool
 		why                  string
 	}{
-		{"hand-over", "2", "linux", "2", true, ""},
-		{"old server", "", "linux", "2", false, "the server running now can't hand people over yet"},
-		{"windows", "off", "windows", "off", false, "the door keeper only runs on Linux"},
-		{"no-gate", "off", "linux", "2", false, "the server runs without the door keeper, -no-gate"},
-		{"proto v1", "1", "linux", "2", false, "the door keeper running now can't hand people over"},
-		{"old new program", "2", "linux", "", false, "BeeIRCd 1.3.0 can't take people over"},
-		{"gate changed", "2", "linux", "3", false, "the door keeper itself changed"},
-		{"new program without gate", "2", "linux", "off", false, "the door keeper itself changed"},
+		{"hand-over", "2", "linux", "2", 1, 1, true, ""},
+		{"old server", "", "linux", "2", 0, 1, false, "the server running now can't hand people over yet"},
+		{"windows", "off", "windows", "off", 1, 1, false, "the door keeper only runs on Linux"},
+		{"no-gate", "off", "linux", "2", 1, 1, false, "the server runs without the door keeper, -no-gate"},
+		{"proto v1", "1", "linux", "2", 1, 1, false, "the door keeper running now can't hand people over"},
+		{"old new program", "2", "linux", "", 1, 1, false, "BeeIRCd 1.3.0 can't take people over"},
+		{"gate changed", "2", "linux", "3", 1, 1, false, "the door keeper itself changed"},
+		{"new program without gate", "2", "linux", "off", 1, 1, false, "the door keeper itself changed"},
+		{"format changed", "2", "linux", "2", 1, 2, false, "the hand-over format changed"},
+		{"server too old to say its format", "2", "linux", "2", 0, 1, true, ""},
+		{"format of a server too old to say changed", "2", "linux", "2", 0, 2, false, "the hand-over format changed"},
+		{"new format not known yet", "2", "linux", "2", 1, 0, true, ""},
 	} {
-		p := planSwitch(&control.Status{Gate: c.gate, OS: c.os}, c.next, "1.3.0")
+		p := planSwitch(&control.Status{Gate: c.gate, OS: c.os, HandoverVersion: c.snap}, c.next, c.nextSnap, "1.3.0")
 		if p.handover != c.handover || p.why != c.why {
 			t.Errorf("%s: got %+v, want handover=%v why=%q", c.name, p, c.handover, c.why)
 		}
@@ -65,6 +71,20 @@ func TestNewGateProto(t *testing.T) {
 		if got := u.newGateProto("x"); got != want {
 			t.Errorf("gate-proto printing %q: got %q, want %q", out, got, want)
 		}
+	}
+}
+
+func TestNewHandoverVersion(t *testing.T) {
+	u := &updater{}
+	for out, want := range map[string]int{"1\n": 1, "2\n": 2, "Unknown command": 1, "": 1, "0": 1} {
+		u.run = func(string, ...string) (string, error) { return out, nil }
+		if got := u.newHandoverVersion("x"); got != want {
+			t.Errorf("handover-version printing %q: got %d, want %d", out, got, want)
+		}
+	}
+	u.run = func(string, ...string) (string, error) { return "2", errors.New("exit 2") }
+	if got := u.newHandoverVersion("x"); got != 1 {
+		t.Errorf("a failed handover-version: got %d, want 1", got)
 	}
 }
 
@@ -118,6 +138,16 @@ func TestUpdateHandoverFallbacks(t *testing.T) {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("output lacks %q:\n%s", want, out)
 		}
+	}
+
+	// The downloaded program loads another hand-over format.
+	fs = &fakeSystem{running: "1.0.0", gate: "2", progGate: "2", progSnap: "2", comesUp: true}
+	u, out = testUpdater(t, "1.0.0", srv.URL, fs, "y\n")
+	if code := u.update(false, false, false); code != 0 || !restarted(fs) {
+		t.Fatalf("exit %d, restarted %v\n%s", code, restarted(fs), out)
+	}
+	if want := "this update reconnects everyone once after all (the hand-over format changed)"; !strings.Contains(out.String(), want) {
+		t.Errorf("output lacks %q:\n%s", want, out)
 	}
 
 	// The running server refuses: restart instead, with the quit message.

@@ -197,6 +197,7 @@ func (s *Server) statusInfo() *control.Status {
 		ServicesOn:      !s.svc.Off(),
 	}
 	st.Gate, st.Local, st.Handover = "off", s.localUsers(), s.hand.took
+	st.HandoverVersion = handoverVersion
 	if s.gate != nil {
 		st.Gate = gate.Proto
 	}

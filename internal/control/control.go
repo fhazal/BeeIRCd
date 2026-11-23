@@ -738,6 +738,9 @@ type Status struct {
 	// behind it (beeircd run on Linux), "off" when it runs without one.
 	// Empty: a server too old to say (it can't hand people over).
 	Gate string `json:"gate,omitempty"`
+	// HandoverVersion is the hand-over snapshot format the server writes.
+	// 0: a server too old to say, which writes version 1.
+	HandoverVersion int `json:"handover_version,omitempty"`
 	// Local is the people on this server (Online counts the network).
 	Local int `json:"local"`
 	// Handover says how this server process took over from the last one;

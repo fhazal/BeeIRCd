@@ -180,7 +180,7 @@ func (u *updater) update(checkOnly, yes, rc bool) int {
 	var plan switchPlan
 	if st, err := u.ask(control.CmdStatus, "", 5*time.Second); err == nil && st.Status != nil {
 		running = st.Status
-		plan = planSwitch(running, m.Gate, m.Version)
+		plan = planSwitch(running, m.Gate, 0, m.Version)
 		fmt.Fprint(u.out, switchNote(plan, running, m.Version))
 	} else {
 		fmt.Fprintln(u.out, "\n  BeeIRCd isn't running: the program is updated and stays stopped.")
@@ -220,7 +220,7 @@ func (u *updater) install(ctx context.Context, base string, m *release.Manifest,
 		// The program itself says whether it can take people over (the
 		// release file said so before the download).
 		was := plan.handover
-		plan = planSwitch(running, u.newGateProto(newExe), m.Version)
+		plan = planSwitch(running, u.newGateProto(newExe), u.newHandoverVersion(newExe), m.Version)
 		if was && !plan.handover {
 			u.c.warn("this update reconnects everyone once after all (" + plan.why + ")")
 		}
@@ -365,7 +365,7 @@ func (u *updater) rollback(yes bool) int {
 	var plan switchPlan
 	if st, err := u.ask(control.CmdStatus, "", 5*time.Second); err == nil && st.Status != nil {
 		running = st.Status
-		plan = planSwitch(running, u.newGateProto(oldExe), oldVer)
+		plan = planSwitch(running, u.newGateProto(oldExe), u.newHandoverVersion(oldExe), oldVer)
 	}
 	fmt.Fprintf(u.out, "\n  Back from %s to %s (kept since %s).", u.current, oldVer, fi.ModTime().Format("2 Jan"))
 	switch {

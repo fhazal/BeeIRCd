@@ -35,6 +35,7 @@ type fakeSystem struct {
 	// ("" = a server from before the hand-over), progGate what
 	// `beeircd gate-proto` prints for any program ("" = unknown command).
 	gate, progGate string
+	progSnap       string // what `beeircd handover-version` prints ("" = unknown command)
 	handoverErr    bool   // the running server refuses the hand-over
 	handoverWhy    string // the new server took nobody over, this is why
 	pid            int    // the running server process
@@ -99,6 +100,11 @@ func testUpdater(t *testing.T, current, url string, fs *fakeSystem, answers stri
 				return o.String(), errors.New("exit 1")
 			}
 			return o.String(), nil
+		case len(args) == 1 && args[0] == "handover-version":
+			if fs.progSnap == "" {
+				return "Unknown command \"handover-version\".", errors.New("exit 2")
+			}
+			return fs.progSnap + "\n", nil
 		case len(args) == 1 && args[0] == "gate-proto":
 			if fs.progGate == "" {
 				return "Unknown command \"gate-proto\".", errors.New("exit 2")
