@@ -331,7 +331,7 @@ func TestPanelMetadata(t *testing.T) {
 	}
 	s.do(func() { s.cfg.Server.IRCv3Drafts = true })
 
-	if r := myMeta("color", "#ff0000"); r.Done == nil || r.Done.Text != "Your color is saved." {
+	if r := myMeta("color", "#ff0000"); r.Done == nil || r.Done.Text != "Your colour is saved." {
 		t.Fatalf("my-meta color: %+v", r)
 	}
 	for _, bad := range [][2]string{{"color", "red"}, {"avatar", "http://example.org/a.png"}, {"shoe-size", "9"}} {

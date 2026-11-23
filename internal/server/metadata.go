@@ -39,6 +39,15 @@ const (
 // mdKeys are the keys BeeIRCd takes.
 var mdKeys = []string{"avatar", "bot", "color", "display-name", "homepage", "pronouns", "status"}
 
+// mdLabel is how the panel's own words name a key: the key stays "color"
+// on IRC, but the panel spells it "colour".
+func mdLabel(key string) string {
+	if key == "color" {
+		return "colour"
+	}
+	return key
+}
+
 var mdColor = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
 func metadataValue() string {
@@ -785,7 +794,7 @@ func (s *Server) panelMyMeta(po *control.PanelOper, ip, key, value string) *cont
 			return &control.Response{Error: "You have the most keys you may have."}
 		}
 	} else if _, ok := kept[key]; !ok {
-		return &control.Response{Done: &control.Done{Text: "Your " + key + " is not set."}}
+		return &control.Response{Done: &control.Done{Text: "Your " + mdLabel(key) + " is not set."}}
 	}
 	if err := s.store.SetAccountMetadata(a.ID, key, value); err != nil {
 		s.log.Printf("services database: metadata: %v", err)
@@ -797,11 +806,11 @@ func (s *Server) panelMyMeta(po *control.PanelOper, ip, key, value string) *cont
 		}
 	}
 	if value == "" {
-		s.panelEvent(po.Account, ip, "removed their "+key)
-		return &control.Response{Done: &control.Done{Text: "Your " + key + " is removed."}}
+		s.panelEvent(po.Account, ip, "removed their "+mdLabel(key))
+		return &control.Response{Done: &control.Done{Text: "Your " + mdLabel(key) + " is removed."}}
 	}
-	s.panelEvent(po.Account, ip, "set their "+key)
-	return &control.Response{Done: &control.Done{Text: "Your " + key + " is saved."}}
+	s.panelEvent(po.Account, ip, "set their "+mdLabel(key))
+	return &control.Response{Done: &control.Done{Text: "Your " + mdLabel(key) + " is saved."}}
 }
 
 // panelMetaClear deletes all metadata of a person (uid) or a channel
