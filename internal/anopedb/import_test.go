@@ -101,7 +101,7 @@ func TestImportSample(t *testing.T) {
 		t.Error("bob's vhost request is missing")
 	}
 	carol, _ := st.AccountByNick("carol")
-	if carol.SuspendedBy == "" || !strings.Contains(carol.SuspendReason, "testing the import") || !carol.SuspendUntil.After(time.Now()) {
+	if carol.SuspendedBy == "" || !strings.Contains(carol.SuspendReason, "testing the import") || !carol.SuspendUntil.Equal(time.Date(2026, 11, 21, 16, 21, 5, 0, time.UTC)) { // the sample's expires, not a date that passes
 		t.Errorf("carol suspension %+v", carol)
 	}
 	dave, _ := st.AccountByNick("dave")
