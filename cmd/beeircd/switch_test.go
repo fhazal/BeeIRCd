@@ -44,7 +44,7 @@ func TestSwitchNoteAndStayed(t *testing.T) {
 	if got != want {
 		t.Errorf("hand-over note:\n%q\nwant\n%q", got, want)
 	}
-	got = switchNote(switchPlan{why: "the door keeper itself changed"}, &control.Status{Online: 1}, "1.3.0")
+	got = switchNote(switchPlan{why: "the door keeper itself changed"}, &control.Status{Online: 5, Local: 1}, "1.3.0")
 	want = "\n  This update reconnects everyone once (the door keeper itself changed):\n  the 1 person online is disconnected for a few seconds; their clients\n  reconnect by themselves.\n"
 	if got != want {
 		t.Errorf("restart note:\n%q\nwant\n%q", got, want)

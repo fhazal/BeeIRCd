@@ -86,7 +86,7 @@ func switchNote(plan switchPlan, st *control.Status, nextVersion string) string 
 		return fmt.Sprintf("\n  The server switches to %s without disconnecting anyone: the door keeper\n  hands %s on this server over to it.\n", nextVersion, people(st.Local))
 	}
 	return fmt.Sprintf("\n  This update reconnects everyone once (%s):\n  %s online %s disconnected for a few seconds; their clients\n  reconnect by themselves.\n",
-		plan.why, people(st.Online), map[bool]string{true: "is", false: "are"}[st.Online == 1])
+		plan.why, people(st.Local), map[bool]string{true: "is", false: "are"}[st.Local == 1])
 }
 
 // stayed is "47 of 48 people stayed connected".
