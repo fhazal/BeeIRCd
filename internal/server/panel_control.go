@@ -489,6 +489,8 @@ func (s *Server) panelControl(req control.Request, setDeadline func(time.Duratio
 		return run('g', func(po *control.PanelOper) { resp = s.panelChanNotice(po, req.IP, req.Name, req.Value) }), true
 	case control.CmdChanTopic:
 		return run('s', func(po *control.PanelOper) { resp = s.panelChanTopic(po, req.IP, req.Name, req.Value) }), true
+	case control.CmdChanRename:
+		return run('s', func(po *control.PanelOper) { resp = s.panelChanRename(po, req.IP, req.Name, req.Value, req.Reason) }), true
 	case control.CmdChanSuspend:
 		return run('s', func(po *control.PanelOper) { resp = s.panelChanSuspend(po, req.IP, req.Name, req.Reason, req.Life) }), true
 	case control.CmdChanUnsuspend:

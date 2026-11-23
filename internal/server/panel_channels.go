@@ -210,6 +210,17 @@ func (s *Server) panelChanTopic(po *control.PanelOper, ip, name, text string) co
 	return control.Response{Done: &control.Done{Text: "The topic of " + name + " is set."}}
 }
 
+// panelChanRename renames a channel (IRCv3 channel-rename) with the same
+// checks as RENAME from an IRC operator.
+func (s *Server) panelChanRename(po *control.PanelOper, ip, name, newName, reason string) control.Response {
+	done, err := s.renameFromPanel(name, newName, reason)
+	if err != nil {
+		return control.Response{Error: err.Error()}
+	}
+	s.panelEvent(po.Account, ip, "renamed "+name+" to "+strings.TrimSpace(newName))
+	return control.Response{Done: &control.Done{Text: done}}
+}
+
 func (s *Server) panelChanSuspend(po *control.PanelOper, ip, name, reason, life string) control.Response {
 	d, ok := panelLife(life)
 	if !ok {

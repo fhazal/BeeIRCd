@@ -25,7 +25,7 @@ var capabilities = []string{
 
 // draftCaps are the IRCv3 drafts offered while [server] ircv3_drafts is
 // on.
-var draftCaps = []string{readMarkerCap, preAwayCap, extISupportCap, multilineCap, redactCap, accountRegCap}
+var draftCaps = []string{readMarkerCap, preAwayCap, extISupportCap, multilineCap, redactCap, accountRegCap, renameCap}
 
 // preAwayCap lets AWAY come before registration (IRCv3 draft/pre-away).
 const preAwayCap = "draft/pre-away"

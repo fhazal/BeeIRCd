@@ -63,6 +63,7 @@ var helpTopics = map[string][]string{
 	"MARKREAD":     {"MARKREAD <target> [timestamp=...]", "Tells the server how far you have read in a channel or private chat, so your other devices know (IRCv3 read-marker, when the network offers the drafts); your client does this for you."},
 	"ISUPPORT":     {"ISUPPORT", "Sends the server's feature list (005) again, also before you have signed in (IRCv3 extended-isupport); your client does this for you."},
 	"BATCH":        {"BATCH +<id> draft/multiline <target> ... BATCH -<id>", "Sends several lines as one message (IRCv3 multiline): up to 24 lines or 4096 bytes. Your client does this when you paste a block of text."},
+	"RENAME":       {"RENAME <#channel> <#newname> [reason]", "Gives a channel a new name; everyone, its modes, topic, history and ChanServ registration move with it. Channel ops on unregistered channels, the founder or SET access on registered ones, IRC operators always; once per channel every 10 minutes (IRCv3 channel-rename)."},
 	"REDACT":       {"REDACT <target> <msgid> [reason]", "Takes back a message: your own for 15 minutes; channel ops and IRC operators any message in their channel (IRCv3 message-redaction)."},
 	"REGISTER":     {"REGISTER <account|*> <email|*> <password>", "Registers your current nick from your client's sign-up screen (IRCv3 account-registration), with the same rules as /msg NickServ REGISTER."},
 	"VERIFY":       {"VERIFY <account> <code>", "Confirms a new account with the code from the registration mail (IRCv3 account-registration), like /msg NickServ CONFIRM."},

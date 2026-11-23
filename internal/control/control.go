@@ -69,6 +69,7 @@ const (
 	CmdChannel       = "channel"        // Name -> ChannelInfo
 	CmdChanNotice    = "chan-notice"    // Name + Value -> Done (flag g)
 	CmdChanTopic     = "chan-topic"     // Name + Value -> Done (flag s)
+	CmdChanRename    = "chan-rename"    // Name + Value (new name) + Reason -> Done (flag s)
 	CmdChanSuspend   = "chan-suspend"   // Name + Reason + Life -> Done (flag s)
 	CmdChanUnsuspend = "chan-unsuspend" // Name -> Done (flag s)
 

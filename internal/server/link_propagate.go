@@ -233,6 +233,8 @@ func (s *Server) linkLines(o *linkConn, ev state.Event, src string, from *linkCo
 			source = e.UID
 		}
 		return cd.Encode(&link.Realname{Source: source, UID: e.UID, Realname: e.Realname})
+	case *state.Rename:
+		return s.renameLinkLines(o, e, src)
 	case *state.Invite:
 		if e.Remove {
 			if !o.peer.Bee {

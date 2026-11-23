@@ -84,39 +84,47 @@ func (s *Server) burstBody(l *linkConn) []string {
 	chans := s.net.Channels()
 	sort.Slice(chans, func(i, j int) bool { return chans[i].Name < chans[j].Name })
 	for _, ch := range chans {
-		lc := link.Channel{Name: ch.Name, TS: ch.TS, Args: map[byte]string{}}
-		for uid, m := range ch.Members {
-			if s.behind(l, uidServer(uid)) {
-				continue
-			}
-			lc.Members = append(lc.Members, link.Member{UID: uid, Ranks: rankLetters(m.Ranks)})
-		}
-		if len(lc.Members) == 0 {
-			continue
-		}
-		sort.Slice(lc.Members, func(i, j int) bool { return lc.Members[i].UID < lc.Members[j].UID })
-		lc.Modes = link.SortedModes(ch.Modes)
-		for i := 0; i < len(lc.Modes); i++ {
-			switch m := lc.Modes[i]; {
-			case m == 'k':
-				lc.Args[m] = ch.Key
-			case m == 'l':
-				lc.Args[m] = strconv.Itoa(ch.Limit)
-			case state.IsParamMode(m):
-				lc.Args[m] = ch.Param(m)
-			}
-		}
-		for _, mode := range []byte{'b', 'e', 'I'} {
-			for _, e := range ch.Lists[mode] {
-				lc.Lists = append(lc.Lists, link.ListEntry{Mode: mode, Mask: e.Mask, SetBy: orStr(e.SetBy, s.cfg.Server.Name), SetAt: e.SetAt.Unix()})
-			}
-		}
-		out = append(out, cd.Channel(lc, s.cfg.Server.SID)...)
-		if ch.Topic != "" {
-			out = append(out, cd.Topic(link.Topic{Channel: ch.Name, Text: ch.Topic, By: orStr(ch.TopicBy, s.cfg.Server.Name), At: ch.TopicAt.Unix()}, s.cfg.Server.SID))
-		}
+		out = append(out, s.channelBurst(l, ch)...)
 	}
 	return append(out, s.banBurst(l)...)
+}
+
+// channelBurst is ch as a burst writes it for l (SJOIN and TOPIC), with
+// the members not behind l; nothing when there are none.
+func (s *Server) channelBurst(l *linkConn, ch *state.Channel) []string {
+	cd := l.codecOf()
+	lc := link.Channel{Name: ch.Name, TS: ch.TS, Args: map[byte]string{}}
+	for uid, m := range ch.Members {
+		if s.behind(l, uidServer(uid)) {
+			continue
+		}
+		lc.Members = append(lc.Members, link.Member{UID: uid, Ranks: rankLetters(m.Ranks)})
+	}
+	if len(lc.Members) == 0 {
+		return nil
+	}
+	sort.Slice(lc.Members, func(i, j int) bool { return lc.Members[i].UID < lc.Members[j].UID })
+	lc.Modes = link.SortedModes(ch.Modes)
+	for i := 0; i < len(lc.Modes); i++ {
+		switch m := lc.Modes[i]; {
+		case m == 'k':
+			lc.Args[m] = ch.Key
+		case m == 'l':
+			lc.Args[m] = strconv.Itoa(ch.Limit)
+		case state.IsParamMode(m):
+			lc.Args[m] = ch.Param(m)
+		}
+	}
+	for _, mode := range []byte{'b', 'e', 'I'} {
+		for _, e := range ch.Lists[mode] {
+			lc.Lists = append(lc.Lists, link.ListEntry{Mode: mode, Mask: e.Mask, SetBy: orStr(e.SetBy, s.cfg.Server.Name), SetAt: e.SetAt.Unix()})
+		}
+	}
+	out := cd.Channel(lc, s.cfg.Server.SID)
+	if ch.Topic != "" {
+		out = append(out, cd.Topic(link.Topic{Channel: ch.Name, Text: ch.Topic, By: orStr(ch.TopicBy, s.cfg.Server.Name), At: ch.TopicAt.Unix()}, s.cfg.Server.SID))
+	}
+	return out
 }
 
 func (s *Server) linkUser(u *state.User, hops int) link.User {

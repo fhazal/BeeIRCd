@@ -87,6 +87,9 @@ type Server struct {
 	ml    *mlOut // the multiline message being delivered
 	// recent are the last minutes' messages, for REDACT.
 	recent recentMsgs
+	// renamedAt is when each channel (folded) last got its name, for the
+	// RENAME cooldown.
+	renamedAt map[string]time.Time
 	// 7a connect throttle and unregistered caps; throttleSkip says which
 	// IPs skip them (LAN), replaceable in tests.
 	throttle     connThrottle

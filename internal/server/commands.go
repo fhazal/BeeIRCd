@@ -64,6 +64,7 @@ func init() {
 		"ISUPPORT":     {0, true, (*Server).cmdISupport},
 		"BATCH":        {1, false, (*Server).cmdBatch},
 		"REDACT":       {0, false, (*Server).cmdRedact},
+		"RENAME":       {0, false, (*Server).cmdRename},
 		"REGISTER":     {0, true, (*Server).cmdRegister},
 		"VERIFY":       {0, true, (*Server).cmdVerify},
 		"AUTHENTICATE": {1, true, (*Server).cmdAuthenticate},

@@ -223,6 +223,8 @@ func (s *Server) prepare(ev state.Event) func() {
 			s.toNeighbours(u, o, true)
 			s.toWatchers(u, o)
 		}
+	case *state.Rename:
+		return s.renamePrepare(e)
 	case *state.Invite:
 		if e.Remove {
 			return func() {
