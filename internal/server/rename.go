@@ -114,7 +114,7 @@ func (s *Server) renameCheck(u *state.User, oper bool, oldName, newName string) 
 			return ch, &renameRefusal{numeric: irc.ErrChanOPrivsNeeded, text: "You're not channel operator"}
 		}
 	}
-	if !s.svc.Off() && s.svc.ReadOnly() { // a rename moves stored data, registered or not
+	if s.readOnly() { // a rename moves stored data, registered or not
 		return ch, cannotRename(services.ReadonlyRefusal)
 	}
 	if irc.Fold(newName) != irc.Fold(ch.Name) { // not a change of case only

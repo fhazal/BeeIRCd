@@ -107,6 +107,9 @@ func osSet(s *Services, c *Client, args []string) {
 	switch what {
 	case "READONLY":
 		s.readonly = on
+		if h, ok := s.host.(interface{ ReadOnlyChanged(on bool) }); ok {
+			h.ReadOnlyChanged(on) // linked servers refuse changes too
+		}
 	case "SUPERADMIN":
 		c.superAdmin = on // for c only: nobody turns it on for someone else
 	case "NOEXPIRE":

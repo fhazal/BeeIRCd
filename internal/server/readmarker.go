@@ -171,6 +171,8 @@ func (s *Server) remoteBee(l *linkConn, it *link.Bee) {
 		s.remoteRename(l, it)
 	case "METADATA":
 		s.remoteMetadata(l, it)
+	case "READONLY":
+		s.remoteReadOnly(l, it)
 	default:
 		for _, o := range s.upLinks(l) { // a newer server's; pass it on
 			for _, line := range o.codecOf().Encode(it) {

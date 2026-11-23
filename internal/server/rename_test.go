@@ -555,3 +555,40 @@ func TestRenameAware(t *testing.T) {
 		}
 	}
 }
+
+// READONLY is the hub's (services) state, but the leaf refuses what would
+// be stored too: RENAME and METADATA SET, with the read-only reason.
+func TestReadOnlyOnLeaf(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	for _, n := range []*linkNode{hub, leaf} {
+		n.s.do(func() { n.s.cfg.Server.IRCv3Drafts = true })
+	}
+	alice := capLogin(t, hub.s, "alice", "batch", metadataCap)
+	operOn(t, hub.s, alice)
+	bob := capLogin(t, leaf.s, "bob", renameCap, "batch", metadataCap)
+	hub.seen(t, "bob")
+	bob.send("JOIN #loose")
+	bob.expect(" 366 bob #loose ")
+
+	alice.send("PRIVMSG OperServ :SET READONLY ON")
+	alice.expect("Services are now in read-only mode")
+	waitLink(t, "the leaf knows READONLY", func() bool {
+		var on bool
+		leaf.s.onLoop(func() { on = leaf.s.readOnly() })
+		return on
+	})
+	bob.send("RENAME #loose #free")
+	bob.expect("FAIL RENAME CANNOT_RENAME #loose #free :Services are in read-only mode")
+	bob.send("METADATA * SET color #ff0000")
+	bob.expect("FAIL METADATA KEY_NO_PERMISSION bob color :Services are in read-only mode")
+
+	alice.send("PRIVMSG OperServ :SET READONLY OFF")
+	alice.expect("no longer in read-only mode")
+	waitLink(t, "the leaf knows READONLY is off", func() bool {
+		var on bool
+		leaf.s.onLoop(func() { on = leaf.s.readOnly() })
+		return !on
+	})
+	bob.send("RENAME #loose #free")
+	bob.expect(" RENAME #loose #free")
+}

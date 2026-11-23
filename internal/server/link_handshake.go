@@ -916,6 +916,7 @@ func (s *Server) splitOff(sid, near, far, reason string) (servers, users int) {
 	users = s.quitSplit(gone, near, far)
 	for k := range gone {
 		delete(s.links.servers, k)
+		delete(s.roBy, k)
 	}
 	return len(gone), users
 }
@@ -1008,6 +1009,7 @@ func (s *Server) dropLink(l *linkConn, reason string) {
 	users := s.quitSplit(behind, s.cfg.Server.Name, l.peer.Name)
 	for sid := range behind {
 		delete(s.links.servers, sid)
+		delete(s.roBy, sid)
 	}
 	gone := len(behind)
 	s.linkBroadcast(nil, fmt.Sprintf(":%s SQUIT %s :%s", s.cfg.Server.SID, l.peer.Name, reason))

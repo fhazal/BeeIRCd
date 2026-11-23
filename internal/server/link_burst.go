@@ -89,6 +89,7 @@ func (s *Server) burstBody(l *linkConn) []string {
 	for _, ch := range chans {
 		out = append(out, s.channelBurst(l, ch)...)
 	}
+	out = append(out, s.readOnlyBurst(l)...)
 	return append(out, s.banBurst(l)...)
 }
 

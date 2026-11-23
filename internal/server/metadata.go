@@ -371,7 +371,7 @@ func (s *Server) mdSet(c *Client, t mdTarget, args []string) {
 		s.mdFail(c, "KEY_NO_PERMISSION", t.name(), key, "This server does not take that key ("+strings.Join(mdKeys, ", ")+")")
 		return
 	}
-	if s.svc.ReadOnly() {
+	if s.readOnly() {
 		s.mdFail(c, "KEY_NO_PERMISSION", t.name(), key, services.ReadonlyRefusal)
 		return
 	}
@@ -416,7 +416,7 @@ func (s *Server) mdClearCmd(c *Client, t mdTarget, keys []string) {
 		s.mdFail(c, "KEY_NO_PERMISSION", t.name(), "*", "You may not change this target's metadata")
 		return
 	}
-	if s.svc.ReadOnly() {
+	if s.readOnly() {
 		s.mdFail(c, "KEY_NO_PERMISSION", t.name(), "*", services.ReadonlyRefusal)
 		return
 	}
