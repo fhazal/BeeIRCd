@@ -26,6 +26,7 @@
   --ground:#eff1f5;--menu:#e6e9ef;--card:#f6f7fa;--card2:#e6e9ef;--field:#ffffff;--line:#ccd0da;--line-soft:#dce0e8;--hover:#4c4f690c;
   --ink:#4c4f69;--muted:#6c6f85;--dim:#8c8fa1;
   --honey:#df8e1d;--honey-hi:#c76a00;--honey-rgb:223,142,29;--honey-soft:#f6e3c4;--honey-tint:rgba(223,142,29,.12);--on-honey:#ffffff;
+  --on-main:#1e1e2e;--main-hover:#e9a54a;
   --cyan:#04a5e5;--ok:#40a02b;--ok-soft:#dcebd3;--ok-line:#a6d189;--bad:#d20f39;--bad-soft:#fce4e7;--bad-line:#e9a2b0;
   --warn-soft:#fdf1d6;--warn-line:#e9c27a;--btn:#ffffff;--btn-line:#bcc0cc;--btn-hover:#e6e9ef;--shadow:rgba(76,79,105,.18);
   --ty-z:#e6e0fa;--ty-zi:#7c3aed;--ty-s:#dbe9f7;--ty-si:#1e66f5;--ty-n:#f6dff0;--ty-ni:#b8288a;--ty-a:#fbe3e6;
@@ -191,9 +192,9 @@ select.in option{background:var(--card);color:var(--ink)}
 .btn{min-height:38px;padding:0 14px;border-radius:6px;border:1px solid var(--btn-line);background:var(--btn);color:var(--ink);font:inherit;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;line-height:1;white-space:nowrap}
 .btn .ic{width:15px;height:15px;color:var(--honey)}
 .btn:hover{border-color:var(--honey);color:var(--honey-hi)}
-.btn.main{background:var(--honey);border-color:var(--honey);color:var(--on-honey)}
-.btn.main .ic{color:var(--on-honey)}
-.btn.main:hover{background:var(--honey-hi);border-color:var(--honey-hi);color:var(--on-honey)}
+.btn.main{background:var(--honey);border-color:var(--honey);color:var(--on-main,var(--on-honey))}
+.btn.main .ic{color:var(--on-main,var(--on-honey))}
+.btn.main:hover{background:var(--main-hover,var(--honey-hi));border-color:var(--main-hover,var(--honey-hi));color:var(--on-main,var(--on-honey))}
 .btn.bad{color:var(--bad);border-color:var(--bad-line)}
 .btn.bad:hover{background:var(--bad-soft);color:var(--bad)}
 .btn.ghost{border-color:transparent;background:transparent}
@@ -203,7 +204,7 @@ select.in option{background:var(--card);color:var(--ink)}
 .btn.busy{position:relative;color:transparent!important}
 .btn.busy .ic{visibility:hidden}
 .btn.busy::after{content:"";position:absolute;width:16px;height:16px;border-radius:50%;border:2px solid var(--ink);border-color:var(--ink) transparent var(--ink) transparent;animation:spin .8s linear infinite}
-.btn.main.busy::after{border-color:var(--on-honey) transparent var(--on-honey) transparent}
+.btn.main.busy::after{border-color:var(--on-main,var(--on-honey)) transparent var(--on-main,var(--on-honey)) transparent}
 @keyframes spin{to{transform:rotate(360deg)}}
 .act{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line-soft)}
 .act:last-child{border-bottom:0}
@@ -717,7 +718,7 @@ a.card.tight:hover,a.card.tight:focus-visible{border-color:var(--honey)}
 .mm-form{display:flex;flex-direction:column;gap:10px}
 .mm-form textarea.in{min-height:110px;padding:10px 12px;resize:vertical;line-height:1.45}
 @media (max-width:1000px){.hm-cols{grid-template-columns:minmax(0,1fr)}}
-.nav a .ncount{margin-left:auto;font:11px var(--mono);background:var(--honey);color:var(--on-honey);padding:0 6px;line-height:18px}
+.nav a .ncount{margin-left:auto;font:11px var(--mono);background:var(--honey);color:var(--on-main,var(--on-honey));padding:0 6px;line-height:18px}
 a.btn{text-decoration:none}
 .mm-row.open .mm-head .tx{visibility:hidden}
 
