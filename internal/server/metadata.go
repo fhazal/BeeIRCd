@@ -613,8 +613,22 @@ func (s *Server) metadataBurst(t mdTarget) []*link.Bee {
 	return out
 }
 
-// metadataAfter keeps metadata in step with what ev did: an account's
-// keys come back on login and a channel's are loaded on its first join.
+// metadataPrepare notes the account a Login leaves, which is gone once
+// it is applied, and returns what moves the user's keys afterwards.
+func (s *Server) metadataPrepare(ev state.Event) func() {
+	e, ok := ev.(*state.Login)
+	if !ok {
+		return nil
+	}
+	prev := ""
+	if u := s.net.UserByUID(e.UID); u != nil {
+		prev = u.Account
+	}
+	return func() { s.mdLogin(e.UID, prev) }
+}
+
+// metadataAfter keeps metadata in step with what ev did: a channel's keys
+// are loaded on its first join (logins go through metadataPrepare).
 func (s *Server) metadataAfter(ev state.Event) {
 	switch e := ev.(type) {
 	case *state.UserAdd:
@@ -622,38 +636,7 @@ func (s *Server) metadataAfter(ev state.Event) {
 		// Not for a server's burst: those users bring their own keys.
 		r := s.links.servers[uidServer(e.User.UID)]
 		if e.User.Account != "" && !e.User.Service && (s.ours(e.User.UID) || r != nil && r.synced) {
-			s.metadataAfter(&state.Login{UID: e.User.UID, Account: e.User.Account})
-		}
-	case *state.Login:
-		u := s.net.UserByUID(e.UID)
-		if u == nil || u.Account == "" || s.svc.Off() {
-			return
-		}
-		a, err := s.store.AccountByNick(u.Account)
-		if err != nil || a == nil {
-			return
-		}
-		t := mdTarget{u: u}
-		stored := s.store.AccountMetadata(a.ID)
-		if len(stored) == 0 {
-			// Nothing kept yet: what they set before logging in is kept now.
-			if s.svc.ReadOnly() {
-				return
-			}
-			for _, k := range sortedMeta(u.Metadata) {
-				if err := s.store.SetAccountMetadata(a.ID, k, u.Metadata[k]); err != nil {
-					s.log.Printf("services database: metadata: %v", err)
-				}
-			}
-			return
-		}
-		for _, k := range sortedMeta(u.Metadata) {
-			if _, ok := stored[k]; !ok {
-				s.mdApply(nil, nil, t, k, "", false)
-			}
-		}
-		for _, k := range sortedMeta(stored) {
-			s.mdApply(nil, nil, t, k, stored[k], false)
+			s.mdLogin(e.User.UID, "")
 		}
 	case *state.Join:
 		ch := s.net.Channel(e.Channel)
@@ -690,6 +673,54 @@ func (s *Server) metadataAfter(ev state.Event) {
 				c.send(line)
 			}
 		}
+	}
+}
+
+// mdLogin moves a user's keys when their account changes from prev: an
+// account's keys come back on login and go again on logout.
+func (s *Server) mdLogin(uid, prev string) {
+	u := s.net.UserByUID(uid)
+	if u == nil || u.Account == prev || s.svc.Off() {
+		return
+	}
+	t := mdTarget{u: u}
+	clear := func() {
+		for _, k := range sortedMeta(u.Metadata) {
+			s.mdApply(nil, nil, t, k, "", false)
+		}
+	}
+	if u.Account == "" {
+		clear() // logged out: the keys were the account's
+		return
+	}
+	a, err := s.store.AccountByNick(u.Account)
+	if err != nil || a == nil {
+		return
+	}
+	stored := s.store.AccountMetadata(a.ID)
+	if len(stored) == 0 {
+		if prev != "" {
+			clear() // switched accounts: the keys are the old account's
+			return
+		}
+		// Nothing kept yet: what they set before logging in is kept now.
+		if s.svc.ReadOnly() {
+			return
+		}
+		for _, k := range sortedMeta(u.Metadata) {
+			if err := s.store.SetAccountMetadata(a.ID, k, u.Metadata[k]); err != nil {
+				s.log.Printf("services database: metadata: %v", err)
+			}
+		}
+		return
+	}
+	for _, k := range sortedMeta(u.Metadata) {
+		if _, ok := stored[k]; !ok {
+			s.mdApply(nil, nil, t, k, "", false)
+		}
+	}
+	for _, k := range sortedMeta(stored) {
+		s.mdApply(nil, nil, t, k, stored[k], false)
 	}
 }
 

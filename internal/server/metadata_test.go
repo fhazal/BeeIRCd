@@ -472,3 +472,67 @@ func TestLinkMetadataSASL(t *testing.T) {
 		return v == "#abcdef"
 	})
 }
+
+// mdHeld are nick's keys and the stored keys of account (nil when none).
+func mdHeld(s *Server, nick, account string) (user, stored map[string]string) {
+	s.do(func() {
+		if u := s.net.UserByNick(nick); u != nil {
+			user = map[string]string{}
+			for k, v := range u.Metadata {
+				user[k] = v
+			}
+		}
+		if a, err := s.store.AccountByNick(account); err == nil && a != nil {
+			stored = s.store.AccountMetadata(a.ID)
+		}
+	})
+	return
+}
+
+// An account's keys leave with it: on logout and on a switch to another
+// account, which must not save them as its own.
+func TestMetadataLogoutAndSwitch(t *testing.T) {
+	s := testServer(t, draftsOn)
+	wasp := mdClient(t, s, "Wasp") // an account with no keys
+	wasp.send("NS REGISTER " + pw)
+	wasp.expect(":irc.test.local MODE Wasp +r")
+
+	bee := mdClient(t, s, "Bee")
+	bee.send("METADATA * SUB avatar")
+	bee.expect(" 770 Bee avatar")
+	bee.send("NS REGISTER " + pw)
+	bee.expect(":irc.test.local MODE Bee +r")
+	bee.send("METADATA * SET avatar https://x.test/bee.png")
+	bee.expect(" 761 Bee Bee avatar * :https://x.test/bee.png")
+
+	// (a) Logout clears the account's keys.
+	bee.send("NS LOGOUT")
+	bee.expect(":irc.test.local METADATA Bee avatar *")
+	bee.sync()
+	if u, st := mdHeld(s, "Bee", "Bee"); len(u) != 0 || st["avatar"] != "https://x.test/bee.png" {
+		t.Fatalf("after logout: user %v, stored %v", u, st)
+	}
+
+	// Back in: the keys return.
+	bee.send("NS IDENTIFY Bee " + pw)
+	bee.expect(":irc.test.local METADATA Bee avatar * :https://x.test/bee.png")
+
+	// (b) A direct switch to an empty account clears them and saves nothing.
+	bee.send("NS IDENTIFY Wasp " + pw)
+	bee.expect(":irc.test.local METADATA Bee avatar *")
+	bee.sync()
+	if u, st := mdHeld(s, "Bee", "Wasp"); len(u) != 0 || len(st) != 0 {
+		t.Fatalf("after switch: user %v, Wasp stored %v", u, st)
+	}
+
+	// (c) Keys set while logged out are still saved by the next login.
+	bee.send("NS LOGOUT")
+	bee.sync()
+	bee.send("METADATA * SET avatar https://x.test/mine.png")
+	bee.expect(" 761 Bee Bee avatar * :https://x.test/mine.png")
+	bee.send("NS IDENTIFY Wasp " + pw)
+	bee.sync()
+	if u, st := mdHeld(s, "Bee", "Wasp"); u["avatar"] != "https://x.test/mine.png" || st["avatar"] != "https://x.test/mine.png" {
+		t.Fatalf("login after logged-out set: user %v, Wasp stored %v", u, st)
+	}
+}

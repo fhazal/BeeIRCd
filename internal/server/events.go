@@ -20,6 +20,7 @@ func (s *Server) emit(ev state.Event) error {
 	deliver := s.prepare(ev)
 	watch := s.monitorPrepare(ev)
 	histGone := s.historyChannels(ev)
+	mdLogin := s.metadataPrepare(ev)
 	if err := s.net.Apply(ev); err != nil {
 		return err
 	}
@@ -37,6 +38,9 @@ func (s *Server) emit(ev state.Event) error {
 	s.dropGoneHistory(histGone)
 	s.linkOut(ev, org)
 	s.metadataAfter(ev)
+	if mdLogin != nil {
+		mdLogin()
+	}
 	for _, sink := range s.sinks {
 		sink(ev)
 	}
