@@ -160,11 +160,17 @@ type Invite struct {
 // Rename gives channel Old the name New (IRCv3 draft/channel-rename). The
 // channel keeps its members, modes, lists and topic. Source is the UID or
 // SID that asked; Reason may be empty.
+//
+// Merge: New is already another channel (a rename from another server met
+// a channel just made here). Old's members join it with their ranks, its
+// metadata keys New lacks come along, and Old is gone; the server settles
+// modes, lists, ranks and age first, by the SJOIN rules.
 type Rename struct {
 	Source string
 	Old    string
 	New    string
 	Reason string
+	Merge  bool
 }
 
 func (*UserAdd) event()        {}
@@ -312,7 +318,7 @@ func (n *Network) Apply(ev Event) error {
 		}
 		u.Realname = e.Realname
 	case *Rename:
-		return n.rename(e.Old, e.New)
+		return n.rename(e.Old, e.New, e.Merge)
 	case *Invite:
 		if n.users[e.UID] == nil {
 			return ErrNoSuchUser
@@ -330,17 +336,55 @@ func (n *Network) Apply(ev Event) error {
 	return nil
 }
 
+// mergeInto moves every member of ch into dst (a rename that met a channel
+// of the same name, like a netjoin): someone already in both keeps the
+// ranks of both. ch's invites and the metadata keys dst lacks come along,
+// and ch is gone. Modes, lists and age are the server's to settle first.
+func (n *Network) mergeInto(ch, dst *Channel) {
+	oldKey, newKey := irc.Fold(ch.Name), irc.Fold(dst.Name)
+	for uid, m := range ch.Members {
+		if o := dst.Members[uid]; o != nil {
+			o.Ranks |= m.Ranks
+			o.Hidden = o.Hidden && m.Hidden
+		} else {
+			dst.Members[uid] = m
+			m.User.Channels[newKey] = dst
+			delete(dst.Invited, uid)
+		}
+		delete(m.User.Channels, oldKey)
+	}
+	for uid := range ch.Invited {
+		if dst.Members[uid] == nil {
+			dst.Invited[uid] = true
+		}
+	}
+	for k, v := range ch.Metadata {
+		if _, ok := dst.Metadata[k]; !ok {
+			if dst.Metadata == nil {
+				dst.Metadata = make(map[string]string)
+			}
+			dst.Metadata[k] = v
+		}
+	}
+	delete(n.channels, oldKey)
+}
+
 // rename moves channel old to the name new: the same *Channel, under its new
 // key in the network and in each member's list. A change of case only is
-// allowed; a different channel already holding new is not.
-func (n *Network) rename(old, new string) error {
+// allowed; a different channel already holding new is not, unless merge is
+// set: then old's members move into that channel and old is gone.
+func (n *Network) rename(old, new string, merge bool) error {
 	ch := n.Channel(old)
 	if ch == nil {
 		return ErrNoSuchChannel
 	}
 	oldKey, newKey := irc.Fold(ch.Name), irc.Fold(new)
 	if other := n.channels[newKey]; other != nil && other != ch {
-		return ErrChannelInUse
+		if !merge {
+			return ErrChannelInUse
+		}
+		n.mergeInto(ch, other)
+		return nil
 	}
 	delete(n.channels, oldKey)
 	n.channels[newKey] = ch

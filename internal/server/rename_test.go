@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/fhazal/beeircd/internal/control"
+	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
 )
 
@@ -348,6 +349,189 @@ func TestRenameLinkRefused(t *testing.T) {
 	if got, _ := channelOn(hub, "#only"); got != "#only" {
 		t.Errorf("hub has %q after a refused rename", got)
 	}
+}
+
+// holdLoop stops n's loop until the returned func is called with what it
+// does first once going again: lines that arrive meanwhile wait behind it.
+func holdLoop(n *linkNode) func(first func()) {
+	held, gate := make(chan struct{}), make(chan func())
+	go n.s.onLoop(func() {
+		close(held)
+		(<-gate)()
+	})
+	<-held
+	return func(first func()) { gate <- first }
+}
+
+// sameChannel waits until every node has channel name the same way and
+// none still has old; it returns that state.
+func sameChannel(t *testing.T, name, old string, nodes ...*linkNode) string {
+	t.Helper()
+	var states []string
+	for end := time.Now().Add(5 * time.Second); time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
+		states = states[:0]
+		first := chanState(nodes[0].s, name)
+		agree := true
+		for _, n := range nodes {
+			st := chanState(n.s, name)
+			if o := chanState(n.s, old); o != "none" {
+				agree = false
+				st += " (" + old + " is still there: " + o + ")"
+			}
+			states = append(states, n.name+": "+st)
+			agree = agree && st == first
+		}
+		if agree {
+			return first
+		}
+	}
+	t.Fatalf("the servers don't agree on %s:\n%s", name, strings.Join(states, "\n"))
+	return ""
+}
+
+// A rename onto a name someone on the other server made the same moment:
+// the two channels become one, the same on both servers, by the SJOIN
+// rules (the older one keeps its modes, ranks and age; the same age
+// merges).
+func TestRenameLinkClash(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		age   int64     // the new channel's TS minus the renamed one's
+		ranks [2]string // alice's and charlie's ranks after
+		modes string
+	}{
+		{"renamed one older", 100, [2]string{"o", ""}, "nst"},
+		{"same age", 0, [2]string{"o", "o"}, "nst"},
+		{"renamed one younger", -100, [2]string{"", "o"}, "nt"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			hub, leaf := linkedPair(t)
+			for _, n := range []*linkNode{hub, leaf} {
+				n.s.do(func() { n.s.cfg.Server.IRCv3Drafts = true })
+			}
+			alice := capLogin(t, hub.s, "alice", renameCap)
+			bob := login(t, leaf.s, "bob")
+			carol := capLogin(t, leaf.s, "carol", renameCap)
+			charlie := login(t, leaf.s, "charlie")
+			for _, nick := range []string{"bob", "carol", "charlie"} {
+				hub.seen(t, nick)
+			}
+			joinAll("#old", alice)
+			alice.send("MODE #old +s")
+			alice.expect("MODE #old +s")
+			alice.send("TOPIC #old :the old place")
+			alice.expect("TOPIC #old :the old place")
+			joinLinked(t, leaf, bob, "#old")
+			joinAll("#old", carol)
+			alice.expect(":carol!")
+			var ts int64
+			hub.s.onLoop(func() { ts = hub.s.net.Channel("#old").TS })
+			cu := leaf.user("charlie").UID
+
+			// The rename leaves the hub while charlie makes #new on the leaf.
+			release := holdLoop(leaf)
+			alice.send("RENAME #old #new :moving")
+			alice.expect(":alice!~alice@127.0.0.1 RENAME #old #new :moving")
+			release(func() { leaf.s.emit(&state.Join{UID: cu, Channel: "#new", TS: ts + tt.age}) })
+			charlie.expect(":charlie!~charlie@127.0.0.1 JOIN #new")
+
+			got := sameChannel(t, "#new", "#old", hub, leaf)
+			for i, uid := range []string{hub.user("alice").UID, cu} {
+				if want := tt.ranks[i] + ":" + uid; !strings.Contains(got, "["+want) && !strings.Contains(got, " "+want) {
+					t.Errorf("want %s in %s", want, got)
+				}
+			}
+			wantTS := ts
+			if tt.age < 0 {
+				wantTS = ts + tt.age
+			}
+			for _, want := range []string{"ts=" + itoa(int(wantTS)) + " ", "modes=" + tt.modes + " ", `topic="the old place"`} {
+				if !strings.Contains(got, want) {
+					t.Errorf("want %s in %s", want, got)
+				}
+			}
+			if n := strings.Count(got, ":0"); n != 4 {
+				t.Errorf("want 4 members, have %d: %s", n, got)
+			}
+
+			// What people see: carol (with the cap) the rename and charlie
+			// coming in; bob a part, a join, the topic and the names.
+			carol.expect("RENAME #old #new :moving")
+			carol.expect(":charlie!~charlie@127.0.0.1 JOIN #new")
+			bob.expect(":bob!~bob@127.0.0.1 PART #old :moving")
+			bob.expect(":bob!~bob@127.0.0.1 JOIN #new")
+			bob.expect(" 332 bob #new :the old place")
+			if names := bob.expect(" 353 bob "); !strings.Contains(names, "charlie") || !strings.Contains(names, "alice") {
+				t.Errorf("bob's names: %s", names)
+			}
+			joined := map[string]bool{}
+			for len(joined) < 3 {
+				line := charlie.expect(" JOIN #new")
+				joined[line[1:strings.IndexByte(line, '!')]] = true
+			}
+			if !joined["alice"] || !joined["bob"] || !joined["carol"] {
+				t.Errorf("charlie saw joins of %v", joined)
+			}
+			alice.expect(":charlie!~charlie@127.0.0.1 JOIN #new")
+			// It works as one channel.
+			charlie.send("PRIVMSG #new :one channel")
+			alice.expect("PRIVMSG #new :one channel")
+			carol.expect("PRIVMSG #new :one channel")
+		})
+	}
+}
+
+// The same on a hub between two leaves: the hub, where #new was just
+// made, merges and passes the rename on; the far leaf, which heard of
+// #new first, merges the same way.
+func TestRenameLinkClashTree(t *testing.T) {
+	hub := newLinkNode(t, "hub.test.local", "0HB", "hub")
+	a := newLinkNode(t, "a.test.local", "0AA", "leaf")
+	b := newLinkNode(t, "b.test.local", "0BB", "leaf")
+	hub.expects(a, false, "")
+	hub.expects(b, false, "")
+	a.expects(hub, true, "")
+	b.expects(hub, true, "")
+	hub.start(t)
+	a.start(t)
+	b.start(t)
+	waitLink(t, "tree", func() bool { return len(a.servers()) == 3 && len(b.servers()) == 3 })
+	for _, n := range []*linkNode{hub, a, b} {
+		n.s.do(func() { n.s.cfg.Server.IRCv3Drafts = true })
+	}
+	alice := capLogin(t, a.s, "alice", renameCap)
+	bob := login(t, b.s, "bob")
+	charlie := login(t, hub.s, "charlie")
+	for _, n := range []*linkNode{a, b} {
+		for _, nick := range []string{"alice", "bob", "charlie"} {
+			n.seen(t, nick)
+		}
+	}
+	joinAll("#old", alice)
+	alice.send("MODE #old +s")
+	alice.expect("MODE #old +s")
+	joinLinked(t, b, bob, "#old")
+	alice.expect(":bob!")
+	var ts int64
+	a.s.onLoop(func() { ts = a.s.net.Channel("#old").TS })
+	cu := hub.user("charlie").UID
+
+	release := holdLoop(hub)
+	alice.send("RENAME #old #new :moving")
+	alice.expect("RENAME #old #new :moving")
+	release(func() { hub.s.emit(&state.Join{UID: cu, Channel: "#new", TS: ts + 100}) })
+	charlie.expect(":charlie!~charlie@127.0.0.1 JOIN #new")
+
+	got := sameChannel(t, "#new", "#old", hub, a, b)
+	if strings.Count(got, ":0") != 3 || !strings.Contains(got, "modes=nst ") || !strings.Contains(got, "ts="+itoa(int(ts))+" ") {
+		t.Errorf("merged channel: %s", got)
+	}
+	bob.expect("PART #old :moving")
+	bob.expect("JOIN #new")
+	charlie.expect(":alice!")
+	charlie.send("PRIVMSG #new :one channel")
+	alice.expect("PRIVMSG #new :one channel")
+	bob.expect("PRIVMSG #new :one channel")
 }
 
 func TestRenameAware(t *testing.T) {

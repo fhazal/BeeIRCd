@@ -96,15 +96,28 @@ func (s *Server) burstBody(l *linkConn) []string {
 // the members not behind l; nothing when there are none.
 func (s *Server) channelBurst(l *linkConn, ch *state.Channel) []string {
 	cd := l.codecOf()
-	lc := link.Channel{Name: ch.Name, TS: ch.TS, Args: map[byte]string{}}
-	for uid, m := range ch.Members {
-		if s.behind(l, uidServer(uid)) {
-			continue
-		}
-		lc.Members = append(lc.Members, link.Member{UID: uid, Ranks: rankLetters(m.Ranks)})
-	}
+	lc := s.linkChannel(ch, func(uid string) bool { return !s.behind(l, uidServer(uid)) })
 	if len(lc.Members) == 0 {
 		return nil
+	}
+	out := cd.Channel(lc, s.cfg.Server.SID)
+	if ch.Topic != "" {
+		out = append(out, cd.Topic(link.Topic{Channel: ch.Name, Text: ch.Topic, By: orStr(ch.TopicBy, s.cfg.Server.Name), At: ch.TopicAt.Unix()}, s.cfg.Server.SID))
+	}
+	for _, it := range s.metadataBurst(mdTarget{ch: ch}) {
+		out = append(out, cd.Encode(it)...)
+	}
+	return out
+}
+
+// linkChannel is ch as an SJOIN carries it: age, modes, lists and the
+// members keep says (sorted by UID).
+func (s *Server) linkChannel(ch *state.Channel, keep func(uid string) bool) link.Channel {
+	lc := link.Channel{Name: ch.Name, TS: ch.TS, Args: map[byte]string{}}
+	for uid, m := range ch.Members {
+		if keep(uid) {
+			lc.Members = append(lc.Members, link.Member{UID: uid, Ranks: rankLetters(m.Ranks)})
+		}
 	}
 	sort.Slice(lc.Members, func(i, j int) bool { return lc.Members[i].UID < lc.Members[j].UID })
 	lc.Modes = link.SortedModes(ch.Modes)
@@ -123,14 +136,7 @@ func (s *Server) channelBurst(l *linkConn, ch *state.Channel) []string {
 			lc.Lists = append(lc.Lists, link.ListEntry{Mode: mode, Mask: e.Mask, SetBy: orStr(e.SetBy, s.cfg.Server.Name), SetAt: e.SetAt.Unix()})
 		}
 	}
-	out := cd.Channel(lc, s.cfg.Server.SID)
-	if ch.Topic != "" {
-		out = append(out, cd.Topic(link.Topic{Channel: ch.Name, Text: ch.Topic, By: orStr(ch.TopicBy, s.cfg.Server.Name), At: ch.TopicAt.Unix()}, s.cfg.Server.SID))
-	}
-	for _, it := range s.metadataBurst(mdTarget{ch: ch}) {
-		out = append(out, cd.Encode(it)...)
-	}
-	return out
+	return lc
 }
 
 func (s *Server) linkUser(u *state.User, hops int) link.User {
@@ -499,7 +505,8 @@ func (s *Server) remoteSJoin(l *linkConn, source string, c *link.Channel) {
 		switch {
 		case c.TS < ch.TS:
 			s.sno('l', "Channel %s: %s has it from %s, older than ours; our modes and ranks are dropped", ch.Name, src.name, time.Unix(c.TS, 0).UTC().Format(time.DateTime))
-			s.clearChannel(l, ch, src.name)
+			// The other links lose them too; l never had them.
+			s.clearChannel(func(ev state.Event) error { return s.emitFrom(l, "", ev) }, ch, src.name)
 			s.emitFrom(l, src.sid, &state.ChannelTS{Channel: ch.Name, TS: c.TS})
 		case c.TS == ch.TS:
 			merge = true
@@ -537,13 +544,22 @@ func (s *Server) remoteSJoin(l *linkConn, source string, c *link.Channel) {
 	if ch == nil || removeTheirs {
 		return
 	}
+	s.sjoinModes(func(ev state.Event) error { return s.emitFrom(l, src.sid, ev) }, ch, c, src.name, merge, func(m byte) {
+		s.ignoreOnce(l, "cmode:"+string(m), "channel mode %c from %s is not one we have; skipped", m, src.name)
+	})
+}
+
+// sjoinModes gives ch the modes and lists of c, an SJOIN's copy of it that
+// won or tied on age (merge: the larger key, limit and parameter win).
+// Lists keep who set them and when; unknown is told of modes we lack.
+func (s *Server) sjoinModes(emit func(state.Event) error, ch *state.Channel, c *link.Channel, by string, merge bool, unknown func(m byte)) {
 	var chg []state.ModeChange
 	for i := 0; i < len(c.Modes); i++ {
 		m := c.Modes[i]
 		arg := c.Args[m]
 		switch {
 		case !chanModeKnown(m):
-			s.ignoreOnce(l, "cmode:"+string(m), "channel mode %c from %s is not one we have; skipped", m, src.name)
+			unknown(m)
 			continue
 		case m == 'k' && merge && ch.Modes['k'] && ch.Key >= arg:
 			continue // the same age: the larger key wins on both sides
@@ -557,7 +573,7 @@ func (s *Server) remoteSJoin(l *linkConn, source string, c *link.Channel) {
 		chg = append(chg, state.ModeChange{Add: true, Mode: m, Arg: arg})
 	}
 	if len(chg) > 0 {
-		s.emitFrom(l, src.sid, &state.ChannelMode{Channel: ch.Name, By: src.name, At: time.Now(), Changes: chg})
+		emit(&state.ChannelMode{Channel: ch.Name, By: by, At: time.Now(), Changes: chg})
 	}
 	// Lists keep who set them and when: one event per setter and time.
 	for i := 0; i < len(c.Lists); {
@@ -573,14 +589,14 @@ func (s *Server) remoteSJoin(l *linkConn, source string, c *link.Channel) {
 		if c.Lists[i].SetAt == 0 {
 			at = time.Now()
 		}
-		s.emitFrom(l, src.sid, &state.ChannelMode{Channel: ch.Name, By: orStr(c.Lists[i].SetBy, src.name), At: at, Changes: lc})
+		emit(&state.ChannelMode{Channel: ch.Name, By: orStr(c.Lists[i].SetBy, by), At: at, Changes: lc})
 		i = j
 	}
 }
 
-// clearChannel takes away every mode, list entry and rank of ch: an older
-// copy of it came over a link.
-func (s *Server) clearChannel(l *linkConn, ch *state.Channel, by string) {
+// clearChannel takes away every mode, list entry and rank of ch, through
+// emit: an older copy of it came over a link.
+func (s *Server) clearChannel(emit func(state.Event) error, ch *state.Channel, by string) {
 	var chg []state.ModeChange
 	for _, m := range link.SortedModes(ch.Modes) {
 		switch b := byte(m); {
@@ -609,8 +625,7 @@ func (s *Server) clearChannel(l *linkConn, ch *state.Channel, by string) {
 		}
 	}
 	if len(chg) > 0 {
-		// The other links lose them too; l never had them.
-		s.emitFrom(l, "", &state.ChannelMode{Channel: ch.Name, By: by, At: time.Now(), Changes: chg})
+		emit(&state.ChannelMode{Channel: ch.Name, By: by, At: time.Now(), Changes: chg})
 	}
 }
 

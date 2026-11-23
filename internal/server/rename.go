@@ -1,6 +1,7 @@
 package server
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -233,6 +234,16 @@ func (s *Server) renamePrepare(e *state.Rename) func() {
 		return nil
 	}
 	oldName := ch.Name
+	if dst := s.net.Channel(e.New); e.Merge && dst != nil && dst != ch {
+		before := make(map[string]bool, len(dst.Members))
+		for uid := range dst.Members {
+			before[uid] = true
+		}
+		return func() {
+			s.renameMove(oldName, dst.Name)
+			s.renameMergeDeliver(e, ch, dst, before)
+		}
+	}
 	return func() {
 		newName := ch.Name
 		s.renameMove(oldName, newName)
@@ -349,6 +360,125 @@ func (s *Server) renameDeliver(e *state.Rename, ch *state.Channel, oldName strin
 	}
 }
 
+// renameMergeDeliver tells the members here of a rename that merged ch
+// into dst (before: dst's members until then). ch's members hear of the
+// rename as usual, the clients with the cap then of dst's members as
+// joins; dst's members see ch's come in; someone in both only leaves the
+// old name.
+func (s *Server) renameMergeDeliver(e *state.Rename, ch, dst *state.Channel, before map[string]bool) {
+	oldName := ch.Name
+	var came []*state.User // ch's members new to dst
+	for uid, m := range ch.Members {
+		if !before[uid] {
+			came = append(came, m.User)
+		}
+	}
+	sort.Slice(came, func(i, j int) bool { return came[i].UID < came[j].UID })
+	for _, u := range came {
+		join, away := s.joinLines(u, dst.Name)
+		for _, o := range seers(dst, u) {
+			if before[o.UID] {
+				s.deliverTo(o, join)
+				if away != nil {
+					s.deliverTo(o, away)
+				}
+			}
+		}
+	}
+	var stay []*state.Member // dst's members from before
+	for uid := range before {
+		if m := dst.Members[uid]; m != nil {
+			stay = append(stay, m)
+		}
+	}
+	sort.Slice(stay, func(i, j int) bool { return stay[i].User.UID < stay[j].User.UID })
+	o := s.outFrom(e.Source, "RENAME", oldName, dst.Name, e.Reason).text()
+	for uid, m := range ch.Members {
+		c := s.clients[uid]
+		if c == nil || !c.registered {
+			continue
+		}
+		u := m.User
+		params := []string{oldName}
+		if e.Reason != "" {
+			params = append(params, e.Reason)
+		}
+		part := s.out(u, "PART", params...)
+		part.msg.Trailing = e.Reason != ""
+		switch {
+		case before[uid]:
+			c.deliver(part)
+		case c.caps[renameCap]:
+			c.deliver(o)
+			for _, sm := range stay {
+				if dst.Sees(u, sm) {
+					join, away := s.joinLines(sm.User, dst.Name)
+					c.deliver(join)
+					if away != nil {
+						c.deliver(away)
+					}
+				}
+			}
+		default:
+			c.deliver(part)
+			join := s.out(u, "JOIN", dst.Name)
+			join.extParams = []string{dst.Name, accountOrStar(u), u.Realname}
+			c.deliver(join)
+			if dst.Topic != "" {
+				s.sendTopic(c, dst)
+			}
+			s.joinNames(c, dst)
+		}
+	}
+}
+
+// joinLines are u's JOIN of channel name as others see it, and its AWAY
+// for away-notify (nil when u isn't away).
+func (s *Server) joinLines(u *state.User, name string) (join, away *outMsg) {
+	join = s.out(u, "JOIN", name)
+	join.extParams = []string{name, accountOrStar(u), u.Realname}
+	if u.Away != "" {
+		away = s.out(u, "AWAY", u.Away).text()
+		away.needCap = "away-notify"
+	}
+	return join, away
+}
+
+// renameSettle readies a rename from another server that met dst, a
+// channel just made here under the new name, as a netjoin of the two (the
+// SJOIN rules): the older one keeps its age, modes, lists and ranks and
+// the other takes them; the same age merges both ways; the newer topic
+// wins. Each server that meets the clash settles it the same way itself,
+// so none of this goes over a link.
+func (s *Server) renameSettle(old, dst *state.Channel) {
+	quiet, by := s.emitQuiet, s.cfg.Server.Name
+	noMembers := func(string) bool { return false }
+	skip := func(byte) {}
+	lo, ld := s.linkChannel(old, noMembers), s.linkChannel(dst, noMembers)
+	switch {
+	case old.TS < dst.TS:
+		s.clearChannel(quiet, dst, by)
+		quiet(&state.ChannelTS{Channel: dst.Name, TS: old.TS})
+		s.sjoinModes(quiet, dst, &lo, by, false, skip)
+	case old.TS > dst.TS:
+		s.clearChannel(quiet, old, by)
+		s.sjoinModes(quiet, old, &ld, by, false, skip)
+	default:
+		s.sjoinModes(quiet, dst, &lo, by, true, skip)
+		s.sjoinModes(quiet, old, &ld, by, true, skip)
+	}
+	// remoteTopic's rule, from old's side: its topic wins when dst has none
+	// or it is newer. The losing channel's members are told the winner.
+	switch {
+	case old.Topic != "" && (dst.Topic == "" || old.TopicAt.Unix() > dst.TopicAt.Unix()):
+		if dst.Topic != old.Topic || dst.TopicBy != old.TopicBy {
+			quiet(&state.Topic{Channel: dst.Name, Text: old.Topic, By: old.TopicBy, At: old.TopicAt})
+		}
+	case dst.Topic != "" && (dst.Topic != old.Topic || dst.TopicBy != old.TopicBy):
+		quiet(&state.Topic{Channel: old.Name, Text: dst.Topic, By: dst.TopicBy, At: dst.TopicAt})
+	}
+}
+
 // ---- links ----
 
 // renameLinkLines is a Rename for link o: BEE RENAME for BeeIRCd servers
@@ -389,7 +519,15 @@ func (s *Server) remoteRename(l *linkConn, it *link.Bee) {
 	if isUID(it.Source) {
 		uid = it.Source
 	}
-	if err := s.emitFrom(l, it.Source, &state.Rename{Source: uid, Old: it.Args[0], New: it.Args[1], Reason: reason}); err != nil {
+	e := &state.Rename{Source: uid, Old: it.Args[0], New: it.Args[1], Reason: reason}
+	// Someone here made the new name at the same moment: the two channels
+	// merge, as in a netjoin, so every server ends with the same one.
+	if old, dst := s.net.Channel(e.Old), s.net.Channel(e.New); old != nil && dst != nil && old != dst {
+		s.sno('l', "Channel %s: renamed to %s on %s while it was just made here; the two are merged", old.Name, dst.Name, l.peer.Name)
+		s.renameSettle(old, dst)
+		e.Merge = true
+	}
+	if err := s.emitFrom(l, it.Source, e); err != nil {
 		s.log.Printf("link %s: RENAME %s to %s: %v", l.peer.Name, it.Args[0], it.Args[1], err)
 	}
 }
