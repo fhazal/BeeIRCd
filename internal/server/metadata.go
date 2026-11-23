@@ -177,8 +177,9 @@ func (s *Server) mdOwns(c *Client, t mdTarget) bool {
 	return t.u == c.user
 }
 
-// mdRated counts a SET or CLEAR for c and reports the seconds to wait
-// when c is over the limit.
+// mdRated reports the seconds c has to wait when it is over the SET/CLEAR
+// limit. It does not count: only a change that went through does (mdCount),
+// so refused ones cost nothing.
 func (s *Server) mdRated(c *Client) (int, bool) {
 	if c.isOper() {
 		return 0, false
@@ -195,8 +196,14 @@ func (s *Server) mdRated(c *Client) (int, bool) {
 		wait := int(mdSetWindow-now.Sub(c.mdSets[0]))/int(time.Second) + 1
 		return wait, true
 	}
-	c.mdSets = append(c.mdSets, now)
 	return 0, false
+}
+
+// mdCount counts one accepted SET or CLEAR for c.
+func (s *Server) mdCount(c *Client) {
+	if !c.isOper() {
+		c.mdSets = append(c.mdSets, time.Now())
+	}
 }
 
 // cmdMetadata is METADATA <target> <subcommand> [params...].
@@ -394,6 +401,7 @@ func (s *Server) mdSet(c *Client, t mdTarget, args []string) {
 			return
 		}
 	}
+	s.mdCount(c) // only a change that went through counts toward the limit
 	if !owns {
 		s.sno('a', "%s deleted metadata key %s of %s", c.nick, key, t.name())
 	}
@@ -429,6 +437,9 @@ func (s *Server) mdClearCmd(c *Client, t mdTarget, keys []string) {
 		if _, ok := t.meta()[k]; ok {
 			done = append(done, k)
 		}
+	}
+	if len(done) > 0 {
+		s.mdCount(c)
 	}
 	if len(done) > 0 && !owns {
 		s.sno('a', "%s cleared the metadata of %s", c.nick, t.name())

@@ -577,3 +577,23 @@ func TestMetadataClearKeys(t *testing.T) {
 	plain.send("METADATA * CLEAR")
 	plain.expect("FAIL METADATA KEY_NOT_SET Plain * :")
 }
+
+// Refused changes (bad value, key not set) don't count toward the limit.
+func TestMetadataRateLimitCountsAcceptedOnly(t *testing.T) {
+	s := testServer(t, draftsOn)
+	bee := mdClient(t, s, "Bee")
+	for i := 0; i < mdSetLimit+2; i++ {
+		bee.send("METADATA * SET status :" + strings.Repeat("x", mdMaxValue+1))
+		bee.expect("FAIL METADATA VALUE_INVALID")
+		bee.send("METADATA * SET color")
+		bee.expect("FAIL METADATA KEY_NOT_SET Bee color")
+	}
+	for i := 0; i < mdSetLimit; i++ {
+		bee.send("METADATA * SET status :s" + strconv.Itoa(i))
+		bee.expect(" 761 Bee Bee status * :s" + strconv.Itoa(i))
+	}
+	bee.send("METADATA * SET status :one too many")
+	bee.expect("FAIL METADATA RATE_LIMITED Bee status ")
+	bee.send("METADATA * CLEAR avatar") // nothing cleared: not counted, but over the limit
+	bee.expect("FAIL METADATA RATE_LIMITED Bee * ")
+}
