@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"errors"
 	"strings"
 	"time"
 )
@@ -69,7 +70,25 @@ CREATE TABLE IF NOT EXISTS netbans (
 	expires INTEGER NOT NULL DEFAULT 0,
 	PRIMARY KEY (kind, mask)
 );
+CREATE TABLE IF NOT EXISTS netban_removed (
+	kind       TEXT NOT NULL,
+	mask       TEXT NOT NULL,
+	set_at     INTEGER NOT NULL,
+	removed_at INTEGER NOT NULL,
+	keep_until INTEGER NOT NULL,
+	PRIMARY KEY (kind, mask)
+);
 `
+
+// A removed network ban is remembered for a while (kind, mask and when
+// the ban had been set), so a server that was split off at the time
+// can't bring it back in its burst. It is forgotten when the ban would
+// have run out, after RemovedBanKeep at the latest, and only the newest
+// RemovedBanMax are kept.
+const (
+	RemovedBanKeep = 7 * 24 * time.Hour
+	RemovedBanMax  = 10000
+)
 
 // migrateNetbans moves AKILLs from the old table and gives forbids and
 // session exceptions an expiry. Safe on every start.
@@ -130,21 +149,70 @@ func (s *Store) NetBans(kind string) ([]NetBan, error) {
 	return out, rows.Err()
 }
 
-// AddNetBan adds or replaces a network ban.
+// AddNetBan adds or replaces a network ban. A remembered removal of the
+// same ban is forgotten: this one is newer.
 func (s *Store) AddNetBan(b NetBan) error {
 	var exp int64
 	if !b.Expires.IsZero() {
 		exp = b.Expires.Unix()
 	}
-	_, err := s.db.Exec(`INSERT INTO netbans (kind, mask, reason, set_by, set_at, expires) VALUES (?, ?, ?, ?, ?, ?)
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`INSERT INTO netbans (kind, mask, reason, set_by, set_at, expires) VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT(kind, mask) DO UPDATE SET reason = excluded.reason, set_by = excluded.set_by, set_at = excluded.set_at, expires = excluded.expires`,
-		b.Kind, b.Mask, b.Reason, b.SetBy, b.SetAt.Unix(), exp)
-	return err
+		b.Kind, b.Mask, b.Reason, b.SetBy, b.SetAt.Unix(), exp); err != nil {
+		return err
+	}
+	if _, err := tx.Exec("DELETE FROM netban_removed WHERE kind = ? AND mask = ?", b.Kind, b.Mask); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
-// DelNetBan removes a network ban; false when there was none.
+// DelNetBan removes a network ban; false when there was none. The
+// removal is remembered (see RemovedBanKeep), except for K-lines: they
+// never leave this server.
 func (s *Store) DelNetBan(kind, mask string) (bool, error) {
-	return s.affected("DELETE FROM netbans WHERE kind = ? AND mask = ?", kind, mask)
+	tx, err := s.db.Begin()
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	if kind != BanKline {
+		now := time.Now()
+		keep := now.Add(RemovedBanKeep).Unix()
+		if _, err := tx.Exec(`INSERT OR REPLACE INTO netban_removed (kind, mask, set_at, removed_at, keep_until)
+			SELECT kind, mask, set_at, ?, CASE WHEN expires > 0 AND expires < ? THEN expires ELSE ? END
+			FROM netbans WHERE kind = ? AND mask = ?`, now.Unix(), keep, keep, kind, mask); err != nil {
+			return false, err
+		}
+	}
+	res, err := tx.Exec("DELETE FROM netbans WHERE kind = ? AND mask = ?", kind, mask)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
+// RemovedNetBan reports when the network ban kind mask, removed here, had
+// been set, while the removal is remembered.
+func (s *Store) RemovedNetBan(kind, mask string, now time.Time) (setAt time.Time, ok bool, err error) {
+	var at int64
+	err = s.db.QueryRow("SELECT set_at FROM netban_removed WHERE kind = ? AND mask = ? AND keep_until > ?", kind, mask, now.Unix()).Scan(&at)
+	if errors.Is(err, sql.ErrNoRows) {
+		return time.Time{}, false, nil
+	}
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	return time.Unix(at, 0), true, nil
 }
 
 // Expired is something PurgeExpired removed.
@@ -160,7 +228,8 @@ type Expired struct {
 }
 
 // PurgeExpired removes network bans, forbids and session exceptions that
-// ran out before now and returns what went.
+// ran out before now and returns what went. Remembered removals past
+// their time (or past RemovedBanMax) go too, unreported.
 func (s *Store) PurgeExpired(now time.Time) ([]Expired, error) {
 	var gone []Expired
 	for _, q := range []struct{ what, sel, del string }{
@@ -193,6 +262,14 @@ func (s *Store) PurgeExpired(now time.Time) ([]Expired, error) {
 		if _, err := s.db.Exec(q.del, now.Unix()); err != nil {
 			return gone, err
 		}
+	}
+	// Removals remembered long enough (nobody needs to hear of these).
+	if _, err := s.db.Exec("DELETE FROM netban_removed WHERE keep_until <= ?", now.Unix()); err != nil {
+		return gone, err
+	}
+	if _, err := s.db.Exec(`DELETE FROM netban_removed WHERE rowid NOT IN
+		(SELECT rowid FROM netban_removed ORDER BY removed_at DESC, rowid DESC LIMIT ?)`, RemovedBanMax); err != nil {
+		return gone, err
 	}
 	return gone, nil
 }

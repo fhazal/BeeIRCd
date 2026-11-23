@@ -190,10 +190,52 @@ func TestRemoteBanNewestWins(t *testing.T) {
 	newer := store.NetBan{Kind: store.BanAkill, Mask: "*@bad.example", Reason: "newer", SetBy: "a", SetAt: now}
 	older := store.NetBan{Kind: store.BanAkill, Mask: "*@bad.example", Reason: "older", SetBy: "b", SetAt: now.Add(-time.Hour)}
 	s.RemoteBan(newer, true)
-	if s.RemoteBan(older, true) {
+	if changed, stale := s.RemoteBan(older, true); changed || stale {
 		t.Error("older ban replaced the newer one")
 	}
 	if b := s.firstBan(store.BanAkill, "x", "bad.example", "", ""); b == nil || b.Reason != "newer" {
 		t.Errorf("kept %+v", b)
+	}
+}
+
+// A ban removed here while another server was split off stays removed
+// when that server sends it back (it is stale), whoever removed it; one
+// set again later, or one set during the split, comes through.
+func TestRemoteBanRemovedDuringSplit(t *testing.T) {
+	s, _ := newServices(t)
+	set := time.Now().Add(-time.Hour).Truncate(time.Second)
+	z := store.NetBan{Kind: store.BanZline, Mask: "192.0.2.32", Reason: "x", SetBy: "op", SetAt: set, Expires: time.Now().Add(time.Hour)}
+	g := store.NetBan{Kind: store.BanAkill, Mask: "*@192.0.2.33", Reason: "y", SetBy: "op", SetAt: set}
+	for _, b := range []store.NetBan{z, g} {
+		if changed, _ := s.RemoteBan(b, true); !changed {
+			t.Fatalf("%s not added", b.Mask)
+		}
+	}
+	// One removed by an oper here, one by another server's DEL.
+	if ok, err := s.store.DelNetBan(z.Kind, z.Mask); !ok || err != nil {
+		t.Fatal(ok, err)
+	}
+	s.reloadOperData()
+	if changed, _ := s.RemoteBan(g, false); !changed {
+		t.Fatal("remote DEL not applied")
+	}
+	older := g
+	older.SetAt = set.Add(-time.Minute)
+	for _, b := range []store.NetBan{z, g, older} {
+		if changed, stale := s.RemoteBan(b, true); changed || !stale {
+			t.Errorf("%s (set %v) back: changed %v, stale %v", b.Mask, b.SetAt, changed, stale)
+		}
+	}
+	if len(s.LinkedBans()) != 0 {
+		t.Errorf("bans back: %+v", s.LinkedBans())
+	}
+	again := z
+	again.SetAt, again.Reason = set.Add(time.Minute), "set again"
+	if changed, stale := s.RemoteBan(again, true); !changed || stale {
+		t.Errorf("ban set again: changed %v, stale %v", changed, stale)
+	}
+	other := store.NetBan{Kind: store.BanShun, Mask: "*@192.0.2.34", Reason: "new", SetBy: "op", SetAt: set}
+	if changed, stale := s.RemoteBan(other, true); !changed || stale {
+		t.Errorf("new ban: changed %v, stale %v", changed, stale)
 	}
 }

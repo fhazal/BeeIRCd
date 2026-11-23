@@ -150,8 +150,21 @@ func (s *Server) remoteBan(l *linkConn, raw irc.Message, b *link.Ban) {
 		}
 	}
 	s.banFrom = l
-	changed := s.svc.RemoteBan(nb, b.Add)
+	changed, stale := s.svc.RemoteBan(nb, b.Add)
 	s.banFrom = nil
+	if stale {
+		// We removed this ban while l was split off, and l (or a server
+		// behind it) still has it: tell l to remove it too, rather than
+		// take it back. Only l: everyone else already had the removal.
+		// Each side drops its copy, so nothing comes back here.
+		s.log.Printf("link %s: it still has the %s on %s, removed here while it was split off; asked it to remove it too", l.peer.Name, store.BanWord(kind), nb.Mask)
+		del := nb
+		del.SetBy = s.cfg.Server.Name
+		for _, line := range l.codecOf().Encode(s.banItem(del, false)) {
+			l.send(line)
+		}
+		return
+	}
 	if changed && l.eos {
 		// UnrealIRCd names the setter nick!user@host; the notice, like
 		// InspIRCd's, names the nick.

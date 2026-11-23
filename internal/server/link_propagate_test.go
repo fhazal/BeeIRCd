@@ -210,6 +210,81 @@ func TestLinkBans(t *testing.T) {
 	_ = strings.Contains
 }
 
+// A ban removed while the servers are split stays removed after the
+// relink, on whichever side it was removed; a ban set during the split
+// still reaches the other side.
+func TestLinkBanRemovedDuringSplit(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	has := func(n *linkNode, kind, mask string) bool {
+		found := false
+		n.s.onLoop(func() {
+			for _, b := range n.s.svc.LinkedBans() {
+				if b.Kind == kind && b.Mask == mask {
+					found = true
+				}
+			}
+		})
+		return found
+	}
+	op := login(t, hub.s, "op")
+	netadminOn(t, hub, op, "op")
+	ann := login(t, leaf.s, "ann")
+	hub.seen(t, "ann")
+
+	op.send("ZLINE 192.0.2.32 10m :x")
+	op.expect("ZLINE added: 192.0.2.32")
+	op.send("GLINE *@192.0.2.33 10m :y")
+	op.expect("AKILL added: *@192.0.2.33")
+	op.send("ZLINE 192.0.2.35 10m :removed on the leaf")
+	op.expect("ZLINE added: 192.0.2.35")
+	waitLink(t, "bans on the leaf", func() bool {
+		return has(leaf, store.BanZline, "192.0.2.32") && has(leaf, store.BanAkill, "*@192.0.2.33") && has(leaf, store.BanZline, "192.0.2.35")
+	})
+
+	op.send("SQUIT leaf.test.local testing")
+	waitLink(t, "split", func() bool { return hub.user("ann") == nil && leaf.user("op") == nil })
+	op.send("ZLINE -192.0.2.32")
+	op.expect("ZLINE on 192.0.2.32 removed.")
+	op.send("GLINE -*@192.0.2.33")
+	op.expect("AKILL on *@192.0.2.33 removed.")
+	op.send("ZLINE 192.0.2.34 10m :set during the split")
+	op.expect("ZLINE added: 192.0.2.34")
+	leaf.s.onLoop(func() {
+		if _, problem := leaf.s.svc.BanDelVia("lop", "test", store.BanZline, "192.0.2.35"); problem != "" {
+			t.Errorf("leaf removal: %s", problem)
+		}
+	})
+	if !has(leaf, store.BanZline, "192.0.2.32") || !has(hub, store.BanZline, "192.0.2.35") {
+		t.Fatal("a removal crossed the split")
+	}
+
+	leaf.s.onLoop(func() {
+		for _, r := range leaf.s.links.retry {
+			r.next = time.Time{}
+		}
+	})
+	waitLink(t, "relink", func() bool { return hub.user("ann") != nil && leaf.user("op") != nil })
+	gone := func(n *linkNode) bool {
+		return !has(n, store.BanZline, "192.0.2.32") && !has(n, store.BanAkill, "*@192.0.2.33") && !has(n, store.BanZline, "192.0.2.35")
+	}
+	waitLink(t, "removed bans gone on both", func() bool { return gone(hub) && gone(leaf) })
+	waitLink(t, "ban set during the split synced", func() bool { return has(leaf, store.BanZline, "192.0.2.34") })
+	// Settled: nothing comes back, and each side asked once per ban.
+	hub.s.onLoop(func() {})
+	leaf.s.onLoop(func() {})
+	if !gone(hub) || !gone(leaf) {
+		t.Error("a removed ban came back")
+	}
+	const asked = "asked it to remove it too"
+	if n := strings.Count(hub.log.String(), asked); n != 2 {
+		t.Errorf("hub asked %d times, want 2 (Z-line + G-line)", n)
+	}
+	if n := strings.Count(leaf.log.String(), asked); n != 1 {
+		t.Errorf("leaf asked %d times, want 1", n)
+	}
+	_ = ann
+}
+
 // An oper's KILL of someone on another server reaches them.
 func TestLinkKillRemote(t *testing.T) {
 	hub, leaf := linkedPair(t)

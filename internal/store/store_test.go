@@ -278,6 +278,89 @@ func TestNetBansAndMigration(t *testing.T) {
 	}
 }
 
+// A removed network ban is remembered (also over a restart) until it
+// would have run out, a week at most; adding it again forgets it.
+func TestRemovedNetBans(t *testing.T) {
+	s, path := open(t)
+	now := time.Now()
+	set := now.Add(-time.Hour).Truncate(time.Second)
+	for _, b := range []NetBan{
+		{Kind: BanZline, Mask: "192.0.2.1", Reason: "r", SetBy: "B", SetAt: set, Expires: now.Add(time.Hour)},
+		{Kind: BanAkill, Mask: "*@192.0.2.2", Reason: "r", SetBy: "B", SetAt: set},
+		{Kind: BanKline, Mask: "*@192.0.2.3", Reason: "r", SetBy: "B", SetAt: set},
+	} {
+		if err := s.AddNetBan(b); err != nil {
+			t.Fatal(err)
+		}
+		if ok, err := s.DelNetBan(b.Kind, b.Mask); !ok || err != nil {
+			t.Fatalf("DelNetBan %s: %v %v", b.Mask, ok, err)
+		}
+	}
+	if ok, _ := s.DelNetBan(BanShun, "*@nothing"); ok {
+		t.Error("removed a ban that wasn't there")
+	}
+	s.Close()
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	removed := func(kind, mask string, at time.Time) bool {
+		t.Helper()
+		got, ok, err := s.RemovedNetBan(kind, mask, at)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ok && !got.Equal(set) {
+			t.Errorf("%s %s: set at %v, want %v", kind, mask, got, set)
+		}
+		return ok
+	}
+	if !removed(BanZline, "192.0.2.1", now) || !removed(BanAkill, "*@192.0.2.2", now) {
+		t.Fatal("removal not remembered over a restart")
+	}
+	if removed(BanKline, "*@192.0.2.3", now) || removed(BanShun, "*@nothing", now) {
+		t.Error("remembered a K-line or a ban that wasn't there")
+	}
+	if removed(BanZline, "192.0.2.1", now.Add(2*time.Hour)) {
+		t.Error("remembered past the ban's own expiry")
+	}
+	if !removed(BanAkill, "*@192.0.2.2", now.Add(6*24*time.Hour)) || removed(BanAkill, "*@192.0.2.2", now.Add(RemovedBanKeep+time.Minute)) {
+		t.Error("a permanent ban's removal isn't kept for a week")
+	}
+	if err := s.AddNetBan(NetBan{Kind: BanAkill, Mask: "*@192.0.2.2", Reason: "again", SetBy: "B", SetAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	if removed(BanAkill, "*@192.0.2.2", now) {
+		t.Error("adding the ban again didn't forget the removal")
+	}
+
+	// PurgeExpired forgets old ones and keeps only the newest RemovedBanMax.
+	if _, err := s.db.Exec(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
+		INSERT INTO netban_removed SELECT 'zline', 'm' || i, 1, i, ? FROM n`, RemovedBanMax+5, now.Add(time.Hour).Unix()); err != nil {
+		t.Fatal(err)
+	}
+	if gone, err := s.PurgeExpired(now.Add(2 * time.Hour)); err != nil || len(gone) != 0 {
+		t.Fatalf("purged %v, %v", gone, err)
+	}
+	var n int
+	s.db.QueryRow("SELECT COUNT(*) FROM netban_removed").Scan(&n)
+	if n != 0 {
+		t.Errorf("%d left after their time", n)
+	}
+	if _, err := s.db.Exec(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
+		INSERT INTO netban_removed SELECT 'zline', 'm' || i, 1, i, ? FROM n`, RemovedBanMax+5, now.Add(time.Hour).Unix()); err != nil {
+		t.Fatal(err)
+	}
+	s.PurgeExpired(now)
+	s.db.QueryRow("SELECT COUNT(*) FROM netban_removed").Scan(&n)
+	_, oldest, _ := s.RemovedNetBan(BanZline, "m5", now)
+	_, next, _ := s.RemovedNetBan(BanZline, "m6", now)
+	if n != RemovedBanMax || oldest || !next {
+		t.Errorf("cap: %d kept, m5 %v, m6 %v", n, oldest, next)
+	}
+}
+
 // Opening an older database moves SET PROTECT delays to SET KILL modes and
 // drops the UNBANME privilege (Anope 2.0.20), saying which channels lost it.
 func TestMigrateAnope(t *testing.T) {

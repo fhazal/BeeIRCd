@@ -58,8 +58,6 @@ func (s *Services) LinkedBans() []store.NetBan {
 	return out
 }
 
-// RemoteBan applies a ban change from another server. It reports whether
-// anything changed.
 // matchesEveryone says whether a ban mask of kind would hit every user
 // (the masks OperServ refuses with "That mask matches everyone").
 func matchesEveryone(kind, mask string) bool {
@@ -80,13 +78,17 @@ func matchesEveryone(kind, mask string) bool {
 	return (strings.Trim(host, "*?.:") == "" || strings.HasSuffix(host, "/0")) && strings.Trim(user, "*?~") == ""
 }
 
-func (s *Services) RemoteBan(b store.NetBan, add bool) bool {
+// RemoteBan applies a ban change from another server. It reports whether
+// anything changed and, for an added ban, whether it is stale: this very
+// ban (or an older one) was removed here while the other server was split
+// off, so the removal stands and the other server should drop it too.
+func (s *Services) RemoteBan(b store.NetBan, add bool) (changed, stale bool) {
 	if !linked(b.Kind) {
-		return false
+		return false, false
 	}
 	if m, ok := irc.ServerExtban(b.Mask); ok {
 		if b.Kind == store.BanZline || b.Kind == store.BanSNLine {
-			return false
+			return false, false
 		}
 		b.Mask = m
 	} else {
@@ -94,24 +96,41 @@ func (s *Services) RemoteBan(b store.NetBan, add bool) bool {
 	}
 	if add {
 		if !b.Live(time.Now()) {
-			return false
+			return false, false
 		}
 		if matchesEveryone(b.Kind, b.Mask) {
 			// Never right, from anyone: here OperServ refuses it too.
 			s.log.Printf("refused a network ban from another server that matches everyone: %s %s (by %s)", b.Kind, b.Mask, b.SetBy)
-			return false
+			return false, false
 		}
-		for _, have := range s.netbans {
-			if have.Kind == b.Kind && have.Mask == b.Mask && have.Reason == b.Reason && have.Expires.Equal(b.Expires) {
-				return false
+		have := false
+		for _, o := range s.netbans {
+			if o.Kind != b.Kind || o.Mask != b.Mask {
+				continue
 			}
-			if have.Kind == b.Kind && have.Mask == b.Mask && have.SetAt.After(b.SetAt) {
-				return false // after a split both sides send theirs: the newest wins
+			if o.Reason == b.Reason && o.Expires.Equal(b.Expires) {
+				return false, false
+			}
+			if o.SetAt.After(b.SetAt) {
+				return false, false // after a split both sides send theirs: the newest wins
+			}
+			have = true
+		}
+		if !have {
+			// Removed here after it was set (the other server was split
+			// off then): the removal is the newer change. A ban set again
+			// later is newer still and comes through.
+			set, removed, err := s.store.RemovedNetBan(b.Kind, b.Mask, time.Now())
+			if err != nil {
+				s.log.Printf("services database: %v", err)
+			}
+			if removed && !b.SetAt.After(set) {
+				return false, true
 			}
 		}
 		if err := s.store.AddNetBan(b); err != nil {
 			s.log.Printf("services database: %v", err)
-			return false
+			return false, false
 		}
 	} else {
 		gone, err := s.store.DelNetBan(b.Kind, b.Mask)
@@ -119,11 +138,11 @@ func (s *Services) RemoteBan(b store.NetBan, add bool) bool {
 			s.log.Printf("services database: %v", err)
 		}
 		if !gone {
-			return false
+			return false, false
 		}
 	}
 	s.reloadOperData()
-	return true
+	return true, false
 }
 
 // banChanges calls the hook for what differs between two ban lists.
