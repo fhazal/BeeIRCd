@@ -30,7 +30,7 @@ func adminCommands() map[string]adminCmd {
 	return map[string]adminCmd{
 		"SHOW": {"SHOW [setting]", "the settings you can change", "Shows every setting AdminServ can change, or one.", asShow},
 		"SET": {"SET <setting> <value>", "change a setting now",
-			"Changes a setting at once and saves it to beeircd.conf (comments stay).\nExample: /as set max-users 500   /as set cloak off   /as set nick-expire 120d\nSee them all: /as show", asSet},
+			"Changes a setting at once and saves it to beeircd.conf (comments stay).\nExample: /as set max-users 500   /as set cloak off   /as set nick-expire 120d\nOn a leaf, a\nsetting of that server (limits, messages, joins, ...) changes the leaf; a\nnetwork setting (services ones, members) is changed on the hub.\nSee them all: /as show", asSet},
 		"MOTD": {"MOTD SHOW|SET|ADD|DEL|CLEAR [text]", "edit the message of the day",
 			"MOTD SHOW            the MOTD with line numbers\nMOTD SET <text>      replace it with one line\nMOTD ADD <text>      add a line at the end\nMOTD DEL <number>    remove a line\nMOTD CLEAR           empty it", asMotd},
 		"PORT": {"PORT ADD|DEL|LIST [port] [TLS]", "open or close a port",
@@ -78,6 +78,9 @@ func (s *Server) adminServCommands() map[string]services.BotCommand {
 				if name == "RESTART" || name == "DIE" {
 					// It acts on the server they are on, never here.
 					s.stopTheirServer(c, name, args)
+					return
+				}
+				if name == "SET" && s.setOnTheirServer(c, args) {
 					return
 				}
 				if name != "SERVER" {
@@ -663,6 +666,52 @@ func baseSettings() []setting {
 	}
 }
 
+// Where a SET setting belongs. A local one is the server's own: each
+// server reads it from its own beeircd.conf, and /as set typed by an admin
+// on a leaf changes that leaf. A network one is shared over the links (the
+// services and the Hive Panel member pages run on the hub): it is changed
+// on the hub only, and a linked server without the services refuses it.
+const (
+	scopeLocal = iota + 1
+	scopeNetwork
+)
+
+// settingScopes says, for every SET setting, whether it is local or
+// network. A setting missing here counts as network (TestSettingScopes
+// catches one).
+var settingScopes = map[string]int{
+	// [server], [limits], [cloak], [link]: this server's own block.
+	"description": scopeLocal, "resolve-hosts": scopeLocal, "find-place-by-ip": scopeLocal,
+	"ircv3-drafts": scopeLocal, "cloak": scopeLocal, "outside-admins": scopeLocal,
+	"max-users": scopeLocal, "session-limit": scopeLocal, "connect-rate": scopeLocal,
+	"max-unregistered": scopeLocal, "max-unregistered-per-ip": scopeLocal, "max-channels": scopeLocal,
+	"topic-length": scopeLocal, "away-length": scopeLocal, "kick-length": scopeLocal,
+	"flood-burst": scopeLocal, "flood-rate": scopeLocal, "ping-interval": scopeLocal, "ping-timeout": scopeLocal,
+	// Joins on connect, the default +F profile, the soft-ban login prompt
+	// and [messages]: what this server does with the people on it.
+	"auto-join": scopeLocal, "auto-join-skip": scopeLocal, "oper-join": scopeLocal, "oper-join-flag": scopeLocal,
+	"flood-profile": scopeLocal, "auth-prompt": scopeLocal, "auth-prompt-text": scopeLocal, "auth-prompt-fail": scopeLocal, "auth-prompt-time": scopeLocal,
+	"static-quit": scopeLocal, "static-part": scopeLocal, "quit-message-min-time": scopeLocal,
+	"ban-contact": scopeLocal, "quit-prefix": scopeLocal, "reject-full": scopeLocal,
+	"reject-too-many": scopeLocal, "reject-password": scopeLocal, "ban-notice": scopeLocal,
+	"ban-quit": scopeLocal, "hide-killed-by": scopeLocal,
+	// [services] and the Hive Panel member pages: one for the network.
+	"nick-expire": scopeNetwork, "chan-expire": scopeNetwork, "identify-within": scopeNetwork,
+	"kill-quick": scopeNetwork, "allow-kill-immed": scopeNetwork, "ban-expiry": scopeNetwork,
+	"guest-prefix": scopeNetwork, "log-channel": scopeNetwork, "log-connects": scopeNetwork,
+	"log-events": scopeNetwork, "registration": scopeNetwork, "default-language": scopeNetwork,
+	"unconfirmed-expire": scopeNetwork, "members": scopeNetwork,
+}
+
+// network reports whether st is a network setting (see settingScopes).
+func (st setting) network() bool { return settingScopes[st.name] != scopeLocal }
+
+// networkSettingRefusal is the answer when st can't be changed here
+// because it is a network setting kept on hub.
+func networkSettingRefusal(st setting, hub string) string {
+	return fmt.Sprintf("%s is a network setting: it is the same for every server and is kept on the hub, %s. Change it there.", st.name, hub)
+}
+
 func findSetting(name string) (setting, bool) {
 	name = strings.ToLower(strings.ReplaceAll(name, "_", "-"))
 	for _, st := range settings() {
@@ -758,6 +807,9 @@ func (s *Server) setSetting(who string, st setting, value string) (old, now stri
 	back := old
 	if st.key == "log_events" && st.table == "services" && s.cfg.Services.LogEvents == nil {
 		back = "DEFAULT"
+	}
+	if st.network() && s.cfg.Link.Linked() && s.svc.Off() { // a leaf
+		return "", "", 0, networkSettingRefusal(st, s.hubName())
 	}
 	if s.cfg.Path == "" {
 		return "", "", 0, "This server wasn't started from a config file, so settings can't be saved."

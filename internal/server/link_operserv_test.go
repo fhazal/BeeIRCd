@@ -2,6 +2,7 @@ package server
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -245,4 +246,64 @@ func TestLinkServerRestart(t *testing.T) {
 	other.expect("(Server shutting down (bye))")
 	leaf.stopped(t)
 	hub.running(t)
+}
+
+// /as set typed by an admin on the leaf (home reach): a local setting
+// changes the leaf, not the hub; a network one is refused with a pointer
+// to the hub, and the leaf refuses one sent to it by name too.
+func TestLinkLeafAdminSet(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	for _, n := range []*linkNode{hub, leaf} {
+		path := filepath.Join(t.TempDir(), "beeircd.conf")
+		if err := os.WriteFile(path, []byte(fileConf), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		n.s.onLoop(func() { n.s.cfg.Path = path })
+	}
+	maxUsers := func(n *linkNode) (v int) {
+		n.s.onLoop(func() { v = n.s.cfg.Limits.MaxUsers })
+		return v
+	}
+	hubBefore := maxUsers(hub)
+	lop := login(t, leaf.s, "lop")
+	netadminOn(t, leaf, lop, "lop") // home reach
+	hub.seen(t, "lop")
+
+	lop.send("AS SET max-users 321")
+	lop.expect("[leaf.test.local AdminServ] max-users is now 321 (was ")
+	if got := maxUsers(leaf); got != 321 {
+		t.Errorf("leaf max-users = %d", got)
+	}
+	if got := maxUsers(hub); got != hubBefore {
+		t.Errorf("hub max-users changed to %d", got)
+	}
+
+	lop.send("AS SET nick-expire 30d")
+	lop.expect("nick-expire is a network setting: it is the same for every server and is kept on the hub, hub.test.local. Change it there. Your admin reach is leaf.test.local only.")
+	lop.send("AS SET no-such-thing 1")
+	lop.expect("There is no setting no-such-thing.")
+	lop.send("AS SET max-users")
+	lop.expect("Syntax: SET <setting> <value>.")
+
+	// Sent to the leaf by name, a network setting is refused there.
+	lop.send("AS SERVER leaf.test.local SET nick-expire 30d")
+	lop.expect("[leaf.test.local AdminServ] nick-expire is a network setting: it is the same for every server and is kept on the hub, hub.test.local. Change it there.")
+
+	// Not a BeeIRCd (as SINFO tells): nothing is sent.
+	hub.s.onLoop(func() { hub.s.links.servers["0LF"].software = "UnrealIRCd-6.1.0" })
+	lop.send("AS SET max-users 99")
+	lop.expect("leaf.test.local isn't a BeeIRCd server, so AdminServ can't change its max-users: change it in its own config.")
+	hub.s.onLoop(func() { hub.s.links.servers["0LF"].software = "" })
+	if got := maxUsers(leaf); got != 321 {
+		t.Errorf("leaf max-users = %d after the refused SET", got)
+	}
+
+	// The hub's own admin still changes the hub.
+	op := login(t, hub.s, "op")
+	netadminOn(t, hub, op, "op")
+	op.send("AS SET max-users 444")
+	op.expect("max-users is now 444")
+	if hubGot, leafGot := maxUsers(hub), maxUsers(leaf); hubGot != 444 || leafGot != 321 {
+		t.Errorf("hub %d leaf %d", hubGot, leafGot)
+	}
 }

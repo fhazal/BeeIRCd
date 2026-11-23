@@ -40,3 +40,20 @@ func TestAdminServSettingsDocumented(t *testing.T) {
 		}
 	}
 }
+
+// Every SET setting is marked local or network in settingScopes, and the
+// table names no setting AdminServ doesn't have.
+func TestSettingScopes(t *testing.T) {
+	code := map[string]bool{}
+	for _, st := range settings() {
+		code[st.name] = true
+		if sc := settingScopes[st.name]; sc != scopeLocal && sc != scopeNetwork {
+			t.Errorf("SET %s isn't marked local or network in settingScopes", st.name)
+		}
+	}
+	for name := range settingScopes {
+		if !code[name] {
+			t.Errorf("settingScopes names %s, which AdminServ SET doesn't have", name)
+		}
+	}
+}

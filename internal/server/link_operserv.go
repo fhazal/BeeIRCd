@@ -699,6 +699,61 @@ func (s *Server) stopTheirServer(c *Client, cmd string, args []string) {
 	}
 }
 
+// setOnTheirServer is SET typed by c, an admin on another server. A local
+// setting (see settingScopes) belongs to the server they are on, so it
+// goes there as BEEADMIN, as RESTART does, and that server checks their
+// flags itself. A network setting is changed here, on the hub, by those
+// outsideRefusal lets in; others are told it is a network setting. It
+// returns false when the hub should run the SET as before.
+func (s *Server) setOnTheirServer(c *Client, args []string) bool {
+	if len(args) < 2 {
+		s.as(c, "Syntax: SET <setting> <value>. See them all: /as show")
+		return true
+	}
+	st, ok := findSetting(args[0])
+	if !ok {
+		s.as(c, "There is no setting %s. See them all: /as show", args[0])
+		return true
+	}
+	if st.network() {
+		if why := s.outsideRefusal(c); why != "" {
+			s.as(c, "%s %s", networkSettingRefusal(st, s.cfg.Server.Name), why)
+			return true
+		}
+		return false
+	}
+	r := s.links.servers[uidServer(c.uid)]
+	switch {
+	case r == nil || r.via == nil:
+		s.as(c, "Your server isn't linked here, so AdminServ can't change its %s: change it in its beeircd.conf.", st.name)
+		return true
+	case !r.via.peer.Bee || r.software != "" && !strings.HasPrefix(r.software, version.Name):
+		s.as(c, "%s isn't a BeeIRCd server, so AdminServ can't change its %s: change it in its own config.", r.name, st.name)
+		return true
+	}
+	r.via.send(fmt.Sprintf(":%s BEEADMIN %s :%s", c.uid, r.sid, "SET "+strings.Join(args, " ")))
+	return true
+}
+
+// hubName names the hub, where the services and the network settings
+// are: this server when it runs the services, else the server the
+// services pseudo-server hangs off.
+func (s *Server) hubName() string {
+	if !s.svc.Off() {
+		return s.cfg.Server.Name
+	}
+	t := s.saslTarget()
+	if t == "" {
+		return "the services server"
+	}
+	if r := s.serverByName(t); r != nil {
+		if up := s.links.servers[r.uplink]; up != nil {
+			return up.name
+		}
+	}
+	return t
+}
+
 // adminStatus is SERVER <name> STATUS here.
 func (s *Server) adminStatus() []string {
 	total, _, _ := s.net.PeopleCounts()

@@ -96,6 +96,19 @@ can change things; every oper can look.
 `quit-prefix`, `reject-full`, `reject-too-many`, `reject-password`,
 `ban-notice`, `ban-quit`, `hide-killed-by`.
 
+**SET on a leaf.** Most settings belong to one server: each reads them
+from its own beeircd.conf. An admin connected to a leaf who types `/as
+set max-users 300` (or a limit, message, join, prompt, cloak or
+description setting) changes that leaf, not the hub; the leaf checks
+their admin flag itself, and their reach may be home. The network
+settings are the services ones (`nick-expire` through
+`unconfirmed-expire`) and `members`: they are kept on the hub, and a
+leaf admin with home reach is told "nick-expire is a network setting: it
+is the same for every server and is kept on the hub, hub.example.net.
+Change it there." A network admin on a leaf changes them on the hub as
+before. To change the hub's own local settings from a leaf, use
+`/as server <hub> set ...` (network reach).
+
 ### Opers
 
 The admin from `[services] admin` always has every flag and can't be changed
