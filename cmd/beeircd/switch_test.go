@@ -184,3 +184,37 @@ func TestUpdateHandoverFallbacks(t *testing.T) {
 		t.Errorf("output lacks %q:\n%s", want, out)
 	}
 }
+
+func TestRestartHandsOver(t *testing.T) {
+	fs := &fakeSystem{running: "1.5.0", gate: "2", progGate: "2", progSnap: "1"}
+	u, out := testUpdater(t, "1.5.0", "", fs, "")
+	tried, ok, _ := u.handoverRestart()
+	if !tried || !ok {
+		t.Fatalf("tried %v ok %v:\n%s", tried, ok, out)
+	}
+	if !strings.Contains(out.String(), "restarted · 46 of 47 people stayed connected") {
+		t.Errorf("output:\n%s", out)
+	}
+	if slices.Contains(fs.calls, "systemctl restart beeircd") {
+		t.Errorf("systemctl restart ran: %v", fs.calls)
+	}
+
+	// Without the door keeper: the caller restarts the service and says why.
+	fs = &fakeSystem{running: "1.5.0", gate: "off", progGate: "2", progSnap: "1"}
+	u, _ = testUpdater(t, "1.5.0", "", fs, "")
+	if tried, _, why := u.handoverRestart(); tried || why != "the server runs without the door keeper, -no-gate" {
+		t.Errorf("gate off: tried %v why %q", tried, why)
+	}
+	// Not running: a plain start, nothing to say.
+	fs = &fakeSystem{gate: "2", progGate: "2", progSnap: "1"}
+	u, _ = testUpdater(t, "1.5.0", "", fs, "")
+	if tried, _, why := u.handoverRestart(); tried || why != "" {
+		t.Errorf("stopped: tried %v why %q", tried, why)
+	}
+	// The hand-over can't start: restart the service instead.
+	fs = &fakeSystem{running: "1.5.0", gate: "2", progGate: "2", progSnap: "1", handoverErr: true}
+	u, out = testUpdater(t, "1.5.0", "", fs, "")
+	if tried, ok, _ := u.handoverRestart(); !tried || !ok || !slices.Contains(fs.calls, "systemctl restart beeircd") || fs.quit == "" {
+		t.Errorf("handover error: tried %v ok %v calls %v quit %q\n%s", tried, ok, fs.calls, fs.quit, out)
+	}
+}

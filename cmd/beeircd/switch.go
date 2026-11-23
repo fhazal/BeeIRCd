@@ -105,8 +105,9 @@ func stayed(h *control.Handover) string {
 // now installed, version v: by hand-over when plan says so, else (or when
 // the hand-over can't start) by restarting the service, after setting the
 // quit message. answered: v is running. handed: it took people over and
-// said so; otherwise the caller prints its restart line.
-func (u *updater) switchTo(v string, st *control.Status, plan switchPlan, quit string) (answered, handed bool) {
+// said so (done, like "switched to 1.5.0", then who stayed); otherwise the
+// caller prints its restart line.
+func (u *updater) switchTo(v string, st *control.Status, plan switchPlan, quit, done string) (answered, handed bool) {
 	if plan.handover {
 		if _, err := u.ask(control.CmdHandover, "", 5*time.Second); err != nil {
 			u.c.warn("the hand-over couldn't start (" + err.Error() + "); restarting instead: everyone reconnects once")
@@ -116,7 +117,7 @@ func (u *updater) switchTo(v string, st *control.Status, plan switchPlan, quit s
 				return false, false
 			}
 			if h := now.Handover; h != nil && h.Problem == "" {
-				u.c.ok("switched to " + v + " · " + stayed(h))
+				u.c.ok(done + " · " + stayed(h))
 				return true, true
 			}
 			why := "the new server started without them"
@@ -148,4 +149,29 @@ func (u *updater) waitForNew(v string, oldPID int) (*control.Status, bool) {
 		time.Sleep(u.pollStep)
 	}
 	return nil, false
+}
+
+// handoverRestart is `beeircd restart` behind the door keeper: the running
+// server hands everyone over to a fresh start of the program on disk, so
+// nobody is disconnected. tried false: it can't (the server isn't running,
+// or why says what stops it) and the caller restarts the service instead.
+func (u *updater) handoverRestart() (tried, ok bool, why string) {
+	resp, err := u.ask(control.CmdStatus, "", 2*time.Second)
+	if err != nil || resp.Status == nil {
+		return false, false, ""
+	}
+	st := resp.Status
+	plan := planSwitch(st, u.newGateProto(u.exe), u.newHandoverVersion(u.exe), u.current)
+	if !plan.handover {
+		return false, false, plan.why
+	}
+	answered, handed := u.switchTo(u.current, st, plan, "Server restarting, back in a few seconds", "restarted")
+	if !answered {
+		u.c.bad("BeeIRCd didn't answer after the restart; see beeircd status")
+		return true, false, ""
+	}
+	if !handed {
+		u.c.ok("BeeIRCd is running")
+	}
+	return true, true, ""
 }

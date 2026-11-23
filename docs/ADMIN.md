@@ -14,7 +14,7 @@ through a local socket, so run them as root (`sudo`) on the server.
 | `beeircd status` | Version, uptime, ports, people online (and the peak), channels, opers, services, memory and answer time, data sizes, last backup, certificate and its renew date, and a newer release if there is one |
 | `beeircd check` | Tests the config, certificate, services database and history file without touching the running server, and says whether a restart is safe |
 | `beeircd start` / `stop` | Starts or stops the service. Stopping sends everyone a quit message and saves history first |
-| `beeircd restart` | Runs `check` first and refuses if it fails, so a typo can't take the server down |
+| `beeircd restart` | Runs `check` first and refuses if it fails, so a typo can't take the server down. Behind the door keeper (Linux) nobody is disconnected: the server hands everyone over to a fresh start |
 | `beeircd rehash` | Reads `beeircd.conf` again and applies what can change live; lists what needs a restart |
 | `beeircd backup [file]` | Saves config, database, history and certificates to one `.tar.gz` |
 | `beeircd mail-test <address>` | Sends a test mail with the `[mail]` settings, says in plain words why it failed if it did, and checks the sender domain's SPF, DKIM and DMARC records (what decides inbox or spam), with the record to add for each one missing |

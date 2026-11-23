@@ -504,6 +504,21 @@ func cmdService(verb string, args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 	}
+	if verb == "restart" {
+		// Behind the door keeper the server hands everyone over to a
+		// fresh start: nobody is disconnected.
+		if u, err := newUpdater(path, stdout); err == nil {
+			tried, ok, why := u.handoverRestart()
+			if tried && ok {
+				return 0
+			} else if tried {
+				return 1
+			}
+			if why != "" {
+				c.warn("everyone reconnects once: " + why)
+			}
+		}
+	}
 	if out, err := systemctl(verb, serviceName); err != nil {
 		c.bad("systemctl " + verb + " " + serviceName + ": " + or(out, err.Error()))
 		return 1

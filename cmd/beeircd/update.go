@@ -287,7 +287,7 @@ func (u *updater) install(ctx context.Context, base string, m *release.Manifest,
 		return 0
 	}
 	started := time.Now()
-	if ok, handed := u.switchTo(m.Version, running, plan, "Server updating to BeeIRCd "+m.Version+", back in a few seconds"); ok {
+	if ok, handed := u.switchTo(m.Version, running, plan, "Server updating to BeeIRCd "+m.Version+", back in a few seconds", "switched to "+m.Version); ok {
 		os.Remove(prevOld)
 		if !handed {
 			u.c.ok(fmt.Sprintf("restarted · %s answering after %s", m.Version, secs(time.Since(started))))
@@ -397,7 +397,7 @@ func (u *updater) rollback(yes bool) int {
 		return 0
 	}
 	started := time.Now()
-	ok, handed := u.switchTo(oldVer, running, plan, "Server going back to BeeIRCd "+oldVer+", back in a few seconds")
+	ok, handed := u.switchTo(oldVer, running, plan, "Server going back to BeeIRCd "+oldVer+", back in a few seconds", "switched to "+oldVer)
 	if !ok {
 		u.c.bad(oldVer + " didn't answer within " + secs(u.waitUp) + ": see beeircd status")
 		return 1
