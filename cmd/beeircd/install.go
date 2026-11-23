@@ -47,6 +47,7 @@ type installer struct {
 	out        io.Writer
 	c          *checker
 	tty        bool
+	role       string // set once the role question is answered
 	readSecret func() (string, error)
 	run        func(name string, args ...string) (string, error)
 	env        func(string) string
@@ -200,6 +201,18 @@ func (in *installer) choices(lines ...string) {
 	}
 }
 
+// total is the number of questions this install asks: 9, plus the link
+// port for a hub, plus the link port and the hub's four answers for a leaf.
+func (in *installer) total() int {
+	switch in.role {
+	case "hub":
+		return 10
+	case "leaf":
+		return 14
+	}
+	return 9
+}
+
 // question asks until check accepts the answer (check returns "" for OK).
 func (in *installer) question(n int, label, def string, check func(string) string) (string, error) {
 	for {
@@ -207,7 +220,7 @@ func (in *installer) question(n int, label, def string, check func(string) strin
 		if def != "" {
 			hint = " [" + def + "]"
 		}
-		fmt.Fprintf(in.out, "  %d/9  %-22s%s  ", n, label, hint)
+		fmt.Fprintf(in.out, "  %d/%d  %-22s%s  ", n, in.total(), label, hint)
 		a, err := in.line()
 		if err != nil {
 			return "", err
@@ -364,8 +377,9 @@ func (in *installer) ask() (*plan, error) {
 		return nil, err
 	}
 	p.Role = map[string]string{"1": "standalone", "2": "hub", "3": "leaf"}[role]
+	in.role = p.Role
 	if p.Role != "standalone" {
-		lp, err := in.question(9, "Link port (TLS only)", "7000", func(a string) string {
+		lp, err := in.question(10, "Link port (TLS only)", "7000", func(a string) string {
 			n, err := strconv.Atoi(a)
 			switch {
 			case err != nil || n < 1 || n > 65535:
@@ -413,7 +427,7 @@ func (in *installer) ask() (*plan, error) {
 // fingerprint may wait (Enter): the block is then written commented out.
 func (in *installer) askUplink(p *plan) error {
 	var err error
-	if p.UplinkName, err = in.question(9, "Hub's server name", "", func(a string) string {
+	if p.UplinkName, err = in.question(11, "Hub's server name", "", func(a string) string {
 		switch {
 		case !config.ValidServerName(a):
 			return "the hub's name, like hub.example.org"
@@ -424,7 +438,7 @@ func (in *installer) askUplink(p *plan) error {
 	}); err != nil {
 		return err
 	}
-	addr, err := in.question(9, "Hub's address", p.UplinkName+":7000", func(a string) string {
+	addr, err := in.question(12, "Hub's address", p.UplinkName+":7000", func(a string) string {
 		if _, _, why := splitHostPort(a); why != "" {
 			return why
 		}
@@ -434,7 +448,7 @@ func (in *installer) askUplink(p *plan) error {
 		return err
 	}
 	p.UplinkHost, p.UplinkPort, _ = splitHostPort(addr)
-	p.UplinkFP, err = in.question(9, "Hub's fingerprint", "", func(a string) string {
+	p.UplinkFP, err = in.question(13, "Hub's fingerprint", "", func(a string) string {
 		if a != "" && !config.ValidFingerprint(a) {
 			return "44 characters from beeircd link-info (or ./unrealircd spkifp) on the hub; Enter adds it later"
 		}
@@ -446,7 +460,7 @@ func (in *installer) askUplink(p *plan) error {
 	// Every server needs the hub's cloak secret, or a user's cloak differs
 	// per server. It is a secret, so it is not shown while typed.
 	for {
-		fmt.Fprintf(in.out, "  %d/9  %-22s  ", 9, "Hub's cloak secret")
+		fmt.Fprintf(in.out, "  %d/%d  %-22s  ", 14, in.total(), "Hub's cloak secret")
 		a, err := in.readSecret()
 		if err != nil {
 			return errStopped
