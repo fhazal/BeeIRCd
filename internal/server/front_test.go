@@ -1,11 +1,14 @@
 package server
 
 import (
+	"bufio"
 	"crypto/tls"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"net/http"
+	"net/netip"
 	"path/filepath"
 	"testing"
 	"time"
@@ -228,5 +231,81 @@ func TestDenyList(t *testing.T) {
 	}
 	if newDenyList(nil) != nil {
 		t.Error("an empty list should be nil")
+	}
+}
+
+// On a WebSocket port behind a proxy the visitor's address comes with the
+// HTTP request; the gate checks it before it answers the upgrade, and
+// tells the server the visitor's address, not the proxy's.
+func TestFrontDenyWebSocketProxy(t *testing.T) {
+	r := newFrontRig(t)
+	ports := []config.Listen{{Address: "127.0.0.1:0", WebSocket: true, Proxy: true, ProxyFrom: []string{"127.0.0.1"}}}
+	addrs := r.apply(t, ports, gate.Deny{Net: "192.0.2.0/24"}, gate.Deny{Net: "2001:db8::/32"})
+
+	upgrade := func(hdr string) (*bufio.Reader, net.Conn) {
+		t.Helper()
+		conn, err := net.Dial("tcp", addrs[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		conn.SetDeadline(time.Now().Add(5 * time.Second))
+		fmt.Fprintf(conn, "GET / HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"+
+			"Sec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n%s\r\n", hdr)
+		br := bufio.NewReader(conn)
+		return br, conn
+	}
+	status := func(br *bufio.Reader) int {
+		t.Helper()
+		resp, err := http.ReadResponse(br, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return resp.StatusCode
+	}
+
+	for _, c := range []struct{ hdr, ip string }{
+		{"X-Forwarded-For: 192.0.2.9\r\n", "192.0.2.9"},
+		{"X-Forwarded-For: 10.1.1.1, 192.0.2.10\r\n", "192.0.2.10"}, // the entry our proxy added
+		{"X-Real-IP: 192.0.2.11\r\n", "192.0.2.11"},
+		{"X-Forwarded-For: 2001:db8::7\r\n", "2001:db8::7"},
+		{"X-Forwarded-For: ::ffff:192.0.2.12\r\n", "192.0.2.12"},
+	} {
+		br, conn := upgrade(c.hdr)
+		if got := status(br); got != http.StatusForbidden {
+			t.Fatalf("%q: status %d, want 403", c.hdr, got)
+		}
+		conn.Close()
+		select {
+		case info := <-r.refused:
+			host, _, _ := net.SplitHostPort(info.Remote)
+			if netip.MustParseAddr(host).Unmap().String() != c.ip || !info.WebSocket {
+				t.Fatalf("%q: refused %+v, want %s", c.hdr, info, c.ip)
+			}
+		case info := <-r.got:
+			t.Fatalf("%q: handed on %+v", c.hdr, info)
+		case <-time.After(5 * time.Second):
+			t.Fatalf("%q: the server wasn't told", c.hdr)
+		}
+	}
+
+	// A visitor that isn't denied (or gives no address) is answered as before.
+	for _, hdr := range []string{"X-Forwarded-For: 198.51.100.4\r\n", ""} {
+		br, conn := upgrade(hdr)
+		if got := status(br); got != http.StatusSwitchingProtocols {
+			t.Fatalf("%q: status %d, want 101", hdr, got)
+		}
+		conn.Close()
+		select {
+		case info := <-r.got:
+			if hdr != "" {
+				if host, _, _ := net.SplitHostPort(info.Remote); host != "198.51.100.4" {
+					t.Fatalf("handed on %+v", info)
+				}
+			}
+		case info := <-r.refused:
+			t.Fatalf("%q: refused %+v", hdr, info)
+		case <-time.After(5 * time.Second):
+			t.Fatalf("%q: not handed on", hdr)
+		}
 	}
 }

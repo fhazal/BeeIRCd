@@ -56,7 +56,11 @@ func (a *acceptor) acceptWebSocket(conn net.Conn, l listener) {
 	}
 	conn.SetDeadline(time.Now().Add(wsWait))
 	r := bufio.NewReaderSize(conn, 4096)
-	ws, err := wsHandshake(conn, r, l)
+	var deny func(net.IP) bool
+	if a.refuseIP != nil {
+		deny = func(ip net.IP) bool { return a.refuseIP(ip, conn, l) }
+	}
+	ws, err := wsHandshake(conn, r, l, deny)
 	if err != nil {
 		raw.Close()
 		return
@@ -67,8 +71,11 @@ func (a *acceptor) acceptWebSocket(conn net.Conn, l listener) {
 	}
 }
 
-// wsHandshake reads the HTTP upgrade request and answers it.
-func wsHandshake(conn net.Conn, r *bufio.Reader, l listener) (*wsConn, error) {
+// wsHandshake reads the HTTP upgrade request and answers it. deny (the
+// gate only; nil otherwise) is asked about the visitor address a proxy in
+// front gives, before the upgrade is answered: true means it was refused,
+// and gets a 403.
+func wsHandshake(conn net.Conn, r *bufio.Reader, l listener, deny func(net.IP) bool) (*wsConn, error) {
 	req, err := http.ReadRequest(r)
 	if err != nil {
 		return nil, err
@@ -103,6 +110,9 @@ func wsHandshake(conn net.Conn, r *bufio.Reader, l listener) (*wsConn, error) {
 	if l.proxy {
 		// The proxy in front (nginx, Apache) gives the visitor's address.
 		if ip := forwardedIP(req.Header); ip != nil {
+			if deny != nil && deny(ip) {
+				return refuse(http.StatusForbidden, "Connection refused.\n")
+			}
 			ws.remote = &net.TCPAddr{IP: ip}
 		}
 		if strings.EqualFold(req.Header.Get("X-Forwarded-Proto"), "https") {

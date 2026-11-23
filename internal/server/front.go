@@ -49,7 +49,7 @@ type frontPort struct {
 func NewFront(logger *log.Logger, deliver gate.Deliver) *Front {
 	f := &Front{deliver: deliver, done: make(chan struct{})}
 	f.wait.Store(int64(30 * time.Second))
-	f.acc = &acceptor{log: logger, wg: &f.wg, done: f.done, hand: f.hand, refuse: f.refuse}
+	f.acc = &acceptor{log: logger, wg: &f.wg, done: f.done, hand: f.hand, refuse: f.refuse, refuseIP: f.refuseIP}
 	return f
 }
 
@@ -171,6 +171,19 @@ func (f *Front) refuse(conn net.Conn, l listener) bool {
 	info := gate.Info{Remote: conn.RemoteAddr().String(), Local: conn.LocalAddr().String(), TLS: l.tls, WebSocket: l.websocket}
 	conn.Close()
 	f.deliver(nil, info)
+	return true
+}
+
+// refuseIP is refuse for a visitor behind a proxy on a WebSocket port: ip
+// is the address from the proxy's headers, read before the upgrade is
+// answered. The server is told the visitor's address, not the proxy's.
+func (f *Front) refuseIP(ip net.IP, conn net.Conn, l listener) bool {
+	d := f.deny.Load()
+	a, ok := netip.AddrFromSlice(ip)
+	if d == nil || !ok || !d.has(a.Unmap(), time.Now()) {
+		return false
+	}
+	f.deliver(nil, gate.Info{Remote: (&net.TCPAddr{IP: ip}).String(), Local: conn.LocalAddr().String(), TLS: l.tls, WebSocket: true})
 	return true
 }
 

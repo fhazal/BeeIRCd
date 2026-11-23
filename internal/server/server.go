@@ -490,14 +490,18 @@ func (s *Server) tickEvery() time.Duration {
 // means it was not taken (stopping); the acceptor then closes it. refuse
 // (the gate's Front only) closes a client the server refuses anyway
 // before any TLS or WebSocket work: on TLS and WebSocket ports, once the
-// client's address is known (after a PROXY header; never on a WebSocket
-// port behind a proxy, whose address comes with the HTTP request).
+// client's address is known (after a PROXY header). On a WebSocket port
+// behind a proxy the address comes with the HTTP request: refuseIP does it
+// there.
 type acceptor struct {
 	log    *log.Logger
 	wg     *sync.WaitGroup
 	done   <-chan struct{}
 	hand   func(conn net.Conn, isTLS bool) bool
 	refuse func(conn net.Conn, l listener) bool
+	// refuseIP (the gate only) does the same for the visitor address a
+	// proxy gives on a WebSocket port, once the HTTP request is read.
+	refuseIP func(ip net.IP, conn net.Conn, l listener) bool
 }
 
 // acceptLoop starts the accept loop of one client port.

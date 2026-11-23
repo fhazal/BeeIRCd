@@ -2,6 +2,7 @@ package services
 
 import (
 	"net/netip"
+	"strconv"
 	"strings"
 	"time"
 
@@ -78,12 +79,15 @@ func (s *Services) BanEnd(b *store.NetBan) time.Time {
 }
 
 // gateNet reads a mask as irc.MatchHost matches it against an IP: a CIDR,
-// or one IP. exact: an IP must be written the way the server writes a
+// one IP, or an IPv4 prefix written with trailing "*" octets (wildcardNet). exact: an IP must be written the way the server writes a
 // client's IP, since MatchHost compares that as text.
 func gateNet(m string, exact bool) (netip.Prefix, bool) {
 	if strings.Contains(m, "/") {
 		p, err := netip.ParsePrefix(m)
 		return p, err == nil
+	}
+	if p, ok := wildcardNet(m); ok {
+		return p, true
 	}
 	a, err := netip.ParseAddr(m)
 	if err != nil || a.Zone() != "" || a.Is4In6() || (exact && !strings.EqualFold(a.String(), m)) {
@@ -97,4 +101,38 @@ func gateNet(m string, exact bool) (netip.Prefix, bool) {
 // wildcards.
 func mayMatchIP(h string) bool {
 	return strings.Trim(strings.ToLower(h), "0123456789abcdef.:*?") == ""
+}
+
+// wildcardNet reads an IPv4 glob that is exactly a prefix: 1 to 3 plain
+// decimal octets (no leading zeros, as the server writes an IP) followed
+// by "*" octets, at most four octets in all: "1.2.3.*" is 1.2.3.0/24,
+// "10.*" and "10.*.*.*" are 10.0.0.0/8. A "*" also swallows dots, so a
+// glob with fewer than four octets still matches every IPv4 address with
+// that start; with more than four it matches none, and is not converted.
+// Everything else (a "*" before a number, "?", "1.2.3*", IPv6, a host
+// name) is left to the server.
+func wildcardNet(m string) (netip.Prefix, bool) {
+	parts := strings.Split(m, ".")
+	if len(parts) < 2 || len(parts) > 4 || parts[len(parts)-1] != "*" {
+		return netip.Prefix{}, false
+	}
+	var oct [4]byte
+	n := 0
+	for n < len(parts) && parts[n] != "*" {
+		v, err := strconv.Atoi(parts[n])
+		if err != nil || v < 0 || v > 255 || strconv.Itoa(v) != parts[n] {
+			return netip.Prefix{}, false
+		}
+		oct[n] = byte(v)
+		n++
+	}
+	if n == 0 {
+		return netip.Prefix{}, false
+	}
+	for _, p := range parts[n:] {
+		if p != "*" {
+			return netip.Prefix{}, false
+		}
+	}
+	return netip.PrefixFrom(netip.AddrFrom4(oct), 8*n), true
 }
