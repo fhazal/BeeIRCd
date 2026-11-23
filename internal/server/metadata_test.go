@@ -536,3 +536,44 @@ func TestMetadataLogoutAndSwitch(t *testing.T) {
 		t.Fatalf("login after logged-out set: user %v, Wasp stored %v", u, st)
 	}
 }
+
+// CLEAR with a key list clears only those keys; CLEAR with nothing set
+// still answers (an empty batch, or a FAIL for a client without batch).
+func TestMetadataClearKeys(t *testing.T) {
+	s := testServer(t, draftsOn)
+	bee := mdClient(t, s, "Bee")
+	bee.send("METADATA * SET color #ffcc00")
+	bee.expect(" 761 Bee Bee color ")
+	bee.send("METADATA * SET status :hi")
+	bee.expect(" 761 Bee Bee status ")
+	bee.send("METADATA * SET avatar https://x.test/a.png")
+	bee.expect(" 761 Bee Bee avatar ")
+
+	bee.send("METADATA * CLEAR color")
+	bee.expect(" 766 Bee Bee color :key not set")
+	bee.expect("BATCH -")
+	bee.send("METADATA * LIST")
+	bee.expect(" 761 Bee Bee avatar ")
+	bee.expect(" 761 Bee Bee status * :hi")
+	bee.expect("BATCH -")
+
+	bee.send("METADATA * CLEAR status color")
+	bee.expect(" 766 Bee Bee status :key not set")
+	bee.expect(" 766 Bee Bee color :key not set")
+	bee.expect("BATCH -")
+	bee.send("METADATA * GET avatar")
+	bee.expect(" 761 Bee Bee avatar ")
+
+	bee.send("METADATA * CLEAR")
+	bee.expect(" 766 Bee Bee avatar :key not set")
+	bee.expect("BATCH -")
+	// Nothing set: still a complete (empty) reply.
+	bee.send("METADATA * CLEAR")
+	bee.expect("BATCH +")
+	bee.expect("BATCH -")
+
+	// No batch cap: a FAIL instead of silence.
+	plain := capLogin(t, s, "Plain", metadataCap)
+	plain.send("METADATA * CLEAR")
+	plain.expect("FAIL METADATA KEY_NOT_SET Plain * :")
+}

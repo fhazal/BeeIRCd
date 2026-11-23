@@ -254,7 +254,7 @@ func (s *Server) cmdMetadata(c *Client, m irc.Message) {
 	case "SET":
 		s.mdSet(c, t, args)
 	case "CLEAR":
-		s.mdClearCmd(c, t)
+		s.mdClearCmd(c, t, args)
 	case "SYNC":
 		s.mdBatch(c, "metadata", t.name(), s.mdSyncLines(c, t))
 	}
@@ -401,7 +401,8 @@ func (s *Server) mdSet(c *Client, t mdTarget, args []string) {
 	s.mdBatch(c, "metadata", t.name(), []string{s.mdKeyLine(c, t, key)})
 }
 
-func (s *Server) mdClearCmd(c *Client, t mdTarget) {
+// mdClearCmd is CLEAR [key...]: the named keys of t, or all of them.
+func (s *Server) mdClearCmd(c *Client, t mdTarget, keys []string) {
 	owns := s.mdOwns(c, t)
 	if !owns && !c.isOper() {
 		s.mdFail(c, "KEY_NO_PERMISSION", t.name(), "*", "You may not change this target's metadata")
@@ -415,14 +416,33 @@ func (s *Server) mdClearCmd(c *Client, t mdTarget) {
 		s.mdFail(c, "RATE_LIMITED", t.name(), "*", strconv.Itoa(wait), "Too many changes, wait a moment")
 		return
 	}
-	keys := sortedMeta(t.meta())
-	if !owns && len(keys) > 0 {
+	if len(keys) == 0 {
+		keys = sortedMeta(t.meta())
+	}
+	var lines, valid, done []string
+	for _, k := range keys {
+		if !mdValidKey(k) {
+			s.mdFail(c, "KEY_INVALID", k, "Invalid key")
+			continue
+		}
+		valid = append(valid, k)
+		if _, ok := t.meta()[k]; ok {
+			done = append(done, k)
+		}
+	}
+	if len(done) > 0 && !owns {
 		s.sno('a', "%s cleared the metadata of %s", c.nick, t.name())
 	}
-	var lines []string
-	for _, k := range keys {
+	for _, k := range done {
 		s.mdApply(nil, c, t, k, "", true)
+	}
+	for _, k := range valid {
 		lines = append(lines, s.mdKeyLine(c, t, k))
+	}
+	if len(lines) == 0 && !c.caps["batch"] {
+		// Nothing to clear and no batch to say so: don't leave c waiting.
+		s.mdFail(c, "KEY_NOT_SET", t.name(), "*", "Key not set")
+		return
 	}
 	s.mdBatch(c, "metadata", t.name(), lines)
 }
