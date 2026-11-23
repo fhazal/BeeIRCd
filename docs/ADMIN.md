@@ -80,7 +80,7 @@ can change things; every oper can look.
 | `HISTORY`, `DIFF <n>`, `UNDO <n>` | The last 200 changes, one change before and after, and putting one back |
 | `DNSBL LIST\|CHECK <ip>\|ENABLE\|DISABLE <name>` | The DNS blocklists and their hits |
 | `SPAMREPORT LIST`, `SPAMREPORT KEY <name> <rpckey\|OFF>`, `SPAMREPORT STAGING <name> ON\|OFF` | The spam report places; save a DroneBL key (it is never shown again) |
-| `RESTART`, `DIE` | Restart or stop the server (you repeat it with a code first). Behind the [door keeper](#staying-connected-through-updates) `RESTART` disconnects nobody |
+| `RESTART`, `DIE` | Restart or stop the server you are connected to (you repeat it with a code first; the question names the server). Typed on another BeeIRCd of the network, it acts on that server, not on the services server. Behind the [door keeper](#staying-connected-through-updates) `RESTART` disconnects nobody. Another server by name: `SERVER <name> RESTART\|DIE` |
 
 **Settings for `SET`:** `description`, `max-users`, `session-limit`,
 `connect-rate`, `max-unregistered`, `max-unregistered-per-ip`,
@@ -809,7 +809,7 @@ door keeper starts the new program and hands everyone over to it: nobody is
 disconnected. The update ends with a line like:
 
 ```
-✓ switched to 1.3.0 · 97 of 98 people stayed connected
+✓ switched to 1.5.1 · 97 of 98 people stayed connected
 ```
 
 Before the question, `beeircd update` says which way it goes. Everyone
@@ -825,8 +825,8 @@ If a hand-over fails half-way, the update says so ("the hand-over failed;
 people reconnected as in a normal restart") and still finishes; `--rollback`
 stays there.
 
-`/as restart` behind the door keeper hands everyone over in the same way.
-`/as die` and `beeircd restart` stop or restart as before.
+`/as restart` and `beeircd restart` behind the door keeper hand everyone
+over in the same way. `/as die` disconnects everyone and stops the server.
 
 ## Hive Panel (web admin)
 
@@ -2103,9 +2103,11 @@ and software), `JUPE <server> [reason]` / `JUPE LIST` / `JUPE DEL`
 ADD | SET | DEL | LINK | UNLINK` (writes the `[[link.server]]` blocks,
 also in AdminServ). AdminServ `SERVER <name> STATUS` and
 `SERVER <name> <command>` run on another BeeIRCd (SET, MOTD, OPER, CLASS,
-SHOW, HISTORY, DIFF, UNDO, DNSBL; it needs `outside_admins = "network"`
-there and network reach, see [Admin roles](#admin-roles); ports, restarts
-and link blocks are changed in that server's shell). Each
+SHOW, HISTORY, DIFF, UNDO, DNSBL, RESTART, DIE; it needs `outside_admins =
+"network"` there and network reach, see [Admin roles](#admin-roles); ports
+and link blocks are changed in that server's shell). A plain `/as restart`
+or `/as die` acts on the server you are connected to; a BeeIRCd from before
+this answers that it can't, then restart it from its shell. Each
 remote change is logged on both servers with who and what.
 
 **Link notices.** IRC operators (user mode `+s`) see each step of a

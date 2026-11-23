@@ -140,8 +140,8 @@ func TestLinkRemoteAdmin(t *testing.T) {
 	waitReach(t, leaf, "op", store.ReachNetwork)
 	op.send("AS SERVER leaf.test.local SHOW max-users")
 	op.expect("[leaf.test.local AdminServ]   max-users")
-	op.send("AS SERVER leaf.test.local RESTART")
-	op.expect("RESTART can't be run on another server")
+	op.send("AS SERVER leaf.test.local PORT LIST")
+	op.expect("PORT can't be run on another server")
 
 	lop := login(t, leaf.s, "lop")
 	netadminOn(t, leaf, lop, "lop")
@@ -150,4 +150,99 @@ func TestLinkRemoteAdmin(t *testing.T) {
 	lop.expect("Your admin reach is leaf.test.local only.")
 	lop.send("AS SERVER leaf.test.local STATUS")
 	lop.expect("[leaf.test.local AdminServ] leaf.test.local: BeeIRCd ")
+}
+
+// stopped waits until n's server has stopped.
+func (n *linkNode) stopped(t *testing.T) {
+	t.Helper()
+	waitLink(t, n.name+" stopped", func() bool { return !n.s.onLoop(func() {}) })
+}
+
+// running checks that n's server still runs and was asked for no stop.
+func (n *linkNode) running(t *testing.T) {
+	t.Helper()
+	after := -1
+	if !n.s.onLoop(func() { after = n.s.stopAfter }) || after != 0 {
+		t.Fatalf("%s: stopped or about to stop (stopAfter %d)", n.name, after)
+	}
+}
+
+// /as restart and /as die typed by an admin on the leaf act on the leaf,
+// never on the hub where AdminServ runs.
+func TestLinkLeafAdminStopsOwnServer(t *testing.T) {
+	for _, word := range []string{"restart", "die"} {
+		t.Run(word, func(t *testing.T) {
+			hub, leaf := linkedPair(t)
+			huser := login(t, hub.s, "huser")
+			lop := login(t, leaf.s, "lop")
+			netadminOn(t, leaf, lop, "lop") // home reach
+			other := login(t, leaf.s, "other")
+			hub.seen(t, "lop")
+			what, closing := "restarts", "(Server restarting (bye))"
+			if word == "die" {
+				what, closing = "stops", "(Server shutting down (bye))"
+			}
+			lop.send("AS " + word)
+			lop.expect("[leaf.test.local AdminServ] This " + what + " leaf.test.local and disconnects 2 people.")
+			c := code(lop.expect("[leaf.test.local AdminServ] To go ahead within 2 minutes: /as " + word + " "))
+			if c == "" {
+				t.Fatal("no code")
+			}
+			lop.expect("Sent to leaf.test.local, the server you are on")
+			hub.running(t)
+			lop.send("AS " + word + " " + c + " bye")
+			other.expect(closing)
+			leaf.stopped(t)
+			hub.running(t)
+			huser.send("PING :still-here")
+			huser.expect("PONG")
+		})
+	}
+}
+
+// /as server <leaf> restart|die from the hub: network reach and the
+// leaf's confirm code; the prompt names the leaf. A leaf admin with home
+// reach can't restart the hub by naming it.
+func TestLinkServerRestart(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	op := login(t, hub.s, "op")
+	netadminOn(t, hub, op, "op")
+	lop := login(t, leaf.s, "lop")
+	netadminOn(t, leaf, lop, "lop")
+	other := login(t, leaf.s, "other")
+	leaf.seen(t, "op")
+	hub.seen(t, "lop")
+
+	lop.send("AS SERVER hub.test.local RESTART")
+	lop.expect("Your admin reach is leaf.test.local only.")
+	op.send("AS SERVER leaf.test.local RESTART")
+	op.expect("Your admin reach is hub.test.local only.")
+	op.send("AS RESTART") // on the hub itself: as before
+	op.expect("This restarts hub.test.local and disconnects 1 person.")
+	op.expect("To go ahead within 2 minutes: /as restart ")
+
+	// Not a BeeIRCd (as SINFO tells): refused, nothing happens here.
+	hub.s.onLoop(func() { hub.s.links.servers["0LF"].software = "UnrealIRCd-6.1.0" })
+	lop.send("AS RESTART")
+	lop.expect("leaf.test.local isn't a BeeIRCd server, so AdminServ can't restart it: restart it from its own shell.")
+	hub.s.onLoop(func() { hub.s.links.servers["0LF"].software = "" })
+	hub.running(t)
+
+	hub.s.onLoop(func() {
+		hub.s.operUp(hub.s.clients[hub.s.net.UserByNick("op").UID], &store.Oper{Class: "netadmin", Reach: store.ReachNetwork})
+	})
+	waitReach(t, leaf, "op", store.ReachNetwork)
+	op.send("AS SERVER leaf.test.local DIE")
+	op.expect("[leaf.test.local AdminServ] This stops leaf.test.local and disconnects 2 people.")
+	c := code(op.expect("[leaf.test.local AdminServ] To go ahead within 2 minutes: /as server leaf.test.local die "))
+	if c == "" {
+		t.Fatal("no code")
+	}
+	op.send("AS DIE " + c) // the code is the leaf's, not the hub's
+	op.expect("To go ahead within 2 minutes: /as die ")
+	hub.running(t)
+	op.send("AS SERVER leaf.test.local DIE " + c + " bye")
+	other.expect("(Server shutting down (bye))")
+	leaf.stopped(t)
+	hub.running(t)
 }

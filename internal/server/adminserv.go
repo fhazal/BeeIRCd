@@ -49,11 +49,11 @@ func adminCommands() map[string]adminCmd {
 		"SPAMREPORT": {"SPAMREPORT LIST | KEY <name> <rpckey|OFF> | STAGING <name> ON|OFF", "where /SPAMREPORT sends spammers",
 			"SPAMREPORT LIST                the [[spamreport]] places of beeircd.conf\nSPAMREPORT KEY <name> <rpckey>  save a DroneBL RPC key (adds a dronebl place\n                               called <name> when there is none). OFF removes it.\nSPAMREPORT STAGING <name> ON    send to DroneBL's test list instead of the real one\nGet a DroneBL key at https://dronebl.org/rpckey_signup. Keys are never shown.", asSpamReport},
 		"SERVER": {"SERVER LIST|ADD|SET|DEL|LINK|UNLINK ... | SERVER <name> STATUS|<command>", "linked servers",
-			serverHelp + "\nSERVER <name> STATUS       version, uptime, users and links of that server\nSERVER <name> <command>    run an AdminServ command there (SET, MOTD, OPER,\n                           CLASS, SHOW, HISTORY, DIFF, UNDO, DNSBL); it must\n                           take outside admins ([link] outside_admins =\n                           network) and your admin reach must be network", asServer},
+			serverHelp + "\nSERVER <name> STATUS       version, uptime, users and links of that server\nSERVER <name> <command>    run an AdminServ command there (SET, MOTD, OPER,\n                           CLASS, SHOW, HISTORY, DIFF, UNDO, DNSBL, RESTART,\n                           DIE); a server you are not on must take outside\n                           admins ([link] outside_admins = network) and your\n                           admin reach must be network", asServer},
 		"RESTART": {"RESTART [reason]", "restart the server",
-			"Starts the server again. Behind the door keeper (beeircd run on Linux) nobody\nis disconnected: everyone is handed over to the new server process. Otherwise\neveryone is disconnected and reconnects. You are asked to repeat it with a\ncode first.", asStop(stopRestart)},
+			"Starts the server you are on again. Behind the door keeper (beeircd run on\nLinux) nobody is disconnected: everyone is handed over to the new server\nprocess. Otherwise everyone is disconnected and reconnects. You are asked to\nrepeat it with a code first. Another server: SERVER <name> RESTART.", asStop(stopRestart)},
 		"DIE": {"DIE [reason]", "stop the server",
-			"Disconnects everyone and stops the server. You are asked to repeat it with a\ncode first. Under systemd or Docker it may be started again by them.", asStop(stopDie)},
+			"Disconnects everyone and stops the server you are on. You are asked to repeat\nit with a code first. Under systemd or Docker it may be started again by them.\nAnother server: SERVER <name> DIE.", asStop(stopDie)},
 	}
 }
 
@@ -75,6 +75,11 @@ func (s *Server) adminServCommands() map[string]services.BotCommand {
 			// server) always; the rest only when this server takes
 			// outside admins and their reach is network.
 			s.runFor(uid, func(c *Client) {
+				if name == "RESTART" || name == "DIE" {
+					// It acts on the server they are on, never here.
+					s.stopTheirServer(c, name, args)
+					return
+				}
 				if name != "SERVER" {
 					if why := s.outsideRefusal(c); why != "" {
 						s.as(c, "%s", why)
@@ -1682,17 +1687,23 @@ func asStop(action int) func(*Server, *Client, []string) {
 		if code == "" {
 			fresh := randomCode()
 			c.confirm, c.confirmTill = key+fresh, time.Now().Add(confirmFor)
-			people := s.localUsers()
-			what := "restarts the server"
+			people, name := s.localUsers(), s.cfg.Server.Name
+			what := "restarts"
 			if action == stopDie {
-				what = "stops the server"
+				what = "stops"
 			}
 			if action == stopRestart && s.gate != nil {
-				s.as(c, "This restarts the server without disconnecting anyone: the door keeper hands the %s here to the new server process.", plural(people, "person"))
+				s.as(c, "This restarts %s without disconnecting anyone: the door keeper hands the %s here to the new server process.", name, plural(people, "person"))
 			} else {
-				s.as(c, "This %s and disconnects %s.", what, plural(people, "person"))
+				s.as(c, "This %s %s and disconnects %s.", what, name, plural(people, "person"))
 			}
-			s.as(c, "To go ahead within 2 minutes: /as %s %s [reason]", strings.ToLower(word), fresh)
+			again := "/as " + strings.ToLower(word)
+			if !s.ours(c.uid) {
+				// An admin on another server: a plain /as restart there
+				// is about their own server.
+				again = "/as server " + name + " " + strings.ToLower(word)
+			}
+			s.as(c, "To go ahead within 2 minutes: %s %s [reason]", again, fresh)
 			return
 		}
 		c.confirm = ""

@@ -614,10 +614,11 @@ func linkBlockKV(b config.LinkServer) []config.KV {
 // ---- AdminServ on another server ----
 
 // remoteAdminOK are the AdminServ commands /as server <name> may run
-// elsewhere: live settings only (ports, restarts and link blocks need
-// the shell there).
+// elsewhere: live settings, RESTART and DIE (ports and link blocks need
+// the shell there). A BeeIRCd from before RESTART and DIE were here
+// answers that they can't be run from another server.
 var remoteAdminOK = map[string]bool{"SHOW": true, "SET": true, "MOTD": true, "OPER": true, "CLASS": true,
-	"HISTORY": true, "DIFF": true, "UNDO": true, "DNSBL": true, "STATUS": true}
+	"HISTORY": true, "DIFF": true, "UNDO": true, "DNSBL": true, "STATUS": true, "RESTART": true, "DIE": true}
 
 // asServerOn is "/as server <name> <command ...>": run it on server name.
 func (s *Server) asServerOn(c *Client, name string, args []string) {
@@ -627,7 +628,7 @@ func (s *Server) asServerOn(c *Client, name string, args []string) {
 		return
 	}
 	if !remoteAdminOK[cmd] {
-		s.as(c, "%s can't be run on another server: ports, restarts and link blocks are changed there, in its shell.", cmd)
+		s.as(c, "%s can't be run on another server: ports and link blocks are changed there, in its shell.", cmd)
 		return
 	}
 	if strings.EqualFold(name, s.cfg.Server.Name) {
@@ -638,9 +639,19 @@ func (s *Server) asServerOn(c *Client, name string, args []string) {
 			return
 		}
 		ac, ok := adminCommands()[cmd]
-		if ok {
-			ac.run(s, c, args[1:])
+		if !ok {
+			return
 		}
+		if !s.ours(c.uid) {
+			// Someone on another server naming this one: the same rules
+			// as their plain /as commands here.
+			if why := s.outsideRefusal(c); why != "" {
+				s.as(c, "%s", why)
+				return
+			}
+			s.outsideNote(c, strings.Join(args, " "))
+		}
+		ac.run(s, c, args[1:])
 		return
 	}
 	r := s.serverByName(name)
@@ -659,6 +670,33 @@ func (s *Server) asServerOn(c *Client, name string, args []string) {
 	r.via.send(fmt.Sprintf(":%s BEEADMIN %s :%s", c.uid, r.sid, strings.Join(args, " ")))
 	s.audit(c, s.adminServ, "SERVER %s %s", r.name, strings.Join(args, " "))
 	s.as(c, "Sent to %s; its answer follows from there.", r.name)
+}
+
+// stopTheirServer is RESTART or DIE (cmd) typed by c, an admin on another
+// server: it restarts or stops the server they are on, never this one.
+// It goes there as BEEADMIN, the way /as server <theirs> restart does;
+// that server checks the confirm code and their flags itself.
+func (s *Server) stopTheirServer(c *Client, cmd string, args []string) {
+	if !s.needFlag(c, s.adminServ, 'a') {
+		return
+	}
+	verb := "restart"
+	if cmd == "DIE" {
+		verb = "stop"
+	}
+	r := s.links.servers[uidServer(c.uid)]
+	switch {
+	case r == nil || r.via == nil:
+		s.as(c, "Your server isn't linked here, so AdminServ can't %s it: %s it from its own shell.", verb, verb)
+		return
+	case !r.via.peer.Bee || r.software != "" && !strings.HasPrefix(r.software, version.Name):
+		s.as(c, "%s isn't a BeeIRCd server, so AdminServ can't %s it: %s it from its own shell.", r.name, verb, verb)
+		return
+	}
+	r.via.send(fmt.Sprintf(":%s BEEADMIN %s :%s", c.uid, r.sid, strings.TrimSpace(cmd+" "+strings.Join(args, " "))))
+	if len(args) == 0 {
+		s.as(c, "Sent to %s, the server you are on; its answer follows from there. If it says it can't, it runs an older BeeIRCd: %s it from its own shell.", r.name, verb)
+	}
 }
 
 // adminStatus is SERVER <name> STATUS here.
