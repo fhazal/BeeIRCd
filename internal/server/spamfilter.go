@@ -128,6 +128,12 @@ func (s *Server) spamAct(c *Client, t byte, to, text string) spamOutcome {
 
 // spamDo carries out rule r on c.
 func (s *Server) spamDo(c *Client, r *spamfilter.Rule, t byte, to, text string) spamOutcome {
+	return s.spamDoAs(c, r, t, spamCommand(t), to, text)
+}
+
+// spamDoAs is spamDo for a command (cmd, in a FAIL on Block) that checks
+// text as type t: METADATA checks a status like an AWAY message.
+func (s *Server) spamDoAs(c *Client, r *spamfilter.Rule, t byte, cmd, to, text string) spamOutcome {
 	now := time.Now()
 	s.svc.SpamHit(r.ID, now)
 	s.snoticeEvery("spamfilter:"+r.Key(), spamNoticeEvery, 'f', "%s", spamNotice(c, r, t, to, now))
@@ -146,7 +152,7 @@ func (s *Server) spamDo(c *Client, r *spamfilter.Rule, t byte, to, text string) 
 		if t == spamfilter.Quit || t == spamfilter.Part {
 			return spamStop // the quit or part still happens
 		}
-		s.stdReply(c, "FAIL", spamCommand(t), "SPAMFILTER_BLOCKED", "Your message to "+orStr(to, "the server")+" was blocked: "+reason, "")
+		s.stdReply(c, "FAIL", cmd, "SPAMFILTER_BLOCKED", "Your message to "+orStr(to, "the server")+" was blocked: "+reason, "")
 		return spamStop
 	case spamfilter.Kill:
 		s.quit(c, "Spam filter: "+reason)

@@ -61,6 +61,7 @@ var helpTopics = map[string][]string{
 	"AUTHENTICATE": {"AUTHENTICATE <mechanism|data>", "SASL login (PLAIN or EXTERNAL); your client does this for you."},
 	"CAP":          {"CAP LS|REQ|END [...]", "Asks for IRCv3 capabilities; your client does this for you."},
 	"MARKREAD":     {"MARKREAD <target> [timestamp=...]", "Tells the server how far you have read in a channel or private chat, so your other devices know (IRCv3 read-marker, when the network offers the drafts); your client does this for you."},
+	"METADATA":     {"METADATA <target|*> GET|LIST|SET|CLEAR|SUB|UNSUB|SUBS|SYNC [...]", "Reads and sets profile details on you or a channel (IRCv3 metadata, when the network offers the drafts): avatar, display-name, color, status, pronouns, homepage, bot. Logged-in users keep theirs on the account; channel ops set a channel's. Your client does this for you."},
 	"ISUPPORT":     {"ISUPPORT", "Sends the server's feature list (005) again, also before you have signed in (IRCv3 extended-isupport); your client does this for you."},
 	"BATCH":        {"BATCH +<id> draft/multiline <target> ... BATCH -<id>", "Sends several lines as one message (IRCv3 multiline): up to 24 lines or 4096 bytes. Your client does this when you paste a block of text."},
 	"REDACT":       {"REDACT <target> <msgid> [reason]", "Takes back a message: your own for 15 minutes; channel ops and IRC operators any message in their channel (IRCv3 message-redaction)."},

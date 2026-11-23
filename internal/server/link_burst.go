@@ -80,6 +80,9 @@ func (s *Server) burstBody(l *linkConn) []string {
 		if u.Away != "" {
 			out = append(out, cd.Away(u.UID, u.Away))
 		}
+		for _, it := range s.metadataBurst(mdTarget{u: u}) {
+			out = append(out, cd.Encode(it)...)
+		}
 	}
 	chans := s.net.Channels()
 	sort.Slice(chans, func(i, j int) bool { return chans[i].Name < chans[j].Name })
@@ -114,6 +117,9 @@ func (s *Server) burstBody(l *linkConn) []string {
 		out = append(out, cd.Channel(lc, s.cfg.Server.SID)...)
 		if ch.Topic != "" {
 			out = append(out, cd.Topic(link.Topic{Channel: ch.Name, Text: ch.Topic, By: orStr(ch.TopicBy, s.cfg.Server.Name), At: ch.TopicAt.Unix()}, s.cfg.Server.SID))
+		}
+		for _, it := range s.metadataBurst(mdTarget{ch: ch}) {
+			out = append(out, cd.Encode(it)...)
 		}
 	}
 	return append(out, s.banBurst(l)...)
