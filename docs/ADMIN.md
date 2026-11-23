@@ -387,7 +387,9 @@ restart ends it too. It applies to the server you type it on.
   account on a channel access list. ChanServ ACCESS ADD, FLAGS and the
   xOP lists (QOP, SOP, AOP, HOP, VOP) refuse with "Bee has NEVEROP on and
   can't be added to access lists." Entries the account has already stay
-  and may still be changed or removed. Off by default; opers change it
+  and may still be lowered, changed below op level or removed, but no
+  change (ACCESS ADD, FLAGS, an xOP list, the Hive Panel) may raise one
+  to op level (AOP) or above; CLONE skips the account too. Off by default; opers change it
   for someone with `SASET NEVEROP <nick> ON|OFF`. INFO shows it to the
   owner and opers.
 - **OperServ `SET`** (Anope's os_set) flips services-wide switches.

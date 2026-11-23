@@ -129,7 +129,7 @@ func dropSelfOverflow(params, name string) string {
 }
 
 // cloneAccess adds src's access entries that dst lacks; dst's founder is
-// left alone.
+// left alone, and so are accounts with NickServ SET NEVEROP on.
 func (s *Services) cloneAccess(src, dst *store.Channel, by string, now time.Time) (int, error) {
 	list, err := s.store.AccessList(src, 0)
 	if err != nil {
@@ -144,7 +144,7 @@ func (s *Services) cloneAccess(src, dst *store.Channel, by string, now time.Time
 			continue
 		}
 		a, _ := s.store.AccountByID(e.AccountID)
-		if a == nil {
+		if a == nil || a.NeverOp {
 			continue
 		}
 		var err error

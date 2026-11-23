@@ -440,7 +440,7 @@ func csLevelList(level int) func(*Services, *Client, []string) {
 				s.cs(c, "%s is on the %s list of %s already.", target.Name, n, reg.Name)
 				return
 			}
-			if s.neverOpBlocks(c, target, old != store.LevelNone) {
+			if s.neverOpBlocks(c, target, old, level) {
 				return
 			}
 			if !s.accessChange(c, reg, lvl, old, level, target.Name) {

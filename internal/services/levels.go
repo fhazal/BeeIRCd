@@ -319,7 +319,7 @@ func csAccess(s *Services, c *Client, args []string) {
 			return
 		}
 		old, _ := s.store.Level(reg, target.ID)
-		if s.neverOpBlocks(c, target, old != store.LevelNone) {
+		if s.neverOpBlocks(c, target, old, newLevel) {
 			return
 		}
 		if !s.accessChange(c, reg, lvl, old, newLevel, target.Name) {
@@ -399,11 +399,16 @@ func (s *Services) csAccount(c *Client, reg *store.Channel, nick string) (*store
 	return target, true
 }
 
-// neverOpBlocks refuses to put target on an access list it isn't on yet
-// when it has NickServ SET NEVEROP on (Anope's NEVEROP). An entry it has
-// already may still be changed or removed.
-func (s *Services) neverOpBlocks(c *Client, target *store.Account, onList bool) bool {
-	if onList || !target.NeverOp {
+// neverOpBlocks refuses, when target has NickServ SET NEVEROP on (Anope's
+// NEVEROP), to put it on an access list it isn't on yet (old is
+// store.LevelNone) or to raise an entry it has to op level (AOP) or
+// above. Lowering an entry, changing it below op level, or removing it
+// still works; entries it has already are left alone.
+func (s *Services) neverOpBlocks(c *Client, target *store.Account, old, new int) bool {
+	if !target.NeverOp {
+		return false
+	}
+	if old != store.LevelNone && (new <= old || new < store.LevelAOP) {
 		return false
 	}
 	s.cs(c, "%s has NEVEROP on and can't be added to access lists.", target.Name)
