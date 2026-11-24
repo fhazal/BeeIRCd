@@ -1,0 +1,52 @@
+{
+ "release": {
+  "tag": "v1.6.0",
+  "version": "1.6.0",
+  "date": "24 Nov 2026",
+  "url": "https://github.com/fhazal/BeeIRCd/releases/tag/v1.6.0",
+  "changelog": "/docs/help/changelog/#v1-6-0"
+ },
+ "items": [
+  {
+   "icon": "move",
+   "title": "Channel stats, like Anope's",
+   "text": "ChanServ SET #chan CHANSTATS ON and NickServ SET CHANSTATS ON (both off by default) count lines, words, letters, smileys, actions, kicks, mode changes and topics per person, for today, this week, this month and all time; ChanServ STATS, TOP, TOP10, GSTATS, GTOP and !stats, !top, !top10 in the channel show them, and the Anope import brings old stats switches over.",
+   "docs": "/docs/start/moving/",
+   "docs_title": "Moving from Anope"
+  },
+  {
+   "icon": "panel",
+   "title": "Hive Panel",
+   "text": "A Stats tab on My channels (top 10, the channel's totals and its stats switch) and \"Count me in channel stats\" on My nick.",
+   "docs": "/docs/run/hive-panel/",
+   "docs_title": "Hive Panel"
+  },
+  {
+   "icon": "user",
+   "title": "New [services] max_accounts_per_email",
+   "text": "Limit how many accounts may use one email address (0 = no limit, the default).",
+   "docs": "/docs/ref/nickserv/",
+   "docs_title": "Services reference"
+  },
+  {
+   "icon": "user",
+   "title": "New [services] help_channel",
+   "text": "People with op in that channel get helper mode +h automatically.",
+   "docs": "/docs/ref/nickserv/",
+   "docs_title": "Services reference"
+  },
+  {
+   "icon": "key",
+   "title": "New OperServ OLINE <nick> +flags|-flags",
+   "text": "Give someone on this server oper flags until they quit (only flags you have yourself).",
+   "docs": "/docs/ref/opers/",
+   "docs_title": "Oper flags and classes"
+  }
+ ],
+ "testing": null,
+ "earlier": {
+  "version": "1.5.2",
+  "date": "24 Nov 2026",
+  "changelog": "/docs/help/changelog/#v1-5-2"
+ }
+}

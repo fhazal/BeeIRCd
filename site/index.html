@@ -3,8 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="BeeIRCd is an IRC server with NickServ, ChanServ, MemoServ, OperServ, HostServ and AdminServ built in. Inspired by ConferenceRoom, built for today's clients.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f2b33d' stroke-width='2' stroke-linejoin='round'%3E%3Cpath d='M12 2.8 20 7.4v9.2l-8 4.6-8-4.6V7.4z'/%3E%3Cpath d='M12 8.2 15.3 10v4L12 15.8 8.7 14v-4z'/%3E%3C/svg%3E">
+<meta name="description" content="BeeIRCd is an IRC server with NickServ, ChanServ, MemoServ, OperServ, HostServ, BotServ and AdminServ built in. Inspired by ConferenceRoom, built for today's clients.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <style>html{-webkit-text-size-adjust:100%}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>BeeIRCd, IRC with the services built in</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -22,12 +24,16 @@
   --honey: #a86a00;
   --honey-soft: #f6e3bd;
   --ok: #1d7a4f;
+  --down: #b3261e;
   --term: #141414;
   --term-ink: #e6e6e2;
   --term-dim: #8f8f8a;
   --term-honey: #f2b33d;
   --term-blue: #7fb2ff;
   --term-green: #7fd4a0;
+  --win: #ffffff; --win-bar: #ececea; --win-side: #f6f6f4; --win-line: #dcdcd7; --win-ink: #1c1c1c; --win-dim: #6e6e68;
+  --win-blue: #2f62c9; --win-green: #1d7a4f;
+  --win-shadow: 0 30px 60px -24px rgba(0,0,0,.30), 0 0 0 1px rgba(0,0,0,.07);
   --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
   --body: "Inter", "Segoe UI", system-ui, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
@@ -36,14 +42,18 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --ground: #0d0d0d; --band: #121212; --panel: #181818; --ink: #ecebe6; --muted: #9a9a94;
-    --line: #2a2a2a; --honey: #f2b33d; --honey-soft: #3a2f17; --ok: #7fd4a0;
+    --line: #2a2a2a; --honey: #f2b33d; --honey-soft: #3a2f17; --ok: #7fd4a0; --down: #f08a7a;
     --term: #0a0a0a; color-scheme: dark;
+    --win: #161616; --win-bar: #222220; --win-side: #1b1b1a; --win-line: #2e2e2c; --win-ink: #e6e6e2; --win-dim: #8f8f8a;
+    --win-blue: #7fb2ff; --win-green: #7fd4a0; --win-shadow: 0 30px 60px -24px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.07);
   }
 }
 :root[data-theme="dark"] {
   --ground: #0d0d0d; --band: #121212; --panel: #181818; --ink: #ecebe6; --muted: #9a9a94;
-  --line: #2a2a2a; --honey: #f2b33d; --honey-soft: #3a2f17; --ok: #7fd4a0;
+  --line: #2a2a2a; --honey: #f2b33d; --honey-soft: #3a2f17; --ok: #7fd4a0; --down: #f08a7a;
   --term: #0a0a0a; color-scheme: dark;
+  --win: #161616; --win-bar: #222220; --win-side: #1b1b1a; --win-line: #2e2e2c; --win-ink: #e6e6e2; --win-dim: #8f8f8a;
+  --win-blue: #7fb2ff; --win-green: #7fd4a0; --win-shadow: 0 30px 60px -24px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.07);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -60,13 +70,13 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--honey); outline
 /* Header */
 .top { padding-block: 22px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font: 700 20px/1 var(--display); letter-spacing: -0.01em; }
-.brand svg { width: 28px; height: 28px; color: var(--honey); }
-.nav { display: flex; gap: 22px; font-size: 15px; color: var(--muted); }
+.brand img { display: block; height: 44px; width: auto; }
+.nav { display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 15px; color: var(--muted); }
 .nav a { text-decoration: none; }
 .nav a:hover { color: var(--ink); }
 
 /* Hero */
-.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 48px; align-items: center; padding-block: 40px 72px; }
+.hero { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); gap: 48px; align-items: center; padding-block: 40px 72px; }
 .hero h1 { font: 700 clamp(36px, 5vw, 56px)/1.04 var(--display); letter-spacing: -0.03em; margin: 0 0 20px; text-wrap: balance; }
 .hero p.lead { font-size: 18px; color: var(--muted); max-width: 34em; margin: 0 0 28px; }
 .state { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px 6px 10px; background: var(--panel); }
@@ -76,20 +86,62 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--honey); outline
 .btn.main { background: var(--honey); border-color: var(--honey); color: #1a1205; }
 .btn svg { width: 18px; height: 18px; }
 
-/* The IRC session */
-.session { background: var(--term); color: var(--term-ink); border-radius: 14px; font: 400 13.5px/1.75 var(--mono); overflow: hidden; border: 1px solid #2a2a2a; }
-.session .bar { display: flex; justify-content: space-between; gap: 12px; padding: 10px 16px; border-bottom: 1px solid #2a2a2a; color: var(--term-dim); font-size: 12.5px; }
-.session .log { padding: 14px 16px 18px; overflow-x: auto; }
-.session .l { white-space: pre; opacity: 1; }
-.session .me { color: var(--term-ink); }
-.session .svc { color: var(--term-honey); }
-.session .srv { color: var(--term-dim); }
-.session .nick { color: var(--term-blue); }
-.session .good { color: var(--term-green); }
+/* Get BeeIRCd */
+.nav a.dl { color: var(--honey); font-weight: 600; }
+.get { border: 1px solid var(--line); border-radius: 14px; padding: 26px 28px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 32px; align-items: center; margin-bottom: 56px; scroll-margin-top: 24px; }
+.get h2 { font: 700 26px/1.15 var(--display); margin: 0 0 8px; letter-spacing: -0.02em; }
+.get p { margin: 0; color: var(--muted); font-size: 15.5px; }
+.get .meta { margin-top: 12px; font-size: 13.5px; color: var(--muted); }
+.get .cmd { background: var(--term); color: var(--term-ink); border: 1px solid #2a2a2a; border-radius: 10px; font: 400 13.5px/1.5 var(--mono); padding: 12px 12px 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.get .cmd code { font: inherit; overflow-x: auto; white-space: nowrap; scrollbar-width: none; min-width: 0; }
+.get .cmd button { font: 600 13px/1 var(--body); color: #1a1205; background: var(--honey); border: 0; border-radius: 7px; padding: 9px 12px; cursor: pointer; flex: none; min-width: 64px; }
+.get .cmd button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.get .links { display: flex; gap: 8px 20px; flex-wrap: wrap; margin-top: 14px; font-size: 14.5px; }
+.get .links a { text-decoration: underline; text-decoration-color: var(--honey); text-underline-offset: 4px; }
+footer.wrap a { color: inherit; }
+@media (max-width: 860px) { .get { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 22px 20px; } }
+@media (max-width: 520px) { .get .cmd code { white-space: normal; overflow-wrap: anywhere; } }
+
+/* The IRC session: a Mac-style chat window. Commands type into the input bar, then land in the log. */
+.session { position: relative; background: var(--win); color: var(--win-ink); border-radius: 12px; box-shadow: var(--win-shadow); overflow: hidden; font: 400 12px/1.6 var(--mono); }
+.session .tb { height: 38px; display: grid; grid-template-columns: 64px minmax(0, 1fr) 64px; align-items: center; background: var(--win-bar); border-bottom: 1px solid var(--win-line); padding: 0 14px; }
+.session .lights { display: flex; gap: 8px; }
+.session .lights i { width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 0 0 .5px rgba(0,0,0,.2); }
+.session .lights i:nth-child(1) { background: #ff5f57; } .session .lights i:nth-child(2) { background: #febc2e; } .session .lights i:nth-child(3) { background: #28c840; }
+.session .title { text-align: center; font: 500 12.5px var(--body); color: var(--win-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.session .title svg { width: 11px; height: 12px; vertical-align: -2px; margin-right: 5px; }
+.session .title b { color: var(--win-ink); font-weight: 600; margin-right: 6px; }
+.session .body { display: grid; grid-template-columns: 106px minmax(0, 1fr) 94px; grid-template-rows: minmax(0, 1fr); height: 392px; }
+.session .rail { background: var(--win-side); border-right: 1px solid var(--win-line); padding: 10px 0; font: 500 12.5px var(--body); overflow: hidden; }
+.session .rail.r { border-right: 0; border-left: 1px solid var(--win-line); }
+.session .rail .rh { margin: 4px 12px 6px; font: 600 11px var(--body); color: var(--win-dim); }
+.session .it { display: flex; justify-content: space-between; padding: 4px 12px 4px 9px; border-left: 3px solid transparent; color: var(--win-dim); }
+.session .it.on { border-left-color: var(--honey); color: var(--win-ink); background: color-mix(in srgb, var(--honey) 12%, transparent); }
+.session .it .u { font: 600 10px var(--body); background: #f2b33d; color: #151515; padding: 0 5px; border-radius: 8px; }
+.session .nk { padding: 3px 12px; font: 400 12px var(--mono); }
+.session .nk s { text-decoration: none; color: var(--honey); display: inline-block; width: 10px; }
+.session .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.session .log { flex: 1; min-height: 0; overflow: hidden; padding: 10px 14px 6px; display: flex; flex-direction: column; justify-content: flex-end; }
+.session .l { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 6px; white-space: pre-wrap; overflow-wrap: anywhere; padding: 1px 0; }
+.session .l time { color: var(--win-dim); font-size: 11px; padding-top: 1px; }
+.session .svc { color: var(--honey); }
+.session .srv { color: var(--win-dim); }
+.session .nick { color: var(--win-blue); }
+.session .good { color: var(--win-green); }
+.session .ibar { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--win-line); padding: 9px 14px; }
+.session .ibar .who { font: 600 12px var(--body); color: var(--honey); flex: none; }
+.session .ibar .field { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; }
+.session .caret { display: inline-block; width: 7px; height: 15px; background: var(--honey); vertical-align: -3px; }
+.session .ibar kbd { font: 600 11px var(--body); color: var(--win-dim); border: 1px solid var(--win-line); padding: 1px 7px; border-radius: 5px; }
 @media (prefers-reduced-motion: no-preference) {
-  .session.play .l { animation: line 0.01s both; animation-delay: calc(var(--i) * 260ms + 300ms); }
-  @keyframes line { from { opacity: 0; } to { opacity: 1; } }
+  .session .caret { animation: blink 1s steps(1) infinite; }
+  .session .l.pop { animation: pop .25s ease-out; }
+  @keyframes blink { 50% { opacity: 0; } }
+  @keyframes pop { from { opacity: 0; transform: translateY(4px); } }
 }
+@media (max-width: 1000px) { .session .body { grid-template-columns: 106px minmax(0, 1fr); } .session .rail.r { display: none; } }
+@media (max-width: 860px) { .session .body { grid-template-columns: 106px minmax(0, 1fr) 94px; } .session .rail.r { display: block; } }
+@media (max-width: 600px) { .session .body { grid-template-columns: minmax(0, 1fr); height: 360px; } .session .rail, .session .rail.r { display: none; } }
 
 /* Bands */
 .band { background: var(--band); border-block: 1px solid var(--line); }
@@ -171,6 +223,54 @@ h2 { font: 700 clamp(26px, 3vw, 34px)/1.15 var(--display); letter-spacing: -0.02
 .more:hover { border-color: var(--honey); }
 .road { margin-top: 40px; }
 
+/* Live on SKINTERNET: two server cards from status.json */
+.band.live { background: var(--ground); border-top: 0; }
+.lv-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 16px; flex-wrap: wrap; margin-bottom: 24px; }
+.lv-label { font: 500 12px/1 var(--mono); letter-spacing: 0.14em; color: var(--honey); margin-bottom: 10px; }
+.lv-title { margin: 0; }
+.lv-title.muted { color: var(--muted); }
+.lv-checked { font: 400 13px/1.4 var(--mono); color: var(--muted); }
+.lv-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.lv-card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 22px; min-height: 300px; }
+.lv-card.off > * { opacity: 0.55; }
+.lv-card.off .lv-bars i.ok, .lv-card.off .lv-bars i.blip, .lv-card.off .lv-bars i.bad { background: var(--muted); }
+.lv-card.down { border-color: color-mix(in srgb, var(--down) 45%, var(--line)); }
+.lv-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.lv-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); box-shadow: 0 0 0 4px color-mix(in srgb, var(--muted) 20%, transparent); }
+.lv-card.up .lv-dot { background: var(--ok); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 22%, transparent); }
+.lv-card.down .lv-dot { background: var(--down); box-shadow: 0 0 0 4px color-mix(in srgb, var(--down) 22%, transparent); }
+@media (prefers-reduced-motion: no-preference) {
+  .lv-card.up .lv-dot { animation: pulse 3s ease-in-out infinite; }
+}
+.lv-name { font: 600 19px/1.3 var(--display); overflow-wrap: anywhere; }
+.lv-chip { font: 500 11px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; }
+.lv-chip.hub { color: var(--honey); border-color: var(--honey); }
+.lv-sub { margin: 6px 0 14px 22px; font-size: 14px; color: var(--muted); }
+.lv-card.down .lv-sub { color: var(--down); }
+.lv-rows { margin: 0 0 16px; }
+.lv-rows div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14.5px; }
+.lv-rows dt { color: var(--muted); }
+.lv-rows dd { margin: 0; font: 500 14px/1.6 var(--mono); }
+.lv-card.down .lv-rows dd.bad { color: var(--down); }
+.lv-bars { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 2px; height: 28px; }
+.lv-bars i { border-radius: 1px; background: var(--line); opacity: 0.6; }
+.lv-bars i.ok { background: var(--ok); opacity: 1; }
+.lv-bars i.blip { background: var(--honey); opacity: 1; }
+.lv-bars i.bad { background: var(--down); opacity: 1; }
+.lv-scale { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; font: 400 12px/1.4 var(--mono); color: var(--muted); }
+.lv-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px 24px; flex-wrap: wrap; margin-top: 16px; font-size: 14.5px; color: var(--muted); }
+.lv-foot .lk { display: inline-flex; align-items: center; gap: 10px; }
+.lv-foot .lk i { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+.lv-foot .lk.no { color: var(--down); }
+.lv-foot .lk.no i { background: var(--down); }
+.lv-foot a { margin-left: auto; color: var(--honey); font: 500 13.5px/1.3 var(--mono); text-decoration: none; border-bottom: 1px solid var(--line); padding: 2px 0; }
+.lv-foot a:hover, .lv-foot a:focus-visible { border-bottom-color: var(--honey); }
+@media (max-width: 700px) {
+  .lv-grid { grid-template-columns: 1fr; }
+  .lv-card { min-height: 0; }
+  .lv-grid.wait .lv-card { min-height: 300px; }
+}
+
 @media (max-width: 860px) {
   .board { grid-template-columns: 1fr 1fr; }
   .now-card { grid-column: 1 / -1; }
@@ -179,6 +279,34 @@ h2 { font: 700 clamp(26px, 3vw, 34px)/1.15 var(--display); letter-spacing: -0.02
   .board { grid-template-columns: 1fr; }
 }
 
+/* What's new: the newest release from whatsnew.json, rows like the Services list */
+.new { border-top: 1px solid var(--line); }
+.new-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px 28px; flex-wrap: wrap; margin-bottom: 28px; }
+.new-head .intro { margin: 0; }
+.new-ver { display: flex; align-items: center; gap: 16px; }
+.new-ver div { text-align: right; }
+.new-ver .v { display: block; font: 600 28px/1.1 var(--mono); color: var(--honey); letter-spacing: -0.01em; }
+.new-ver small { font-size: 13.5px; color: var(--muted); }
+.new-ver .btn { padding: 11px 15px; font-size: 14px; }
+.new-rows { border-top: 1px solid var(--line); }
+.new-row { display: grid; grid-template-columns: 30px 210px minmax(0, 1fr) minmax(0, 220px); gap: 20px; align-items: baseline; padding-block: 18px; border-bottom: 1px solid var(--line); }
+.new-row > svg { width: 22px; height: 22px; color: var(--honey); align-self: center; }
+.new-row b { font: 600 18px/1.3 var(--display); }
+.new-row span { color: var(--muted); }
+.new-row a { justify-self: start; display: inline-flex; gap: 8px; align-items: center; font: 500 13.5px/1.3 var(--body); text-decoration: none; border-bottom: 1px solid var(--line); padding: 2px 0; }
+.new-row a:hover, .new-row a:focus-visible { border-bottom-color: var(--honey); }
+.new-row a em { font: 500 11.5px/1 var(--mono); font-style: normal; color: var(--honey); border: 1px solid var(--line); border-radius: 4px; padding: 3px 5px; }
+.new-foot { display: flex; justify-content: space-between; gap: 10px 24px; flex-wrap: wrap; margin-top: 18px; font-size: 14.5px; color: var(--muted); }
+.new-foot a { color: var(--ink); }
+.testing { display: inline-flex; align-items: center; gap: 10px; }
+.testing i { width: 12px; height: 12px; background: var(--honey); clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); flex: none; }
+.testing code { font: 500 13.5px/1 var(--mono); color: var(--ink); }
+a.state { text-decoration: none; }
+a.state:hover { border-color: var(--honey); }
+.state.out i { background: var(--ok); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 22%, transparent); }
+.state b { color: var(--ink); font-weight: 500; }
+.state u { color: var(--honey); text-decoration: none; }
+
 footer { padding-block: 36px 48px; color: var(--muted); font-size: 14px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 
 @media (max-width: 860px) {
@@ -186,11 +314,204 @@ footer { padding-block: 36px 48px; color: var(--muted); font-size: 14px; display
   .road { grid-template-columns: 1fr 1fr; }
   .svc-row { grid-template-columns: 26px minmax(0, 1fr); gap: 4px 14px; }
   .svc-row span, .svc-row code { grid-column: 2; }
+  .new-row { grid-template-columns: 26px minmax(0, 1fr); gap: 4px 14px; }
+  .new-row span, .new-row a { grid-column: 2; }
+  .new-row a { margin-top: 6px; }
+  .new-ver div { text-align: left; }
   .nav { gap: 16px; }
 }
 @media (max-width: 520px) {
   .road { grid-template-columns: 1fr; }
-  .session { font-size: 12px; }
+}
+</style>
+<style id="v8-polish">
+/* ===== v8 polish: same layout, same black + yellow, flat (no 3D) ===== */
+
+/* 1. Small text easier to read */
+:root { --muted: #55554f; --hex-tile: #f7ead0; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --muted: #aaa9a3; --hex-tile: #2b2414; } }
+:root[data-theme="dark"] { --muted: #aaa9a3; --hex-tile: #2b2414; }
+html { scroll-behavior: smooth; }
+section { padding-block: 88px; }
+.lv-scale, .lv-checked { font-size: 13px; }
+.lv-chip { font-size: 12px; }
+.caps span { font-size: 13px; padding: 7px 9px; }
+.new-row a em { font-size: 12px; }
+
+/* 2. Hero: flat honeycomb lines fade in behind the chat window, plus a soft honey glow */
+.hero { position: relative; padding-block: 56px 88px; isolation: isolate; }
+.hero::before {
+  content: ""; position: absolute; z-index: -1; inset: -40px -12vw -20px 38%;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='97' viewBox='0 0 56 97'%3E%3Cpath d='M28 1 54 16v31L28 62 2 47V16zM28 62v35M2 16 -26 0M54 16l28-16' fill='none' stroke='%23f2b33d' stroke-width='1.2'/%3E%3C/svg%3E");
+  background-size: 56px 97px; opacity: .16;
+  -webkit-mask-image: radial-gradient(closest-side at 60% 50%, #000 30%, transparent 100%);
+          mask-image: radial-gradient(closest-side at 60% 50%, #000 30%, transparent 100%);
+}
+:root[data-theme="light"] .hero::before { opacity: .28; filter: saturate(1.4) brightness(.7); }
+.hero h1 { font-size: clamp(38px, 5.4vw, 62px); letter-spacing: -0.035em; }
+.session { box-shadow: var(--win-shadow), 0 40px 120px -30px color-mix(in srgb, var(--honey) 32%, transparent); }
+.btn { transition: border-color .15s, background-color .15s; }
+.btn:not(.main):hover { border-color: var(--honey); }
+.btn.main:hover { background: color-mix(in srgb, var(--honey) 88%, #fff); }
+
+/* 3. Section titles get the logo's hexagon */
+section > h2:not(.lv-title), .new-head h2, .status-head h2 { display: flex; align-items: center; gap: 14px; }
+section > h2:not(.lv-title)::before, .new-head h2::before, .status-head h2::before {
+  content: ""; flex: none; width: 14px; height: 16px; background: var(--honey);
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+
+/* 4. Install card: a panel with a honey top edge */
+.get { background: var(--panel); border-top: 3px solid var(--honey); border-radius: 0 0 14px 14px; padding: 30px 32px; }
+
+/* 5. Icons sit in honey hexagon tiles (What's new + services) */
+.new-row > svg, .svc-row svg {
+  width: 40px; height: 44px; padding: 11px 10px; background: var(--hex-tile); color: var(--honey);
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+
+/* 6. What's new: one calm panel instead of loose lines */
+.new-rows { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); overflow: hidden; }
+.new-row { grid-template-columns: 40px 200px minmax(0, 1fr) minmax(0, 210px); padding: 20px 24px; align-items: start; }
+.new-row:last-child { border-bottom: 0; }
+.new-row b { padding-top: 9px; }
+.new-row span, .new-row a { padding-top: 10px; }
+.new-row a { border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px 6px 6px; margin-top: 4px; }
+.new-row a:hover, .new-row a:focus-visible { border-color: var(--honey); }
+.new-row a em { border: 0; background: var(--hex-tile); border-radius: 999px; padding: 4px 8px; }
+
+/* 7. Services: a two-column grid of cards, half the scroll */
+.svcs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; border-top: 0; }
+.svc-row {
+  grid-template-columns: 40px minmax(0, 1fr); gap: 6px 16px; align-items: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px;
+}
+.svc-row:last-child { grid-column: 1 / -1; }
+.svc-row svg { grid-row: span 1; }
+.svc-row span, .svc-row code { grid-column: 2; }
+.svc-row span { font-size: 15px; }
+.svc-row code { margin-top: 8px; }
+.svc-row:hover { border-color: color-mix(in srgb, var(--honey) 55%, var(--line)); }
+
+/* 8. Classic: the two lists become two panels, the modern one marked with the yellow bar */
+.two > div { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 26px 28px; }
+.two > div:last-child { border-left: 3px solid var(--honey); border-radius: 0; }
+
+/* 9. Where it stands: round ring ends, active stage = yellow bar + straight corners */
+.gauge .track { stroke-width: 14; }
+.gauge .ring { stroke-width: 14; stroke-linecap: round; }
+.stage.now { border-left: 3px solid var(--honey); border-radius: 0; border-color: var(--line); border-left-color: var(--honey); }
+.done-log .item:hover { background: color-mix(in srgb, var(--honey) 5%, transparent); }
+
+/* 10. Footer: a real footer with links */
+.foot2 { border-top: 1px solid var(--line); background: var(--band); }
+.foot2 .wrap { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr)); gap: 32px; padding-block: 48px 40px; font-size: 14.5px; color: var(--muted); }
+.foot2 img { height: 40px; width: auto; display: block; margin-bottom: 14px; }
+.foot2 h4 { font: 600 14px/1.3 var(--display); color: var(--ink); margin: 4px 0 12px; }
+.foot2 ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.foot2 a { text-decoration: none; }
+.foot2 a:hover { color: var(--honey); }
+.foot2 .base { grid-column: 1 / -1; border-top: 1px solid var(--line); padding-top: 20px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13.5px; }
+
+@media (max-width: 860px) {
+  .svcs { grid-template-columns: 1fr; }
+  .svc-row:last-child { grid-column: auto; }
+  .new-row { grid-template-columns: 40px minmax(0, 1fr); padding: 18px; }
+  .new-row span, .new-row a { padding-top: 0; }
+  .foot2 .wrap { grid-template-columns: 1fr 1fr; }
+  .foot2 .wrap > div:first-child { grid-column: 1 / -1; }
+  .hero::before { inset: 30% -16px -20px -16px; }
+}
+@media (max-width: 520px) {
+  .two > div { padding: 22px 20px; }
+  .get { padding: 24px 20px; }
+}
+.new-row > svg { align-self: start; }
+.new-row b { overflow-wrap: anywhere; }
+</style>
+<style id="hero-diorama">
+/* hero: illustrated diorama */
+.scene { position: relative; background: #060605; overflow: hidden; isolation: isolate;
+  --ink: #ecebe6; --muted: #b9b8b1; --panel: rgba(22,22,20,.72); --line: #3a3a36; --honey: #f2b33d;
+  --honey-soft: #3a2f17; --ok: #7fd4a0; color: var(--ink); }
+.scene .stage { position: relative; max-width: 1600px; margin: 0 auto; aspect-ratio: 1344 / 752; }
+.scene .art { position: absolute; inset: 0; width: 100%; height: 100%; display: block; clip-path: inset(4px); }
+.scene .stage::before { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: linear-gradient(90deg, rgba(6,6,5,.92) 0, rgba(6,6,5,.7) 30%, transparent 46%); }
+.scene .stage::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, #060605 0, transparent 6%, transparent 94%, #060605 100%),
+              linear-gradient(0deg, #060605 0, transparent 14%), linear-gradient(180deg, #060605 0, transparent 5%); }
+.scene .copy { position: absolute; z-index: 3; left: max(16px, calc(50% - 540px)); top: var(--copy-top, 50%);
+  transform: translateY(var(--copy-shift, -50%)); width: min(var(--copy-w, 470px), 40%); }
+.scene h1 { font: 700 clamp(34px, 3.6vw, 54px)/1.04 var(--display); letter-spacing: -0.035em; margin: 0 0 18px; text-wrap: balance; color: #fff; }
+.scene p.lead { font-size: 17px; max-width: 30em; color: var(--muted); margin: 0 0 24px; }
+.scene .state { backdrop-filter: blur(6px); }
+.scene .btn:not(.main) { color: #fff; }
+/* pins on the picture */
+.pin { position: absolute; z-index: 2; left: var(--x); top: var(--y); display: flex; align-items: center; gap: 8px;
+  text-decoration: none; color: #fff; font: 500 13px/1.2 var(--body); transform: translate(-7px, -50%); white-space: nowrap; }
+.pin.l { flex-direction: row-reverse; transform: translate(calc(-100% + 7px), -50%); }
+.pin i { flex: none; width: 14px; height: 14px; border-radius: 50%; background: #ffc72c; box-shadow: 0 0 0 4px rgba(255,199,44,.28), 0 0 18px rgba(255,199,44,.8); }
+.pin span { background: rgba(8,8,7,.82); border: 1px solid rgba(255,199,44,.45); padding: 6px 10px; border-radius: 8px; backdrop-filter: blur(6px); }
+.pin span b { color: #ffc72c; font-weight: 600; }
+.pin span em { font-style: normal; color: #b9b8b1; margin-left: 6px; }
+.pin.live i { background: #7fd4a0; box-shadow: 0 0 0 4px rgba(127,212,160,.25), 0 0 16px rgba(127,212,160,.7); }
+.pin:hover span, .pin:focus-visible span { border-color: #ffc72c; background: #15140f; }
+@media (prefers-reduced-motion: no-preference) { .pin i { animation: pulse 2.4s ease-in-out infinite; } }
+@keyframes pulse { 50% { box-shadow: 0 0 0 9px rgba(255,199,44,0), 0 0 22px rgba(255,199,44,.9); } }
+/* chat window sits on the edge of the scene */
+.after-scene { position: relative; z-index: 4; margin-top: -120px; padding-bottom: 24px; }
+.after-scene .session { max-width: 880px; margin: 0 auto; }
+@media (max-width: 860px) {
+  .scene .copy { position: static; transform: none; width: auto; padding: 28px 16px 8px; }
+  .scene .crop { overflow: hidden; }
+  .scene .stage { width: var(--crop-w, 170%); margin-left: var(--crop-x, -70%); max-width: none; }
+  .pin { font-size: 11px; gap: 5px; } .pin span { padding: 4px 7px; } .pin i { width: 10px; height: 10px; }
+  .pin span em, .pin.hide-s { display: none; }
+  .after-scene { margin-top: -40px; }
+}
+/* mockup notes (not part of the design) */
+.scene-e { --crop-w: 160%; --crop-x: -60%; }
+.scene-e .copy { --copy-w: 450px; }
+.scene-e .set2 { display: none; } .scene-e.alt .set1 { display: none; } .scene-e.alt .set2 { display: contents; }
+.swap { position: absolute; z-index: 4; right: max(16px, calc(50% - 540px)); top: 4%; display: flex; gap: 6px; }
+.swap button { font: 600 12px/1 var(--body); color: #fff; background: rgba(8,8,7,.8); border: 1px solid #3a3a36; border-radius: 999px; padding: 8px 12px; cursor: pointer; }
+.swap button[aria-pressed="true"] { border-color: #ffc72c; color: #ffc72c; }
+@media (max-width: 860px) { .swap { display: none; } }
+.scene-e .fx{position:absolute;z-index:1;pointer-events:none}
+.scene-e:not(.alt) .fx{display:none}
+/* 1 bees: slow drift path + fast buzz wobble; screen blend makes the black box vanish */
+.fx.bee{mix-blend-mode:screen}
+.fx.bee img{display:block;width:100%;height:100%;animation:buzz .16s steps(2) infinite}
+.fx.b1{left:54.32%;top:6.38%;width:6.32%;height:10.64%;animation:drift1 5.2s ease-in-out infinite}
+.fx.b2{left:51.19%;top:18.35%;width:4.61%;height:7.98%;animation:drift2 4.1s ease-in-out infinite}
+.fx.b3{left:86.68%;top:13.30%;width:5.21%;height:9.31%;animation:drift3 6.3s ease-in-out infinite}
+@keyframes buzz{0%{transform:translateY(0)}100%{transform:translateY(-.6px)}}
+@keyframes drift1{0%,100%{transform:translate(0,0) rotate(0)}30%{transform:translate(9px,-6px) rotate(-3deg)}60%{transform:translate(-4px,-11px) rotate(2deg)}80%{transform:translate(-8px,-2px) rotate(-1deg)}}
+@keyframes drift2{0%,100%{transform:translate(0,0)}25%{transform:translate(-7px,4px) rotate(3deg)}55%{transform:translate(5px,8px)}80%{transform:translate(8px,-3px) rotate(-2deg)}}
+@keyframes drift3{0%,100%{transform:translate(0,0)}35%{transform:translate(-10px,7px) rotate(2deg)}65%{transform:translate(4px,12px) rotate(-3deg)}85%{transform:translate(7px,3px)}}
+/* 2 steam puffs from the loco chimney (907,462) */
+.fx.steam{left:67.5%;top:61.4%;width:0;height:0}
+.fx.steam i{position:absolute;left:-20px;top:-20px;width:40px;height:40px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,250,1) 0,rgba(236,232,222,.85) 30%,rgba(220,214,200,0) 70%);filter:blur(1px);opacity:0;animation:puff 3.6s ease-out infinite}
+.fx.steam i:nth-child(2){animation-delay:1.2s}.fx.steam i:nth-child(3){animation-delay:2.4s}
+@keyframes puff{0%{opacity:0;transform:translate(0,0) scale(.5)}12%{opacity:1}60%{opacity:.7}100%{opacity:0;transform:translate(-26px,-80px) scale(2.4)}}
+/* 3 chat bubbles light up one after another, like messages coming in */
+.fx.glow{border-radius:50%;background:radial-gradient(circle,rgba(255,214,90,.85),rgba(255,199,44,0) 62%);mix-blend-mode:screen;opacity:0;animation:msg 4.5s ease-in-out infinite}
+.fx.m1{left:72.6%;top:54.6%;width:6.5%;height:11.5%}
+.fx.m2{left:78.0%;top:52.6%;width:6.5%;height:11.5%;animation-delay:.6s}
+.fx.m3{left:82.9%;top:50.2%;width:6.5%;height:11.5%;animation-delay:1.2s}
+@keyframes msg{0%,60%,100%{opacity:0;transform:scale(.8)}12%{opacity:1;transform:scale(1.05)}30%{opacity:.25;transform:scale(1)}}
+/* 4 antenna hex beacon (1013,37) */
+.fx.beacon{left:72.5%;top:-0.6%;width:5.8%;height:11%;border-radius:50%;background:radial-gradient(circle,rgba(255,210,90,.75),rgba(255,199,44,0) 62%);mix-blend-mode:screen;animation:beacon 2.4s ease-in-out infinite}
+@keyframes beacon{0%,100%{opacity:.15}50%{opacity:1}}
+/* 5 headlamp + house windows breathe softly */
+.fx.lamp{left:63.0%;top:63.6%;width:4.4%;height:7.6%;border-radius:50%;background:radial-gradient(circle,rgba(255,230,150,.7),rgba(255,199,44,0) 65%);mix-blend-mode:screen;animation:flick 3.1s infinite}
+.fx.home{left:63%;top:16%;width:20%;height:30%;border-radius:50%;background:radial-gradient(circle,rgba(255,190,60,.22),rgba(255,190,60,0) 65%);mix-blend-mode:screen;animation:beacon 6s ease-in-out infinite}
+@keyframes flick{0%,100%{opacity:.55}8%{opacity:.85}10%{opacity:.6}48%{opacity:.9}52%{opacity:.7}}
+@media (prefers-reduced-motion:reduce){.fx,.fx *{animation:none!important}.fx.glow,.fx.steam i{opacity:0}.fx.beacon,.fx.lamp,.fx.home{opacity:.5}}
+.scene-e .swap { right: auto; left: max(16px, calc(50% - 540px)); }
+@media (max-width: 860px) {
+  .scene-e .set2 .pin.l[href="#services"] { display: none; }
 }
 </style>
 </head>
@@ -204,6 +525,15 @@ footer { padding-block: 36px 48px; color: var(--muted); font-size: 14px; display
     <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3 19.5 6v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6z"/></symbol>
     <symbol id="i-tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1 1 0 0 1 0 1.4l-7.3 7.3a1 1 0 0 1-1.4 0z"/><circle cx="8" cy="8" r="1.5"/></symbol>
     <symbol id="i-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 4v16M12 4v16M19 4v16"/><circle cx="5" cy="9" r="2" fill="var(--ground)"/><circle cx="12" cy="15" r="2" fill="var(--ground)"/><circle cx="19" cy="7" r="2" fill="var(--ground)"/></symbol>
+    <symbol id="i-move" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></symbol>
+    <symbol id="i-filter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54z"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3"/></symbol>
+    <symbol id="i-panel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+    <symbol id="i-bot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
     <symbol id="i-dot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="5"/></symbol>
     <symbol id="i-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M10.5 8.5 14 12l-3.5 3.5"/></symbol>
@@ -213,49 +543,108 @@ footer { padding-block: 36px 48px; color: var(--muted); font-size: 14px; display
 
 <div class="wrap">
   <header class="top">
-    <a class="brand" href="#"><svg aria-hidden="true"><use href="#i-hex"/></svg>BeeIRCd</a>
+    <a class="brand" href="#"><img src="/logo.svg" alt="BeeIRCd" width="152" height="44"></a>
     <nav class="nav" aria-label="Main">
+      <a href="#new">What's new</a>
       <a href="#services">Services</a>
       <a href="#classic">Classic and modern</a>
       <a href="#status">Status</a>
+      <a href="#live">Live</a>
+      <a href="/docs/">Docs</a>
+      <a class="dl" href="#get">Download</a>
     </nav>
   </header>
 
-  <div class="hero">
-    <div>
+</div>
+<div class="scene scene-e"><div class="copy">
       <h1>Your own IRC network, with the services built in.</h1>
-      <p class="lead">BeeIRCd is one program that runs the chat server and NickServ, ChanServ, MemoServ, OperServ, HostServ and AdminServ. Set it up with a few questions, change it from IRC while it runs, and keep the IRC you already know.</p>
-      <span class="state"><i></i>In development. Not ready for public networks yet.</span>
+      <p class="lead">BeeIRCd is one program that runs the chat server and NickServ, ChanServ, MemoServ, OperServ, HostServ, BotServ and AdminServ. Set it up with a few questions, change it from IRC while it runs, and keep the IRC you already know.</p>
+      <a class="state out" id="state" href="#new"><i></i><span><b>BeeIRCd 1.6.0 is out.</b> <u>See what's new</u></span></a>
       <div class="actions">
-        <a class="btn main" href="#status"><svg aria-hidden="true"><use href="#i-arrow"/></svg>See where it stands</a>
+        <a class="btn main" href="#get"><svg aria-hidden="true"><use href="#i-download"/></svg>Download BeeIRCd</a>
         <a class="btn" href="#services"><svg aria-hidden="true"><use href="#i-code"/></svg>What it does</a>
       </div>
+    </div><div class="crop"><div class="stage"><img class="art" src="art/cafe.webp" alt="A night diorama: a honey-dome server house on a hill, bees, and a black and gold train carrying chat bubbles out of a tunnel" width="1344" height="752"><div class="fx home"></div><div class="fx beacon"></div><div class="fx lamp"></div><div class="fx glow m1"></div><div class="fx glow m2"></div><div class="fx glow m3"></div><div class="fx steam"><i></i><i></i><i></i></div><div class="fx bee b1"><img src="art/bee1.webp" alt=""></div><div class="fx bee b2"><img src="art/bee2.webp" alt=""></div><div class="fx bee b3"><img src="art/bee3.webp" alt=""></div><span class="set1"><a class="pin l" style="--x:78%;--y:23%" href="#services"><i></i><span><b>Your server</b><em data-live="v0">BeeIRCd 1.6.0</em></span></a><a class="pin live" style="--x:51%;--y:40%" href="#live"><i></i><span><b>People chatting</b><em data-live="all">97 people online</em></span></a><a class="pin hide-s" style="--x:72%;--y:52%" href="#get"><i></i><span><b>A few questions to set up</b></span></a><a class="pin l" style="--x:75%;--y:78%" href="#services"><i></i><span><b>Messages travel by TLS</b></span></a></span><span class="set2"><a class="pin " style="--x:73%;--y:22%" href="#services"><i></i><span><b>Your server</b><em data-live="v0">BeeIRCd 1.6.0</em></span></a><a class="pin l" style="--x:61%;--y:57%" href="#services"><i></i><span><b>Services in the basement</b></span></a><a class="pin live l" style="--x:86.5%;--y:53%" href="#live"><i></i><span><b>Messages</b><em data-live="all">97 people online</em></span></a><a class="pin live" style="--x:75.3%;--y:5%" href="#live"><i></i><span><b>Live beacon</b><em data-live="link">linked</em></span></a></span><div class="swap"><button type="button">Scene 1: cafe + tunnel</button><button type="button">Scene 2: pine hill</button></div></div></div></div>
+<div class="wrap after-scene">    <div class="session" id="session" role="img" aria-label="An IRC client connected to BeeIRCd: identifying to NickServ, registering a channel with ChanServ and changing a setting with AdminServ.">
+      <div class="tb" aria-hidden="true"><div class="lights"><i></i><i></i><i></i></div><div class="title"><svg viewBox="0 0 11 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="1" y="5" width="9" height="6" rx="1"/><path d="M3 5V3.5a2.5 2.5 0 0 1 5 0V5"/></svg><b>#beeircd</b>irc.beeircd.org</div><div></div></div>
+      <div class="body" aria-hidden="true">
+        <div class="rail">
+          <div class="rh">BeeIRCd</div>
+          <div class="it">NickServ</div>
+          <div class="it">ChanServ</div>
+          <div class="it on">#beeircd</div>
+          <div class="it">#help <span class="u">2</span></div>
+          <div class="it">#lounge</div>
+        </div>
+        <div class="main">
+          <div class="log">
+<div class="l srv"><time>21:04</time><span>*** Connected to irc.beeircd.org (TLS 1.3)</span></div>
+<div class="l svc"><time>21:05</time><span>-NickServ- Bee is a registered nick. Identify within 60 seconds.</span></div>
+<div class="l me"><time>21:06</time><span>&gt; /ns identify ••••••••</span></div>
+<div class="l svc"><time>21:07</time><span>-NickServ- Password accepted. You are identified as Bee.</span></div>
+<div class="l me"><time>21:08</time><span>&gt; /oper Bee ••••••••</span></div>
+<div class="l srv"><time>21:09</time><span>*** You are now an IRC operator</span></div>
+<div class="l me"><time>21:10</time><span>&gt; /cs register #beeircd Be kind, stay curious</span></div>
+<div class="l svc"><time>21:11</time><span>-ChanServ- #beeircd is registered to Bee. You are its Founder.</span></div>
+<div class="l me"><time>21:12</time><span>&gt; /cs aop #beeircd add ember</span></div>
+<div class="l svc"><time>21:13</time><span>-ChanServ- ember added to the AOP list of #beeircd.</span></div>
+<div class="l me"><time>21:14</time><span>&gt; /as set max-users 500</span></div>
+<div class="l svc"><time>21:15</time><span>-AdminServ- max-users is now 500 (was 5000). Saved to beeircd.conf.</span></div>
+<div class="l good"><time>21:16</time><span>&lt;<span class="nick">ember</span>&gt; that was quick</span></div>
+          </div>
+          <div class="ibar"><span class="who">Bee</span><span class="field"><span id="typed"></span><span class="caret"></span></span><kbd>&#8629;</kbd></div>
+        </div>
+        <div class="rail r">
+          <div class="rh">5 people</div>
+          <div class="nk"><s>~</s>Bee</div>
+          <div class="nk"><s>@</s>ChanServ</div>
+          <div class="nk"><s>@</s>ember</div>
+          <div class="nk"><s></s>fern</div>
+          <div class="nk"><s></s>gale</div>
+        </div>
+      </div>
     </div>
+</div>
 
-    <div class="session play" role="img" aria-label="An IRC client connected to BeeIRCd: identifying to NickServ, registering a channel with ChanServ and checking OperServ stats.">
-      <div class="bar"><span>irc.beeircd.org</span><span>#beeircd</span></div>
-      <div class="log">
-<div class="l srv" style="--i:0">*** Connected to irc.beeircd.org (TLS 1.3)</div>
-<div class="l svc" style="--i:1">-NickServ- Bee is a registered nick. Identify within 60 seconds.</div>
-<div class="l me"  style="--i:2">&gt; /ns identify ••••••••</div>
-<div class="l svc" style="--i:3">-NickServ- Password accepted. You are identified as Bee.</div>
-<div class="l me"  style="--i:4">&gt; /oper Bee ••••••••</div>
-<div class="l srv" style="--i:5">*** You are now an IRC operator</div>
-<div class="l me"  style="--i:6">&gt; /cs register #beeircd Be kind, stay curious</div>
-<div class="l svc" style="--i:7">-ChanServ- #beeircd is registered to Bee. You are its Founder.</div>
-<div class="l me"  style="--i:8">&gt; /cs aop #beeircd add ember</div>
-<div class="l svc" style="--i:9">-ChanServ- ember added to the AOP list of #beeircd.</div>
-<div class="l me"  style="--i:10">&gt; /as set max-users 500</div>
-<div class="l svc" style="--i:11">-AdminServ- max-users is now 500 (was 5000). Saved to beeircd.conf.</div>
-<div class="l good" style="--i:12">&lt;<span class="nick">ember</span>&gt; that was quick</div>
+<section class="wrap">
+  <div class="get" id="get">
+    <div>
+      <h2>Get BeeIRCd</h2>
+      <p>One command installs it on a Linux server and asks a few questions. Every release is signed, and BeeIRCd updates itself the same way.</p>
+      <div class="meta"><span id="get-v">Latest release</span> &middot; Linux, 64-bit Intel/AMD and ARM</div>
+    </div>
+    <div>
+      <div class="cmd"><code id="get-cmd">curl -fsSL https://beeircd.org/install.sh | sudo sh</code><button type="button" id="get-copy">Copy</button></div>
+      <div class="links">
+        <a href="/docs/start/install/">Step-by-step guide</a>
+        <a href="/docs/start/docker/">Docker image</a>
+        <a href="https://github.com/fhazal/BeeIRCd/releases/latest">All downloads on GitHub</a>
       </div>
     </div>
   </div>
-</div>
+</section>
+
+<section class="wrap new" id="new" hidden>
+  <div class="new-head">
+    <div>
+      <h2>What's new</h2>
+      <p class="intro">The newest release, in a few lines. Each one opens its guide.</p>
+    </div>
+    <div class="new-ver">
+      <div><span class="v" id="new-v"></span><small id="new-date"></small></div>
+      <a class="btn" id="new-log" href="/docs/help/changelog/">Full change log</a>
+    </div>
+  </div>
+  <div class="new-rows" id="new-rows"></div>
+  <div class="new-foot">
+    <span class="testing" id="new-testing" hidden><i></i><span>Testing now: <a id="new-test-v" href="/docs/help/changelog/"><code></code></a></span></span>
+    <span id="new-earlier" hidden>Earlier: <a href="/docs/help/changelog/"></a>, <span></span></span>
+  </div>
+</section>
 
 <div class="band" id="services">
   <section class="wrap">
-    <h2>Six services, one program</h2>
+    <h2>Seven services, one program</h2>
     <p class="intro">No separate services package to link and keep in sync. The services answer the way they always have, with a short notice and the next step to take.</p>
     <div class="svcs">
       <div class="svc-row"><svg aria-hidden="true"><use href="#i-user"/></svg><b>NickServ</b><span>Keeps your nick yours. Identify with a password or SASL, group nicks, recover a ghost.</span><code>/ns register &lt;password&gt;</code></div>
@@ -263,6 +652,7 @@ footer { padding-block: 36px 48px; color: var(--muted); font-size: 14px; display
       <div class="svc-row"><svg aria-hidden="true"><use href="#i-mail"/></svg><b>MemoServ</b><span>Messages for people who are away, and memos to a channel's founder and SOPs.</span><code>/ms send ember see you at nine</code></div>
       <div class="svc-row"><svg aria-hidden="true"><use href="#i-shield"/></svg><b>OperServ</b><span>The oper toolbox. Network bans, kills, global notices, forbidden nicks and channels, session limits.</span><code>/os akill add *@203.0.113.* 7d spam</code></div>
       <div class="svc-row"><svg aria-hidden="true"><use href="#i-tag"/></svg><b>HostServ</b><span>Gives a nick a vHost, a host shown instead of the real one. Users ask for one, opers approve it.</span><code>/hs request bee.beeircd.org</code></div>
+      <div class="svc-row"><svg aria-hidden="true"><use href="#i-bot"/></svg><b>BotServ</b><span>Puts a bot in your channel that keeps order: kickers for caps, flood and bad words, greetings and !commands.</span><code>/bs botlist</code></div>
       <div class="svc-row"><svg aria-hidden="true"><use href="#i-sliders"/></svg><b>AdminServ</b><span>Change the server while it runs. Every change is saved to the config file, with your comments kept.</span><code>/as port add 6697 tls</code></div>
     </div>
   </section>
@@ -282,7 +672,7 @@ footer { padding-block: 36px 48px; color: var(--muted); font-size: 14px; display
       </ul>
     </div>
     <div>
-      <h3>What's new</h3>
+      <h3>What's modern</h3>
       <ul class="ticks">
         <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>IRCv3, so modern clients get typing, replies, history-ready message IDs and SASL.</span></li>
         <li><svg aria-hidden="true"><use href="#i-check"/></svg><span>Cloaked hosts by default, TLS 1.2 or newer, flood control that slows senders down instead of dropping them.</span></li>
@@ -302,7 +692,7 @@ footer { padding-block: 36px 48px; color: var(--muted); font-size: 14px; display
       <h2>Where it stands</h2>
       <span class="updated" id="updated"></span>
     </div>
-    <p class="intro">Built in four stages. Each stage is tested on a real server before the next one starts. This page updates every time a step is finished.</p>
+    <p class="intro">Built in four stages. Each stage is tested on a real server before the next one starts. All four stages ship together as BeeIRCd 1.0. This page updates every time a step is finished.</p>
 
     <div class="board">
       <div class="gauge" id="g-v1"></div>
@@ -325,42 +715,78 @@ footer { padding-block: 36px 48px; color: var(--muted); font-size: 14px; display
     <ol class="done-log" id="done-log"></ol>
     <button class="more" id="more" type="button"></button>
 
-    <div class="road">
-      <div class="stage now">
-        <span class="n">Stage 1, final checks</span>
+    <!-- The stages come from progress.json ("stages"); this copy shows until it loads. -->
+    <div class="road" id="road">
+      <div class="stage">
+        <span class="n">Stage 1, done</span>
         <h3>One server, all services</h3>
         <ul class="steps">
-          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>Core chat server</li>
-          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>IRCv3, SASL, cloaks</li>
-          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>NickServ, ChanServ, MemoServ</li>
-          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>OperServ, AdminServ, HostServ</li>
-          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>Installer and the beeircd command</li>
-          <li class="next"><svg aria-hidden="true"><use href="#i-dot"/></svg>24 hour test, then release candidate</li>
+          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>Core chat server, IRCv3, SASL, cloaks</li>
+          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>NickServ, ChanServ, MemoServ, HostServ, BotServ</li>
+          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>OperServ and AdminServ</li>
+          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>Installer, the beeircd command, signed updates</li>
+          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>Fuzz 1 h and soak 6 h with 2,000 users</li>
         </ul>
       </div>
       <div class="stage">
-        <span class="n">Stage 2, plan ready</span>
+        <span class="n">Stage 2, done</span>
         <h3>Server linking</h3>
-        <p>Link BeeIRCd servers into one network, and to UnrealIRCd 6 servers, with services on the hub.</p>
+        <ul class="steps">
+          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>BeeIRCd to BeeIRCd over TLS, pinned keys</li>
+          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>Links to UnrealIRCd 6</li>
+          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>Services on the hub for the whole network</li>
+          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>Splits and rejoins tested with 5,100 users</li>
+        </ul>
       </div>
       <div class="stage">
-        <span class="n">Stage 3, planned</span>
+        <span class="n">Stage 3, done</span>
         <h3>Hive Panel</h3>
-        <p>A calm web dashboard for admins: people, servers, opers and bans, from a phone too.</p>
+        <ul class="steps">
+          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>Overview, People, Channels, Bans, Opers</li>
+          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>Network map, Services, Settings, Backups</li>
+          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>Members: Home, Memos, My nick</li>
+          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>Channel manager for owners</li>
+        </ul>
       </div>
-      <div class="stage">
-        <span class="n">Stage 4, planned</span>
+      <div class="stage now">
+        <span class="n">Stage 4, finishing</span>
         <h3>BeeRoom</h3>
-        <p>Chat from the browser, on the same server, with nothing extra to install.</p>
+        <ul class="steps">
+          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>Web chat with the Bee theme</li>
+          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>Real IP for each person (WEBIRC)</li>
+          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>Own installer and a Docker image</li>
+          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>Chat tab inside the Hive Panel</li>
+          <li class="done"><svg aria-hidden="true"><use href="#i-check"/></svg>Signed downloads, out since 1.0</li>
+        </ul>
       </div>
     </div>
   </section>
 </div>
 
-<footer class="wrap">
-  <span>BeeIRCd by BajuBesi Labs. Free software under the AGPL-3.0.</span>
-  <span>beeircd.org</span>
-</footer>
+<div class="band live" id="live">
+  <section class="wrap">
+    <div class="lv-head">
+      <div>
+        <div class="lv-label">LIVE ON SKINTERNET</div>
+        <h2 class="lv-title muted" id="lv-title" role="status">Checking the servers&hellip;</h2>
+      </div>
+      <span class="lv-checked" id="lv-checked"></span>
+    </div>
+    <div class="lv-grid wait" id="lv-grid"><div class="lv-card" aria-hidden="true"></div><div class="lv-card" aria-hidden="true"></div></div>
+    <div class="lv-foot">
+      <span class="lk" id="lv-link" hidden><i></i><span></span></span>
+      <a href="ircs://irc.bajubesi.org:6697">Connect: irc.bajubesi.org :6697 &rarr;</a>
+    </div>
+  </section>
+</div>
+
+<footer class="foot2"><div class="wrap">
+  <div><img src="/logo.svg" alt="BeeIRCd" width="138" height="40"><p style="margin:0;max-width:30em">Your own IRC network, with the services built in. Free software under the AGPL-3.0.</p></div>
+  <div><h4>Get it</h4><ul><li><a href="#get">Download</a></li><li><a href="/docs/">Step-by-step guide</a></li><li><a href="https://github.com/fhazal/BeeIRCd/releases">All releases</a></li></ul></div>
+  <div><h4>Learn</h4><ul><li><a href="#new">What's new</a></li><li><a href="#services">Services</a></li><li><a href="/docs/">Docs</a></li></ul></div>
+  <div><h4>Follow</h4><ul><li><a href="#status">Progress</a></li><li><a href="#live">Live servers</a></li><li><a href="https://github.com/fhazal/BeeIRCd">GitHub</a></li></ul></div>
+  <div class="base"><span>BeeIRCd by BajuBesi Labs.</span><span>beeircd.org</span></div>
+</div></footer>
 
 <script>
 // Progress lives in progress.json next to this page; edit that file after each finished step.
@@ -419,6 +845,25 @@ fetch('progress.json', { cache: 'no-cache' }).then(function (r) { if (!r.ok) thr
     } else fill();
   });
 
+  // The four stages, from progress.json, so they never go stale
+  if (data.stages) {
+    var road = document.getElementById('road');
+    road.textContent = '';
+    data.stages.forEach(function (st) {
+      var box = document.createElement('div'); box.className = 'stage' + (st.now ? ' now' : '');
+      var n = document.createElement('span'); n.className = 'n'; n.textContent = st.n; box.appendChild(n);
+      var h = document.createElement('h3'); h.textContent = st.title; box.appendChild(h);
+      var ul = document.createElement('ul'); ul.className = 'steps';
+      st.steps.forEach(function (x) {
+        var li = document.createElement('li'); li.className = x[0];
+        var svg = document.createElementNS(NS, 'svg'); svg.setAttribute('aria-hidden', 'true');
+        var use = document.createElementNS(NS, 'use'); use.setAttribute('href', x[0] === 'done' ? '#i-check' : '#i-dot');
+        svg.appendChild(use); li.appendChild(svg); li.appendChild(document.createTextNode(x[1])); ul.appendChild(li);
+      });
+      box.appendChild(ul); road.appendChild(box);
+    });
+  }
+
   // Running now: progress of a timed job, kept current while the page is open
   var n = data.now;
   document.getElementById('now-title').textContent = n.title;
@@ -458,6 +903,201 @@ fetch('progress.json', { cache: 'no-cache' }).then(function (r) { if (!r.ok) thr
   document.getElementById('updated').textContent = 'Progress could not load. Try again in a minute.';
   document.querySelector('.board').hidden = true; document.getElementById('more').hidden = true;
 });
+</script>
+<script>
+// Copy button of the install command.
+document.getElementById('get-copy').addEventListener('click', function () {
+  var b = this, code = document.getElementById('get-cmd');
+  function done(ok) { b.textContent = ok ? 'Copied' : 'Selected'; setTimeout(function () { b.textContent = 'Copy'; }, 1800); }
+  function byHand() { // select it and try the old way; selected text can still be copied by hand
+    var r = document.createRange(); r.selectNodeContents(code);
+    var sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    var ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+    done(ok);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(code.textContent).then(function () { done(true); }, byHand);
+  } else { byHand(); }
+});
+</script>
+<script>
+// What's new and the hero pill come from whatsnew.json, written from the GitHub
+// release notes at each release (site/docs-gen/whatsnew.py).
+fetch('whatsnew.json', { cache: 'no-cache' }).then(function (r) { if (!r.ok) throw r.status; return r.json(); }).then(function (w) {
+  var NS = 'http://www.w3.org/2000/svg';
+  function icon(name) {
+    var svg = document.createElementNS(NS, 'svg'); svg.setAttribute('aria-hidden', 'true');
+    var use = document.createElementNS(NS, 'use'); use.setAttribute('href', '#i-' + name);
+    svg.appendChild(use); return svg;
+  }
+  var rel = w.release;
+  document.querySelector('#state b').textContent = 'BeeIRCd ' + rel.version + ' is out.';
+  document.getElementById('new-v').textContent = rel.version;
+  document.getElementById('get-v').textContent = 'Latest: ' + rel.version;
+  document.getElementById('new-date').textContent = 'Released ' + rel.date;
+  document.getElementById('new-log').href = rel.changelog;
+  var rows = document.getElementById('new-rows');
+  w.items.forEach(function (it) {
+    var row = document.createElement('div'); row.className = 'new-row';
+    row.appendChild(icon(document.getElementById('i-' + it.icon) ? it.icon : 'hex'));
+    var b = document.createElement('b'); b.textContent = it.title; row.appendChild(b);
+    var s = document.createElement('span'); s.textContent = it.text; row.appendChild(s);
+    var a = document.createElement('a'); a.href = it.docs;
+    var tag = document.createElement('em'); tag.textContent = 'Docs'; a.appendChild(tag);
+    a.appendChild(document.createTextNode(it.docs_title)); row.appendChild(a);
+    rows.appendChild(row);
+  });
+  if (w.testing) {
+    var ta = document.getElementById('new-test-v');
+    ta.href = w.testing.changelog; ta.querySelector('code').textContent = w.testing.version;
+    document.getElementById('new-testing').hidden = false;
+  }
+  if (w.earlier) {
+    var e = document.getElementById('new-earlier'), ea = e.querySelector('a');
+    ea.href = w.earlier.changelog; ea.textContent = w.earlier.version;
+    e.querySelector('span').textContent = w.earlier.date; e.hidden = false;
+  }
+  document.getElementById('new').hidden = false;
+}).catch(function () { /* no file: the block stays hidden and the pill keeps its text */ });
+</script>
+<script>
+// Live on SKINTERNET: status.json is written by the status check every 30 s.
+// Old or missing data is never shown as "down": the cards go grey and say so.
+(function () {
+  var data = null, failed = false, lastKey = '';
+  var title = document.getElementById('lv-title'), grid = document.getElementById('lv-grid');
+  var checkedEl = document.getElementById('lv-checked'), linkEl = document.getElementById('lv-link');
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function age() { var t = data && Date.parse(data.checked); return t ? Math.max(0, (Date.now() - t) / 1000) : Infinity; }
+  function stale() { return failed || !data || !data.servers || age() > 180; }
+  function span(sec) {
+    var m = Math.floor(sec / 60), h = Math.floor(m / 60), d = Math.floor(h / 24);
+    if (d) return d + ' d ' + (h % 24) + ' h';
+    if (h) return h + ' h ' + (m % 60) + ' min';
+    return m < 1 ? 'under a minute' : m + ' min';
+  }
+  function since(s) {
+    var t = new Date(s), n = new Date(), txt = pad(t.getHours()) + ':' + pad(t.getMinutes());
+    return t.toDateString() === n.toDateString() ? txt : t.getDate() + ' ' + months[t.getMonth()] + ' ' + txt;
+  }
+  function card(s, off) {
+    var up = s.up !== false, st = off ? '' : (up ? 'up' : 'down');
+    var c = el('div', 'lv-card ' + (off ? 'off' : st));
+    var top = el('div', 'lv-top'), dot = el('span', 'lv-dot');
+    dot.setAttribute('role', 'img'); dot.setAttribute('aria-label', off ? 'Status unknown' : (up ? 'Up' : 'Down'));
+    top.appendChild(dot); top.appendChild(el('span', 'lv-name', s.name));
+    top.appendChild(el('span', 'lv-chip' + (s.role === 'hub' ? ' hub' : ''), s.role || ''));
+    c.appendChild(top);
+    var secs = s.since ? (Date.now() - Date.parse(s.since)) / 1000 : NaN, sub = s.place || '';
+    if (!off && up && secs >= 0) sub += (sub ? ' · ' : '') + 'up ' + span(secs);
+    if (!off && !up) sub = secs >= 0 ? 'Down for ' + span(secs) + ' · since ' + since(s.since) : 'Down';
+    c.appendChild(el('p', 'lv-sub', sub));
+    var dl = el('dl', 'lv-rows'), live = !off && up;
+    [['People', live && s.people != null ? String(s.people) : '—', 0],
+     ['Reply time', live && s.ms != null ? s.ms + ' ms' : (off ? '—' : 'no answer'), !live && !off],
+     ['Version', s.version || '—', 0]].forEach(function (r) {
+      var row = el('div'), dd = el('dd', r[2] ? 'bad' : '', r[1]);
+      row.appendChild(el('dt', '', r[0])); row.appendChild(dd); dl.appendChild(row);
+    });
+    c.appendChild(dl);
+    var bars = el('div', 'lv-bars'), hrs = s.hours || [];
+    for (var i = 0; i < 24; i++) {
+      var v = hrs.length === 24 && typeof hrs[i] === 'number' ? hrs[i] : -1, b = el('i');
+      var ago = i === 23 ? 'this hour' : (23 - i + 1) + ' h ago';
+      if (v >= 0.999) b.className = 'ok'; else if (v >= 0.5) b.className = 'blip'; else if (v >= 0) b.className = 'bad';
+      b.title = ago + ': ' + (v < 0 ? 'no data' : Math.round(v * 100) + '% up');
+      bars.appendChild(b);
+    }
+    c.appendChild(bars);
+    var sc = el('div', 'lv-scale');
+    sc.appendChild(el('span', '', '24 h ago')); sc.appendChild(el('span', '', (typeof s.uptime24 === 'number' ? (s.uptime24 >= 100 ? '100' : s.uptime24.toFixed(1)) + '% up' : '—')));
+    sc.appendChild(el('span', '', 'now')); c.appendChild(sc);
+    return c;
+  }
+  function clock() {
+    if (!data || !isFinite(age())) { checkedEl.textContent = ''; return; }
+    var a = Math.floor(age());
+    checkedEl.textContent = 'checked ' + (a < 60 ? a + ' s' : Math.floor(a / 60) + ' min') + ' ago · every ' + (data.every || 30) + ' s';
+  }
+  function render() {
+    var off = stale(), key = off + '|' + (data ? JSON.stringify(data.servers) + data.linked : '');
+    clock();
+    if (key === lastKey) return;
+    lastKey = key;
+    if (!data || !data.servers) { title.className = 'lv-title muted'; title.textContent = failed ? 'Can’t reach the status check right now' : 'Checking the servers…'; if (failed) grid.className = 'lv-grid wait'; linkEl.hidden = true; return; }
+    var down = 0;
+    data.servers.forEach(function (s) { if (s.up === false) down++; });
+    var n = data.servers.length;
+    title.className = 'lv-title' + (off ? ' muted' : '');
+    title.textContent = off ? 'Can’t reach the status check right now'
+      : down === 0 ? 'Both servers are up' : down === n ? 'Both servers are down' : 'One server is down';
+    grid.className = 'lv-grid';
+    while (grid.firstChild) grid.removeChild(grid.firstChild);
+    data.servers.forEach(function (s) { grid.appendChild(card(s, off)); });
+    if (!off && typeof data.linked === 'boolean') {
+      linkEl.className = 'lk' + (data.linked ? '' : ' no'); linkEl.querySelector('span').textContent = data.linked ? 'Linked to each other' : 'Not linked right now'; linkEl.hidden = false;
+    } else { linkEl.hidden = true; }
+  }
+  function load() {
+    fetch('status.json', { cache: 'no-store' }).then(function (r) { if (!r.ok) throw r.status; return r.json(); }).then(function (d) { data = d; failed = false; lastKey = ''; render(); }).catch(function () { failed = true; render(); });
+  }
+  load(); setInterval(load, 30000); setInterval(render, 1000);
+})();
+</script>
+<script>
+// The hero chat: each command types into the input bar, then posts to the log. Reduced motion keeps the full log as it is.
+(function () {
+  var box = document.getElementById('session');
+  if (!box || !window.Promise || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var log = box.querySelector('.log'), typed = document.getElementById('typed');
+  var lines = Array.prototype.slice.call(log.children);
+  var visible = true;
+  if ('IntersectionObserver' in window) new IntersectionObserver(function (e) { visible = e[0].isIntersecting; }).observe(box);
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  async function ready() { while (!visible) await wait(400); }
+  (async function () {
+    for (;;) {
+      log.textContent = '';
+      for (var i = 0; i < lines.length; i++) {
+        var el = lines[i].cloneNode(true);
+        await ready();
+        if (el.classList.contains('me')) {
+          var cmd = el.lastChild.textContent.replace(/^> /, '');
+          for (var k = 1; k <= cmd.length; k++) { typed.textContent = cmd.slice(0, k); await wait(35 + Math.random() * 40); }
+          await wait(250); typed.textContent = '';
+        } else await wait(i ? 450 : 300);
+        el.classList.add('pop'); log.appendChild(el);
+      }
+      await wait(6000);
+    }
+  })();
+})();
+</script>
+<script>
+(function () {
+  fetch('status.json', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
+    var s = d.servers || [], all = 0;
+    s.forEach(function (x, i) {
+      all += x.people || 0;
+      document.querySelectorAll('[data-live="p' + i + '"]').forEach(function (e) { e.textContent = x.people + ' people'; });
+      document.querySelectorAll('[data-live="v' + i + '"]').forEach(function (e) { e.textContent = 'BeeIRCd ' + x.version; });
+      document.querySelectorAll('[data-live="u' + i + '"]').forEach(function (e) { e.textContent = x.up ? 'up' : 'down'; });
+    });
+    document.querySelectorAll('[data-live="all"]').forEach(function (e) { e.textContent = all + ' people online'; });
+    document.querySelectorAll('[data-live="link"]').forEach(function (e) { e.textContent = d.linked ? 'linked' : 'not linked'; });
+  }).catch(function () {});
+})();
+</script><script>
+(function () {
+  var sc = document.querySelector('.scene-e'), img = sc && sc.querySelector('.art'); if (!sc) return;
+  var q = location.search.indexOf('scene=1') > -1;
+  function set(one) { sc.classList.toggle('alt', one); img.src = one ? 'art/pine.webp' : 'art/cafe.webp';
+    sc.querySelectorAll('.swap button').forEach(function (b, i) { b.setAttribute('aria-pressed', String((i === 1) === one)); }); }
+  sc.querySelectorAll('.swap button').forEach(function (b, i) { b.onclick = function () { set(i === 1); }; });
+  set(q);
+})();
 </script>
 </body>
 </html>
