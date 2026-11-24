@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-24T19:10:00+08:00",
+ "updated": "2026-11-24T19:25:00+08:00",
  "gauges": [
   {
    "id": "g-v1",
@@ -24,6 +24,11 @@
  },
  "next": "Keep an eye on the link between the two servers.",
  "done": [
+  [
+   "2026-11-24T19:25",
+   "Home page pictures cleaned up",
+   "The top picture is now just the pine hill, with no stray frame around it. The services and live-servers parts got their own pictures: a honey hive and two linked islands, shown in full on phones too."
+  ],
   [
    "2026-11-24T19:10",
    "A moving picture at the top of the website",
