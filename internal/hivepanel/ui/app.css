@@ -391,7 +391,6 @@ table.links{min-width:600px}
 .tag.sus{background:var(--bad-soft);color:var(--bad)}
 .topic{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:380px;display:inline-block;vertical-align:middle}
 .dl .span4{grid-column:1/-1}
-table.chans{min-width:720px}
 .rowbtn.mono{font-family:var(--mono);font-size:13px}
 
 /* Backups card */
