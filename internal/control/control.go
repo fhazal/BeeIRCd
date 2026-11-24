@@ -34,6 +34,7 @@ const (
 	CmdPanelHello = "panel-hello" // -> Hello (no sign-in: what the sign-in page says)
 	CmdPanelWho   = "panel-who"   // the oper's current flags -> Oper
 	CmdSettings   = "settings"    // -> Settings (flag a)
+	CmdClasses    = "classes"     // -> Classes (flag a)
 	CmdSet        = "set"         // Name + Value -> Changed (flag a)
 	CmdUndo       = "undo"        // ID (a HISTORY entry) -> Changed (flag a)
 	CmdPanelLog   = "panel-log"   // -> Events
@@ -174,6 +175,7 @@ type Response struct {
 	Match       *Match       `json:"match,omitempty"`
 	Opers       *Opers       `json:"opers,omitempty"`
 	Links       *Links       `json:"links,omitempty"`
+	Classes     *Classes     `json:"classes,omitempty"`
 	Channels    *Channels    `json:"channels,omitempty"`
 	Channel     *ChannelInfo `json:"channel,omitempty"`
 	Backups     *BackupList  `json:"backups,omitempty"`
@@ -363,6 +365,37 @@ type OperRow struct {
 type OperClass struct {
 	Name  string `json:"name"`
 	Flags string `json:"flags"`
+}
+
+// Classes is the Connect classes card on the Settings page: the [[class]]
+// blocks in file order, then the default class last.
+type Classes struct {
+	Classes []ClassInfo `json:"classes"`
+}
+
+// ClassInfo is one connect class. Default is the class of everyone no
+// [[class]] takes in (Groups is empty then). MaxUsers 0 means no maximum.
+// Each limit carries the value that applies and whether the class set it
+// itself (Own) or it comes from [limits].
+type ClassInfo struct {
+	Name         string     `json:"name"`
+	Default      bool       `json:"default,omitempty"`
+	Groups       []string   `json:"groups"`
+	People       int        `json:"people"`
+	MaxUsers     int        `json:"max_users"`
+	Deny         bool       `json:"deny"`
+	SessionLimit ClassLimit `json:"session_limit"` // connections per IP
+	SendQ        ClassLimit `json:"sendq"`         // bytes
+	PingInterval ClassLimit `json:"ping_interval"` // seconds
+	FloodBurst   ClassLimit `json:"flood_burst"`
+	FloodRate    ClassLimit `json:"flood_rate"`
+	MaxChannels  ClassLimit `json:"max_channels"`
+}
+
+// ClassLimit is one limit of a class.
+type ClassLimit struct {
+	Value int  `json:"value"`
+	Own   bool `json:"own"` // set by the class; false = from [limits]
 }
 
 // Links is the Linked servers page.

@@ -22,7 +22,7 @@ func TestPanelFlagMatrix(t *testing.T) {
 	need := map[string]byte{
 		control.CmdPanelWho: 0, control.CmdPanelLog: 0, control.CmdStatus: 0,
 		control.CmdPeople: 0, control.CmdPerson: 0, control.CmdNotice: 0, control.CmdWhere: 'h',
-		control.CmdSettings: 'a', control.CmdSet: 'a', control.CmdUndo: 'a', control.CmdCheck: 'a', control.CmdRehash: 'a',
+		control.CmdSettings: 'a', control.CmdClasses: 'a', control.CmdSet: 'a', control.CmdUndo: 'a', control.CmdCheck: 'a', control.CmdRehash: 'a',
 		control.CmdBackup: 'O', control.CmdBackups: 'O', control.CmdBackupGet: 'O',
 		control.CmdKill: 'k', control.CmdBan: 'k',
 		control.CmdBans: 'k', control.CmdBanAdd: 'k', control.CmdBanDel: 'k', control.CmdBanMatch: 'k',
@@ -56,7 +56,7 @@ func TestPanelFlagMatrix(t *testing.T) {
 		}
 	}
 	// Every command the panel has is in the matrix.
-	if len(need) != 40 {
+	if len(need) != 41 {
 		t.Errorf("matrix has %d commands", len(need))
 	}
 }

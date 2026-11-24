@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/fhazal/beeircd/internal/config"
+	"github.com/fhazal/beeircd/internal/control"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/state"
 )
@@ -202,4 +203,35 @@ func (s *Server) statsCountries(c *Client) {
 	for _, p := range list {
 		s.reply(c, rplStatsCountry, strconv.Itoa(p.n), p.code, p.name)
 	}
+}
+
+// panelClasses is the Connect classes card of the Hive Panel: every
+// [[class]] in file order, then the default class. Runs on the loop.
+func (s *Server) panelClasses() *control.Classes {
+	out := &control.Classes{Classes: []control.ClassInfo{}}
+	add := func(k *config.ConnClass) {
+		l := s.cfg.LimitsOf(k)
+		info := control.ClassInfo{Name: className(k), Groups: []string{}, People: s.inClass(className(k))}
+		own := func(set bool, v int) control.ClassLimit { return control.ClassLimit{Value: v, Own: set} }
+		if k == nil {
+			info.Default = true
+			info.SessionLimit, info.SendQ = own(false, l.SessionLimit), own(false, l.SendQ)
+			info.PingInterval = own(false, int(l.PingInterval.Seconds()))
+			info.FloodBurst, info.FloodRate = own(false, l.FloodBurst), own(false, l.FloodRate)
+			info.MaxChannels = own(false, l.MaxChannels)
+		} else {
+			info.Groups = append(info.Groups, k.SecurityGroup...)
+			info.MaxUsers, info.Deny = k.MaxUsers, k.Deny
+			info.SessionLimit, info.SendQ = own(k.SessionLimit > 0, l.SessionLimit), own(k.SendQ > 0, l.SendQ)
+			info.PingInterval = own(k.PingInterval.Duration > 0, int(l.PingInterval.Seconds()))
+			info.FloodBurst, info.FloodRate = own(k.FloodBurst > 0, l.FloodBurst), own(k.FloodRate > 0, l.FloodRate)
+			info.MaxChannels = own(k.MaxChannels > 0, l.MaxChannels)
+		}
+		out.Classes = append(out.Classes, info)
+	}
+	for i := range s.cfg.ConnClasses {
+		add(&s.cfg.ConnClasses[i])
+	}
+	add(nil)
+	return out
 }

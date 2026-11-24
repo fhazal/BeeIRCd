@@ -1916,8 +1916,56 @@
     };
   }
 
+  // classesCard: the Connect classes of beeircd.conf, read only. Values the
+  // class sets itself are in --ink, the ones it takes from [limits] are muted.
+  function classesCard() {
+    const { card, tail } = ovCard('people', 'Connect classes', 'Who gets which limits, from [[class]] in beeircd.conf');
+    card.classList.add('list-card');
+    const word = h('span', { class: 'okword' });
+    tail.append(word);
+    const body = h('div', { class: 'wrap' }, h('p', { class: 'empty', text: 'Loading…' }));
+    const foot = h('p', { class: 'cfoot' }, 'Change classes in beeircd.conf, then press ', h('b', { text: 'Rehash' }), '. People move to their new class without being dropped.');
+    card.append(body, foot);
+    const bytes = n => n >= 1048576 ? +(n / 1048576).toFixed(1) + ' MB' : n >= 1024 ? +(n / 1024).toFixed(1) + ' KB' : n + ' B';
+    const val = (text, own) => h('span', own ? { class: 'mono cl-own' } : { class: 'mono cl-src', title: 'from [limits]' }, text);
+    function row(k) {
+      const name = h('td', {}, h('span', { class: 'mono cl-name', text: k.name }));
+      const who = h('td', {}, h('span', { class: 'chips' }, k.default
+        ? h('span', { class: 'tag cl-all', text: 'everyone else' })
+        : (k.groups || []).map(g => h('span', { class: 'tag', text: g }))));
+      if (k.deny) {
+        return h('tr', {}, name, who, h('td', {}, h('span', { class: 'badword', text: 'refused' })),
+          h('td', { colspan: 5 }, h('span', { class: 'cl-deny' }, icon('lock'), 'May not connect: they get the normal ban text')));
+      }
+      const own = (l, text) => h('td', {}, val(text, k.default || l.own));
+      return h('tr', {}, name, who,
+        h('td', {}, h('span', { class: 'mono cl-own', text: fmt(k.people) }), k.max_users ? h('span', { class: 'mono cl-src', text: ' / ' + fmt(k.max_users) }) : null),
+        own(k.session_limit, fmt(k.session_limit.value)),
+        own(k.sendq, bytes(k.sendq.value)),
+        own(k.ping_interval, k.ping_interval.value + 's'),
+        // burst and rate are two values; it counts as the class's own when it set either
+        h('td', {}, val(k.flood_burst.value + ' / ' + k.flood_rate.value, k.default || k.flood_burst.own || k.flood_rate.own)),
+        own(k.max_channels, fmt(k.max_channels.value)));
+    }
+    async function load() {
+      try {
+        const d = await api('GET', '/api/classes');
+        const list = d.classes ? d.classes.classes : [];
+        word.textContent = plural(list.length, 'class', 'classes');
+        put(body, h('table', {},
+          h('thead', {}, h('tr', {}, ['Class', 'Who is in it', 'People', 'Per IP', 'SendQ', 'Ping', 'Flood', 'Channels'].map(t => h('th', { text: t })))),
+          h('tbody', {}, list.map(row))));
+      } catch (e) {
+        word.textContent = '';
+        put(body, h('p', { class: 'empty', text: e.message }));
+      }
+    }
+    return { el: card, load };
+  }
+
   function settingsPage() {
     const aj = autoJoinCard();
+    const cl = classesCard();
     const grid = h('div', { class: 'grid2' }, h('p', { class: 'empty', text: 'Loading…' }));
     const count = h('span');
     const undoBtn = h('button', { type: 'button', class: 'btn ghost', text: 'Undo' });
@@ -2013,7 +2061,7 @@
     const updateRow = h('div', { class: 'act', hidden: true });
     actions.append(
       action('Check', 'Reads the database, changes nothing', 'Check', '/api/check', checkLines),
-      action('Rehash', 'Re-reads beeircd.conf without a restart', 'Rehash', '/api/rehash', rehashLines));
+      action('Rehash', 'Re-reads beeircd.conf without a restart', 'Rehash', '/api/rehash', d => { cl.load(); return rehashLines(d); }));
     actions.append(updateRow);
     const backups = me.owner ? backupsCard() : null;
     const mailBox = me.owner ? mailCard() : null;
@@ -2049,10 +2097,12 @@
       aj.el,
       ls.el,
       ms.el,
+      cl.el,
       membersCard,
       mailBox && mailBox.el,
       backups && backups.el);
     load();
+    cl.load();
     return {
       el,
       status(s) {

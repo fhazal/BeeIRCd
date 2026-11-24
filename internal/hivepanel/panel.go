@@ -148,6 +148,7 @@ func New(o Options) *Panel {
 	m.HandleFunc("GET /api/status", p.withOper(p.simple(control.CmdStatus)))
 	m.HandleFunc("GET /api/events", p.withOper(p.simple(control.CmdPanelLog)))
 	m.HandleFunc("GET /api/settings", p.withOper(p.simple(control.CmdSettings)))
+	m.HandleFunc("GET /api/classes", p.withOper(p.simple(control.CmdClasses)))
 	m.HandleFunc("POST /api/set", p.withOper(p.set))
 	m.HandleFunc("POST /api/undo", p.withOper(p.undo))
 	m.HandleFunc("POST /api/check", p.withOper(p.simple(control.CmdCheck)))

@@ -897,3 +897,11 @@ table.st td:nth-child(2){width:30%}
 .tot b{font:600 13px var(--mono);text-align:right}
 .tot span{color:var(--muted)}
 .cmd{font:12.5px var(--mono);color:var(--ink);background:var(--card2);border:1px solid var(--line);padding:2px 7px;margin:0 6px 6px 0;display:inline-block}
+.list-card .cfoot{margin:0;padding:0 18px 4px;color:var(--muted);font-size:12.5px}
+.cfoot b{color:var(--ink);font-weight:600}
+.cl-name{color:var(--honey-hi);font-weight:600}
+.cl-own{color:var(--ink);font-weight:600}
+.cl-src{color:var(--muted)}
+.cl-all{background:var(--card2);color:var(--muted)}
+.cl-deny{color:var(--bad);font-size:13px;display:inline-flex;gap:7px;align-items:center}
+.cl-deny .ic{width:15px;height:15px}

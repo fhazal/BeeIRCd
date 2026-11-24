@@ -384,6 +384,8 @@ func (s *Server) panelControl(req control.Request, setDeadline func(time.Duratio
 		}), true
 	case control.CmdSettings:
 		return run('a', func(*control.PanelOper) { resp.Settings = s.panelSettings() }), true
+	case control.CmdClasses:
+		return run('a', func(*control.PanelOper) { resp.Classes = s.panelClasses() }), true
 	case control.CmdSet:
 		return run('a', func(po *control.PanelOper) { resp = s.panelSet(po, req.IP, req.Name, req.Value) }), true
 	case control.CmdUndo:
