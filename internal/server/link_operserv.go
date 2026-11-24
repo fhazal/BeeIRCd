@@ -667,9 +667,10 @@ func (s *Server) asServerOn(c *Client, name string, args []string) {
 		s.as(c, "You need oper flag a (admin) for that.")
 		return
 	}
-	r.via.send(fmt.Sprintf(":%s BEEADMIN %s :%s", c.uid, r.sid, strings.Join(args, " ")))
-	s.audit(c, s.adminServ, "SERVER %s %s", r.name, strings.Join(args, " "))
+	// Our line goes first, so it comes before the other server's answer.
 	s.as(c, "Sent to %s; its answer follows from there.", r.name)
+	s.audit(c, s.adminServ, "SERVER %s %s", r.name, strings.Join(args, " "))
+	r.via.send(fmt.Sprintf(":%s BEEADMIN %s :%s", c.uid, r.sid, strings.Join(args, " ")))
 }
 
 // stopTheirServer is RESTART or DIE (cmd) typed by c, an admin on another
@@ -693,10 +694,10 @@ func (s *Server) stopTheirServer(c *Client, cmd string, args []string) {
 		s.as(c, "%s isn't a BeeIRCd server, so AdminServ can't %s it: %s it from its own shell.", r.name, verb, verb)
 		return
 	}
-	r.via.send(fmt.Sprintf(":%s BEEADMIN %s :%s", c.uid, r.sid, strings.TrimSpace(cmd+" "+strings.Join(args, " "))))
-	if len(args) == 0 {
+	if len(args) == 0 { // before the send, so it comes before the answer
 		s.as(c, "Sent to %s, the server you are on; its answer follows from there. If it says it can't, it runs an older BeeIRCd: %s it from its own shell.", r.name, verb)
 	}
+	r.via.send(fmt.Sprintf(":%s BEEADMIN %s :%s", c.uid, r.sid, strings.TrimSpace(cmd+" "+strings.Join(args, " "))))
 }
 
 // setOnTheirServer is SET typed by c, an admin on another server. A local

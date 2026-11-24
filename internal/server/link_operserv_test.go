@@ -184,12 +184,12 @@ func TestLinkLeafAdminStopsOwnServer(t *testing.T) {
 				what, closing = "stops", "(Server shutting down (bye))"
 			}
 			lop.send("AS " + word)
+			lop.expect("Sent to leaf.test.local, the server you are on") // ours comes first
 			lop.expect("[leaf.test.local AdminServ] This " + what + " leaf.test.local and disconnects 2 people.")
 			c := code(lop.expect("[leaf.test.local AdminServ] To go ahead within 2 minutes: /as " + word + " "))
 			if c == "" {
 				t.Fatal("no code")
 			}
-			lop.expect("Sent to leaf.test.local, the server you are on")
 			hub.running(t)
 			lop.send("AS " + word + " " + c + " bye")
 			other.expect(closing)
