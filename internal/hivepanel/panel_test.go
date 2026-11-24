@@ -97,7 +97,7 @@ func (f *fakeServer) ask(r control.Request, _ time.Duration) (*control.Response,
 	case control.CmdChanSuspend:
 		return &control.Response{Done: &control.Done{Text: r.Cmd + " " + r.Name + " " + r.Reason + " " + r.Life}}, nil
 	case control.CmdLinkSave:
-		if r.Block == nil || r.Block.Name != "leaf.example.net" || r.Block.Port != 7001 || !r.Block.Autoconnect || !r.New || r.Block.Rule != "!connected(hub1.*)" || r.Block.RuleFor != "all" {
+		if r.Block == nil || r.Block.Name != "leaf.example.net" || r.Block.Port != 7001 || !r.Block.Autoconnect || !r.New || r.Block.Rule != "!connected(hub1.*)" || r.Block.RuleFor != "all" || !r.Block.SetRule {
 			return &control.Response{Error: "unexpected"}, nil
 		}
 		return &control.Response{Done: &control.Done{Text: "Saved and applied."}}, nil
@@ -414,7 +414,7 @@ func TestOperRoutes(t *testing.T) {
 func TestLinkRoutes(t *testing.T) {
 	rg := newRig(t)
 	tok := rg.login()
-	w := rg.do("POST", "/api/link-save", `{"name":"leaf.example.net","host":"10.0.0.2","port":7001,"fingerprint":"x","autoconnect":true,"rule":"!connected(hub1.*)","rule_for":"all","new":true}`, tok, nil)
+	w := rg.do("POST", "/api/link-save", `{"name":"leaf.example.net","host":"10.0.0.2","port":7001,"fingerprint":"x","autoconnect":true,"rule":"!connected(hub1.*)","rule_for":"all","set_rule":true,"new":true}`, tok, nil)
 	if w.Code != 200 || !strings.Contains(w.Body.String(), "Saved and applied") {
 		t.Errorf("link-save: %d %s", w.Code, w.Body)
 	}

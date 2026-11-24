@@ -3507,7 +3507,7 @@
         try {
           const d = await api('POST', '/api/link-save', { name: name.value.trim(), host: host.value.trim(), port: portN, fingerprint: fp.value.trim(),
             password: pw.value, no_password: nopw ? nopw.checked : false, autoconnect: auto.checked,
-            rule: rule.value.trim(), rule_for: ruleFor.value, new: adding });
+            rule: rule.value.trim(), rule_for: ruleFor.value, set_rule: true, new: adding });
           open = adding ? name.value.trim() : open;
           form.dataset.dirty = '';
           toast([d.done.text]);

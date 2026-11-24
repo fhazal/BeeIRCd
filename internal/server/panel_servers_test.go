@@ -115,17 +115,17 @@ func TestPanelLinkBlocks(t *testing.T) {
 	}
 	// A bad rule is refused and the file stays as it was.
 	before, _ := os.ReadFile(path)
-	if r := save(control.LinkBlock{Name: "leaf.example.net", Host: "127.0.0.1", Port: 7001, Fingerprint: fp, Rule: "connected("}, false); !strings.Contains(r.Error, "Link rule") {
+	if r := save(control.LinkBlock{Name: "leaf.example.net", Host: "127.0.0.1", Port: 7001, Fingerprint: fp, Rule: "connected(", SetRule: true}, false); !strings.Contains(r.Error, "Link rule") {
 		t.Errorf("bad rule: %+v", r)
 	}
-	if r := save(control.LinkBlock{Name: "leaf.example.net", Host: "127.0.0.1", Port: 7001, Fingerprint: fp, Rule: "connected(a*)", RuleFor: "some"}, false); r.Error == "" {
+	if r := save(control.LinkBlock{Name: "leaf.example.net", Host: "127.0.0.1", Port: 7001, Fingerprint: fp, Rule: "connected(a*)", RuleFor: "some", SetRule: true}, false); r.Error == "" {
 		t.Errorf("bad rule_for: %+v", r)
 	}
 	if raw, _ = os.ReadFile(path); string(raw) != string(before) {
 		t.Errorf("a refused save changed the file:\n%s", raw)
 	}
 	// A rule is saved and shown; an empty one removes both lines.
-	if r := save(control.LinkBlock{Name: "leaf.example.net", Host: "127.0.0.1", Port: 7001, Fingerprint: fp, Rule: " !connected(hub1.*) ", RuleFor: "all"}, false); r.Done == nil {
+	if r := save(control.LinkBlock{Name: "leaf.example.net", Host: "127.0.0.1", Port: 7001, Fingerprint: fp, Rule: " !connected(hub1.*) ", RuleFor: "all", SetRule: true}, false); r.Done == nil {
 		t.Fatalf("change with a rule: %+v", r)
 	}
 	if raw, _ = os.ReadFile(path); !strings.Contains(string(raw), "rule = \"!connected(hub1.*)\"\nrule_for = \"all\"") {
@@ -134,7 +134,14 @@ func TestPanelLinkBlocks(t *testing.T) {
 	if l := ask("Boss", control.Request{Cmd: control.CmdLinks}).Links; l.Blocks[0].Rule != "!connected(hub1.*)" || l.Blocks[0].RuleFor != "all" {
 		t.Errorf("rule not shown: %+v", l.Blocks)
 	}
-	if r := save(control.LinkBlock{Name: "leaf.example.net", Host: "127.0.0.1", Port: 7001, Fingerprint: fp}, false); r.Done == nil {
+	// A save from a page that doesn't send rules (an old tab) keeps it.
+	if r := save(control.LinkBlock{Name: "leaf.example.net", Host: "127.0.0.1", Port: 7002, Fingerprint: fp}, false); r.Done == nil {
+		t.Fatalf("change without the rule: %+v", r)
+	}
+	if raw, _ = os.ReadFile(path); !strings.Contains(string(raw), "rule = \"!connected(hub1.*)\"\nrule_for = \"all\"") || !strings.Contains(string(raw), "7002") {
+		t.Errorf("a save without the rule lost it:\n%s", raw)
+	}
+	if r := save(control.LinkBlock{Name: "leaf.example.net", Host: "127.0.0.1", Port: 7001, Fingerprint: fp, SetRule: true}, false); r.Done == nil {
 		t.Fatalf("clear the rule: %+v", r)
 	}
 	if raw, _ = os.ReadFile(path); strings.Contains(string(raw), "rule") {

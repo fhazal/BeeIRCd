@@ -449,9 +449,11 @@ type LinkBlock struct {
 	Password    string `json:"password,omitempty"`
 	NoPassword  bool   `json:"no_password,omitempty"` // save: remove the password
 	// Rule and RuleFor are the block's link rule ("" = none) and what it
-	// counts for ("", "auto" or "all"); a save sets both as sent.
+	// counts for ("", "auto" or "all"); a save with SetRule sets both as
+	// sent, and one without it (a page from before rules) keeps them.
 	Rule    string `json:"rule,omitempty"`
 	RuleFor string `json:"rule_for,omitempty"`
+	SetRule bool   `json:"set_rule,omitempty"`
 }
 
 // Channels is one page of the Channels list.

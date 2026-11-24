@@ -103,8 +103,12 @@ func (s *Server) panelLinkSave(po *control.PanelOper, ip string, b *control.Link
 		ls.Name, ls.SendQMB, ls.Password = old.Name, old.SendQMB, old.Password
 		ls.Protocol = old.Protocol // an InspIRCd block stays InspIRCd
 	}
-	ls.Rule = strings.TrimSpace(b.Rule)
-	switch rf := strings.ToLower(strings.TrimSpace(b.RuleFor)); rf {
+	ls.Rule, ls.RuleFor = strings.TrimSpace(b.Rule), ""
+	rf := strings.ToLower(strings.TrimSpace(b.RuleFor))
+	if old != nil && !b.SetRule { // an old page that doesn't know rules: keep them
+		ls.Rule, rf = old.Rule, old.RuleFor
+	}
+	switch rf {
 	case "", config.RuleForAuto:
 	case config.RuleForAll:
 		ls.RuleFor = rf
