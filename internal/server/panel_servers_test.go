@@ -113,16 +113,32 @@ func TestPanelLinkBlocks(t *testing.T) {
 	if raw, _ = os.ReadFile(path); strings.Contains(string(raw), "linkpw") {
 		t.Errorf("password still there:\n%s", raw)
 	}
-	// The panel shows a link rule and a save keeps it.
-	s.onLoop(func() { s.cfg.Link.Servers[0].Rule, s.cfg.Link.Servers[0].RuleFor = "!connected(hub1.*)", "all" })
-	if l := ask("Boss", control.Request{Cmd: control.CmdLinks}).Links; l.Blocks[0].Rule != "!connected(hub1.*)" || l.Blocks[0].RuleFor != "all" {
-		t.Errorf("rule not shown: %+v", l.Blocks)
+	// A bad rule is refused and the file stays as it was.
+	before, _ := os.ReadFile(path)
+	if r := save(control.LinkBlock{Name: "leaf.example.net", Host: "127.0.0.1", Port: 7001, Fingerprint: fp, Rule: "connected("}, false); !strings.Contains(r.Error, "Link rule") {
+		t.Errorf("bad rule: %+v", r)
 	}
-	if r := save(control.LinkBlock{Name: "leaf.example.net", Host: "127.0.0.1", Port: 7001, Fingerprint: fp, Rule: "x"}, false); r.Done == nil {
+	if r := save(control.LinkBlock{Name: "leaf.example.net", Host: "127.0.0.1", Port: 7001, Fingerprint: fp, Rule: "connected(a*)", RuleFor: "some"}, false); r.Error == "" {
+		t.Errorf("bad rule_for: %+v", r)
+	}
+	if raw, _ = os.ReadFile(path); string(raw) != string(before) {
+		t.Errorf("a refused save changed the file:\n%s", raw)
+	}
+	// A rule is saved and shown; an empty one removes both lines.
+	if r := save(control.LinkBlock{Name: "leaf.example.net", Host: "127.0.0.1", Port: 7001, Fingerprint: fp, Rule: " !connected(hub1.*) ", RuleFor: "all"}, false); r.Done == nil {
 		t.Fatalf("change with a rule: %+v", r)
 	}
 	if raw, _ = os.ReadFile(path); !strings.Contains(string(raw), "rule = \"!connected(hub1.*)\"\nrule_for = \"all\"") {
-		t.Errorf("save lost the rule:\n%s", raw)
+		t.Errorf("rule not saved:\n%s", raw)
+	}
+	if l := ask("Boss", control.Request{Cmd: control.CmdLinks}).Links; l.Blocks[0].Rule != "!connected(hub1.*)" || l.Blocks[0].RuleFor != "all" {
+		t.Errorf("rule not shown: %+v", l.Blocks)
+	}
+	if r := save(control.LinkBlock{Name: "leaf.example.net", Host: "127.0.0.1", Port: 7001, Fingerprint: fp}, false); r.Done == nil {
+		t.Fatalf("clear the rule: %+v", r)
+	}
+	if raw, _ = os.ReadFile(path); strings.Contains(string(raw), "rule") {
+		t.Errorf("rule still there:\n%s", raw)
 	}
 	// A save keeps protocol = "inspircd" (it used to drop it).
 	s.onLoop(func() { s.cfg.Link.Servers[0].Protocol, s.cfg.Link.Servers[0].Password = "inspircd", "linkpw" })

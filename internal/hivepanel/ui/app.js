@@ -3419,7 +3419,8 @@
         if (s.state === 'up') acts.append(split);
         else if (b.host && s.state === 'down') acts.append(conn);
         const tr = h('tr', { class: 'person' + (open === b.name ? ' open' : '') },
-          h('td', {}, h('button', { type: 'button', class: 'rowbtn mono', 'aria-expanded': open === b.name ? 'true' : 'false', text: b.name })),
+          h('td', {}, h('button', { type: 'button', class: 'rowbtn mono', 'aria-expanded': open === b.name ? 'true' : 'false', text: b.name }),
+            b.rule ? h('span', { class: 'tag', text: 'rule', title: b.rule }) : null),
           h('td', {}, state),
           h('td', { class: 'lbl', text: s.state === 'up' ? since(s.since) : s.error || (b.host ? '—' : 'connects to us') }),
           h('td', { class: 'lbl', text: s.software || '—' }),
@@ -3479,7 +3480,7 @@
       const adding = open === '+';
       const found = adding ? {} : data.blocks.find(b => b.name === open);
       if (!found) { open = null; drawForm(); return; }
-      const b = Object.assign({ name: '', host: '', port: 0, fingerprint: '', autoconnect: false, has_password: false }, found);
+      const b = Object.assign({ name: '', host: '', port: 0, fingerprint: '', autoconnect: false, has_password: false, rule: '', rule_for: '' }, found);
       const name = h('input', { class: 'in mono', id: 'lk-name', type: 'text', value: b.name, autocomplete: 'off', placeholder: 'leaf2.example.net', readonly: adding ? null : true });
       const host = h('input', { class: 'in mono', id: 'lk-host', type: 'text', value: b.host, autocomplete: 'off', placeholder: 'Empty: it connects to us' });
       const port = h('input', { class: 'in mono', id: 'lk-port', type: 'text', inputmode: 'numeric', value: b.port ? String(b.port) : '', placeholder: String(data.link_port || 7000) });
@@ -3488,7 +3489,13 @@
       const nopw = b.has_password ? h('input', { type: 'checkbox', id: 'lk-nopw' }) : null;
       const auto = h('input', { type: 'checkbox', id: 'lk-auto' });
       auto.checked = b.autoconnect;
-      for (const x of [name, host, port, fp, pw]) x.addEventListener('input', () => { form.dataset.dirty = '1'; });
+      const rule = h('input', { class: 'in mono', id: 'lk-rule', type: 'text', value: b.rule, autocomplete: 'off', spellcheck: 'false', placeholder: 'Empty: always link' });
+      const ruleFor = h('select', { class: 'in', id: 'lk-rulefor' },
+        h('option', { value: 'auto', text: 'Only our own autoconnect' }),
+        h('option', { value: 'all', text: 'Every link, also incoming and CONNECT' }));
+      ruleFor.value = b.rule_for === 'all' ? 'all' : 'auto';
+      for (const x of [name, host, port, fp, pw, rule]) x.addEventListener('input', () => { form.dataset.dirty = '1'; });
+      ruleFor.addEventListener('change', () => { form.dataset.dirty = '1'; });
       const err = h('span', { class: 'err', role: 'alert' });
       const save = h('button', { type: 'button', class: 'btn main', text: adding ? 'Add server' : 'Save' });
       save.addEventListener('click', () => busy(save, async () => {
@@ -3499,7 +3506,8 @@
         if (!fp.value.trim()) { err.textContent = 'Paste the other server\'s fingerprint.'; fp.focus(); return; }
         try {
           const d = await api('POST', '/api/link-save', { name: name.value.trim(), host: host.value.trim(), port: portN, fingerprint: fp.value.trim(),
-            password: pw.value, no_password: nopw ? nopw.checked : false, autoconnect: auto.checked, new: adding });
+            password: pw.value, no_password: nopw ? nopw.checked : false, autoconnect: auto.checked,
+            rule: rule.value.trim(), rule_for: ruleFor.value, new: adding });
           open = adding ? name.value.trim() : open;
           form.dataset.dirty = '';
           toast([d.done.text]);
@@ -3523,6 +3531,9 @@
         h('label', { class: 'f', for: 'lk-pw' }, 'Link password', pw),
         nopw ? h('label', { class: 'ck', for: 'lk-nopw' }, nopw, 'Remove the password') : null,
         h('label', { class: 'ck', for: 'lk-auto' }, auto, 'Connect by itself (needs an address)'),
+        h('label', { class: 'f', for: 'lk-rule' }, 'Link rule (optional)', rule),
+        h('span', { class: 'note', text: 'Link only while this is true. Words: connected(mask), directcon(mask), via(through, mask), directop(), with &&, || and !' }),
+        h('label', { class: 'f', for: 'lk-rulefor' }, 'The rule counts for', ruleFor),
         err,
         h('div', { class: 'btns' }, save, rm));
       (adding ? name : host).focus({ preventScroll: true });

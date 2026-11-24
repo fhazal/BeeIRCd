@@ -1253,6 +1253,9 @@ func (s *Server) linkStatus() []control.Link {
 		st := control.Link{Name: b.Name, State: "down", Out: b.Autoconnect}
 		if r := s.links.retry[strings.ToLower(b.Name)]; r != nil && b.Autoconnect {
 			st.Error, st.Retry = r.lastErr, r.next
+			if r.ruleNo {
+				st.Error = "link rule says no"
+			}
 			if r.dialing {
 				st.State = "connecting"
 			}

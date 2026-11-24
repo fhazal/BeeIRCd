@@ -101,8 +101,22 @@ func (s *Server) panelLinkSave(po *control.PanelOper, ip string, b *control.Link
 		Fingerprint: strings.TrimSpace(b.Fingerprint), Autoconnect: b.Autoconnect, SendQMB: 20}
 	if old != nil {
 		ls.Name, ls.SendQMB, ls.Password = old.Name, old.SendQMB, old.Password
-		ls.Rule, ls.RuleFor = old.Rule, old.RuleFor // the panel shows these, never edits them
-		ls.Protocol = old.Protocol                  // an InspIRCd block stays InspIRCd
+		ls.Protocol = old.Protocol // an InspIRCd block stays InspIRCd
+	}
+	ls.Rule = strings.TrimSpace(b.Rule)
+	switch rf := strings.ToLower(strings.TrimSpace(b.RuleFor)); rf {
+	case "", config.RuleForAuto:
+	case config.RuleForAll:
+		ls.RuleFor = rf
+	default:
+		return fail("The rule counts for: pick auto or all.")
+	}
+	if ls.Rule != "" {
+		if _, err := config.ParseLinkRule(ls.Rule); err != nil {
+			return fail("Link rule: " + err.Error() + ".")
+		}
+	} else {
+		ls.RuleFor = ""
 	}
 	if ls.Host == "" {
 		ls.Port = 0

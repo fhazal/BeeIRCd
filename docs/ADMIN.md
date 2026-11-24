@@ -972,8 +972,9 @@ then open <http://127.0.0.1:8787>. `beeircd install` sets it up as the
   server's block needs (the same as `beeircd link-info`). The card "Admins
   from other servers" shows `[link] outside_admins`; the network owner
   switches it there between letting in network reach and keeping out.
-  A link rule (`rule`, `rule_for`) is set in beeircd.conf only; saving a
-  block in the panel keeps it.
+  The form has a Link rule field and a "The rule counts for" choice
+  (`rule`, `rule_for`). A bad rule is refused and nothing is saved. A
+  "rule" tag on the row marks blocks that have one.
 - **Connect classes** (Settings, flag `a`): one row per `[[class]]`
   block in file order, the default class last: who is in it (its
   security groups), how many people are in it now and its limits (per
