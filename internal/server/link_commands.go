@@ -283,6 +283,14 @@ func (s *Server) statsHere(c *Client, letter string) {
 		if c.can('k') {
 			s.statsSpam(c)
 		}
+	case "y", "Y":
+		if c.isOper() {
+			s.statsClasses(c)
+		}
+	case "G": // lower-case g is left for G-lines
+		if c.isOper() {
+			s.statsCountries(c)
+		}
 	case "u", "U":
 		up := time.Since(s.created)
 		days := int(up.Hours()) / 24

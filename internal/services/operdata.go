@@ -80,14 +80,8 @@ const Unlimited = 1 << 30
 
 // sessionLimit is how many connections ip may have.
 func (s *Services) sessionLimit(ip string) int {
-	now := s.banNow() // NOEXPIRE keeps run-out entries in force
-	for _, e := range s.allExcepts() {
-		if (e.Expires.IsZero() || now.Before(e.Expires)) && irc.MatchHost(e.Mask, ip) {
-			if e.Max == 0 {
-				return Unlimited
-			}
-			return e.Max
-		}
+	if n, ok := s.sessionExcept(ip, ""); ok {
+		return n
 	}
 	return s.cfg.Limits.SessionLimit
 }
@@ -95,6 +89,18 @@ func (s *Services) sessionLimit(ip string) int {
 // SessionLimitFor is SessionLimit for someone whose hostname is known:
 // exceptions on host names (*.example.org) count too.
 func (s *Services) SessionLimitFor(ip, host string) int {
+	if n, ok := s.sessionExcept(ip, host); ok {
+		return n
+	}
+	return s.cfg.Limits.SessionLimit
+}
+
+// SessionExcept is the limit of the session exception that covers ip (or
+// host, when known), and false when there is none. A connect class's own
+// session_limit gives way to it.
+func (s *Services) SessionExcept(ip, host string) (int, bool) { return s.sessionExcept(ip, host) }
+
+func (s *Services) sessionExcept(ip, host string) (int, bool) {
 	now := s.banNow() // NOEXPIRE keeps run-out entries in force
 	for _, e := range s.allExcepts() {
 		if !(e.Expires.IsZero() || now.Before(e.Expires)) {
@@ -102,12 +108,12 @@ func (s *Services) SessionLimitFor(ip, host string) int {
 		}
 		if irc.MatchHost(e.Mask, ip) || (host != "" && hostMask(e.Mask) && irc.MatchHost(e.Mask, host)) {
 			if e.Max == 0 {
-				return Unlimited
+				return Unlimited, true
 			}
-			return e.Max
+			return e.Max, true
 		}
 	}
-	return s.cfg.Limits.SessionLimit
+	return 0, false
 }
 
 // HostExcepts reports whether any session exception is on a host name,

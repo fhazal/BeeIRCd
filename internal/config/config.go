@@ -73,6 +73,9 @@ type Config struct {
 	SecurityGroups []SecurityGroup `toml:"security_group"`
 	ConnThrottle   ConnThrottle    `toml:"connthrottle"`
 	Restricts      []Restrict      `toml:"restrict"`
+	// ConnClasses are the [[class]] blocks: connect classes with their
+	// own limits, chosen by security group (class.go).
+	ConnClasses []ConnClass `toml:"class"`
 	// RPC is [rpc], the JSON-RPC admin API (rpc.go).
 	RPC RPC `toml:"rpc"`
 	// Auth is [auth], passwords kept in LDAP or SQL (auth.go).
@@ -870,6 +873,9 @@ func (c *Config) Check() error {
 		return err
 	}
 	if err := c.checkRestrict(); err != nil {
+		return err
+	}
+	if err := c.checkConnClasses(); err != nil {
 		return err
 	}
 	if err := c.checkAntiSpam(); err != nil {

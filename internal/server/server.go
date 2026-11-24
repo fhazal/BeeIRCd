@@ -481,6 +481,10 @@ func (s *Server) flushWrites() {
 func (s *Server) tickEvery() time.Duration {
 	l := s.cfg.Limits
 	d := min(l.PingInterval.Duration, l.PingTimeout.Duration, l.RegisterTimeout.Duration, s.cfg.Services.IdentifyWithin.Duration, s.cfg.Services.KillQuick.Duration)
+	for i := range s.cfg.ConnClasses {
+		k := s.cfg.LimitsOf(&s.cfg.ConnClasses[i]) // a class may ping more often
+		d = min(d, k.PingInterval, k.PingTimeout)
+	}
 	d /= 4
 	switch {
 	case d < 20*time.Millisecond:
@@ -664,12 +668,17 @@ func (s *Server) checkTimeouts(now time.Time) {
 			}
 			continue
 		}
+		every, wait := lim.PingInterval.Duration, lim.PingTimeout.Duration
+		if c.class != nil {
+			l := s.limitsOf(c)
+			every, wait = l.PingInterval, l.PingTimeout
+		}
 		if c.pingSent.IsZero() {
-			if now.Sub(c.lastRecv) > lim.PingInterval.Duration {
+			if now.Sub(c.lastRecv) > every {
 				c.pingSent = now
 				c.send("PING :" + s.cfg.Server.Name)
 			}
-		} else if now.Sub(c.pingSent) > lim.PingTimeout.Duration {
+		} else if now.Sub(c.pingSent) > wait {
 			s.quit(c, fmt.Sprintf("Ping timeout: %d seconds", int(now.Sub(c.lastRecv).Seconds())))
 		}
 	}

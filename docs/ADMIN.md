@@ -1834,6 +1834,62 @@ under `[security_group.exclude]` (the same items).
 | `security_group` | In one of these other groups |
 | `exclude` | The block of items that keep people out |
 
+### [[class]]
+
+Connect classes give groups of people their own limits: people from one
+country, Tor or the web chat can get stricter ones, your own LAN or
+bouncers looser ones. Who is in a class is chosen by security groups
+(see `[[security_group]]` above), so a class can go by country (`~C:`),
+network (`~A:`), TLS, WebIRC, IP range or port.
+
+```toml
+[[security_group]]
+name = "from-xx"
+mask = ["~C:XX"]
+
+[[class]]
+name = "strict"
+security_group = ["from-xx", "websocket-users"]   # first class that matches wins
+session_limit = 1          # connections per IP
+max_users = 50             # most people in this class at once
+sendq = 262144
+ping_interval = "60s"
+flood_burst = 5
+flood_rate = 1
+max_channels = 10
+deny = false               # true = people in this class may not connect at all (country block)
+```
+
+| Setting | Meaning |
+| --- | --- |
+| `name` | Up to 30 letters, digits, `_` or `-`; not `default` (that is everyone no class takes in, with the `[limits]` values) |
+| `security_group` | Who is in the class: anyone in one of these groups |
+| `session_limit` | Connections per IP for people in this class, in place of `[limits]` `session_limit`; OperServ `EXCEPTION`s still win |
+| `max_users` | The most people in this class at once on this server; more are told `Too many connections in your class (<name>)` |
+| `sendq` | Send queue in bytes (at least 8192) |
+| `ping_interval`, `ping_timeout` | Like the `[limits]` ones (at least `10s`) |
+| `flood_burst`, `flood_rate` | Like the `[limits]` ones |
+| `max_channels` | Channels one person may be in (also sent as `CHANLIMIT` in 005) |
+| `deny` | `true`: people in this class may not connect at all; they get the normal ban text |
+
+What a class leaves out comes from `[limits]`. With no `[[class]]` blocks
+nothing changes: everyone has the `[limits]` values.
+
+**Decided at connect.** Someone's class is picked once, when they
+register: after SASL, before the welcome. The first class in the file
+that takes them in is theirs; nobody is in two. Logging in with NickServ
+later, a new mode or a changed reputation doesn't move them, so for
+`known-users` classes use SASL. A rehash works out everyone's class
+again with the new file; nobody is disconnected by it, even when their
+new class is over `max_users` or says `deny` (that stops only new
+connections).
+
+**For opers.** `/STATS Y` lists the classes with how many people are in
+each and their limits, the default class last. `/STATS G` lists the
+people on this server per country (code, name, count; `--` when GeoIP
+doesn't know). WHOIS shows opers `is in class <name>` for people on this
+server, when there are classes.
+
 ### [connthrottle]
 
 | Setting | Default | Meaning |
@@ -2233,7 +2289,7 @@ timestamps settle as on the first link, and for network bans the newest
 copy of each mask wins. A leaf with `autoconnect` comes back by itself.
 
 **Oper commands.** `/LINKS [mask]`, `/MAP`, `/CONNECT <server>` and
-`/SQUIT <server> [reason]` (flag c), `/STATS l|c|k|u [server]`,
+`/SQUIT <server> [reason]` (flag c), `/STATS l|c|k|Y|G|u [server]`,
 `/ADMIN`, `/MOTD`, `/VERSION`, `/TIME` with a server name ask that
 server. `/KLINE <nick|user@host> [time] [:reason]` (time like 30m, 12h,
 7d; none or 0 = until removed; `+time` before the mask works too) and

@@ -54,7 +54,7 @@ func (s *Server) joinVia(c *Client, name, key string, hops int) {
 	if ch != nil && ch.Member(u) != nil {
 		return
 	}
-	if len(u.Channels) >= s.cfg.Limits.MaxChannels {
+	if len(u.Channels) >= s.limitsOf(c).MaxChannels {
 		s.reply(c, irc.ErrTooManyChannels, name, "You have joined too many channels")
 		return
 	}

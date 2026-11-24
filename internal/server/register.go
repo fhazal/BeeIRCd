@@ -349,8 +349,9 @@ func (s *Server) tryRegister(c *Client) {
 			return
 		}
 	}
-	if c.sessionLate {
-		// Over its IP's limit at connect; now the hostname is known.
+	if c.sessionLate && len(s.cfg.ConnClasses) == 0 {
+		// Over its IP's limit at connect; now the hostname is known. (With
+		// connect classes, classAdmit below checks it.)
 		c.sessionLate = false
 		if n, max := s.sessions(c.ip), s.svc.SessionLimitFor(c.ip, c.host); n > max {
 			s.svc.LogSessionLimit(c.ip, max, c.logMask(c.nick))
@@ -419,6 +420,9 @@ func (s *Server) tryRegister(c *Client) {
 		return
 	}
 	u.Groups = s.groupsOf(u, now)
+	if !s.classAdmit(c, u, now) {
+		return
+	}
 	if why := s.antiRandom(u, now); why != "" {
 		s.quit(c, why)
 		return
@@ -567,7 +571,7 @@ func (s *Server) channelModesWithParam() string {
 	return sortedLetters(all)
 }
 
-func (s *Server) isupport() []string {
+func (s *Server) isupport(c *Client) []string {
 	l := s.cfg.Limits
 	out := []string{
 		"ACCEPT=" + strconv.Itoa(acceptMax),
@@ -576,7 +580,7 @@ func (s *Server) isupport() []string {
 		"BOT=B",
 		"CALLERID=g",
 		"CASEMAPPING=" + irc.Casemapping(),
-		"CHANLIMIT=#:" + strconv.Itoa(l.MaxChannels),
+		"CHANLIMIT=#:" + strconv.Itoa(s.limitsOf(c).MaxChannels),
 		"CHANMODES=" + chanModesList + "," + chanModesKey + "," + chanModesParam + "," + chanModesFlags,
 		"CHANNELLEN=" + strconv.Itoa(l.ChannelLen),
 		"CHANTYPES=#",
@@ -614,7 +618,7 @@ func (s *Server) isupport() []string {
 // sendISupport sends the 005 lines; in a draft/isupport batch for
 // clients with draft/extended-isupport and batch.
 func (s *Server) sendISupport(c *Client) {
-	tokens := s.isupport()
+	tokens := s.isupport(c)
 	tag := ""
 	if c.caps[extISupportCap] && c.caps["batch"] {
 		s.batchSeq++

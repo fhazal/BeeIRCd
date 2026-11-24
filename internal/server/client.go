@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/fhazal/beeircd/internal/config"
 	"github.com/fhazal/beeircd/internal/gate"
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/state"
@@ -111,6 +112,11 @@ type Client struct {
 	confirmTill time.Time // confirm is valid until then
 
 	floodBurst, floodRate int // read by readLoop, fixed at connect
+	// class is the connect class ([[class]]) c is in, nil for the
+	// default class; floodClass is its flood pace for readLoop, nil
+	// until a class sets one (class.go).
+	class      *config.ConnClass
+	floodClass atomic.Pointer[floodPace]
 
 	connectedAt time.Time
 	lastRecv    time.Time
@@ -206,7 +212,7 @@ func (s *Server) newClient(conn net.Conn, isTLS bool) {
 		s.quit(c, why)
 		return
 	}
-	if n, max := s.sessions(ip), s.svc.SessionLimit(ip); n > max && !s.webircGateway(ip) {
+	if n, max := s.sessions(ip), s.sessionMax(ip); n > max && !s.webircGateway(ip) {
 		if s.cfg.ResolveHosts() && s.svc.HostExcepts() {
 			c.sessionLate = true // an exception on its hostname may still let it in
 		} else {
@@ -290,7 +296,7 @@ func (c *Client) queueLine(line string) {
 		c.mu.Unlock()
 		return
 	}
-	if c.queued+len(line) > c.s.cfg.Limits.SendQ {
+	if c.queued+len(line) > c.s.limitsOf(c).SendQ {
 		c.over = true
 		c.mu.Unlock()
 		c.s.toKill = append(c.s.toKill, c)
@@ -416,6 +422,7 @@ func (c *Client) readLoop() {
 	lr := lineReader{r: bufio.NewReaderSize(src, readBufSize)}
 	gap := time.Second / time.Duration(c.floodRate)
 	allow := time.Duration(c.floodBurst) * gap
+	var pace *floodPace // the class pace gap and allow come from, nil = [limits]
 	var clock time.Time
 	if c.ahead0 > 0 {
 		clock = time.Now().Add(c.ahead0)
@@ -442,6 +449,13 @@ func (c *Client) readLoop() {
 		// Once it runs more than the burst ahead, reading pauses, so a
 		// flooder is slowed down instead of filling the server's memory.
 		if err == nil {
+			if p := c.floodClass.Load(); p != pace {
+				// Put in a class (at registration or a rehash): its pace
+				// from the next line on.
+				pace = p
+				gap = time.Second / time.Duration(p.rate)
+				allow = time.Duration(p.burst) * gap
+			}
 			now := time.Now()
 			if clock.Before(now) {
 				clock = now

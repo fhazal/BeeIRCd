@@ -236,6 +236,9 @@ func (s *Server) whoisOne(c *Client, u *state.User, reply func(code string, p ..
 	if staff && !u.Service {
 		s.whoisGroups(u, reply)
 	}
+	if tc != nil && c.isOper() && len(s.cfg.ConnClasses) > 0 && !u.Service {
+		reply(irc.RplWhoisSpecial, u.Nick, "is in class "+className(tc.class))
+	}
 	if (self || staff) && !u.Service {
 		s.whoisGeo(u, reply)
 	}

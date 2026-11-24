@@ -869,6 +869,9 @@ func (s *Server) restoreClient(cs *clientSnap, uid string, u *state.User, conn n
 	switch {
 	case c.registered:
 		s.local++
+		if len(s.cfg.ConnClasses) > 0 {
+			s.setClass(c, s.classFor(u, time.Now())) // classes aren't handed over: work them out again
+		}
 	case cs.UnregCounted:
 		c.unregCounted = true
 		s.throttle.unreg[c.ip]++

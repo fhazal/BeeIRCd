@@ -134,6 +134,7 @@ Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few 
 | A cap on messages to one channel or person (`[targetfloodprot]`) | ✅ | UnrealIRCd's targetfloodprot and its numbers; on by default, like UnrealIRCd |
 | The same text to many channels at once stopped (`[blockamsg]`) | ✅ | InspIRCd's blockamsg; off by default |
 | Spam filter exceptions by security group (so by country too) | ✅ | |
+| Connect classes (`[[class]]`) by security group, so by country too: own session limit, max users, sendq, ping, flood and channel limits, or deny; `STATS Y`, `STATS G` | ✅ | UnrealIRCd's class/allow, InspIRCd's connect and geoclass |
 | GeoIP: each user's country and network (ASN), in WHOIS for opers, in `~C:` / `~A:` channel bans and network bans (AKILL, SHUN, ELINE), the `unrealircd.org/geoip` tag for opers, and the Hive Panel | ✅ | DB-IP Lite downloaded monthly, or MaxMind files; lookups stay on the server |
 | Channel mode `+O` (opers only) | ✅ | |
 | Spam filter (`/SPAMFILTER`, `STATS F`, UnrealIRCd syntax) | ✅ | shared with BeeIRCd and UnrealIRCd links; page in the Hive Panel |
