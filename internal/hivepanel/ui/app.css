@@ -151,12 +151,11 @@ td .badword,.dl .badword,.ty{text-transform:none;letter-spacing:0}
 .tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}
 .two{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:14px;align-items:start}
-.ev{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:12px;align-items:center;padding:7px 6px;margin:0 -6px;border-radius:8px}
+.ev{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:12px;align-items:center;padding:7px 6px;margin:0 -6px;border-radius:8px}
 .ev:hover{background:var(--hover)}
 .ev.ok{--evc:var(--ok)}.ev.bad{--evc:var(--bad)}.ev.ch{--evc:var(--honey)}
-.ev-ic{position:relative;width:30px;height:26px;display:flex;align-items:center;justify-content:center;color:var(--evc)}
-.ev-hex{position:absolute;inset:0;width:30px;height:26px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linejoin:round}
-.ev-ic .ic{width:13px;height:13px;stroke-width:2}
+.ev-ic{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--evc);background:color-mix(in srgb,var(--evc) 15%,transparent)}
+.ev-ic .ic{width:15px;height:15px;stroke-width:2}
 .ev .w{min-width:0;overflow-wrap:anywhere}
 .ev b{font-weight:600;color:var(--honey-hi)}
 .ev .t{color:var(--muted);font:12px var(--mono);white-space:nowrap;display:flex;gap:8px}

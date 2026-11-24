@@ -89,12 +89,8 @@
       [/notice/, 'send'], [/topic/, 'message'], [/map/, 'map'], [/rehash/, 'refresh'], [/suspend/, 'lock']]) if (re.test(w)) return ic;
     return 'settings';
   }
-  // evHex: the icon inside a flat-topped, round-cornered hexagon.
-  function evHex(name) {
-    const s = svgEl('svg', { class: 'ev-hex', viewBox: '0 0 30 26', 'aria-hidden': 'true' });
-    s.append(svgEl('path', { d: 'M8.5 2.5h13l6 10.5-6 10.5h-13l-6-10.5z' }));
-    return h('span', { class: 'ev-ic' }, s, icon(name));
-  }
+  // evTile: the icon on a soft rounded tile tinted with the row's colour.
+  const evTile = name => h('span', { class: 'ev-ic' }, icon(name));
   const ms = v => (v < 1 ? 'under 1 ms' : Math.round(v) + ' ms');
   // day: '13 Nov', with the year when it isn't this year ('13 Nov 2036')
   const day = t => { const d = new Date(t); return d.toLocaleDateString('en-GB', d.getFullYear() === new Date().getFullYear() ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' }); };
@@ -916,7 +912,7 @@
               counts[k] += r.n;
               if (dn !== lastDay) { out.push(h('div', { class: 'ev-day', text: dn })); lastDay = dn; }
               out.push(h('div', { class: 'ev ' + k + (r.fresh ? ' new' : '') },
-                evHex(evIcon(r.e.what, k)),
+                evTile(evIcon(r.e.what, k)),
                 h('span', { class: 'w' }, h('b', { text: r.e.who }), ' ' + r.e.what, r.n > 1 ? h('span', { class: 'ev-n', text: '×' + r.n }) : null),
                 h('span', { class: 't' }, pad(d.getHours()) + ':' + pad(d.getMinutes()), r.e.ip ? h('span', { class: 'ip', text: r.e.ip }) : null)));
             }
