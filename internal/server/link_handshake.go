@@ -1164,7 +1164,7 @@ func (s *Server) autoconnect(now time.Time) {
 			r.next = now.Add(linkRetryMin)
 			if !r.ruleNo {
 				r.ruleNo = true
-				s.lnotice("CONNECT: Not connecting to %s: link rule %s says no", b.Name, rule)
+				s.lnotice("CONNECT: Not connecting to \x02%s\x02: link rule %s says no", b.Name, rule)
 			}
 			continue
 		}

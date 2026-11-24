@@ -167,7 +167,7 @@ func (s *Server) linkNowBy(who, name string) string {
 	}
 	if b.RuleForAll() {
 		if rule, no := s.linkRuleSaysNo(*b); no {
-			s.lnotice("CONNECT: Not connecting to %s: link rule %s says no (asked by %s)", b.Name, rule, who)
+			s.lnotice("CONNECT: Not connecting to \x02%s\x02: link rule %s says no (asked by %s)", b.Name, rule, who)
 			return fmt.Sprintf("Not connecting to %s: link rule %s says no (rule_for = \"all\").", b.Name, rule)
 		}
 	}
