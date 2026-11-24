@@ -201,16 +201,18 @@ func (in *installer) choices(lines ...string) {
 	}
 }
 
-// total is the number of questions this install asks: 9, plus the link
-// port for a hub, plus the link port and the hub's four answers for a leaf.
+// total is the number of questions this install asks: 9 on its own, plus
+// the link port for a hub, plus the link port and the hub's four answers
+// for a leaf. Until question 9 picks the role it counts the most (14), so
+// the count never jumps up half-way (9/9 then 10/14).
 func (in *installer) total() int {
 	switch in.role {
+	case "standalone":
+		return 9
 	case "hub":
 		return 10
-	case "leaf":
-		return 14
 	}
-	return 9
+	return 14
 }
 
 // question asks until check accepts the answer (check returns "" for OK).

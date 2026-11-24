@@ -80,7 +80,7 @@ func TestInstallSelfSigned(t *testing.T) {
 		"Server      irc.beenet.org   on network Beenet", "then /oper, from *@203.0.113.5", "6667 plain · 6697 TLS",
 		"daily 04:00 Asia/Kuala_Lumpur", "service beeircd enabled", "firewall (ufw): 6667, 6697, 7000 open",
 		"already for clients", "hub, link port 7000 (TLS)",
-		"        3) my own files\n  7/9", "        2) @+     op and voice only\n  8/9", "        3) a leaf (links to a hub)\n  9/9"} {
+		"        3) my own files\n  7/14", "        2) @+     op and voice only\n  8/14", "        3) a leaf (links to a hub)\n  9/14", "  10/10  Link port"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("output lacks %q:\n%s", want, text)
 		}
