@@ -201,6 +201,7 @@ type Client struct {
 	cmdName      string       // the command as typed, for log lines (Anope's source.command)
 	vhostOn      bool         // a HostServ vhost is shown
 	helpOn       bool         // had user mode +h at the last mode change (HelpServ)
+	helpChan     bool         // has +h for being op in [services] help_channel (helpchan.go)
 	reply        func(string) // set for the Hive Panel's stand-in client: answers go here, not by notice
 	logged       bool         // a command logged a change (the Hive Panel's stand-in reads it)
 	webFlags     string       // the Hive Panel's stand-in for an oper: their oper flags
@@ -342,6 +343,7 @@ func (s *Services) handle(ev state.Event) {
 		ch := s.net.Channel(e.Channel)
 		if c != nil && !c.closed && ch != nil && ch.Member(c.user) != nil {
 			s.csJoin(c, ch, e.Created)
+			s.helpChanCheck(c, e.Channel)
 		}
 	case *state.ChannelMode:
 		if ch := s.net.Channel(e.Channel); ch != nil && e.Source != s.chanServ.user.UID && len(e.Changes) > 0 {
@@ -349,6 +351,7 @@ func (s *Services) handle(ev state.Event) {
 		}
 		if ch := s.net.Channel(e.Channel); ch != nil && len(e.Changes) > 0 {
 			s.csModesChanged(ch)
+			s.helpChanModes(ch)
 		}
 		s.logModes(e)
 	case *state.ChannelTS:
@@ -361,10 +364,12 @@ func (s *Services) handle(ev state.Event) {
 		}
 	case *state.Part:
 		s.logPart(e.UID, e.Channel, true)
+		s.helpChanCheck(s.clients[e.UID], e.Channel)
 		s.bsForget(e.UID, e.Channel)
 		s.bsTidy(e.Channel)
 	case *state.Kick:
 		s.logPart(e.UID, e.Channel, false)
+		s.helpChanCheck(s.clients[e.UID], e.Channel)
 		s.bsForget(e.UID, e.Channel)
 		s.bsTidy(e.Channel)
 	}

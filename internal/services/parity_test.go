@@ -3,6 +3,8 @@ package services
 import (
 	"strings"
 	"testing"
+
+	"github.com/fhazal/beeircd/internal/state"
 )
 
 // [services] max_accounts_per_email (Anope's ns_maxemail).
@@ -139,5 +141,73 @@ func TestExtraInfoFields(t *testing.T) {
 	svc.Flush()
 	if got := noticeTo(h, "Bee"); !strings.Contains(got, "Discord of #hive unset.") {
 		t.Fatalf("CS SET DISCORD without text: %q", got)
+	}
+}
+
+// [services] help_channel (Anope's m_helpchan): op there gives +h.
+func TestHelpChannel(t *testing.T) {
+	svc, h := newServices(t)
+	svc.cfg.Services.HelpChannel = "#Help"
+	bee := helpUser(t, h, "1LFAAAAAA", "Bee")   // on another server
+	wasp := helpUser(t, h, "1LFAAAAAB", "Wasp") // an oper
+	h.opers = map[string]string{wasp.UID: "k"}
+	emit := func(ev state.Event) {
+		t.Helper()
+		if err := h.Emit(ev); err != nil {
+			t.Fatal(err)
+		}
+		svc.Flush()
+	}
+	op := func(add bool, u *state.User) {
+		emit(&state.ChannelMode{Source: wasp.UID, Channel: "#help", Changes: []state.ModeChange{{Add: add, Mode: 'o', UID: u.UID}}})
+	}
+	emit(&state.Join{UID: wasp.UID, Channel: "#help", TS: 1, Ranks: state.RankOp, Created: true})
+	emit(&state.Join{UID: bee.UID, Channel: "#help", TS: 1})
+	if bee.HasMode('h') {
+		t.Fatal("+h without op")
+	}
+	op(true, bee)
+	if !bee.HasMode('h') {
+		t.Fatal("op in the help channel didn't give +h")
+	}
+	op(false, bee)
+	if bee.HasMode('h') {
+		t.Fatal("deop didn't take +h away")
+	}
+	op(true, bee)
+	emit(&state.Part{UID: bee.UID, Channel: "#help"})
+	if bee.HasMode('h') {
+		t.Fatal("part didn't take +h away")
+	}
+	emit(&state.Join{UID: bee.UID, Channel: "#help", TS: 1, Ranks: state.RankOwner})
+	if !bee.HasMode('h') {
+		t.Fatal("joining as owner didn't give +h")
+	}
+	emit(&state.Kick{Source: wasp.UID, UID: bee.UID, Channel: "#help"})
+	if bee.HasMode('h') {
+		t.Fatal("kick didn't take +h away")
+	}
+
+	// An oper keeps +h after the deop; so does someone who had it already.
+	if !wasp.HasMode('h') {
+		t.Fatal("the oper who opened the channel has no +h")
+	}
+	op(false, wasp)
+	if !wasp.HasMode('h') {
+		t.Fatal("deop took an oper's +h")
+	}
+	emit(&state.UserMode{UID: bee.UID, Changes: umodes(true, "h")})
+	emit(&state.Join{UID: bee.UID, Channel: "#help", TS: 1})
+	op(true, bee)
+	op(false, bee)
+	if !bee.HasMode('h') {
+		t.Fatal("deop took a +h given before the op")
+	}
+
+	// Other channels don't count.
+	drone := helpUser(t, h, "1LFAAAAAC", "Drone")
+	emit(&state.Join{UID: drone.UID, Channel: "#hive", TS: 1, Ranks: state.RankOp, Created: true})
+	if drone.HasMode('h') {
+		t.Fatal("op in another channel gave +h")
 	}
 }

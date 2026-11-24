@@ -605,6 +605,10 @@ type Services struct {
 	// default. A name taken out keeps its data; INFO just stops showing it.
 	NickFields []string `toml:"nick_fields"`
 	ChanFields []string `toml:"chan_fields"`
+	// HelpChannel (Anope's m_helpchan): someone who gets op (or more) in
+	// this channel gets user mode +h (helper) from HelpServ, and loses it
+	// with the op unless they are a helper anyway. Empty = off.
+	HelpChannel string `toml:"help_channel"`
 }
 
 // UnconfirmedExpireOr is unconfirmed_expire with its default (1 day); 0
@@ -807,6 +811,8 @@ func (c *Config) Check() error {
 		return fmt.Errorf("server prefixes %q must be \"@+\" or \"~&@%%+\"", c.Server.Prefixes)
 	case c.Services.LogChannel != "" && (!strings.HasPrefix(c.Services.LogChannel, "#") || len(c.Services.LogChannel) > 50 || strings.ContainsAny(c.Services.LogChannel, " ,\a")):
 		return fmt.Errorf("services log_channel %q must be a channel like \"#services\" (or empty for none)", c.Services.LogChannel)
+	case c.Services.HelpChannel != "" && (!strings.HasPrefix(c.Services.HelpChannel, "#") || len(c.Services.HelpChannel) > 50 || strings.ContainsAny(c.Services.HelpChannel, " ,\a")):
+		return fmt.Errorf("services help_channel %q must be a channel like \"#help\" (or empty for none)", c.Services.HelpChannel)
 	case c.Services.LogFileMaxMB < 1 || c.Services.LogFileMaxMB > 100000:
 		return fmt.Errorf("services log_file_max_mb %d must be 1 to 100000", c.Services.LogFileMaxMB)
 	case strings.ContainsAny(c.Services.LogFile, "\x00\r\n"):

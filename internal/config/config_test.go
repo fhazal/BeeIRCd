@@ -77,6 +77,7 @@ func TestLoadErrors(t *testing.T) {
 		"max_accounts_per_email -1":   good + "\n[services]\nmax_accounts_per_email = -1\n",
 		"is a SET option already":     good + "\n[services]\nnick_fields = [\"ICQ\", \"url\"]\n",
 		"chan_fields has \"X\" twice": good + "\n[services]\nchan_fields = [\"x\", \"X\"]\n",
+		"help_channel \"help\"":       good + "\n[services]\nhelp_channel = \"help\"\n",
 		"must be a word":              good + "\n[services]\nchan_fields = [\"two words\"]\n",
 	}
 	for want, body := range cases {

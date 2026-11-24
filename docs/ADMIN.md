@@ -1470,6 +1470,7 @@ difference is a warning to opers, not a refusal.
 | `max_accounts_per_email` | `0` | Accounts one email address may have (`0` = no limit, case doesn't matter); `REGISTER` and `SET EMAIL` refuse past it, an oper's `SASET EMAIL` doesn't |
 | `nick_fields` | `[]` | Extra free-text INFO fields for accounts (Anope's `ns_set_misc`), like `["ICQ", "Twitter"]`: `/ns set icq <text>` sets one (no text clears it), opers use `SASET ICQ <nick> [text]`. Up to 200 characters. A name taken out keeps its data hidden |
 | `chan_fields` | `[]` | The same for registered channels: `/cs set #chan <field> [text]` (needs the SET privilege) |
+| `help_channel` | `""` | A help channel (Anope's `m_helpchan`), like `"#help"`: whoever gets op (or more) there gets user mode `+h` (helper) from HelpServ, also on other servers, and loses it with the op (deop, part, kick) unless they are an oper or on the HelpServ helper list. Empty = off |
 | `memo_send_delay` | `3s` | Wait between two memos (`0s` off; opers don't wait) |
 
 **What the log channel shows.** Every services command goes to
