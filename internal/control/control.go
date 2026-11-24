@@ -574,6 +574,45 @@ type MyChan struct {
 	Akicks      []ChanAkick     `json:"akicks,omitempty"`
 	Memos       []MyMemo        `json:"memos,omitempty"`
 	MemoLimit   int             `json:"memoLimit,omitempty"`
+	Stats       *ChanStatsView  `json:"stats,omitempty"` // only for someone who may see the channel's stats
+}
+
+// ChanStatsView is the Stats tab of a channel. Periods is only filled when
+// On (ChanServ SET CHANSTATS), in the order day, week, month, total.
+type ChanStatsView struct {
+	On      bool              `json:"on"`
+	Periods []ChanStatsPeriod `json:"periods,omitempty"`
+}
+
+// ChanStatsPeriod is one period's top list and totals. Key is day, week,
+// month or total.
+type ChanStatsPeriod struct {
+	Key    string          `json:"key"`
+	Top    []ChanStatsRow  `json:"top"`
+	Totals ChanStatsTotals `json:"totals"`
+}
+
+// ChanStatsRow is one person in a top list.
+type ChanStatsRow struct {
+	Nick    string `json:"nick"`
+	Letters int64  `json:"letters"`
+	Words   int64  `json:"words"`
+	Lines   int64  `json:"lines"`
+	Smileys int64  `json:"smileys"`
+	Actions int64  `json:"actions"`
+	You     bool   `json:"you,omitempty"`
+}
+
+// ChanStatsTotals is what everyone counted wrote together.
+type ChanStatsTotals struct {
+	Lines   int64 `json:"lines"`
+	Words   int64 `json:"words"`
+	Letters int64 `json:"letters"`
+	Smileys int64 `json:"smileys"`
+	Actions int64 `json:"actions"`
+	Kicks   int64 `json:"kicks"`
+	Modes   int64 `json:"modes"`
+	Topics  int64 `json:"topics"`
 }
 
 // ChanCan is what the person's ChanServ level allows on the channel.
@@ -628,6 +667,7 @@ type MyNick struct {
 	HideStatus bool        `json:"hideStatus"`
 	AutoOp     bool        `json:"autoOp"`
 	Private    bool        `json:"private"`
+	ChanStats  bool        `json:"chanStats"` // SET CHANSTATS: what I say in channels with it on is counted
 	Greet      string      `json:"greet,omitempty"`
 	Channels   []MyChannel `json:"channels"`
 	// Metadata is the IRCv3 metadata kept on the account (avatar, color,

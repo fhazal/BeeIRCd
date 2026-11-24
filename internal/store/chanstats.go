@@ -264,3 +264,50 @@ func (s *Store) SaveChanStats() error {
 	s.cs.dirty = map[csKey]bool{}
 	return nil
 }
+
+// TopChanStatsIn is the n accounts that wrote the most letters in a channel
+// (0: network-wide) in period (StatsTotal, StatsMonth, ...) as of now, most
+// first: letters, then lines, then account ID. Accounts with nothing in that
+// period are left out; a period that ended counts as zero.
+func (s *Store) TopChanStatsIn(channelID int64, period, n int, now time.Time) []ChanStatsEntry {
+	if period < 0 || period >= statsPeriods {
+		return nil
+	}
+	key := statsKeys(now)[period]
+	var out []ChanStatsEntry
+	for acct, r := range s.cs.rows[channelID] {
+		if r.since[period] != key || r.p[period] == (ChanStats{}) {
+			continue
+		}
+		out = append(out, ChanStatsEntry{AccountID: acct, Name: s.c.accountName(acct), Stats: r.p[period]})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		a, b := out[i].Stats, out[j].Stats
+		if a.Letters != b.Letters {
+			return a.Letters > b.Letters
+		}
+		if a.Lines != b.Lines {
+			return a.Lines > b.Lines
+		}
+		return out[i].AccountID < out[j].AccountID
+	})
+	if n >= 0 && len(out) > n {
+		out = out[:n]
+	}
+	return out
+}
+
+// ChanStatsTotals is what everyone counted in a channel (0: network-wide)
+// wrote together in period as of now.
+func (s *Store) ChanStatsTotals(channelID int64, period int, now time.Time) (t ChanStats) {
+	if period < 0 || period >= statsPeriods {
+		return t
+	}
+	key := statsKeys(now)[period]
+	for _, r := range s.cs.rows[channelID] {
+		if r.since[period] == key {
+			t.add(r.p[period])
+		}
+	}
+	return t
+}

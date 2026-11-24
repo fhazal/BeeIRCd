@@ -3,6 +3,7 @@ package server
 import (
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/fhazal/beeircd/internal/control"
 	"github.com/fhazal/beeircd/internal/irc"
@@ -69,7 +70,35 @@ func (s *Server) panelChan(po *control.PanelOper, name string) *control.Response
 	for _, mm := range v.Memos {
 		c.Memos = append(c.Memos, myMemo(mm))
 	}
+	if services.ChanStatsVisible(reg, v.Rank) {
+		c.Stats = s.chanStatsView(reg, a.ID)
+	}
 	return &control.Response{Chan: c}
+}
+
+// chanStatsView is reg's top lists and totals; viewer is the account looking.
+func (s *Server) chanStatsView(reg *store.Channel, viewer int64) *control.ChanStatsView {
+	id := s.store.ChanStatsChannel(reg.Name)
+	out := &control.ChanStatsView{On: id != 0}
+	if id == 0 {
+		return out
+	}
+	now := time.Now()
+	for _, p := range []struct {
+		key    string
+		period int
+	}{{"day", store.StatsDay}, {"week", store.StatsWeek}, {"month", store.StatsMonth}, {"total", store.StatsTotal}} {
+		sp := control.ChanStatsPeriod{Key: p.key, Top: []control.ChanStatsRow{}}
+		for _, e := range s.store.TopChanStatsIn(id, p.period, 10, now) {
+			sp.Top = append(sp.Top, control.ChanStatsRow{Nick: e.Name, Letters: e.Stats.Letters, Words: e.Stats.Words, Lines: e.Stats.Lines,
+				Smileys: e.Stats.Smileys(), Actions: e.Stats.Actions, You: e.AccountID == viewer})
+		}
+		t := s.store.ChanStatsTotals(id, p.period, now)
+		sp.Totals = control.ChanStatsTotals{Lines: t.Lines, Words: t.Words, Letters: t.Letters, Smileys: t.Smileys(), Actions: t.Actions,
+			Kicks: t.Kicks, Modes: t.Modes, Topics: t.Topics}
+		out.Periods = append(out.Periods, sp)
+	}
+	return out
 }
 
 // rank orders the People list by status: ~ & @ % + then the rest.

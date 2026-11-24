@@ -118,7 +118,7 @@ func (s *Server) panelMyNick(po *control.PanelOper) *control.Response {
 		}
 	}
 	my := &control.MyNick{Name: a.Name, Registered: a.Registered, Email: maskEmail(a.Email), Nicks: nicks, Kill: kill,
-		HideEmail: a.HideEmail, HideStatus: a.HideStatus, AutoOp: a.AutoOp, Private: a.Private, Greet: s.store.Greet(a.ID),
+		HideEmail: a.HideEmail, HideStatus: a.HideStatus, AutoOp: a.AutoOp, Private: a.Private, ChanStats: a.ChanStats, Greet: s.store.Greet(a.ID),
 		Channels: []control.MyChannel{}, Metadata: s.store.AccountMetadata(a.ID), MetaOn: s.cfg.Server.IRCv3Drafts}
 	chans, err := s.store.Channels()
 	if err != nil {

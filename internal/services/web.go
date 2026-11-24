@@ -12,7 +12,7 @@ import (
 
 // webSetOptions are the SET options My nick offers. The others (PASSWORD,
 // EMAIL, DISPLAY ...) mail, hash or rename and stay on IRC for now.
-var webSetOptions = map[string]bool{"KILL": true, "HIDE": true, "AUTOOP": true, "PRIVATE": true, "GREET": true}
+var webSetOptions = map[string]bool{"KILL": true, "HIDE": true, "AUTOOP": true, "PRIVATE": true, "GREET": true, "CHANSTATS": true}
 
 // WebSet runs NickServ SET option args for account id, for the Hive Panel
 // at ip. It returns whether something changed and NickServ's answers.

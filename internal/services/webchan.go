@@ -30,12 +30,20 @@ type ChanView struct {
 }
 
 // webChanToggles are the SET options the panel shows as switches.
-var webChanToggles = []string{"KEEPTOPIC", "TOPICLOCK", "SECUREOPS", "RESTRICTED", "PEACE", "PRIVATE", "SIGNKICK", "PERSIST", "KEEPMODES", "SECURE"}
+var webChanToggles = []string{"KEEPTOPIC", "TOPICLOCK", "SECUREOPS", "RESTRICTED", "PEACE", "PRIVATE", "SIGNKICK", "PERSIST", "KEEPMODES", "SECURE", "CHANSTATS"}
+
+// ChanStatsVisible says whether someone at level rank (store.LevelNone: not
+// on the list) may see reg's chanstats. Same rule as STATS and TOP: a
+// private channel's counts are for its access list (the channel page has no
+// oper override).
+func ChanStatsVisible(reg *store.Channel, rank int) bool {
+	return !reg.Private || rank != store.LevelNone
+}
 
 // ChanToggles reads reg's switches by SET option name.
 func ChanToggles(reg *store.Channel) map[string]bool {
 	return map[string]bool{"KEEPTOPIC": reg.KeepTopic, "TOPICLOCK": reg.TopicLock, "SECUREOPS": reg.SecureOps, "RESTRICTED": reg.Restricted,
-		"PEACE": reg.Peace, "PRIVATE": reg.Private, "SIGNKICK": reg.SignKick, "PERSIST": reg.Persist, "KEEPMODES": reg.KeepModes, "SECURE": reg.Secure}
+		"PEACE": reg.Peace, "PRIVATE": reg.Private, "SIGNKICK": reg.SignKick, "PERSIST": reg.Persist, "KEEPMODES": reg.KeepModes, "SECURE": reg.Secure, "CHANSTATS": reg.ChanStats}
 }
 
 // WebChan is channel name for account id: only for someone on its access

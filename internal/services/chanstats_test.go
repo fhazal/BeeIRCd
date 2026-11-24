@@ -227,3 +227,23 @@ func TestChanStats(t *testing.T) {
 		t.Errorf("network-wide stats after DROP: %+v %v", p[store.StatsTotal], ok)
 	}
 }
+
+func TestChanStatsVisible(t *testing.T) {
+	open := &store.Channel{}
+	priv := &store.Channel{Private: true}
+	if !ChanStatsVisible(open, store.LevelNone) || !ChanStatsVisible(open, store.LevelVOP) {
+		t.Error("a public channel's stats are for everyone")
+	}
+	if ChanStatsVisible(priv, store.LevelNone) {
+		t.Error("a private channel's stats are not for people off its list")
+	}
+	if !ChanStatsVisible(priv, store.LevelVOP) || !ChanStatsVisible(priv, store.LevelFounder) {
+		t.Error("a private channel's stats are for its list")
+	}
+}
+
+func TestChanTogglesHasChanStats(t *testing.T) {
+	if !ChanToggles(&store.Channel{ChanStats: true})["CHANSTATS"] || ChanToggles(&store.Channel{})["CHANSTATS"] {
+		t.Error("CHANSTATS toggle")
+	}
+}

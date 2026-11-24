@@ -3962,10 +3962,70 @@
         rows.length ? rows : h('p', { class: 'empty', text: 'No memos for ' + d.name + '. Anyone can leave one: /msg MemoServ SEND ' + d.name + ' and a message.' }));
     }
 
+    // statsTab: the channel's top 10 and totals (ChanServ SET CHANSTATS).
+    let statsPeriod = 'month';
+    function statsTab() {
+      const st = d.stats, nf = new Intl.NumberFormat('en');
+      const num = v => nf.format(v);
+      const PER = [['day', 'Today', 'today'], ['week', 'This week', 'this week'], ['month', 'This month', 'this month'], ['total', 'All time', 'all time']];
+      const cid = 'cs-on';
+      const input = h('input', { type: 'checkbox', id: cid });
+      input.checked = !!st.on;
+      input.disabled = !d.can.set;
+      input.addEventListener('change', async () => {
+        input.disabled = true;
+        if (!await run(null, 'SET', 'CHANSTATS', '', input.checked ? 'ON' : 'OFF')) { input.checked = !input.checked; input.disabled = !d.can.set; }
+      });
+      const switchCard = h('section', { class: 'card' }, hmHead('settings', 'Channel stats', 'ChanServ SET CHANSTATS'),
+        h('div', { class: 'my-row' }, h('label', { class: 'ck', for: cid }, input, 'Count what\'s said in ' + d.name),
+          h('span', { class: 'hint', text: d.can.set ? 'Off stops counting. The counts stay until the channel is dropped.' : 'Only people who may change the channel\'s settings can switch it.' })));
+      if (!st.on) {
+        return h('div', { class: 'band21' },
+          h('section', { class: 'card' }, hmHead('chart', 'Top 10', 'by letters · ChanServ TOP10'),
+            h('p', { class: 'empty', text: 'Stats are off for ' + d.name + '. Switch them on and ' + d.name + ' starts counting what people say.' })),
+          h('div', { class: 'hm-col' }, switchCard));
+      }
+      const left = h('section', { class: 'card' }, hmHead('chart', 'Top 10', 'by letters · ChanServ TOP10'));
+      const right = h('div', { class: 'hm-col' });
+      function paint() {
+        const p = st.periods.find(x => x.key === statsPeriod) || st.periods[2];
+        const label = PER.find(x => x[0] === p.key);
+        const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Period' }, PER.map(([k, t]) => {
+          const b = h('button', { type: 'button', class: k === p.key ? 'on' : '', 'aria-pressed': String(k === p.key), text: t });
+          b.addEventListener('click', () => { statsPeriod = k; paint(); });
+          return b;
+        }));
+        const top = p.top[0] ? p.top[0].letters || 1 : 1;
+        // The page's CSP blocks style="" attributes; set the width through the CSSOM.
+        const ltBar = (n, max) => { const b = h('span', { class: 'bar' }); b.style.width = Math.max(2, Math.round(n / max * 100)) + 'px'; return b; };
+        const rows = p.top.map((r, i) => h('tr', { class: r.you ? 'open' : '' },
+          h('td', { class: 'mono rk', text: i + 1 }),
+          h('td', {}, h('b', { text: r.nick }), r.you ? [' ', h('span', { class: 'role on', text: 'you' })] : null),
+          h('td', {}, h('div', { class: 'lt' }, ltBar(r.letters, top), h('span', { class: 'num', text: num(r.letters) }))),
+          h('td', { class: 'num', text: num(r.words) }), h('td', { class: 'num', text: num(r.lines) }), h('td', { class: 'num', text: num(r.smileys) }), h('td', { class: 'num', text: num(r.actions) })));
+        put(left, hmHead('chart', 'Top 10', 'by letters · ChanServ TOP10'), seg,
+          rows.length ? h('div', { class: 'wrap' }, h('table', { class: 'st' },
+            h('thead', {}, h('tr', {}, h('th', { text: '#' }), h('th', { text: 'Nick' }), ['Letters', 'Words', 'Lines', 'Smileys', 'Actions'].map(t => h('th', { class: 'num', text: t })))), h('tbody', {}, rows)))
+            : h('p', { class: 'empty', text: 'Nobody counted yet' }),
+          h('p', { class: 'note', text: 'Only people who ticked "Count me in channel stats" are counted.' }));
+        const t = p.totals;
+        const pairs = [['Lines', t.lines], ['Words', t.words], ['Letters', t.letters], ['Smileys', t.smileys], ['Actions', t.actions], ['Kicks', t.kicks], ['Mode changes', t.modes], ['Topics set', t.topics]];
+        put(right, switchCard,
+          h('section', { class: 'card' }, hmHead('hash', d.name + ' ' + label[2], 'people counted'),
+            h('div', { class: 'tot' }, pairs.map(([k, v]) => [h('span', { text: k }), h('b', { text: num(v) })]))),
+          h('section', { class: 'card' }, hmHead('message', 'Ask in the channel'),
+            h('div', {}, ['!stats', '!stats nick', '!top', '!top10', '!gstats', '!gtop10'].map(c => h('span', { class: 'cmd', text: c }))),
+            h('p', { class: 'note', text: 'The channel\'s bot answers. Without a bot: /msg ChanServ TOP10 ' + d.name })));
+      }
+      paint();
+      return h('div', { class: 'band21' }, left, right);
+    }
+
     function draw() {
       const list = [['people', 'people', 'People now', d.people.length, true], ['access', 'list', 'Access', (d.access || []).length, d.can.accessList],
         ['akick', 'bans', 'AKICK', (d.akicks || []).length, d.can.akick], ['settings', 'settings', 'Settings', null, d.can.set || d.can.topic || d.can.founder],
-        ['memo', 'mail', 'Memo box', (d.memos || []).length, d.can.memo]].filter(x => x[4]);
+        ['memo', 'mail', 'Memo box', (d.memos || []).length, d.can.memo],
+        ['stats', 'chart', 'Stats', null, !!d.stats]].filter(x => x[4]);
       if (!list.some(x => x[0] === tab)) tab = list[0][0];
       put(tabs, list.map(([id, ic, label, n]) => {
         const b = h('button', { type: 'button', role: 'tab', class: 'cm-tab' + (id === tab ? ' on' : ''), 'aria-selected': String(id === tab) },
@@ -3974,7 +4034,7 @@
         return b;
       }));
       tabIntoView(tabs);
-      const make = { people: peopleTab, access: accessTab, akick: akickTab, settings: settingsTab, memo: memoTab }[tab];
+      const make = { people: peopleTab, access: accessTab, akick: akickTab, settings: settingsTab, memo: memoTab, stats: statsTab }[tab];
       put(body, make());
     }
     async function load() {
@@ -4056,6 +4116,7 @@
         sw('my-hide-email', 'Hide my email', 'Others don\'t see it in NickServ INFO.', d.hideEmail, 'HIDE', on => 'EMAIL ' + (on ? 'ON' : 'OFF')),
         me.member ? null : sw('my-hide-status', 'Hide that I am an oper', 'NickServ INFO doesn\'t say it.', d.hideStatus, 'HIDE', on => 'STATUS ' + (on ? 'ON' : 'OFF')),
         sw('my-autoop', 'Get my status when I join', 'ChanServ gives you @ or + in your channels.', d.autoOp, 'AUTOOP', on => on ? 'ON' : 'OFF'),
+        sw('my-chanstats', 'Count me in channel stats', 'What you say in channels with stats on is counted. Off until you tick it.', d.chanStats, 'CHANSTATS', on => on ? 'ON' : 'OFF'),
         sw('my-private', 'Keep me out of the nick list', 'NickServ LIST doesn\'t show you.', d.private, 'PRIVATE', on => on ? 'ON' : 'OFF'),
         h('div', { class: 'my-row' }, h('label', { class: 'f', for: 'my-greet' }, 'Greet message', h('div', { class: 'my-inline' }, greet, save)),
           h('span', { class: 'hint', text: 'A channel bot says it when you join, where the channel allows greets. Empty removes it.' })),
