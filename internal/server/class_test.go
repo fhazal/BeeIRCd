@@ -154,9 +154,9 @@ func TestClassLimits(t *testing.T) {
 	g3.quiet("is in class") // opers only
 
 	b.send("STATS Y")
-	b.expect(" 218 Boss Y nope :0 in class; session_limit 100, max_users 5000")
+	b.expect(" 218 Boss Y nope :0 in class; session_limit 100, max_users none")
 	b.expect(" 218 Boss Y small :1 in class; session_limit 100, max_users 1, ")
-	b.expect(" 218 Boss Y guests :3 in class; session_limit 3, max_users 5000, sendq 8192, ping 30s/")
+	b.expect(" 218 Boss Y guests :3 in class; session_limit 3, max_users none, sendq 8192, ping 30s/")
 	b.expect(" 218 Boss Y default :0 in class")
 	b.expect(" 219 Boss Y :End of /STATS report")
 	g3.send("STATS Y")

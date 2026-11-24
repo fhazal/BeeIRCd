@@ -153,8 +153,17 @@ func (s *Server) statsClasses(c *Client) {
 	line := func(k *config.ConnClass) {
 		name := className(k)
 		l := s.cfg.LimitsOf(k)
-		text := fmt.Sprintf("%d in class; session_limit %d, max_users %d, sendq %d, ping %s/%s, flood %d/%d, max_channels %d",
-			s.inClass(name), l.SessionLimit, l.MaxUsers, l.SendQ, l.PingInterval, l.PingTimeout, l.FloodBurst, l.FloodRate, l.MaxChannels)
+		// A class's max_users caps that class only; without one there is
+		// no class cap (the server-wide [limits] max_users still holds).
+		maxUsers := fmt.Sprint(l.MaxUsers)
+		if k != nil {
+			maxUsers = "none"
+			if k.MaxUsers > 0 {
+				maxUsers = fmt.Sprint(k.MaxUsers)
+			}
+		}
+		text := fmt.Sprintf("%d in class; session_limit %d, max_users %s, sendq %d, ping %s/%s, flood %d/%d, max_channels %d",
+			s.inClass(name), l.SessionLimit, maxUsers, l.SendQ, l.PingInterval, l.PingTimeout, l.FloodBurst, l.FloodRate, l.MaxChannels)
 		if k != nil {
 			text += "; groups " + strings.Join(k.SecurityGroup, ",")
 			if k.Deny {
