@@ -68,12 +68,15 @@ end=$(( $(date +%s) + hours*3600 ))
 	sleep 5
 done ) &
 
-echo "time,rss_mb,threads,fds,users" >samples.csv
+echo "time,rss_mb,threads,fds,users" >samples.csv  # numbers are the worker's
 n=0
 while [ "$(date +%s)" -lt "$end" ] && kill -0 "$pid" 2>/dev/null; do
-	rss=$(( $(awk '/VmRSS/{print $2}' /proc/$pid/status) / 1024 ))
-	thr=$(awk '/Threads/{print $2}' /proc/$pid/status)
-	fds=$(ls /proc/$pid/fd | wc -l)
+	# The unit's main process is the supervisor; the server itself is its
+	# newest child (seamless upgrades and restarts swap the child).
+	w=$(pgrep -P "$pid" -n beeircd || echo "$pid")
+	rss=$(( $(awk '/VmRSS/{print $2}' /proc/$w/status) / 1024 ))
+	thr=$(awk '/Threads/{print $2}' /proc/$w/status)
+	fds=$(ls /proc/$w/fd | wc -l)
 	users=$(./beeircd status -config data/beeircd.conf 2>/dev/null | awk '/People/{print $2; exit}')
 	echo "$(date +%FT%T),$rss,$thr,$fds,${users:-?}" >>samples.csv
 	n=$((n+1))
