@@ -96,6 +96,10 @@ func (s *Services) RegisterAccount(uid, account, email, pw string, done func(Reg
 			fail("UNACCEPTABLE_EMAIL", why)
 			return
 		}
+		if max := s.emailFull(email, 0); max > 0 {
+			fail("UNACCEPTABLE_EMAIL", "That email address has reached its limit of accounts here ("+strconv.Itoa(max)+")")
+			return
+		}
 	}
 	if c.pwBusy {
 		fail("TEMPORARILY_UNAVAILABLE", "Still busy with your last password")

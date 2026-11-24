@@ -916,3 +916,4 @@
 "new" = "baharu"
 "%s has NEVEROP on and can't be added to access lists." = "%s menghidupkan NEVEROP dan tidak boleh ditambah ke senarai akses."
 "Services are in read-only mode; this can't be changed right now." = "Services dalam mod baca sahaja; ini tidak boleh diubah sekarang."
+"The email address %s has reached its limit of accounts here (%d)." = "Alamat e-mel %s sudah mencapai had akaun di sini (%d)."

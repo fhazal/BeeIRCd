@@ -102,6 +102,17 @@ func validEmail(e string) bool {
 	return at > 0 && at < len(e)-3 && strings.Contains(e[at:], ".") && !strings.ContainsAny(e, " ,;:<>")
 }
 
+// emailFull is [services] max_accounts_per_email when email has that many
+// accounts already (except, the account asking, doesn't count), else 0.
+// Case doesn't matter, as in Anope's ns_maxemail.
+func (s *Services) emailFull(email string, except int64) int {
+	max := s.cfg.Services.MaxAccountsPerEmail
+	if max <= 0 || s.store.EmailUsers(email, except) < max {
+		return 0
+	}
+	return max
+}
+
 func nsRegister(s *Services, c *Client, args []string) {
 	if s.defconBlocks(c, s.nickServ, 4) {
 		return
@@ -152,6 +163,10 @@ func nsRegister(s *Services, c *Client, args []string) {
 		}
 		if why := s.emailForbidden(email); why != "" {
 			s.ns(c, "%s", why)
+			return
+		}
+		if max := s.emailFull(email, 0); max > 0 {
+			s.ns(c, "The email address %s has reached its limit of accounts here (%d).", email, max)
 			return
 		}
 	}
@@ -595,6 +610,9 @@ func (s *Services) setOption(c *Client, a *store.Account, cmd, opt string, args 
 			return save(whose+" email is removed.", "to unset the email of "+a.Name)
 		case validEmail(val) && s.emailForbidden(val) != "" && cmd == "SET":
 			s.ns(c, "%s", s.emailForbidden(val))
+			return false
+		case validEmail(val) && cmd == "SET" && s.emailFull(val, a.ID) > 0:
+			s.ns(c, "The email address %s has reached its limit of accounts here (%d).", val, s.emailFull(val, a.ID))
 			return false
 		case validEmail(val):
 			a.Email = val

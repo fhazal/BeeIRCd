@@ -208,3 +208,15 @@ func (s *Store) AccountsByEmail(pattern string) []*Account {
 	sort.Slice(out, func(i, j int) bool { return irc.Fold(out[i].Name) < irc.Fold(out[j].Name) })
 	return out
 }
+
+// EmailUsers is how many accounts other than except use email, compared
+// without case ([services] max_accounts_per_email).
+func (s *Store) EmailUsers(email string, except int64) int {
+	n := 0
+	for id, a := range s.c.accounts {
+		if id != except && a.Email != "" && strings.EqualFold(a.Email, email) {
+			n++
+		}
+	}
+	return n
+}

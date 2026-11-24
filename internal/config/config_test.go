@@ -74,6 +74,7 @@ func TestLoadErrors(t *testing.T) {
 		"needs [tls] cert":            strings.Replace(good, `cert = "tls/cert.pem"`, "", 1),
 		"not a time":                  strings.Replace(good, `"2m"`, `"soon"`, 1),
 		"[cloak] secret":              strings.Replace(good, `"0123456789abcdef-test"`, `"short"`, 1),
+		"max_accounts_per_email -1":   good + "\n[services]\nmax_accounts_per_email = -1\n",
 	}
 	for want, body := range cases {
 		_, err := Load(write(t, body))

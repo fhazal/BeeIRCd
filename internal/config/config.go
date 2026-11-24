@@ -595,6 +595,10 @@ type Services struct {
 	// haven't picked one with SET LANGUAGE (Anope's defaultlanguage):
 	// "en" (default) or "ms".
 	DefaultLanguage string `toml:"default_language"`
+	// MaxAccountsPerEmail is how many accounts may use one email address
+	// (Anope's ns_maxemail maxemails); 0 = no limit. Opers changing an
+	// email with SASET are not held to it.
+	MaxAccountsPerEmail int `toml:"max_accounts_per_email"`
 }
 
 // UnconfirmedExpireOr is unconfirmed_expire with its default (1 day); 0
@@ -770,6 +774,8 @@ func (c *Config) Check() error {
 		return fmt.Errorf("services log_file_max_mb %d must be 1 to 100000", c.Services.LogFileMaxMB)
 	case strings.ContainsAny(c.Services.LogFile, "\x00\r\n"):
 		return fmt.Errorf("services log_file %q is not a file name", c.Services.LogFile)
+	case c.Services.MaxAccountsPerEmail < 0:
+		return fmt.Errorf("services max_accounts_per_email %d must be 0 (no limit) or more", c.Services.MaxAccountsPerEmail)
 	case len(c.Listen) == 0:
 		return fmt.Errorf("add at least one [[listen]] port")
 	}

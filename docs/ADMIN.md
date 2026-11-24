@@ -1463,6 +1463,7 @@ difference is a warning to opers, not a refusal.
 | `default_language` | `"en"` | Language NickServ, ChanServ, MemoServ, HostServ, BotServ and HelpServ answer in for people who didn't pick one with `/ns set language`: `"en"` English or `"ms"` Bahasa Melayu. OperServ and AdminServ stay English |
 | `unconfirmed_expire` | `1d` | Unconfirmed accounts are dropped this long after REGISTER (`0s` never) |
 | `max_memos` | `20` | Memo limit of a new account |
+| `max_accounts_per_email` | `0` | Accounts one email address may have (`0` = no limit, case doesn't matter); `REGISTER` and `SET EMAIL` refuse past it, an oper's `SASET EMAIL` doesn't |
 | `memo_send_delay` | `3s` | Wait between two memos (`0s` off; opers don't wait) |
 
 **What the log channel shows.** Every services command goes to
