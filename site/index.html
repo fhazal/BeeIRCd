@@ -528,6 +528,32 @@ section > h2:not(.lv-title)::before, .new-head h2::before, .status-head h2::befo
 .band-art .bst, .band-art.hive .bst, .band-art.isl .bst { position: relative; inset: auto; left: 0; right: 0; top: auto; bottom: auto; }
 .after-scene { margin-top: 24px; }
 @media (max-width: 860px) { .after-scene { margin-top: 12px; } }
+/* picture labels: "whisper" - no box, small dot + thin gold line, text on a soft dark halo */
+.pin { gap: 0; transform: translate(-4px, -50%); }
+.pin.l { transform: translate(calc(-100% + 4px), -50%); text-align: right; }
+.pin i { width: 8px; height: 8px; background: #ffe08a; box-shadow: 0 0 0 2px rgba(10,10,9,.6), 0 0 8px 3px rgba(255,199,44,.7); animation: none !important; }
+.pin.live i { background: #a6f0c3; box-shadow: 0 0 0 2px rgba(10,10,9,.6), 0 0 8px 3px rgba(127,212,160,.7); }
+.pin s { flex: none; display: block; width: 26px; height: 1.5px; margin: 0 7px; background: linear-gradient(90deg, rgba(255,215,110,.85), rgba(255,215,110,.15)); }
+.pin.l s { background: linear-gradient(270deg, rgba(255,215,110,.85), rgba(255,215,110,.15)); }
+.pin span, .pin:hover span, .pin:focus-visible span { background: none; border: 0; padding: 0; border-radius: 0; backdrop-filter: none; text-shadow: 0 1px 2px #000, 0 0 8px rgba(0,0,0,.95), 0 0 16px rgba(0,0,0,.7); }
+.pin span b { display: block; color: #ffe7a6; }
+.pin span em { margin-left: 0; color: rgba(243,241,234,.8); font-size: 11.5px; }
+.pin:hover span b, .pin:focus-visible span b { color: #fff; }
+@media (max-width: 860px) { .pin { font-size: 11.5px; } .pin s { width: 14px; margin: 0 5px; } .pin i { width: 7px; height: 7px; } }
+/* bees: one slow smooth bob each, no wing jitter */
+.fx.bee img { animation: none; }
+.fx.b1, .fx.b2, .fx.b3 { animation: beefloat 4.6s cubic-bezier(.45,0,.55,1) infinite alternate; }
+.fx.b2 { animation-duration: 5.8s; animation-delay: -2s; }
+.fx.b3 { animation-duration: 5.2s; animation-delay: -3.4s; }
+@keyframes beefloat { 0% { transform: translate(0,0) rotate(-1.5deg); } 100% { transform: translate(3%,-14%) rotate(1.5deg); } }
+@media (prefers-reduced-motion: reduce) { .fx.bee { animation: none !important; } }
+@media (max-width: 860px) { .scene-e .set2 .pin.live:not(.l) { flex-direction: row-reverse; transform: translate(calc(-100% + 4px), -50%); text-align: right; } .scene-e .set2 .pin.live:not(.l) s { background: linear-gradient(270deg, rgba(255,215,110,.85), rgba(255,215,110,.15)); } }
+/* rounded corners everywhere, yellow bars included */
+.get { border-radius: 14px; }
+.two > div:last-child { border-radius: 14px; }
+.stage.now { border-radius: 12px; }
+.band-art { border-radius: 16px; overflow: hidden; }
+.band-art .win { border-radius: 16px; }
 </style>
 </head>
 <body>
@@ -574,12 +600,12 @@ section > h2:not(.lv-title)::before, .new-head h2::before, .status-head h2::befo
 <div class="scene scene-e alt"><div class="copy">
       <h1>Your own IRC network, with the services built in.</h1>
       <p class="lead">BeeIRCd is one program that runs the chat server and NickServ, ChanServ, MemoServ, OperServ, HostServ, BotServ and AdminServ. Set it up with a few questions, change it from IRC while it runs, and keep the IRC you already know.</p>
-      <a class="state out" id="state" href="#new"><i></i><span><b>BeeIRCd 1.6.0 is out.</b> <u>See what's new</u></span></a>
+      <a class="state out" id="state" href="#new"><i></i><s></s><span><b>BeeIRCd 1.6.0 is out.</b> <u>See what's new</u></span></a>
       <div class="actions">
         <a class="btn main" href="#get"><svg aria-hidden="true"><use href="#i-download"/></svg>Download BeeIRCd</a>
         <a class="btn" href="#services"><svg aria-hidden="true"><use href="#i-code"/></svg>What it does</a>
       </div>
-    </div><div class="crop"><div class="sc-stage"><img class="art" src="art/pine.webp" alt="A night diorama: a honey-dome server house on a pine hill, bees, and a black and gold steam train carrying chat bubbles out of a tunnel" width="1344" height="752"><div class="fx home"></div><div class="fx beacon"></div><div class="fx lamp"></div><div class="fx glow m1"></div><div class="fx glow m2"></div><div class="fx glow m3"></div><div class="fx steam"><i></i><i></i><i></i></div><div class="fx bee b1"><img src="art/bee1.webp" alt=""></div><div class="fx bee b2"><img src="art/bee2.webp" alt=""></div><div class="fx bee b3"><img src="art/bee3.webp" alt=""></div><span class="set2"><a class="pin " style="--x:73%;--y:22%" href="#services"><i></i><span><b>Your server</b><em data-live="v0">BeeIRCd 1.6.0</em></span></a><a class="pin l" style="--x:61%;--y:57%" href="#services"><i></i><span><b>Services in the basement</b></span></a><a class="pin live l" style="--x:86.5%;--y:53%" href="#live"><i></i><span><b>Messages</b><em data-live="all">97 people online</em></span></a><a class="pin live" style="--x:75.3%;--y:5%" href="#live"><i></i><span><b>Live beacon</b><em data-live="link">linked</em></span></a></span></div></div></div>
+    </div><div class="crop"><div class="sc-stage"><img class="art" src="art/pine.webp" alt="A night diorama: a honey-dome server house on a pine hill, bees, and a black and gold steam train carrying chat bubbles out of a tunnel" width="1344" height="752"><div class="fx home"></div><div class="fx beacon"></div><div class="fx lamp"></div><div class="fx glow m1"></div><div class="fx glow m2"></div><div class="fx glow m3"></div><div class="fx steam"><i></i><i></i><i></i></div><div class="fx bee b1"><img src="art/bee1.webp" alt=""></div><div class="fx bee b2"><img src="art/bee2.webp" alt=""></div><div class="fx bee b3"><img src="art/bee3.webp" alt=""></div><span class="set2"><a class="pin " style="--x:73%;--y:22%" href="#services"><i></i><s></s><span><b>Your server</b><em data-live="v0">BeeIRCd 1.6.0</em></span></a><a class="pin l" style="--x:61%;--y:57%" href="#services"><i></i><s></s><span><b>Services in the basement</b></span></a><a class="pin live l" style="--x:86.5%;--y:53%" href="#live"><i></i><s></s><span><b>Messages</b><em data-live="all">97 people online</em></span></a><a class="pin live" style="--x:75.3%;--y:5%" href="#live"><i></i><s></s><span><b>Live beacon</b><em data-live="link">linked</em></span></a></span></div></div></div>
 <div class="wrap after-scene">    <div class="session" id="session" role="img" aria-label="An IRC client connected to BeeIRCd: identifying to NickServ, registering a channel with ChanServ and changing a setting with AdminServ.">
       <div class="tb" aria-hidden="true"><div class="lights"><i></i><i></i><i></i></div><div class="title"><svg viewBox="0 0 11 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="1" y="5" width="9" height="6" rx="1"/><path d="M3 5V3.5a2.5 2.5 0 0 1 5 0V5"/></svg><b>#beeircd</b>irc.beeircd.org</div><div></div></div>
       <div class="body" aria-hidden="true">
@@ -661,7 +687,7 @@ section > h2:not(.lv-title)::before, .new-head h2::before, .status-head h2::befo
   <section class="wrap">
     <h2>Seven services, one program</h2>
     <p class="intro">No separate services package to link and keep in sync. The services answer the way they always have, with a short notice and the next step to take.</p>
-    <figure class="band-art hive"><div class="win"><div class="bst"><img class="art" src="art/hive.webp" alt="A cutaway honey hive: the chat server and its services as rooms in one hive" loading="lazy" width="1344" height="752"><a class="pin " style="--x:68.8%;--y:50%" href="#get"><i></i><span><b>The server</b><em data-live="v0">BeeIRCd 1.6.0</em></span></a><a class="pin live l hide-s" style="--x:61%;--y:31%" href="#live"><i></i><span><b>#beeircd</b><em data-live="all">97 people online</em></span></a></div></div><figcaption class="cap"><b>Everything lives in one hive</b>The chat server and all seven services run as one program.</figcaption></figure><div class="svcs">
+    <figure class="band-art hive"><div class="win"><div class="bst"><img class="art" src="art/hive.webp" alt="A cutaway honey hive: the chat server and its services as rooms in one hive" loading="lazy" width="1344" height="752"><a class="pin l" style="--x:43.6%;--y:50%" href="#get"><i></i><s></s><span><b>The server</b><em data-live="v0">BeeIRCd 1.6.0</em></span></a><a class="pin live l hide-s" style="--x:50.8%;--y:31%" href="#live"><i></i><s></s><span><b>#beeircd</b><em data-live="all">97 people online</em></span></a></div></div><figcaption class="cap"><b>Everything lives in one hive</b>The chat server and all seven services run as one program.</figcaption></figure><div class="svcs">
       <div class="svc-row"><svg aria-hidden="true"><use href="#i-user"/></svg><b>NickServ</b><span>Keeps your nick yours. Identify with a password or SASL, group nicks, recover a ghost.</span><code>/ns register &lt;password&gt;</code></div>
       <div class="svc-row"><svg aria-hidden="true"><use href="#i-hash"/></svg><b>ChanServ</b><span>Keeps a channel yours. Founder, SOP, AOP, VOP and UOP levels, AKICK, mode and topic lock.</span><code>/cs register #channel &lt;description&gt;</code></div>
       <div class="svc-row"><svg aria-hidden="true"><use href="#i-mail"/></svg><b>MemoServ</b><span>Messages for people who are away, and memos to a channel's founder and SOPs.</span><code>/ms send ember see you at nine</code></div>
@@ -787,7 +813,7 @@ section > h2:not(.lv-title)::before, .new-head h2::before, .status-head h2::befo
       </div>
       <span class="lv-checked" id="lv-checked"></span>
     </div>
-    <figure class="band-art isl"><div class="win"><div class="bst"><img class="art" src="art/islands.webp" alt="Two islands joined by a glowing link: the Malaysia hub server and the Germany leaf server" loading="lazy" width="1134" height="675"><a class="pin live" style="--x:21.8%;--y:58.0%" href="#live"><i></i><span><b>irc.bajubesi.org</b><em>Malaysia · hub · </em><em data-live="p0">75 people</em></span></a><a class="pin live l" style="--x:82.3%;--y:29.0%" href="#live"><i></i><span><b>irc.skinhead.com.my</b><em>Germany · leaf · </em><em data-live="p1">22 people</em></span></a><a class="pin live hide-s" style="--x:45.5%;--y:46.8%" href="#live"><i></i><span><b data-live="link">linked</b></span></a><a class="pin next l hide-s" style="--x:57.4%;--y:15.6%" href="/docs/"><i></i><span><b>Your server next</b><em>link it in</em></span></a></div></div></figure><div class="lv-grid wait" id="lv-grid"><div class="lv-card" aria-hidden="true"></div><div class="lv-card" aria-hidden="true"></div></div>
+    <figure class="band-art isl"><div class="win"><div class="bst"><img class="art" src="art/islands.webp" alt="Two islands joined by a glowing link: the Malaysia hub server and the Germany leaf server" loading="lazy" width="1134" height="675"><a class="pin live" style="--x:23.0%;--y:43.0%" href="#live"><i></i><s></s><span><b>irc.bajubesi.org</b><em>Malaysia · hub · </em><em data-live="p0">75 people</em></span></a><a class="pin live l" style="--x:82.3%;--y:29.0%" href="#live"><i></i><s></s><span><b>irc.skinhead.com.my</b><em>Germany · leaf · </em><em data-live="p1">22 people</em></span></a><a class="pin live hide-s" style="--x:45.5%;--y:46.8%" href="#live"><i></i><s></s><span><b data-live="link">linked</b></span></a><a class="pin next l hide-s" style="--x:57.4%;--y:15.6%" href="/docs/"><i></i><s></s><span><b>Your server next</b><em>link it in</em></span></a></div></div></figure><div class="lv-grid wait" id="lv-grid"><div class="lv-card" aria-hidden="true"></div><div class="lv-card" aria-hidden="true"></div></div>
     <div class="lv-foot">
       <span class="lk" id="lv-link" hidden><i></i><span></span></span>
       <a href="ircs://irc.bajubesi.org:6697">Connect: irc.bajubesi.org :6697 &rarr;</a>
