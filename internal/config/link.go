@@ -65,7 +65,33 @@ type LinkServer struct {
 	// (InspIRCd 4). Incoming links are recognised by their first line;
 	// "inspircd" also makes the password required, as InspIRCd needs one.
 	Protocol string `toml:"protocol"`
+	// Rule is a link rule (like UnrealIRCd's crule, see crule.go): linking
+	// goes ahead only while it is true, e.g. "!connected(hub1.*)".
+	Rule string `toml:"rule"`
+	// RuleFor is where the rule counts: "auto" (the default) only for our
+	// own autoconnect tries, "all" also when that server connects to us or
+	// an oper runs CONNECT.
+	RuleFor string `toml:"rule_for"`
 }
+
+// Rule words for RuleFor.
+const (
+	RuleForAuto = "auto"
+	RuleForAll  = "all"
+)
+
+// LinkRule is the block's parsed rule, nil when it has none. The config
+// check has parsed it already, so an error here means it was not checked.
+func (s LinkServer) LinkRule() (*LinkRule, error) {
+	if strings.TrimSpace(s.Rule) == "" {
+		return nil, nil
+	}
+	return ParseLinkRule(s.Rule)
+}
+
+// RuleForAll reports whether the rule also counts for incoming links and
+// oper CONNECT.
+func (s LinkServer) RuleForAll() bool { return strings.EqualFold(s.RuleFor, RuleForAll) }
 
 // Insp reports whether the block is for an InspIRCd 4 server.
 func (s LinkServer) Insp() bool { return strings.EqualFold(s.Protocol, "inspircd") }
@@ -119,6 +145,9 @@ func (c *Config) setLinkDefaults() {
 		}
 		if s.SendQMB == 0 {
 			s.SendQMB = 20
+		}
+		if s.RuleFor == "" {
+			s.RuleFor = RuleForAuto
 		}
 	}
 }
@@ -224,6 +253,11 @@ func (s LinkServer) check(self string) error {
 		return fmt.Errorf("protocol must be \"unrealircd\" or \"inspircd\"")
 	case s.Insp() && s.Password == "":
 		return fmt.Errorf("an InspIRCd link needs a password (its <link> block wants sendpass and recvpass)")
+	case s.RuleFor != "" && !strings.EqualFold(s.RuleFor, RuleForAuto) && !s.RuleForAll():
+		return fmt.Errorf("rule_for must be \"auto\" or \"all\"")
+	}
+	if _, err := s.LinkRule(); err != nil {
+		return fmt.Errorf("rule %q: %v", strings.TrimSpace(s.Rule), err)
 	}
 	if !ValidFingerprint(s.Fingerprint) {
 		return fmt.Errorf("fingerprint must be the base64 SHA-256 of its public key (beeircd link-info or ./unrealircd spkifp)")

@@ -110,6 +110,7 @@ type linkRetry struct {
 	wait    time.Duration
 	dialing bool
 	lastErr string
+	ruleNo  bool // the link rule said no last time (told opers once)
 }
 
 // remoteServer is one server behind a link.
@@ -565,6 +566,13 @@ func (s *Server) linkUp(l *linkConn) {
 	l.peer = p
 	if b, ok := l.hs.(link.Bridger); ok {
 		l.bridge = b.Bridge()
+	}
+	if !l.out && p.Block.RuleForAll() {
+		if rule, no := s.linkRuleSaysNo(p.Block); no {
+			l.denied = true
+			s.dropLink(l, "link rule "+rule+" says no")
+			return
+		}
 	}
 	if s.cfg.Link.Role == "leaf" {
 		for o := range s.links.conns {
@@ -1150,6 +1158,17 @@ func (s *Server) autoconnect(now time.Time) {
 		if r.dialing || now.Before(r.next) || s.linkKnown(b.Name) || s.linkPending(b.Name) {
 			continue
 		}
+		if rule, no := s.linkRuleSaysNo(b); no {
+			// Look again later; tell opers only when the answer changes,
+			// not on every try.
+			r.next = now.Add(linkRetryMin)
+			if !r.ruleNo {
+				r.ruleNo = true
+				s.lnotice("CONNECT: Not connecting to %s: link rule %s says no", b.Name, rule)
+			}
+			continue
+		}
+		r.ruleNo = false
 		r.dialing, busy = true, true
 		r.next = now.Add(linkRetryMin)
 		s.lnotice("AUTOCONNECT: Auto-connecting server \x02%s\x02", b.Name)

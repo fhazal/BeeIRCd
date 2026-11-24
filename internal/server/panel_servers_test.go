@@ -113,6 +113,17 @@ func TestPanelLinkBlocks(t *testing.T) {
 	if raw, _ = os.ReadFile(path); strings.Contains(string(raw), "linkpw") {
 		t.Errorf("password still there:\n%s", raw)
 	}
+	// The panel shows a link rule and a save keeps it.
+	s.onLoop(func() { s.cfg.Link.Servers[0].Rule, s.cfg.Link.Servers[0].RuleFor = "!connected(hub1.*)", "all" })
+	if l := ask("Boss", control.Request{Cmd: control.CmdLinks}).Links; l.Blocks[0].Rule != "!connected(hub1.*)" || l.Blocks[0].RuleFor != "all" {
+		t.Errorf("rule not shown: %+v", l.Blocks)
+	}
+	if r := save(control.LinkBlock{Name: "leaf.example.net", Host: "127.0.0.1", Port: 7001, Fingerprint: fp, Rule: "x"}, false); r.Done == nil {
+		t.Fatalf("change with a rule: %+v", r)
+	}
+	if raw, _ = os.ReadFile(path); !strings.Contains(string(raw), "rule = \"!connected(hub1.*)\"\nrule_for = \"all\"") {
+		t.Errorf("save lost the rule:\n%s", raw)
+	}
 	if r := ask("Boss", control.Request{Cmd: control.CmdLinkDel, Name: "leaf.example.net"}); r.Done == nil {
 		t.Fatalf("remove: %+v", r)
 	}

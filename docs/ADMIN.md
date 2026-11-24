@@ -2057,6 +2057,36 @@ Each server we link with gets a `[[link.server]]` block. These apply on
 | `autoconnect` | `false` | Keep connecting while the link is down (10 s after a lost link, then 30 s doubling to 5 min) |
 | `sendq_mb` | `20` | How much may wait for the link before it is dropped |
 | `protocol` | `"unrealircd"` | What the other server speaks: `"unrealircd"` (BeeIRCd and UnrealIRCd 6) or `"inspircd"` (InspIRCd 4). Only needed when we connect to it; an InspIRCd connecting to us is recognised by its first line. `"inspircd"` makes `password` required, as InspIRCd's `<link>` needs one |
+| `rule` | none | A link rule, like UnrealIRCd's crule: linking goes ahead only while it is true (see below). A rule that doesn't parse stops `beeircd check` and rehash |
+| `rule_for` | `"auto"` | Where the rule counts: `"auto"` only for our own autoconnect tries; `"all"` also refuses that server when it connects to us and when an oper runs CONNECT |
+
+**Link rules.** A rule stops a link while the network is in the wrong
+shape. Example: a leaf lists two hubs and should link to hub2 only while
+hub1 is gone, so it never makes a second path:
+
+    [[link.server]]
+    name = "hub2.example.net"
+    autoconnect = true
+    rule = "!connected(hub1.*)"     # only link to hub2 while hub1 is gone
+    rule_for = "auto"               # "auto" = only our own autoconnect (default), "all" = also refuse when they connect to us or an oper runs CONNECT
+
+The words are UnrealIRCd's: `connected(mask)` (a server matching mask
+is on the network), `directcon(mask)` (it is linked straight to this
+server), `via(through, mask)` (a server matching mask is reached through
+our direct link matching through), `directop()` (an oper is connected to
+this server), joined with `&&`, `||`, `!` and ( ). Masks are server names
+with `*` and `?`, case does not matter; our own name never matches, the
+services server counts as linked straight to us. The rule is looked at
+right before each try: a refused autoconnect tells opers with +s once,
+`CONNECT: Not connecting to hub2.example.net: link rule
+!connected(hub1.*) says no`, and looks again every 30 s; a refused
+incoming link reads `Server connection from hub2.example.net denied,
+link rule ... says no`. Both go to the log too.
+
+An UnrealIRCd `deny link { mask hub2.*; rule "connected(hub1.*)"; type
+auto; }` becomes `rule = "!connected(hub1.*)"` on the hub2 block: deny
+link says when *not* to link, so put `!( )` around its rule. Its `type
+all` is `rule_for = "all"`.
 
 **Services on a linked network.** One server runs services (the hub,
 usually); every other BeeIRCd has `[services] enabled = false`. On the

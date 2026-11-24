@@ -165,6 +165,12 @@ func (s *Server) linkNowBy(who, name string) string {
 	case s.linkKnown(b.Name) || s.linkPending(b.Name):
 		return b.Name + " is linked or linking already."
 	}
+	if b.RuleForAll() {
+		if rule, no := s.linkRuleSaysNo(*b); no {
+			s.lnotice("CONNECT: Not connecting to %s: link rule %s says no (asked by %s)", b.Name, rule, who)
+			return fmt.Sprintf("Not connecting to %s: link rule %s says no (rule_for = \"all\").", b.Name, rule)
+		}
+	}
 	key := strings.ToLower(b.Name)
 	r := s.links.retry[key]
 	if r == nil {

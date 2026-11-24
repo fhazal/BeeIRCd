@@ -47,7 +47,8 @@ func (s *Server) panelLinks() *control.Links {
 	out.Blocks = []control.LinkBlock{}
 	for _, b := range s.cfg.Link.Servers {
 		out.Blocks = append(out.Blocks, control.LinkBlock{Name: b.Name, Host: b.Host, Port: b.Port,
-			Fingerprint: b.Fingerprint, Autoconnect: b.Autoconnect, HasPassword: b.Password != ""})
+			Fingerprint: b.Fingerprint, Autoconnect: b.Autoconnect, HasPassword: b.Password != "",
+			Rule: b.Rule, RuleFor: b.RuleFor})
 	}
 	return out
 }
@@ -100,6 +101,7 @@ func (s *Server) panelLinkSave(po *control.PanelOper, ip string, b *control.Link
 		Fingerprint: strings.TrimSpace(b.Fingerprint), Autoconnect: b.Autoconnect, SendQMB: 20}
 	if old != nil {
 		ls.Name, ls.SendQMB, ls.Password = old.Name, old.SendQMB, old.Password
+		ls.Rule, ls.RuleFor = old.Rule, old.RuleFor // the panel shows these, never edits them
 	}
 	if ls.Host == "" {
 		ls.Port = 0
@@ -125,6 +127,12 @@ func (s *Server) panelLinkSave(po *control.PanelOper, ip string, b *control.Link
 	kv = append(kv, config.KV{Key: "autoconnect", Value: strconv.FormatBool(ls.Autoconnect)})
 	if ls.SendQMB != 20 {
 		kv = append(kv, config.KV{Key: "sendq_mb", Value: strconv.Itoa(ls.SendQMB)})
+	}
+	if ls.Rule != "" {
+		kv = append(kv, config.KV{Key: "rule", Value: config.Quote(ls.Rule)})
+		if ls.RuleForAll() {
+			kv = append(kv, config.KV{Key: "rule_for", Value: config.Quote(config.RuleForAll)})
+		}
 	}
 	if _, err := config.Edit(s.cfg.Path, func(d *config.Doc) error {
 		d.SetBlock("link.server", kv)

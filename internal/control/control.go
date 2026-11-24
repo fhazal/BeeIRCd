@@ -415,6 +415,10 @@ type LinkBlock struct {
 	HasPassword bool   `json:"has_password,omitempty"`
 	Password    string `json:"password,omitempty"`
 	NoPassword  bool   `json:"no_password,omitempty"` // save: remove the password
+	// Rule and RuleFor are the block's link rule, shown only: a save keeps
+	// what beeircd.conf has.
+	Rule    string `json:"rule,omitempty"`
+	RuleFor string `json:"rule_for,omitempty"`
 }
 
 // Channels is one page of the Channels list.
