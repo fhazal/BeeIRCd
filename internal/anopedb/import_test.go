@@ -88,6 +88,10 @@ func TestImportSample(t *testing.T) {
 	if st.Greet(alice.ID) != "hello from alice" {
 		t.Errorf("greet %q", st.Greet(alice.ID))
 	}
+	// ns_set_misc:ICQ and cs_set_misc:EMAIL become extra INFO fields.
+	if f := st.AccountFields(alice.ID); f["icq"] != "123456" {
+		t.Errorf("alice fields %v", f)
+	}
 	if aj := st.Ajoins(alice); len(aj) != 2 {
 		t.Errorf("ajoins %v", aj)
 	}
@@ -128,6 +132,9 @@ func TestImportSample(t *testing.T) {
 		!bee.KeepTopic || !bee.TopicLock || !bee.Peace || !bee.SecureOps || !bee.SignKick || !bee.Persist || !bee.Private ||
 		!bee.KeepModes || !bee.Secure || !bee.SecureFounder || bee.BanType != 3 || bee.URL != "https://bee.example.org" {
 		t.Errorf("#bee settings %+v", bee)
+	}
+	if f := st.ChannelFields(bee.ID); f["email"] != "bee@example.org" {
+		t.Errorf("#bee fields %v", f)
 	}
 	if !strings.Contains(bee.MlockOn, "n") || !strings.Contains(bee.MlockOn, "t") || bee.MlockKey != "honey" || bee.MlockLimit != 50 || !strings.Contains(bee.MlockOff, "s") {
 		t.Errorf("#bee mode lock on=%q off=%q key=%q limit=%d", bee.MlockOn, bee.MlockOff, bee.MlockKey, bee.MlockLimit)

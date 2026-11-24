@@ -46,7 +46,7 @@ func nickServCommands() map[string]svcCmd {
 		"ALIST": {"ALIST [nick]", "channels where you have access",
 			"Lists the channels where your account is on the access list, with your level.\nOpers may give someone else's nick.", nsAlist},
 		"SET": {"SET <option> <value>", "change your account",
-			"SET PASSWORD <new password>\nSET EMAIL <email>|OFF\nSET KILL {ON | QUICK | IMMED | OFF}   rename people who use your nick and don't\n    identify: ON after 60 s (default), QUICK after 20 s, IMMED at once (only\n    where the network allows it)\nSET SECURE {ON | OFF}   on (default): your ACCESS list never stands in for\n    your password\nSET HIDE {EMAIL | STATUS | USERMASK | QUIT} {ON | OFF}   what INFO shows others:\n    email, oper status, last user@host, last quit message (email and\n    user@host hidden)\nSET AUTOOP {ON | OFF}      ChanServ gives you your status when you join (on)\nSET DISPLAY <nick>         which of your nicks is the account's name\nSET GREET [message]       what a channel bot says when you join (BotServ\n    SET GREET); without a message, it is removed\nSET KEEPMODES {ON | OFF}   your user modes (+iwx) come back when you identify\nSET NEVEROP {ON | OFF}     nobody can add you to a channel access list\n    (ACCESS, FLAGS, SOP, AOP, ...); entries you have stay (off)\nSET LANGUAGE <language>    the language services answer you in: en English,\n    ms Bahasa Melayu (/ns set language shows the list)\nSET PRIVATE {ON | OFF}     hide you from NickServ LIST (on)\nSET URL [url]              a URL in INFO; without one, it is removed", nsSet},
+			"SET PASSWORD <new password>\nSET EMAIL <email>|OFF\nSET KILL {ON | QUICK | IMMED | OFF}   rename people who use your nick and don't\n    identify: ON after 60 s (default), QUICK after 20 s, IMMED at once (only\n    where the network allows it)\nSET SECURE {ON | OFF}   on (default): your ACCESS list never stands in for\n    your password\nSET HIDE {EMAIL | STATUS | USERMASK | QUIT} {ON | OFF}   what INFO shows others:\n    email, oper status, last user@host, last quit message (email and\n    user@host hidden)\nSET AUTOOP {ON | OFF}      ChanServ gives you your status when you join (on)\nSET DISPLAY <nick>         which of your nicks is the account's name\nSET GREET [message]       what a channel bot says when you join (BotServ\n    SET GREET); without a message, it is removed\nSET KEEPMODES {ON | OFF}   your user modes (+iwx) come back when you identify\nSET NEVEROP {ON | OFF}     nobody can add you to a channel access list\n    (ACCESS, FLAGS, SOP, AOP, ...); entries you have stay (off)\nSET LANGUAGE <language>    the language services answer you in: en English,\n    ms Bahasa Melayu (/ns set language shows the list)\nSET PRIVATE {ON | OFF}     hide you from NickServ LIST (on)\nSET URL [url]              a URL in INFO; without one, it is removed\nSET <field> [text]         the network's extra INFO fields (like ICQ), if it\n    has any; without text, it is removed", nsSet},
 		"SASET": {"SASET <option> <nick> <value>", "change someone's account (opers)",
 			"Like SET, for another account. Needs oper flag s.\nExample: /ns saset password Bee newpass42\nSASET NOEXPIRE <nick> {ON | OFF}   the account never expires", nsSaset},
 		"INFO": {"INFO [nick]", "who owns a nick, when last seen",
@@ -538,7 +538,8 @@ func nsSaset(s *Services, c *Client, args []string) {
 	if !s.needFlag(c, s.nickServ, 's') {
 		return
 	}
-	if len(args) < 3 {
+	// An extra INFO field can be cleared: SASET <field> <nick>.
+	if len(args) < 3 && (len(args) < 2 || fieldName(s.cfg.Services.NickFields, args[0]) == "") {
 		s.ns(c, "Syntax: SASET <option> <nick> <value>")
 		return
 	}
@@ -825,6 +826,9 @@ func (s *Services) setOption(c *Client, a *store.Account, cmd, opt string, args 
 		s.ns(c, "The new display is now %s.", target)
 		return true
 	default:
+		if name := fieldName(s.cfg.Services.NickFields, opt); name != "" {
+			return s.nsSetField(c, a, name, args)
+		}
 		s.ns(c, "Syntax: %s PASSWORD|EMAIL|KILL|SECURE|HIDE|AUTOOP|DISPLAY|GREET|KEEPMODES|NEVEROP|PRIVATE|URL ... (see /ns help %s)", cmd, strings.ToLower(cmd))
 	}
 	return false
@@ -905,6 +909,7 @@ func nsInfo(s *Services, c *Client, args []string) {
 	if g := s.store.Greet(a.ID); g != "" {
 		s.ns(c, "  Greet         %s", g)
 	}
+	infoFields(s.cfg.Services.NickFields, s.store.AccountFields(a.ID), func(f string, v ...any) { s.ns(c, f, v...) })
 	if a.Suspended(s.KeepNow()) {
 		// ns_suspend show = "suspended, by, reason, on, expires" (everyone).
 		s.ns(c, "  Suspended     This nickname is suspended.")

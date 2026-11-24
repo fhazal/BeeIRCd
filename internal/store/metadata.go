@@ -28,10 +28,14 @@ CREATE TABLE IF NOT EXISTS chan_metadata (
 type mdCache struct {
 	accounts map[int64]map[string]string
 	channels map[int64]map[string]string
+	// acctFields and chanFields are the extra INFO fields (fields.go).
+	acctFields map[int64]map[string]string
+	chanFields map[int64]map[string]string
 }
 
 func loadMetadata(db *sql.DB) (*mdCache, error) {
-	m := &mdCache{accounts: map[int64]map[string]string{}, channels: map[int64]map[string]string{}}
+	m := &mdCache{accounts: map[int64]map[string]string{}, channels: map[int64]map[string]string{},
+		acctFields: map[int64]map[string]string{}, chanFields: map[int64]map[string]string{}}
 	load := func(q string, into map[int64]map[string]string) error {
 		return eachRow(db, q, func(r *sql.Rows) error {
 			var id int64
@@ -50,6 +54,12 @@ func loadMetadata(db *sql.DB) (*mdCache, error) {
 		return nil, err
 	}
 	if err := load(`SELECT channel_id, key, value FROM chan_metadata`, m.channels); err != nil {
+		return nil, err
+	}
+	if err := load(`SELECT account_id, key, value FROM acct_fields`, m.acctFields); err != nil {
+		return nil, err
+	}
+	if err := load(`SELECT channel_id, key, value FROM chan_fields`, m.chanFields); err != nil {
 		return nil, err
 	}
 	return m, nil

@@ -271,6 +271,11 @@ DATA nc alice
 DATA name ns_set_misc:URL
 DATA data https://alice.example.org
 END
+OBJECT NSMiscData
+DATA nc alice
+DATA name ns_set_misc:ICQ
+DATA data 123456
+END
 OBJECT SeenInfo
 DATA nick alice2
 DATA vhost ~alice2@localhost

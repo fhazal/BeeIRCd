@@ -103,7 +103,7 @@ Example: /cs flags #bchat ember +Otv`, csFlags},
 			"Nobody can use a suspended channel: everyone is kicked and kept out, and\nChanServ commands on it are refused. Expiry like +7d; without it the channel\nstays suspended until UNSUSPEND. Opers with flag s.", csSuspend},
 		"UNSUSPEND": {"UNSUSPEND #chan", "open a suspended channel again (opers)", "Opers with flag s.", csUnsuspend},
 		"SET": {"SET <option> #chan <value>", "change channel settings",
-			"SET DESCRIPTION #chan <text>\nSET FOUNDER #chan <nick>        (founder) Opers with flag s too.\nSET SUCCESSOR #chan <nick>|OFF  (founder) gets the channel if the founder's\n                                account goes\nSET SECUREFOUNDER #chan ON|OFF  (founder) only the real founder has founder\n                                rights, not the FOUNDER privilege (on)\nSET KEEPTOPIC #chan ON|OFF      the topic comes back when the channel reopens (on)\nSET KEEPMODES #chan ON|OFF      the modes come back when the channel reopens\nSET PEACE #chan ON|OFF          nobody can kick, ban or deop someone at their\n                                level or above (on)\nSET RESTRICTED #chan ON|OFF     only people on the access list may stay\nSET SECURE #chan ON|OFF         access only for people who identified, not for\n                                ones NickServ ACCESS recognises (on)\nSET SECUREOPS #chan ON|OFF      only those allowed a status may hold it\nSET SIGNKICK #chan ON|OFF       kicks show who asked for them (on)\nSET AUTOOP #chan ON|OFF         ChanServ gives status on join (on)\nSET PERSIST #chan ON|OFF        ChanServ keeps the channel open when empty\nSET OVERFLOW #chan <#other>|OFF people who can't get in (full, +i, +k,\n                                banned) go to #other: mode lock +L\nSET PRIVATE #chan ON|OFF        hide from /cs list and /cs info for outsiders\nSET BANTYPE #chan 0-3           0 *!user@host, 1 *!*user@host, 2 *!*@host (default),\n                                3 *!*user@*.domain\nSET URL #chan <url>|OFF\nSET NOEXPIRE #chan ON|OFF       (opers with flag s) the channel never expires\nEverything else needs the SET privilege. The mode lock is in MODE, entry\nmessages in ENTRYMSG, the topic lock in TOPIC.\nConferenceRoom shortcuts: MEMOLEVEL <level>, AUTOVOP ON|OFF, LEAVEOPS ON|OFF.", csSet},
+			"SET DESCRIPTION #chan <text>\nSET FOUNDER #chan <nick>        (founder) Opers with flag s too.\nSET SUCCESSOR #chan <nick>|OFF  (founder) gets the channel if the founder's\n                                account goes\nSET SECUREFOUNDER #chan ON|OFF  (founder) only the real founder has founder\n                                rights, not the FOUNDER privilege (on)\nSET KEEPTOPIC #chan ON|OFF      the topic comes back when the channel reopens (on)\nSET KEEPMODES #chan ON|OFF      the modes come back when the channel reopens\nSET PEACE #chan ON|OFF          nobody can kick, ban or deop someone at their\n                                level or above (on)\nSET RESTRICTED #chan ON|OFF     only people on the access list may stay\nSET SECURE #chan ON|OFF         access only for people who identified, not for\n                                ones NickServ ACCESS recognises (on)\nSET SECUREOPS #chan ON|OFF      only those allowed a status may hold it\nSET SIGNKICK #chan ON|OFF       kicks show who asked for them (on)\nSET AUTOOP #chan ON|OFF         ChanServ gives status on join (on)\nSET PERSIST #chan ON|OFF        ChanServ keeps the channel open when empty\nSET OVERFLOW #chan <#other>|OFF people who can't get in (full, +i, +k,\n                                banned) go to #other: mode lock +L\nSET PRIVATE #chan ON|OFF        hide from /cs list and /cs info for outsiders\nSET BANTYPE #chan 0-3           0 *!user@host, 1 *!*user@host, 2 *!*@host (default),\n                                3 *!*user@*.domain\nSET URL #chan <url>|OFF\nSET <field> #chan [text]       the network's extra INFO fields (like ICQ), if\n                                it has any; without text, it is removed\nSET NOEXPIRE #chan ON|OFF       (opers with flag s) the channel never expires\nEverything else needs the SET privilege. The mode lock is in MODE, entry\nmessages in ENTRYMSG, the topic lock in TOPIC.\nConferenceRoom shortcuts: MEMOLEVEL <level>, AUTOVOP ON|OFF, LEAVEOPS ON|OFF.", csSet},
 		"SEEN": {"SEEN <nick>", "when someone was last seen, and doing what",
 			"Tells you the last time a nick was seen connecting, joining, leaving,\nchanging nick or quitting, and where (secret channels stay secret).", csSeen},
 		"LIST": {"LIST <pattern>", "search registered channels", "Lists registered channels matching a pattern, like #bee*. Private ones are\nleft out unless you are on their access list.", csList},
@@ -311,6 +311,7 @@ func csInfo(s *Services, c *Client, args []string) {
 	if reg.URL != "" {
 		s.cs(c, "  URL           %s", reg.URL)
 	}
+	infoFields(s.cfg.Services.ChanFields, s.store.ChannelFields(reg.ID), func(f string, v ...any) { s.cs(c, f, v...) })
 	if reg.Topic != "" && s.infoTopicVisible(c, reg, lvl) {
 		s.cs(c, "  Topic         %s", reg.Topic)
 		if reg.TopicBy != "" && reg.TopicAt.Unix() > 0 {
@@ -1292,6 +1293,10 @@ func csSet(s *Services, c *Client, args []string) {
 			s.cs(c, "AUTOVOICE on %s is back to level %d.", reg.Name, lvl)
 		}
 	default:
+		if name := fieldName(s.cfg.Services.ChanFields, what); name != "" {
+			s.csSetField(c, reg, asOper, name, val)
+			return
+		}
 		s.cs(c, "Unknown option %s. See /cs help set", what)
 	}
 }

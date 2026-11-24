@@ -748,8 +748,17 @@ func (im *importer) ajoins(_ []Object, by map[string][]Object) error {
 	return nil
 }
 
-// miscData: SET URL (and Anope's other free-text settings).
+// miscData: SET URL, and Anope's other free-text settings (ns_set_misc /
+// cs_set_misc, like ICQ) as extra INFO fields. Those show once their name
+// is in [services] nick_fields or chan_fields.
 func (im *importer) miscData(_ []Object, by map[string][]Object) error {
+	noted := map[string]bool{}
+	note := func(key, name string) {
+		if !noted[key+name] {
+			noted[key+name] = true
+			im.change("SET %s kept as an extra INFO field; add %q to [services] %s to show it", strings.ToUpper(name), strings.ToUpper(name), key)
+		}
+	}
 	for _, o := range by["NSMiscData"] {
 		a := im.accountFor(o.Get("nc"))
 		if a == nil {
@@ -762,8 +771,14 @@ func (im *importer) miscData(_ []Object, by map[string][]Object) error {
 				return err
 			}
 			im.count("URLs", 1)
+		case "":
+			im.skip("account %s: a setting without a name", a.Name)
 		default:
-			im.skip("account %s: SET %s (BeeIRCd has no such setting)", a.Name, strings.ToUpper(n))
+			if err := im.st.SetAccountField(a.ID, n, irc.Truncate(o.Get("data"), 200)); err != nil {
+				return err
+			}
+			im.count("extra INFO fields", 1)
+			note("nick_fields", n)
 		}
 	}
 	for _, o := range by["CSMiscData"] {
@@ -778,8 +793,14 @@ func (im *importer) miscData(_ []Object, by map[string][]Object) error {
 				return err
 			}
 			im.count("URLs", 1)
+		case "":
+			im.skip("%s: a setting without a name", c.Name)
 		default:
-			im.skip("%s: SET %s (BeeIRCd has no such setting)", c.Name, strings.ToUpper(n))
+			if err := im.st.SetChannelField(c.ID, n, irc.Truncate(o.Get("data"), 200)); err != nil {
+				return err
+			}
+			im.count("extra INFO fields", 1)
+			note("chan_fields", n)
 		}
 	}
 	return nil

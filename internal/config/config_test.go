@@ -75,6 +75,9 @@ func TestLoadErrors(t *testing.T) {
 		"not a time":                  strings.Replace(good, `"2m"`, `"soon"`, 1),
 		"[cloak] secret":              strings.Replace(good, `"0123456789abcdef-test"`, `"short"`, 1),
 		"max_accounts_per_email -1":   good + "\n[services]\nmax_accounts_per_email = -1\n",
+		"is a SET option already":     good + "\n[services]\nnick_fields = [\"ICQ\", \"url\"]\n",
+		"chan_fields has \"X\" twice": good + "\n[services]\nchan_fields = [\"x\", \"X\"]\n",
+		"must be a word":              good + "\n[services]\nchan_fields = [\"two words\"]\n",
 	}
 	for want, body := range cases {
 		_, err := Load(write(t, body))

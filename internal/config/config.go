@@ -599,6 +599,12 @@ type Services struct {
 	// (Anope's ns_maxemail maxemails); 0 = no limit. Opers changing an
 	// email with SASET are not held to it.
 	MaxAccountsPerEmail int `toml:"max_accounts_per_email"`
+	// NickFields and ChanFields name extra free-text INFO fields (Anope's
+	// ns_set_misc / cs_set_misc), like "ICQ" or "Twitter": NickServ
+	// SET <field> [text] and ChanServ SET #chan <field> [text]. Empty by
+	// default. A name taken out keeps its data; INFO just stops showing it.
+	NickFields []string `toml:"nick_fields"`
+	ChanFields []string `toml:"chan_fields"`
 }
 
 // UnconfirmedExpireOr is unconfirmed_expire with its default (1 day); 0
@@ -676,6 +682,37 @@ func (s Services) checkLogEvents() error {
 		if e != "*" && !slices.Contains(LogEventNames, strings.ToLower(e)) {
 			return fmt.Errorf("services log_events %q is not an event; use %s or \"*\"", e, strings.Join(LogEventNames, ", "))
 		}
+	}
+	return nil
+}
+
+// NickSetOptions and ChanSetOptions are NickServ's and ChanServ's own SET
+// options; nick_fields and chan_fields can't take these names.
+var (
+	NickSetOptions = []string{"PASSWORD", "EMAIL", "KILL", "PROTECT", "ENFORCE", "SECURE", "HIDE", "AUTOOP",
+		"KEEPMODES", "PRIVATE", "NEVEROP", "NOEXPIRE", "LANGUAGE", "URL", "GREET", "DISPLAY"}
+	ChanSetOptions = []string{"DESC", "DESCRIPTION", "FOUNDER", "SUCCESSOR", "MLOCK", "KEEPTOPIC", "TOPICLOCK",
+		"SECURE", "SECUREOPS", "LEAVEOPS", "PRIVATE", "RESTRICTED", "PEACE", "SECUREFOUNDER", "SIGNKICK",
+		"AUTOOP", "NOEXPIRE", "KEEPMODES", "PERSIST", "OVERFLOW", "BANTYPE", "ENTRYMSG", "URL", "MEMOLEVEL", "AUTOVOP"}
+)
+
+var fieldRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]{0,19}$`)
+
+// checkFields reports a bad name in nick_fields or chan_fields: not a
+// word, used twice, or one of the service's own SET options.
+func checkFields(key string, names, builtIn []string) error {
+	seen := map[string]bool{}
+	for _, n := range names {
+		up := strings.ToUpper(n)
+		switch {
+		case !fieldRe.MatchString(n):
+			return fmt.Errorf("services %s %q must be a word of up to 20 letters, digits, - or _", key, n)
+		case slices.Contains(builtIn, up):
+			return fmt.Errorf("services %s %q is a SET option already", key, n)
+		case seen[up]:
+			return fmt.Errorf("services %s has %q twice", key, n)
+		}
+		seen[up] = true
 	}
 	return nil
 }
@@ -780,6 +817,12 @@ func (c *Config) Check() error {
 		return fmt.Errorf("add at least one [[listen]] port")
 	}
 	if err := c.Services.checkLogEvents(); err != nil {
+		return err
+	}
+	if err := checkFields("nick_fields", c.Services.NickFields, NickSetOptions); err != nil {
+		return err
+	}
+	if err := checkFields("chan_fields", c.Services.ChanFields, ChanSetOptions); err != nil {
 		return err
 	}
 	for _, l := range c.Listen {

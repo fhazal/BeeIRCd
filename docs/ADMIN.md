@@ -768,8 +768,12 @@ differently:
 - ChanServ FLAGS entries stay FLAGS entries with the same letters. Anope's
   `f` (seeing and changing the access lists) also gets `l`, BeeIRCd's own
   letter for seeing them.
-- Access entries on a mask instead of a registered nick, and settings
-  BeeIRCd doesn't have (like channel SET EMAIL), are listed and left out.
+- Access entries on a mask instead of a registered nick are listed and
+  left out.
+- Anope's free-text settings other than URL (`ns_set_misc` and
+  `cs_set_misc`, like SET ICQ or channel SET EMAIL) come in as extra INFO
+  fields. They show once you list their names in `[services] nick_fields`
+  or `chan_fields`; the report names them.
 - Anope's service bots (NickServ, ChanServ, ...) are not imported: BeeIRCd
   has its own.
 
@@ -1464,6 +1468,8 @@ difference is a warning to opers, not a refusal.
 | `unconfirmed_expire` | `1d` | Unconfirmed accounts are dropped this long after REGISTER (`0s` never) |
 | `max_memos` | `20` | Memo limit of a new account |
 | `max_accounts_per_email` | `0` | Accounts one email address may have (`0` = no limit, case doesn't matter); `REGISTER` and `SET EMAIL` refuse past it, an oper's `SASET EMAIL` doesn't |
+| `nick_fields` | `[]` | Extra free-text INFO fields for accounts (Anope's `ns_set_misc`), like `["ICQ", "Twitter"]`: `/ns set icq <text>` sets one (no text clears it), opers use `SASET ICQ <nick> [text]`. Up to 200 characters. A name taken out keeps its data hidden |
+| `chan_fields` | `[]` | The same for registered channels: `/cs set #chan <field> [text]` (needs the SET privilege) |
 | `memo_send_delay` | `3s` | Wait between two memos (`0s` off; opers don't wait) |
 
 **What the log channel shows.** Every services command goes to
