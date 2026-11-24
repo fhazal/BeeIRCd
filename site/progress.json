@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-24T19:25:00+08:00",
+ "updated": "2026-11-24T12:01:00+08:00",
  "gauges": [
   {
    "id": "g-v1",
@@ -24,6 +24,11 @@
  },
  "next": "Keep an eye on the link between the two servers.",
  "done": [
+  [
+   "2026-11-24T12:01",
+   "Calmer picture labels and rounded corners",
+   "The labels on the home page pictures are now soft text with a thin gold line instead of boxes, the bees float slowly, and every block and picture has rounded corners."
+  ],
   [
    "2026-11-24T19:25",
    "Home page pictures cleaned up",
