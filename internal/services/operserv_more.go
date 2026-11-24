@@ -282,8 +282,14 @@ func osOline(s *Services, c *Client, args []string) {
 	if t == nil {
 		return
 	}
+	mine := s.host.OperFlags(c.user.UID)
 	have := map[byte]bool{}
 	for _, f := range []byte(s.host.OperFlags(t.user.UID)) {
+		if strings.IndexByte(olineFlags, f) >= 0 && strings.IndexByte(mine, f) < 0 {
+			// Nobody changes an oper who has more than they have.
+			s.os(c, "%s has oper flag %c, which you don't have.", t.user.Nick, f)
+			return
+		}
 		have[f] = true // a remote oper's "o" matches no flag and drops out
 	}
 	add := true
@@ -292,6 +298,10 @@ func osOline(s *Services, c *Client, args []string) {
 		case f == '+' || f == '-':
 			add = f == '+'
 		case strings.IndexByte(olineFlags, f) >= 0:
+			if strings.IndexByte(mine, f) < 0 {
+				s.os(c, "You can only give or take oper flags you have yourself (you have %s).", mine)
+				return
+			}
 			have[f] = add
 		default:
 			s.os(c, "%c isn't an oper flag. Flags: %s.", f, olineFlags)

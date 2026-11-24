@@ -219,7 +219,8 @@ func TestOperServOline(t *testing.T) {
 	small := helpUser(t, h, "1LFAAAAAC", "Small")
 	bee := helpUser(t, h, "1LFAAAAAD", "Bee")
 	far := helpUser(t, h, "1LFAAAAAE", "Far")
-	h.opers = map[string]string{boss.UID: "a", small.UID: "g"}
+	mid := helpUser(t, h, "1LFAAAAAF", "Mid")
+	h.opers = map[string]string{boss.UID: "agks", small.UID: "g", mid.UID: "a"}
 	h.remote = map[string]bool{far.UID: true}
 	ask := func(from *state.User, line string) string {
 		t.Helper()
@@ -229,6 +230,9 @@ func TestOperServOline(t *testing.T) {
 
 	if got := ask(small, "OLINE Bee +k"); !strings.Contains(got, "You need oper flag a") || h.opers[bee.UID] != "" {
 		t.Fatalf("OLINE without flag a: %q, flags %q", got, h.opers[bee.UID])
+	}
+	if got := ask(mid, "OLINE Bee +k"); !strings.Contains(got, "only give or take oper flags you have") || h.opers[bee.UID] != "" {
+		t.Fatalf("OLINE of a flag the giver lacks: %q, flags %q", got, h.opers[bee.UID])
 	}
 	if got := ask(boss, "OLINE Bee +sk"); !strings.Contains(got, "Bee now has oper flags ks") || h.opers[bee.UID] != "ks" {
 		t.Fatalf("OLINE +sk: %q, flags %q", got, h.opers[bee.UID])
@@ -246,6 +250,9 @@ func TestOperServOline(t *testing.T) {
 		t.Fatalf("OLINE without +/-: %q", got)
 	}
 	noticeTo(h, "Bee")
+	if got := ask(mid, "OLINE Bee -g"); !strings.Contains(got, "which you don't have") || h.opers[bee.UID] != "gs" {
+		t.Fatalf("OLINE on someone with more flags: %q, flags %q", got, h.opers[bee.UID])
+	}
 	if got := ask(boss, "OLINE Bee -gs"); !strings.Contains(got, "Bee is no longer an oper") || h.opers[bee.UID] != "" {
 		t.Fatalf("OLINE -gs: %q, flags %q", got, h.opers[bee.UID])
 	}
