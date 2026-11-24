@@ -296,13 +296,15 @@ func (w *watcher) serve(ctx context.Context, s *session) {
 	}
 }
 
-// check sends PING (timed), LUSERS and, on the hub, LINKS. It is a success
-// when our PONG comes back in time.
+// check sends PING (timed), LUSERS, VERSION and, on the hub, LINKS. It is a
+// success when our PONG comes back in time. VERSION is asked every time
+// because a seamless upgrade keeps our connection, so 004 goes stale.
 func (w *watcher) check(s *session) bool {
 	tok := strconv.FormatInt(time.Now().UnixNano(), 36)
 	start := time.Now()
 	s.send("PING :" + tok)
 	s.send("LUSERS")
+	s.send("VERSION") // the 351 reply is picked up by handle, whenever it comes
 	hub := w.t.Watch != ""
 	if hub {
 		s.send("LINKS")
@@ -470,6 +472,10 @@ func (s *session) handle(line string) (string, []string) {
 	case "004":
 		if len(p) > 2 {
 			s.w.setVersion(strings.TrimPrefix(p[2], "BeeIRCd-"))
+		}
+	case "351": // VERSION reply: "BeeIRCd-1.6.0." (trailing dot is the debug level)
+		if len(p) > 1 {
+			s.w.setVersion(strings.TrimSuffix(strings.TrimPrefix(p[1], "BeeIRCd-"), "."))
 		}
 	case "433": // nick in use
 		s.nick += "_"

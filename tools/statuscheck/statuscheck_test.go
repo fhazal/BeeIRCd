@@ -111,6 +111,8 @@ func fakeIRC(t *testing.T) (net.Listener, chan string) {
 				reply(":fake PONG fake :" + strings.TrimPrefix(f[1], ":"))
 			case "LUSERS":
 				reply(":fake 265 " + nick + " 5 9 :Current local users 5, max 9")
+			case "VERSION": // after a seamless upgrade the server runs a newer version than 004 said
+				reply(":fake 351 " + nick + " BeeIRCd-1.6.0. fake :BeeIRCd 1.6.0")
 			case "LINKS":
 				reply(":fake 364 " + nick + " fake fake :0 hub")
 				reply(":fake 364 " + nick + " leaf.test fake :1 leaf")
@@ -143,7 +145,7 @@ func TestWatcherAgainstFakeServer(t *testing.T) {
 		w.mu.Lock()
 		linked := w.linked
 		w.mu.Unlock()
-		if v.Up && v.People != nil && v.Ms != nil && linked != nil {
+		if v.Up && v.People != nil && v.Ms != nil && linked != nil && v.Version == "1.6.0" {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -154,7 +156,7 @@ func TestWatcherAgainstFakeServer(t *testing.T) {
 	if *v.People != 4 { // 5 local users minus ourselves
 		t.Errorf("people = %d, want 4", *v.People)
 	}
-	if v.Version != "1.3.0-rc8" {
+	if v.Version != "1.6.0" { // from VERSION, not the stale 004
 		t.Errorf("version = %q", v.Version)
 	}
 	w.mu.Lock()
