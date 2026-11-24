@@ -177,6 +177,8 @@ type Services struct {
 	seenGone  []string
 	seenSaved time.Time
 
+	statsSaved time.Time // when chanstats counts were last saved (SaveChanStats)
+
 	mailer      Mailer              // how mail goes out (tests replace it)
 	resets      map[int64]resetInfo // NickServ RESETPASS codes by account
 	webMemoSent map[int64]time.Time // Hive Panel memo SEND per account (senddelay), webhome.go
@@ -245,6 +247,7 @@ func New(host Host, cfg *config.Config, logger *log.Logger, net *state.Network, 
 		seen:       make(map[string]*store.Seen),
 		seenDirty:  make(map[string]bool),
 		seenSaved:  time.Now(),
+		statsSaved: time.Now(),
 		off:        !cfg.Services.On(),
 		now:        time.Now,
 		hitCaps:    make(map[string]*hitCap),
@@ -300,6 +303,7 @@ func (s *Services) Flush() {
 
 func (s *Services) handle(ev state.Event) {
 	s.seenEvent(ev)
+	s.statsEvent(ev)
 	switch e := ev.(type) {
 	case *state.UserAdd:
 		if c := s.clients[e.User.UID]; c != nil && !c.closed {
@@ -415,6 +419,9 @@ func (s *Services) Tick(now time.Time) {
 	}
 	if now.Sub(s.seenSaved) >= seenSaveEach {
 		s.SaveSeen()
+	}
+	if now.Sub(s.statsSaved) >= seenSaveEach {
+		s.SaveChanStats()
 	}
 	s.flushHitCaps(now)
 	s.Flush()

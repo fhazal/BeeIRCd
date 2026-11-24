@@ -46,7 +46,7 @@ func nickServCommands() map[string]svcCmd {
 		"ALIST": {"ALIST [nick]", "channels where you have access",
 			"Lists the channels where your account is on the access list, with your level.\nOpers may give someone else's nick.", nsAlist},
 		"SET": {"SET <option> <value>", "change your account",
-			"SET PASSWORD <new password>\nSET EMAIL <email>|OFF\nSET KILL {ON | QUICK | IMMED | OFF}   rename people who use your nick and don't\n    identify: ON after 60 s (default), QUICK after 20 s, IMMED at once (only\n    where the network allows it)\nSET SECURE {ON | OFF}   on (default): your ACCESS list never stands in for\n    your password\nSET HIDE {EMAIL | STATUS | USERMASK | QUIT} {ON | OFF}   what INFO shows others:\n    email, oper status, last user@host, last quit message (email and\n    user@host hidden)\nSET AUTOOP {ON | OFF}      ChanServ gives you your status when you join (on)\nSET DISPLAY <nick>         which of your nicks is the account's name\nSET GREET [message]       what a channel bot says when you join (BotServ\n    SET GREET); without a message, it is removed\nSET KEEPMODES {ON | OFF}   your user modes (+iwx) come back when you identify\nSET NEVEROP {ON | OFF}     nobody can add you to a channel access list\n    (ACCESS, FLAGS, SOP, AOP, ...); entries you have stay (off)\nSET LANGUAGE <language>    the language services answer you in: en English,\n    ms Bahasa Melayu (/ns set language shows the list)\nSET PRIVATE {ON | OFF}     hide you from NickServ LIST (on)\nSET URL [url]              a URL in INFO; without one, it is removed\nSET <field> [text]         the network's extra INFO fields (like ICQ), if it\n    has any; without text, it is removed", nsSet},
+			"SET PASSWORD <new password>\nSET EMAIL <email>|OFF\nSET KILL {ON | QUICK | IMMED | OFF}   rename people who use your nick and don't\n    identify: ON after 60 s (default), QUICK after 20 s, IMMED at once (only\n    where the network allows it)\nSET SECURE {ON | OFF}   on (default): your ACCESS list never stands in for\n    your password\nSET HIDE {EMAIL | STATUS | USERMASK | QUIT} {ON | OFF}   what INFO shows others:\n    email, oper status, last user@host, last quit message (email and\n    user@host hidden)\nSET AUTOOP {ON | OFF}      ChanServ gives you your status when you join (on)\nSET DISPLAY <nick>         which of your nicks is the account's name\nSET GREET [message]       what a channel bot says when you join (BotServ\n    SET GREET); without a message, it is removed\nSET KEEPMODES {ON | OFF}   your user modes (+iwx) come back when you identify\nSET NEVEROP {ON | OFF}     nobody can add you to a channel access list\n    (ACCESS, FLAGS, SOP, AOP, ...); entries you have stay (off)\nSET CHANSTATS {ON | OFF}   what you say in channels with CHANSTATS on is\n    counted, for ChanServ STATS and TOP (off)\nSET LANGUAGE <language>    the language services answer you in: en English,\n    ms Bahasa Melayu (/ns set language shows the list)\nSET PRIVATE {ON | OFF}     hide you from NickServ LIST (on)\nSET URL [url]              a URL in INFO; without one, it is removed\nSET <field> [text]         the network's extra INFO fields (like ICQ), if it\n    has any; without text, it is removed", nsSet},
 		"SASET": {"SASET <option> <nick> <value>", "change someone's account (opers)",
 			"Like SET, for another account. Needs oper flag s.\nExample: /ns saset password Bee newpass42\nSASET NOEXPIRE <nick> {ON | OFF}   the account never expires", nsSaset},
 		"INFO": {"INFO [nick]", "who owns a nick, when last seen",
@@ -733,6 +733,17 @@ func (s *Services) setOption(c *Client, a *store.Account, cmd, opt string, args 
 			return save(a.Name+" can no longer be added to channel access lists.", "to enable neverop for "+a.Name)
 		}
 		return save(a.Name+" can now be added to channel access lists.", "to disable neverop for "+a.Name)
+	case "CHANSTATS":
+		on, ok := onOff(val)
+		if !ok {
+			s.ns(c, "Syntax: %s CHANSTATS {ON | OFF}", setSyntaxHead(cmd))
+			return false
+		}
+		a.ChanStats = on
+		if on {
+			return save("What "+a.Name+" says in channels with CHANSTATS on is counted now.", "to enable chanstats for "+a.Name)
+		}
+		return save("What "+a.Name+" says is no longer counted.", "to disable chanstats for "+a.Name)
 	case "NOEXPIRE":
 		if cmd != "SASET" {
 			s.ns(c, "Syntax: SASET NOEXPIRE <nick> {ON | OFF}")
@@ -829,7 +840,7 @@ func (s *Services) setOption(c *Client, a *store.Account, cmd, opt string, args 
 		if name := fieldName(s.cfg.Services.NickFields, opt); name != "" {
 			return s.nsSetField(c, a, name, args)
 		}
-		s.ns(c, "Syntax: %s PASSWORD|EMAIL|KILL|SECURE|HIDE|AUTOOP|DISPLAY|GREET|KEEPMODES|NEVEROP|PRIVATE|URL ... (see /ns help %s)", cmd, strings.ToLower(cmd))
+		s.ns(c, "Syntax: %s PASSWORD|EMAIL|KILL|SECURE|HIDE|AUTOOP|DISPLAY|GREET|KEEPMODES|NEVEROP|CHANSTATS|PRIVATE|URL ... (see /ns help %s)", cmd, strings.ToLower(cmd))
 	}
 	return false
 }
@@ -959,6 +970,9 @@ func nsInfo(s *Services, c *Client, args []string) {
 	}
 	if a.NeverOp && insider {
 		opts = append(opts, s.tr(c, "never op"))
+	}
+	if a.ChanStats && insider {
+		opts = append(opts, s.tr(c, "chanstats"))
 	}
 	if a.NoExpire && insider {
 		opts = append(opts, s.tr(c, "no expire"))

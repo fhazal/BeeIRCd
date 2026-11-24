@@ -694,10 +694,10 @@ func (s Services) checkLogEvents() error {
 // options; nick_fields and chan_fields can't take these names.
 var (
 	NickSetOptions = []string{"PASSWORD", "EMAIL", "KILL", "PROTECT", "ENFORCE", "SECURE", "HIDE", "AUTOOP",
-		"KEEPMODES", "PRIVATE", "NEVEROP", "NOEXPIRE", "LANGUAGE", "URL", "GREET", "DISPLAY"}
+		"KEEPMODES", "PRIVATE", "NEVEROP", "NOEXPIRE", "LANGUAGE", "URL", "GREET", "DISPLAY", "CHANSTATS"}
 	ChanSetOptions = []string{"DESC", "DESCRIPTION", "FOUNDER", "SUCCESSOR", "MLOCK", "KEEPTOPIC", "TOPICLOCK",
 		"SECURE", "SECUREOPS", "LEAVEOPS", "PRIVATE", "RESTRICTED", "PEACE", "SECUREFOUNDER", "SIGNKICK",
-		"AUTOOP", "NOEXPIRE", "KEEPMODES", "PERSIST", "OVERFLOW", "BANTYPE", "ENTRYMSG", "URL", "MEMOLEVEL", "AUTOVOP"}
+		"AUTOOP", "NOEXPIRE", "KEEPMODES", "PERSIST", "OVERFLOW", "BANTYPE", "ENTRYMSG", "URL", "MEMOLEVEL", "AUTOVOP", "CHANSTATS"}
 )
 
 var fieldRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]{0,19}$`)

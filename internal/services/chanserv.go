@@ -103,7 +103,19 @@ Example: /cs flags #bchat ember +Otv`, csFlags},
 			"Nobody can use a suspended channel: everyone is kicked and kept out, and\nChanServ commands on it are refused. Expiry like +7d; without it the channel\nstays suspended until UNSUSPEND. Opers with flag s.", csSuspend},
 		"UNSUSPEND": {"UNSUSPEND #chan", "open a suspended channel again (opers)", "Opers with flag s.", csUnsuspend},
 		"SET": {"SET <option> #chan <value>", "change channel settings",
-			"SET DESCRIPTION #chan <text>\nSET FOUNDER #chan <nick>        (founder) Opers with flag s too.\nSET SUCCESSOR #chan <nick>|OFF  (founder) gets the channel if the founder's\n                                account goes\nSET SECUREFOUNDER #chan ON|OFF  (founder) only the real founder has founder\n                                rights, not the FOUNDER privilege (on)\nSET KEEPTOPIC #chan ON|OFF      the topic comes back when the channel reopens (on)\nSET KEEPMODES #chan ON|OFF      the modes come back when the channel reopens\nSET PEACE #chan ON|OFF          nobody can kick, ban or deop someone at their\n                                level or above (on)\nSET RESTRICTED #chan ON|OFF     only people on the access list may stay\nSET SECURE #chan ON|OFF         access only for people who identified, not for\n                                ones NickServ ACCESS recognises (on)\nSET SECUREOPS #chan ON|OFF      only those allowed a status may hold it\nSET SIGNKICK #chan ON|OFF       kicks show who asked for them (on)\nSET AUTOOP #chan ON|OFF         ChanServ gives status on join (on)\nSET PERSIST #chan ON|OFF        ChanServ keeps the channel open when empty\nSET OVERFLOW #chan <#other>|OFF people who can't get in (full, +i, +k,\n                                banned) go to #other: mode lock +L\nSET PRIVATE #chan ON|OFF        hide from /cs list and /cs info for outsiders\nSET BANTYPE #chan 0-3           0 *!user@host, 1 *!*user@host, 2 *!*@host (default),\n                                3 *!*user@*.domain\nSET URL #chan <url>|OFF\nSET <field> #chan [text]       the network's extra INFO fields (like ICQ), if\n                                it has any; without text, it is removed\nSET NOEXPIRE #chan ON|OFF       (opers with flag s) the channel never expires\nEverything else needs the SET privilege. The mode lock is in MODE, entry\nmessages in ENTRYMSG, the topic lock in TOPIC.\nConferenceRoom shortcuts: MEMOLEVEL <level>, AUTOVOP ON|OFF, LEAVEOPS ON|OFF.", csSet},
+			"SET DESCRIPTION #chan <text>\nSET FOUNDER #chan <nick>        (founder) Opers with flag s too.\nSET SUCCESSOR #chan <nick>|OFF  (founder) gets the channel if the founder's\n                                account goes\nSET SECUREFOUNDER #chan ON|OFF  (founder) only the real founder has founder\n                                rights, not the FOUNDER privilege (on)\nSET KEEPTOPIC #chan ON|OFF      the topic comes back when the channel reopens (on)\nSET KEEPMODES #chan ON|OFF      the modes come back when the channel reopens\nSET PEACE #chan ON|OFF          nobody can kick, ban or deop someone at their\n                                level or above (on)\nSET RESTRICTED #chan ON|OFF     only people on the access list may stay\nSET SECURE #chan ON|OFF         access only for people who identified, not for\n                                ones NickServ ACCESS recognises (on)\nSET SECUREOPS #chan ON|OFF      only those allowed a status may hold it\nSET SIGNKICK #chan ON|OFF       kicks show who asked for them (on)\nSET AUTOOP #chan ON|OFF         ChanServ gives status on join (on)\nSET PERSIST #chan ON|OFF        ChanServ keeps the channel open when empty\nSET OVERFLOW #chan <#other>|OFF people who can't get in (full, +i, +k,\n                                banned) go to #other: mode lock +L\nSET PRIVATE #chan ON|OFF        hide from /cs list and /cs info for outsiders\nSET CHANSTATS #chan ON|OFF      count what people say here (STATS, TOP); only\n                                people with NickServ SET CHANSTATS on count\nSET BANTYPE #chan 0-3           0 *!user@host, 1 *!*user@host, 2 *!*@host (default),\n                                3 *!*user@*.domain\nSET URL #chan <url>|OFF\nSET <field> #chan [text]       the network's extra INFO fields (like ICQ), if\n                                it has any; without text, it is removed\nSET NOEXPIRE #chan ON|OFF       (opers with flag s) the channel never expires\nEverything else needs the SET privilege. The mode lock is in MODE, entry\nmessages in ENTRYMSG, the topic lock in TOPIC.\nConferenceRoom shortcuts: MEMOLEVEL <level>, AUTOVOP ON|OFF, LEAVEOPS ON|OFF.", csSet},
+		"STATS": {"STATS #chan [nick]", "what someone said in a channel (chanstats)",
+			"Shows how much someone (you, without a nick) wrote in a channel with\nSET CHANSTATS on: letters, words, lines, smileys and actions, for all time,\nthis month, this week and today, and the kicks, mode changes and topics.\nOnly people with NickServ SET CHANSTATS on are counted.\nIn the channel: !stats [nick]", csStats},
+		"GSTATS": {"GSTATS [nick]", "what someone said in all channels (chanstats)",
+			"Like STATS, for every channel with SET CHANSTATS on together.\nIn a channel: !gstats [nick]", csGStats},
+		"TOP": {"TOP #chan", "the 3 people who wrote the most in a channel",
+			"Lists the 3 people who wrote the most letters in a channel with\nSET CHANSTATS on, of all time. TOP10 lists 10.\nIn the channel: !top", csTopN(3)},
+		"TOP10": {"TOP10 #chan", "the 10 people who wrote the most in a channel",
+			"Like TOP, with 10 people.\nIn the channel: !top10", csTopN(10)},
+		"GTOP": {"GTOP", "the 3 people who wrote the most in all channels",
+			"Like TOP, for every channel with SET CHANSTATS on together. GTOP10 lists 10.\nIn a channel: !gtop", csGTopN(3)},
+		"GTOP10": {"GTOP10", "the 10 people who wrote the most in all channels",
+			"Like GTOP, with 10 people.\nIn a channel: !gtop10", csGTopN(10)},
 		"SEEN": {"SEEN <nick>", "when someone was last seen, and doing what",
 			"Tells you the last time a nick was seen connecting, joining, leaving,\nchanging nick or quitting, and where (secret channels stay secret).", csSeen},
 		"LIST": {"LIST <pattern>", "search registered channels", "Lists registered channels matching a pattern, like #bee*. Private ones are\nleft out unless you are on their access list.", csList},
@@ -370,6 +382,9 @@ func csInfo(s *Services, c *Client, args []string) {
 	}
 	if reg.Private {
 		opts = append(opts, s.tr(c, "private"))
+	}
+	if reg.ChanStats {
+		opts = append(opts, s.tr(c, "chanstats"))
 	}
 	if reg.NoExpire {
 		opts = append(opts, s.tr(c, "no expire"))
@@ -1173,6 +1188,8 @@ func csSet(s *Services, c *Client, args []string) {
 		}
 	case "PRIVATE":
 		toggle(&reg.Private, "Private", false, "private")
+	case "CHANSTATS":
+		toggle(&reg.ChanStats, "Chanstats", false, "chanstats")
 	case "RESTRICTED":
 		toggle(&reg.Restricted, "Restricted", false, "restricted")
 	case "PEACE":

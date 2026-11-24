@@ -405,6 +405,28 @@ restart ends it too. It applies to the server you type it on.
   to op level (AOP) or above; CLONE skips the account too. Off by default; opers change it
   for someone with `SASET NEVEROP <nick> ON|OFF`. INFO shows it to the
   owner and opers.
+- **Chanstats** (Anope's m_chanstats, cs_fantasy_stats and
+  cs_fantasy_top, kept in the services database, no MySQL). Two
+  switches, both off by default: ChanServ `SET CHANSTATS #chan ON|OFF`
+  (needs the SET privilege) counts what is said in that channel, and
+  NickServ `SET CHANSTATS ON|OFF` (opers: `SASET CHANSTATS <nick>
+  ON|OFF`) lets your account be counted. Only identified people with
+  their switch on are counted, never services or bots, and lines for the
+  channel's bot (`!op`, `Bzz op`) don't count. Counted per channel and
+  network-wide: lines, letters, words, smileys (happy `:) :D :P ;)`, sad
+  `:( ;(`, other `:/`), actions (`/me`), kicks given and taken, mode
+  changes and topics, on this server and linked ones. Each has all time,
+  this month, this week (from Monday) and today, starting over at
+  midnight server time. Counts are kept in memory and saved every minute
+  and at shutdown (not while READONLY is on). ChanServ `STATS #chan
+  [nick]`, `GSTATS [nick]`, `TOP #chan`, `TOP10 #chan`, `GTOP` and
+  `GTOP10` show them (TOP ranks by letters, all time; a private channel's
+  counts only for its access list and opers), and so do `!stats`,
+  `!gstats`, `!top`, `!top10`, `!gtop` and `!gtop10` in a channel with
+  a bot and FANTASY on (identified, with the FANTASIA privilege). Dropping
+  a channel or account deletes its counts; renames keep them. INFO shows
+  the switch; the Anope import brings over CS_STATS and NS_STATS (not the
+  MySQL counts).
 - **OperServ `SET`** (Anope's os_set) flips services-wide switches.
   `SET LIST` shows them to any oper; changing one needs oper flag `a`.
   The switches live in memory only: **a restart turns them all off

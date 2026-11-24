@@ -114,9 +114,10 @@ func (s *Services) bsWatchAll() {
 	s.bsAmsgRecount()
 }
 
-// ChannelText runs the BotServ kickers and fantasy commands on a PRIVMSG
-// uid sent to ch.
+// ChannelText counts a PRIVMSG uid sent to ch for chanstats and runs the
+// BotServ kickers and fantasy commands on it.
 func (s *Services) ChannelText(uid string, ch *state.Channel, text string) {
+	s.statsText(uid, ch, text)
 	if len(s.bsWatch) == 0 {
 		return
 	}

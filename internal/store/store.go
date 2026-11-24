@@ -73,6 +73,9 @@ type Account struct {
 	// NeverOp is SET NEVEROP: nobody may add this account to a channel's
 	// access list.
 	NeverOp bool
+	// ChanStats is SET CHANSTATS: what this account says in channels with
+	// CHANSTATS on is counted (Anope's NS_STATS).
+	ChanStats bool
 }
 
 // Memo is one MemoServ message.
@@ -93,6 +96,7 @@ type Store struct {
 	c     *cache
 	bs    *bsCache // BotServ tables (botserv.go)
 	md    *mdCache // IRCv3 metadata (metadata.go)
+	cs    *csCache // chanstats counts (chanstats.go)
 	notes []string // what the migrations changed, for the server log
 }
 
@@ -182,7 +186,7 @@ func Open(path string) (*Store, error) {
 		}
 		return fail(err)
 	}
-	if _, err := db.Exec(schema + channelSchema + operSchema + chanExtraSchema + netbanSchema + nsMoreSchema + msMoreSchema + hostServSchema + historySchema + panelSchema + botServSchema + botKickSchema + spamfilterSchema + helpServSchema + readMarkerSchema + reputationSchema + whowasSchema + metadataSchema + fieldsSchema); err != nil {
+	if _, err := db.Exec(schema + channelSchema + operSchema + chanExtraSchema + netbanSchema + nsMoreSchema + msMoreSchema + hostServSchema + historySchema + panelSchema + botServSchema + botKickSchema + spamfilterSchema + helpServSchema + readMarkerSchema + reputationSchema + whowasSchema + metadataSchema + fieldsSchema + chanStatsSchema); err != nil {
 		return fail(err)
 	}
 	if err := migrateLevels(db); err != nil {
@@ -230,7 +234,11 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return fail(err)
 	}
-	return &Store{db: db, c: c, bs: bs, md: md, notes: notes}, nil
+	cs, err := loadChanStats(db)
+	if err != nil {
+		return fail(err)
+	}
+	return &Store{db: db, c: c, bs: bs, md: md, cs: cs, notes: notes}, nil
 }
 
 // Notes says what opening the database changed in it (old settings that
@@ -257,7 +265,7 @@ const accountCols = `a.id, a.name, a.pass_hash, a.email, a.registered, a.last_se
 	a.hide_status, a.hide_quit, a.last_quit, a.protect_delay, a.secure,
 	a.autoop, a.keepmodes, a.last_umodes, a.ns_private, a.url, a.noexpire,
 	a.suspended_by, a.suspend_reason, a.suspended_at, a.suspend_until, a.memo_signon, a.memo_mail,
-	a.unconfirmed, a.confirm_code, a.language, a.neverop`
+	a.unconfirmed, a.confirm_code, a.language, a.neverop, a.chanstats`
 
 func scanAccount(row interface{ Scan(...any) error }) (*Account, error) {
 	var a Account
@@ -267,7 +275,7 @@ func scanAccount(row interface{ Scan(...any) error }) (*Account, error) {
 		&a.HideStatus, &a.HideQuit, &a.LastQuit, &a.Protect, &a.Secure,
 		&a.AutoOp, &a.KeepModes, &a.LastModes, &a.Private, &a.URL, &a.NoExpire,
 		&a.SuspendedBy, &a.SuspendReason, &susAt, &susUntil, &a.MemoSignon, &a.MemoMail,
-		&a.Unconfirmed, &a.ConfirmCode, &a.Language, &a.NeverOp)
+		&a.Unconfirmed, &a.ConfirmCode, &a.Language, &a.NeverOp, &a.ChanStats)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -340,12 +348,12 @@ func (s *Store) SaveAccount(a *Account) error {
 		hide_host=?, memo_notify=?, memo_limit=?, hide_status=?, hide_quit=?, last_quit=?, protect_delay=?, secure=?,
 		autoop=?, keepmodes=?, last_umodes=?, ns_private=?, url=?, noexpire=?,
 		suspended_by=?, suspend_reason=?, suspended_at=?, suspend_until=?, memo_signon=?, memo_mail=?,
-		unconfirmed=?, confirm_code=?, language=?, neverop=? WHERE id=?`,
+		unconfirmed=?, confirm_code=?, language=?, neverop=?, chanstats=? WHERE id=?`,
 		a.PassHash, a.Email, a.LastSeen.Unix(), a.LastHost, a.Enforce, a.HideEmail, a.HideHost, a.MemoNotify, a.MemoLimit,
 		a.HideStatus, a.HideQuit, a.LastQuit, a.Protect, a.Secure,
 		a.AutoOp, a.KeepModes, a.LastModes, a.Private, a.URL, a.NoExpire,
 		a.SuspendedBy, a.SuspendReason, a.SuspendedAt.Unix(), a.SuspendUntil.Unix(), a.MemoSignon, a.MemoMail,
-		a.Unconfirmed, a.ConfirmCode, a.Language, a.NeverOp, a.ID)
+		a.Unconfirmed, a.ConfirmCode, a.Language, a.NeverOp, a.ChanStats, a.ID)
 	if err != nil {
 		return err
 	}
@@ -357,7 +365,7 @@ func (s *Store) SaveAccount(a *Account) error {
 	have.AutoOp, have.KeepModes, have.LastModes, have.Private, have.URL, have.NoExpire = a.AutoOp, a.KeepModes, a.LastModes, a.Private, a.URL, a.NoExpire
 	have.SuspendedBy, have.SuspendReason, have.SuspendedAt, have.SuspendUntil = a.SuspendedBy, a.SuspendReason, sec(a.SuspendedAt), sec(a.SuspendUntil)
 	have.Unconfirmed, have.ConfirmCode = a.Unconfirmed, a.ConfirmCode
-	have.Language, have.NeverOp = a.Language, a.NeverOp
+	have.Language, have.NeverOp, have.ChanStats = a.Language, a.NeverOp, a.ChanStats
 	return nil
 }
 

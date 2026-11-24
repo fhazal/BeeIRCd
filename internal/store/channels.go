@@ -115,6 +115,7 @@ type Channel struct {
 	SignKick      bool   // ChanServ kicks say who asked for them
 	KeepModes     bool   // the modes come back when the channel is reopened
 	Persist       bool   // ChanServ keeps the channel open when everyone leaves
+	ChanStats     bool   // SET CHANSTATS: what people say here is counted (Anope's CS_STATS)
 	AutoOp        bool   // ChanServ gives status on join
 	NoExpire      bool   // never expires (opers)
 	BanType       int    // 0 *!user@host, 1 *!*user@host, 2 *!*@host, 3 *!*user@*.domain
@@ -201,7 +202,7 @@ const channelCols = `c.id, c.name, c.founder_id, f.name, COALESCE(c.successor_id
 	c.description, c.registered, c.last_used, c.mlock_on, c.mlock_off, c.mlock_key, c.mlock_limit,
 	c.keeptopic, c.topiclock, c.secure, c.private, c.url, c.topic, c.topic_by, c.topic_at,
 	c.restricted, c.peace, c.securefounder, c.signkick, c.keepmodes, c.persist, c.autoop, c.noexpire,
-	c.bantype, c.last_modes, c.memo_limit, c.suspended_by, c.suspend_reason, c.suspended_at, c.suspend_until, c.cs_secure, c.mlock_params`
+	c.bantype, c.last_modes, c.memo_limit, c.suspended_by, c.suspend_reason, c.suspended_at, c.suspend_until, c.cs_secure, c.mlock_params, c.chanstats`
 
 const channelFrom = ` FROM channels c JOIN accounts f ON f.id = c.founder_id LEFT JOIN accounts s ON s.id = c.successor_id`
 
@@ -212,7 +213,7 @@ func scanChannel(row interface{ Scan(...any) error }) (*Channel, error) {
 		&c.Description, &reg, &used, &c.MlockOn, &c.MlockOff, &c.MlockKey, &c.MlockLimit,
 		&c.KeepTopic, &c.TopicLock, &c.SecureOps, &c.Private, &c.URL, &c.Topic, &c.TopicBy, &topicAt,
 		&c.Restricted, &c.Peace, &c.SecureFounder, &c.SignKick, &c.KeepModes, &c.Persist, &c.AutoOp, &c.NoExpire,
-		&c.BanType, &c.LastModes, &c.MemoLimit, &c.SuspendedBy, &c.SuspendReason, &susAt, &susUntil, &c.Secure, &c.MlockParams)
+		&c.BanType, &c.LastModes, &c.MemoLimit, &c.SuspendedBy, &c.SuspendReason, &susAt, &susUntil, &c.Secure, &c.MlockParams, &c.ChanStats)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -297,12 +298,12 @@ func (s *Store) SaveChannel(c *Channel) error {
 	_, err := s.db.Exec(`UPDATE channels SET founder_id=?, successor_id=?, description=?, last_used=?, mlock_on=?, mlock_off=?,
 		mlock_key=?, mlock_limit=?, keeptopic=?, topiclock=?, secure=?, private=?, url=?, topic=?, topic_by=?, topic_at=?,
 		restricted=?, peace=?, securefounder=?, signkick=?, keepmodes=?, persist=?, autoop=?, noexpire=?, bantype=?,
-		last_modes=?, memo_limit=?, suspended_by=?, suspend_reason=?, suspended_at=?, suspend_until=?, cs_secure=?, mlock_params=?
+		last_modes=?, memo_limit=?, suspended_by=?, suspend_reason=?, suspended_at=?, suspend_until=?, cs_secure=?, mlock_params=?, chanstats=?
 		WHERE id=?`,
 		c.FounderID, succ, c.Description, c.LastUsed.Unix(), c.MlockOn, c.MlockOff, c.MlockKey, c.MlockLimit,
 		c.KeepTopic, c.TopicLock, c.SecureOps, c.Private, c.URL, c.Topic, c.TopicBy, c.TopicAt.Unix(),
 		c.Restricted, c.Peace, c.SecureFounder, c.SignKick, c.KeepModes, c.Persist, c.AutoOp, c.NoExpire, c.BanType,
-		c.LastModes, c.MemoLimit, c.SuspendedBy, c.SuspendReason, c.SuspendedAt.Unix(), c.SuspendUntil.Unix(), c.Secure, c.MlockParams, c.ID)
+		c.LastModes, c.MemoLimit, c.SuspendedBy, c.SuspendReason, c.SuspendedAt.Unix(), c.SuspendUntil.Unix(), c.Secure, c.MlockParams, c.ChanStats, c.ID)
 	if err != nil {
 		return err
 	}
@@ -317,10 +318,14 @@ func (s *Store) SaveChannel(c *Channel) error {
 
 // DeleteChannel unregisters a channel with its access list and AKICKs.
 func (s *Store) DeleteChannel(id int64) error {
+	if _, err := s.db.Exec("DELETE FROM chanstats WHERE channel_id = ?", id); err != nil {
+		return err
+	}
 	if _, err := s.db.Exec("DELETE FROM channels WHERE id = ?", id); err != nil {
 		return err
 	}
 	s.c.dropChannel(id)
+	s.cs.dropChannel(id)
 	s.bsDropChannel(id)
 	delete(s.md.channels, id)
 	delete(s.md.chanFields, id)
@@ -507,10 +512,16 @@ func (s *Store) DeleteAccount(id int64) ([]FounderChange, error) {
 			changes = append(changes, FounderChange{Channel: o.name, OldOwner: oldName, NewOwner: s.c.accountName(o.succ)})
 			continue
 		}
+		if _, err := tx.Exec("DELETE FROM chanstats WHERE channel_id = ?", o.id); err != nil {
+			return nil, err
+		}
 		if _, err := tx.Exec("DELETE FROM channels WHERE id = ?", o.id); err != nil {
 			return nil, err
 		}
 		changes = append(changes, FounderChange{Channel: o.name, OldOwner: oldName})
+	}
+	if _, err := tx.Exec("DELETE FROM chanstats WHERE account_id = ?", id); err != nil {
+		return nil, err
 	}
 	if _, err := tx.Exec("DELETE FROM accounts WHERE id = ?", id); err != nil {
 		return nil, err
@@ -525,12 +536,14 @@ func (s *Store) DeleteAccount(id int64) ([]FounderChange, error) {
 			delete(s.c.levels[o.id], o.succ)
 		} else {
 			s.c.dropChannel(o.id)
+			s.cs.dropChannel(o.id)
 			s.bsDropChannel(o.id)
 			delete(s.md.channels, o.id)
 			delete(s.md.chanFields, o.id)
 		}
 	}
 	s.c.dropAccount(id)
+	s.cs.dropAccount(id)
 	s.bsDropAccount(id)
 	delete(s.md.accounts, id)
 	delete(s.md.acctFields, id)

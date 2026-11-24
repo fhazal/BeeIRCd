@@ -36,6 +36,9 @@ var fantasyCmds = map[string]fantasyCmd{
 	"SYNC": {"SYNC", true}, "TOPIC": {"TOPIC", true}, "UNBAN": {"UNBAN", true}, "UNMUTE": {"UNBAN", true},
 	"UNSUSPEND": {"UNSUSPEND", true}, "UP": {"UP", true}, "VOICE": {"VOICE", true},
 	"VOP": {"VOP", true},
+	// cs_fantasy_stats and cs_fantasy_top (chanstats.example.conf).
+	"STATS": {"STATS", true}, "GSTATS": {"GSTATS", false}, "TOP": {"TOP", true},
+	"TOP10": {"TOP10", true}, "GTOP": {"GTOP", false}, "GTOP10": {"GTOP10", false},
 }
 
 // fantasyOpen are the commands people who aren't identified may use

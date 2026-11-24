@@ -281,6 +281,7 @@ func TestImportGroupsAndFlags(t *testing.T) {
 DATA display Ann
 DATA pass md5:2ab96390c7dbe3439de74d0c9b0b1767
 DATA email ann@example.org
+DATA NS_STATS 1
 END
 OBJECT NickAlias
 DATA nick Ann
@@ -303,6 +304,7 @@ END
 OBJECT ChannelInfo
 DATA name #club
 DATA founder Ann
+DATA CS_STATS 1
 END
 OBJECT ChanAccess
 DATA provider access/flags
@@ -336,7 +338,13 @@ END
 	if ben == nil || passwd.Check("", ben.PassHash) || passwd.Check("abcdef", ben.PassHash) {
 		t.Errorf("Ben (enc_old) should come in without a usable password: %+v", ben)
 	}
+	if !a.ChanStats || ben.ChanStats {
+		t.Errorf("NS_STATS: Ann %v, Ben %v", a.ChanStats, ben.ChanStats)
+	}
 	c, _ := st.ChannelByName("#club")
+	if c == nil || !c.ChanStats {
+		t.Errorf("CS_STATS: %+v", c)
+	}
 	if lvl, flags := st.ChanAccess(c, ben.ID); lvl != 3 || flags != "Vv" {
 		t.Errorf("FLAGS Vv -> level %d flags %q, want rank 3 and Vv", lvl, flags)
 	}

@@ -623,6 +623,7 @@ func (s *Server) finishStop(snap history.Snapshot) {
 	}
 	s.saveHistorySnapshot(snap)
 	s.svc.SaveSeen()
+	s.svc.SaveChanStats()
 	s.saveReputation(time.Now())
 	s.saveWhowas(time.Now())
 	s.svc.CloseOutside()
