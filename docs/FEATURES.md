@@ -66,6 +66,7 @@ How to set each one up is in [ADMIN.md](ADMIN.md); installing is in [INSTALL.md]
 | `/MAP`, `/LINKS`, `/CONNECT`, `/SQUIT`, remote `/STATS`, `/MOTD`, `/VERSION`, `/ADMIN`, `/TIME`, `WHOIS nick nick` | ✅ | |
 | OperServ JUPE, NOOP, DEFCON, SERVER | ✅ | |
 | IRCv3 netsplit and netjoin batches, optional hidden splits | ✅ | |
+| Link rules (`rule`, `rule_for` on a link block): link only while the network is in the right shape | ✅ | UnrealIRCd's crule words `connected`, `directcon`, `via`, `directop`; `deny link` written as a rule |
 | `beeircd link-info` prints what the other server needs | ✅ | the installer can set up a leaf for you |
 | Checks on every line a linked server sends | ✅ | a broken or hostile leaf can't speak for users or services |
 | Anope as the services server | ✅ | Anope 2.0 (unreal4 protocol) links to a BeeIRCd with built-in services off; every service and SASL work network-wide |
@@ -134,7 +135,7 @@ Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few 
 | A cap on messages to one channel or person (`[targetfloodprot]`) | ✅ | UnrealIRCd's targetfloodprot and its numbers; on by default, like UnrealIRCd |
 | The same text to many channels at once stopped (`[blockamsg]`) | ✅ | InspIRCd's blockamsg; off by default |
 | Spam filter exceptions by security group (so by country too) | ✅ | |
-| Connect classes (`[[class]]`) by security group, so by country too: own session limit, max users, sendq, ping, flood and channel limits, or deny; `STATS Y`, `STATS G` | ✅ | UnrealIRCd's class/allow, InspIRCd's connect and geoclass |
+| Connect classes (`[[class]]`) by security group, so by country too: own session limit, max users, sendq, ping, flood and channel limits, or deny; `STATS Y`, `STATS G`, Hive Panel card | ✅ | UnrealIRCd's class/allow, InspIRCd's connect and geoclass |
 | GeoIP: each user's country and network (ASN), in WHOIS for opers, in `~C:` / `~A:` channel bans and network bans (AKILL, SHUN, ELINE), the `unrealircd.org/geoip` tag for opers, and the Hive Panel | ✅ | DB-IP Lite downloaded monthly, or MaxMind files; lookups stay on the server |
 | Channel mode `+O` (opers only) | ✅ | |
 | Spam filter (`/SPAMFILTER`, `STATS F`, UnrealIRCd syntax) | ✅ | shared with BeeIRCd and UnrealIRCd links; page in the Hive Panel |

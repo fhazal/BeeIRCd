@@ -972,6 +972,16 @@ then open <http://127.0.0.1:8787>. `beeircd install` sets it up as the
   server's block needs (the same as `beeircd link-info`). The card "Admins
   from other servers" shows `[link] outside_admins`; the network owner
   switches it there between letting in network reach and keeping out.
+  A link rule (`rule`, `rule_for`) is set in beeircd.conf only; saving a
+  block in the panel keeps it.
+- **Connect classes** (Settings, flag `a`): one row per `[[class]]`
+  block in file order, the default class last: who is in it (its
+  security groups), how many people are in it now and its limits (per
+  IP, sendq, ping, flood, channels). A limit the class sets itself is in
+  bold; a grey one comes from `[limits]`. A deny class shows "refused".
+  With no `[[class]]` blocks only the default class is listed. The card
+  only shows: change classes in beeircd.conf, then press **Rehash**, and
+  people move to their new class without being dropped.
 - **Services** (flag `a`): registered nicks, channels and memos, the
   bots, and the services settings from AdminServ SET in plain words
   (account and channel expiry, identify time, guest prefix, KILL QUICK /
@@ -1888,7 +1898,8 @@ connections).
 each and their limits, the default class last. `/STATS G` lists the
 people on this server per country (code, name, count; `--` when GeoIP
 doesn't know). WHOIS shows opers `is in class <name>` for people on this
-server, when there are classes.
+server, when there are classes. The Hive Panel shows the same list on
+Settings → Connect classes.
 
 ### [connthrottle]
 
