@@ -102,6 +102,7 @@ func (s *Server) panelLinkSave(po *control.PanelOper, ip string, b *control.Link
 	if old != nil {
 		ls.Name, ls.SendQMB, ls.Password = old.Name, old.SendQMB, old.Password
 		ls.Rule, ls.RuleFor = old.Rule, old.RuleFor // the panel shows these, never edits them
+		ls.Protocol = old.Protocol                  // an InspIRCd block stays InspIRCd
 	}
 	if ls.Host == "" {
 		ls.Port = 0
@@ -127,6 +128,9 @@ func (s *Server) panelLinkSave(po *control.PanelOper, ip string, b *control.Link
 	kv = append(kv, config.KV{Key: "autoconnect", Value: strconv.FormatBool(ls.Autoconnect)})
 	if ls.SendQMB != 20 {
 		kv = append(kv, config.KV{Key: "sendq_mb", Value: strconv.Itoa(ls.SendQMB)})
+	}
+	if ls.Protocol != "" {
+		kv = append(kv, config.KV{Key: "protocol", Value: config.Quote(ls.Protocol)})
 	}
 	if ls.Rule != "" {
 		kv = append(kv, config.KV{Key: "rule", Value: config.Quote(ls.Rule)})

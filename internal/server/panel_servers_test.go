@@ -124,6 +124,14 @@ func TestPanelLinkBlocks(t *testing.T) {
 	if raw, _ = os.ReadFile(path); !strings.Contains(string(raw), "rule = \"!connected(hub1.*)\"\nrule_for = \"all\"") {
 		t.Errorf("save lost the rule:\n%s", raw)
 	}
+	// A save keeps protocol = "inspircd" (it used to drop it).
+	s.onLoop(func() { s.cfg.Link.Servers[0].Protocol, s.cfg.Link.Servers[0].Password = "inspircd", "linkpw" })
+	if r := save(control.LinkBlock{Name: "leaf.example.net", Host: "127.0.0.1", Port: 7001, Fingerprint: fp}, false); r.Done == nil {
+		t.Fatalf("change an InspIRCd block: %+v", r)
+	}
+	if raw, _ = os.ReadFile(path); !strings.Contains(string(raw), "protocol = \"inspircd\"") {
+		t.Errorf("save lost the protocol:\n%s", raw)
+	}
 	if r := ask("Boss", control.Request{Cmd: control.CmdLinkDel, Name: "leaf.example.net"}); r.Done == nil {
 		t.Fatalf("remove: %+v", r)
 	}
