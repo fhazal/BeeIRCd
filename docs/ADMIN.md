@@ -448,6 +448,16 @@ restart ends it too. It applies to the server you type it on.
   restart wait for one. Answers "Reloaded the config." or the error. It
   goes to the `a` server notices and the #services log channel, and still
   works while `SET READONLY` is on (it is config, not services data).
+- **OperServ `OLINE <nick> <+flags|-flags>`** (Anope's os_oline, oper
+  flag `a`) gives someone online oper flags for that connection only:
+  `+ks` adds, `-g` takes away, `+ks-g` does both. Someone who isn't an
+  oper becomes one with just those flags (no oper account, class or
+  title); an oper keeps their class, title and vhost and only the flags
+  change. Taking every flag away takes oper away. Both sides get a
+  notice, and it goes to the #services log channel and the audit log.
+  The flags go when they quit, and a later `/OPER` (or a change to their
+  oper entry) replaces them. It works only for people on the server that
+  runs services; anyone else gets "<nick> is on another server".
 - **OperServ `LOGSEARCH [+<days>d] [+<limit>l] <pattern>`** (Anope's
   os_logsearch, oper flag `a`) searches the services log file
   (`[services] log_file`) and the one before it (`<file>.1`). The pattern

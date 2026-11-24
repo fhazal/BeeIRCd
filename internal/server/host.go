@@ -256,6 +256,31 @@ func (h host) ForceJoin(uid, channel string) {
 	}
 }
 
+// SessionOper is OperServ OLINE: flags for this connection only. Someone
+// already opered keeps their class, title and vhost; only the flags
+// change. A new oper gets no oper account (AccountID 0), so a change to
+// an oper entry never touches them.
+func (h host) SessionOper(uid, flags string) bool {
+	c := h.s.clients[uid]
+	if c == nil || c.user == nil {
+		return false
+	}
+	flags, _ = cleanFlags(flags)
+	switch {
+	case flags == "":
+		h.s.deoper(c, "Your oper flags were taken away (OperServ OLINE).")
+	case c.isOper() && c.user.Modes['o']:
+		if c.operFlags != flags {
+			c.operFlags = flags
+			h.s.notice(c, "*** Your oper flags are now "+describeFlags(flags))
+		}
+		h.s.linkOperInfo(nil, uid, c.operClass, flags, h.s.ownLook(c.operTitle, c.operSwhois, c.operReach))
+	default:
+		h.s.operUpView(c, &store.Oper{Account: "OLINE"}, operView{flags: flags})
+	}
+	return true
+}
+
 func (h host) SetUserModes(uid, srcUID, modes string) bool {
 	c := h.s.clients[uid]
 	if c == nil || c.user == nil {

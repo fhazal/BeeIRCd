@@ -23,6 +23,7 @@ type fakeHost struct {
 	notices []string // "to: text"
 	posts   chan func()
 	opers   map[string]string // UID -> oper flags
+	remote  map[string]bool   // UIDs SessionOper treats as on another server
 	said    []string          // channel messages: "Bot #chan: text"
 
 	rehashes  []string // who asked for a rehash
@@ -75,6 +76,21 @@ func (h *fakeHost) Rehash(by string) error {
 }
 func (h *fakeHost) ForceJoin(uid, channel string)                       {}
 func (h *fakeHost) JoinBlocked(uid, channel, key string) (string, bool) { return "", false }
+
+func (h *fakeHost) SessionOper(uid, flags string) bool {
+	if h.remote[uid] {
+		return false
+	}
+	if h.opers == nil {
+		h.opers = map[string]string{}
+	}
+	if flags == "" {
+		delete(h.opers, uid)
+	} else {
+		h.opers[uid] = flags
+	}
+	return true
+}
 
 // SetUserModes applies a plain "+h" or "-h" style change.
 func (h *fakeHost) SetUserModes(uid, src, modes string) bool {

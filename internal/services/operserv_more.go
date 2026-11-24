@@ -13,7 +13,7 @@ import (
 	"github.com/fhazal/beeircd/internal/store"
 )
 
-// OperServ CHANKILL, SVSNICK, SVSJOIN, SVSPART, UMODE,
+// OperServ CHANKILL, SVSNICK, SVSJOIN, SVSPART, UMODE, OLINE,
 // USERLIST, CHANLIST, INFO, IGNORE and SEEN, and ChanServ SEEN, as in
 // Anope 2.0.20 (os_chankill, os_svs, os_mode, os_list, os_info,
 // os_ignore, cs_seen).
@@ -36,6 +36,8 @@ func operServMoreCommands() map[string]svcCmd {
 			"Parts someone from a channel, with the reason if you give one.", osSvsPart},
 		"UMODE": {"UMODE <nick> <modes>", "change someone's user modes",
 			"Changes someone's user modes as MODE would for them: +i +w +x, +s only on\nopers, -o takes oper away. They are told who did it.", osUmode},
+		"OLINE": {"OLINE <nick> <+flags|-flags>", "give someone oper flags until they quit",
+			"Gives someone online oper flags for this connection only, like Anope's\nos_oline. +flags adds, -flags takes away (both may be given, like\n+ks-g). Someone who isn't an oper becomes one with just those flags;\ntaking all the flags away takes oper away. The flags go when they quit,\nand a later OPER replaces them. Only for people on this server.\nFlags: a admin, b bans, c channels, g global, h hosts, k kill,\ns services.\nExample: /os oline Bee +k", osOline},
 		"USERLIST": {"USERLIST [{<pattern> | #chan} [INVISIBLE]]", "list the people online",
 			"Lists everyone online, or those matching nick!user@host[#realname] (the\nreal host and IP match too), or those in a channel. INVISIBLE: only +i.", osUserList},
 		"CHANLIST": {"CHANLIST [{<pattern> | <nick>} [SECRET]]", "list the open channels",
@@ -256,6 +258,66 @@ func osUmode(s *Services, c *Client, args []string) {
 	s.host.Notice(s.operServ.user.UID, t.user.UID, c.user.Nick+" changed your usermodes to "+modes+".")
 	s.osLog(c, "%s on %s", modes, t.user.Nick)
 	s.audit(c, s.operServ, "UMODE %s %s", t.user.Nick, modes)
+}
+
+// ---- OLINE ----
+
+// olineFlags are the oper flags OLINE knows, in the usual order.
+const olineFlags = "abcghks"
+
+func osOline(s *Services, c *Client, args []string) {
+	if !s.needFlag(c, s.operServ, 'a') {
+		return
+	}
+	if len(args) < 2 {
+		s.os(c, "Syntax: OLINE <nick> <+flags|-flags>")
+		return
+	}
+	change := strings.Join(args[1:], "")
+	if change[0] != '+' && change[0] != '-' {
+		s.os(c, "Syntax: OLINE <nick> <+flags|-flags>")
+		return
+	}
+	t := s.svsTarget(c, args[0])
+	if t == nil {
+		return
+	}
+	have := map[byte]bool{}
+	for _, f := range []byte(s.host.OperFlags(t.user.UID)) {
+		have[f] = true // a remote oper's "o" matches no flag and drops out
+	}
+	add := true
+	for i := 0; i < len(change); i++ {
+		switch f := change[i]; {
+		case f == '+' || f == '-':
+			add = f == '+'
+		case strings.IndexByte(olineFlags, f) >= 0:
+			have[f] = add
+		default:
+			s.os(c, "%c isn't an oper flag. Flags: %s.", f, olineFlags)
+			return
+		}
+	}
+	var b strings.Builder
+	for i := 0; i < len(olineFlags); i++ {
+		if have[olineFlags[i]] {
+			b.WriteByte(olineFlags[i])
+		}
+	}
+	flags := b.String()
+	if !s.host.SessionOper(t.user.UID, flags) {
+		s.os(c, "%s is on another server; OLINE works only for people on this server.", t.user.Nick)
+		return
+	}
+	if flags == "" {
+		s.os(c, "%s is no longer an oper.", t.user.Nick)
+		s.host.Notice(s.operServ.user.UID, t.user.UID, c.user.Nick+" took your oper flags away.")
+	} else {
+		s.os(c, "%s now has oper flags %s until they quit.", t.user.Nick, flags)
+		s.host.Notice(s.operServ.user.UID, t.user.UID, c.user.Nick+" gave you oper flags "+flags+" until you quit.")
+	}
+	s.osLog(c, "%s on %s (now %q)", change, t.user.Nick, flags)
+	s.audit(c, s.operServ, "OLINE %s %s", t.user.Nick, change)
 }
 
 // ---- USERLIST, CHANLIST ----

@@ -82,6 +82,9 @@ type Host interface {
 	// SetUserModes changes uid's user modes as MODE allows them, sent by
 	// srcUID (UMODE). It reports an unknown mode letter.
 	SetUserModes(uid, srcUID, modes string) bool
+	// SessionOper gives uid these oper flags until they quit (OperServ
+	// OLINE); "" takes oper away. False: uid isn't on this server.
+	SessionOper(uid, flags string) bool
 }
 
 // HostStats are server figures for OperServ STATS.

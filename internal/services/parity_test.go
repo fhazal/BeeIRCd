@@ -211,3 +211,51 @@ func TestHelpChannel(t *testing.T) {
 		t.Fatal("op in another channel gave +h")
 	}
 }
+
+func TestOperServOline(t *testing.T) {
+	svc, h := newServices(t)
+	os := h.net.UserByNick("OperServ")
+	boss := helpUser(t, h, "1LFAAAAAB", "Boss")
+	small := helpUser(t, h, "1LFAAAAAC", "Small")
+	bee := helpUser(t, h, "1LFAAAAAD", "Bee")
+	far := helpUser(t, h, "1LFAAAAAE", "Far")
+	h.opers = map[string]string{boss.UID: "a", small.UID: "g"}
+	h.remote = map[string]bool{far.UID: true}
+	ask := func(from *state.User, line string) string {
+		t.Helper()
+		svc.Message(from.UID, os, line)
+		return noticeTo(h, from.Nick)
+	}
+
+	if got := ask(small, "OLINE Bee +k"); !strings.Contains(got, "You need oper flag a") || h.opers[bee.UID] != "" {
+		t.Fatalf("OLINE without flag a: %q, flags %q", got, h.opers[bee.UID])
+	}
+	if got := ask(boss, "OLINE Bee +sk"); !strings.Contains(got, "Bee now has oper flags ks") || h.opers[bee.UID] != "ks" {
+		t.Fatalf("OLINE +sk: %q, flags %q", got, h.opers[bee.UID])
+	}
+	if got := noticeTo(h, "Bee"); !strings.Contains(got, "Boss gave you oper flags ks") {
+		t.Errorf("Bee was told %q", got)
+	}
+	if got := ask(boss, "OLINE Bee +g-k"); !strings.Contains(got, "oper flags gs") || h.opers[bee.UID] != "gs" {
+		t.Fatalf("OLINE +g-k: %q, flags %q", got, h.opers[bee.UID])
+	}
+	if got := ask(boss, "OLINE Bee +x"); !strings.Contains(got, "x isn't an oper flag") || h.opers[bee.UID] != "gs" {
+		t.Fatalf("OLINE +x: %q, flags %q", got, h.opers[bee.UID])
+	}
+	if got := ask(boss, "OLINE Bee k"); !strings.Contains(got, "Syntax: OLINE") {
+		t.Fatalf("OLINE without +/-: %q", got)
+	}
+	noticeTo(h, "Bee")
+	if got := ask(boss, "OLINE Bee -gs"); !strings.Contains(got, "Bee is no longer an oper") || h.opers[bee.UID] != "" {
+		t.Fatalf("OLINE -gs: %q, flags %q", got, h.opers[bee.UID])
+	}
+	if got := noticeTo(h, "Bee"); !strings.Contains(got, "Boss took your oper flags away") {
+		t.Errorf("Bee was told %q", got)
+	}
+	if got := ask(boss, "OLINE Far +k"); !strings.Contains(got, "Far is on another server") || h.opers[far.UID] != "" {
+		t.Fatalf("OLINE on a remote user: %q, flags %q", got, h.opers[far.UID])
+	}
+	if got := ask(boss, "OLINE Nobody +k"); !strings.Contains(got, "isn't online") {
+		t.Fatalf("OLINE on nobody: %q", got)
+	}
+}
