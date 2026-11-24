@@ -593,7 +593,7 @@ func (s *Server) linkUp(l *linkConn) {
 		software: p.Software, protocol: p.Protocol}
 	s.svc.LogServerJoin(p.Name, p.Description, s.cfg.Server.Name)
 	if r := s.links.retry[strings.ToLower(p.Name)]; r != nil {
-		r.wait, r.lastErr = 0, ""
+		r.wait, r.lastErr, r.ruleNo = 0, "", false
 	}
 	dir := "they connected"
 	if l.out {

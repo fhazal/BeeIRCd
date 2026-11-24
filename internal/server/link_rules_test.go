@@ -59,3 +59,29 @@ func TestLinkRules(t *testing.T) {
 		waitLink(t, "link up", func() bool { return hub.servers()["0LF"] == "leaf.test.local" })
 	})
 }
+
+// A link that comes up another way (here: the other side dials in) clears
+// "the rule said no", so the notice comes again after the next split and
+// the Hive Panel doesn't show a stale "link rule says no".
+func TestLinkRuleNoClearedOnLinkUp(t *testing.T) {
+	hub := newLinkNode(t, "hub.test.local", "0HB", "hub")
+	leaf := newLinkNode(t, "leaf.test.local", "0LF", "leaf")
+	hub.expects(leaf, true, "")
+	hub.blocks[0].Rule = "directop()" // no oper on the hub: says no
+	leaf.expects(hub, true, "")
+	hub.start(t)
+	waitLink(t, "the rule notice", func() bool {
+		return hub.logHas("CONNECT: Not connecting to leaf.test.local: link rule directop() says no")
+	})
+	leaf.start(t)
+	waitLink(t, "link up", func() bool { return hub.servers()["0LF"] == "leaf.test.local" })
+	ruleNo := true
+	hub.s.onLoop(func() {
+		if r := hub.s.links.retry["leaf.test.local"]; r != nil {
+			ruleNo = r.ruleNo
+		}
+	})
+	if ruleNo {
+		t.Error("ruleNo still set after the link came up")
+	}
+}
