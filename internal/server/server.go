@@ -66,6 +66,8 @@ type Server struct {
 	opers      map[*Client]bool // opered clients here (server notices)
 	dirty      []*Client        // clients with output to wake their writer for
 	sinceFlush int              // loop jobs since the last flushWrites
+	tick       *time.Ticker     // the client tick (loop only; retick changes it)
+	tickLen    time.Duration    // how often tick fires
 	msgSeq     uint64
 	batchSeq   uint64
 	sinks      []func(state.Event) // get every event after it was applied
@@ -374,8 +376,9 @@ func (s *Server) Serve(ctx context.Context) error {
 	s.startGeoIP()
 	s.startPlaceLookup()
 	s.log.Printf("%s ready on %d port(s)", s.cfg.Server.Name, len(s.listeners))
-	tick := time.NewTicker(s.tickEvery())
-	defer tick.Stop()
+	s.tickLen = s.tickEvery()
+	s.tick = time.NewTicker(s.tickLen)
+	defer s.tick.Stop()
 	hourly := time.NewTicker(time.Hour)
 	defer hourly.Stop()
 	// Links get their own 1 s tick: autoconnect and pings shouldn't wait
@@ -434,7 +437,7 @@ func (s *Server) Serve(ctx context.Context) error {
 				}
 				return nil
 			}
-		case now := <-tick.C:
+		case now := <-s.tick.C:
 			s.checkTimeouts(now)
 			s.expireTimedBans(now)
 			s.floodTick(now)
@@ -475,6 +478,15 @@ func (s *Server) flushWrites() {
 	clear(s.dirty)
 	s.dirty = s.dirty[:0]
 	s.sinceFlush = 0
+}
+
+// retick sets the client tick again after a rehash: a new class can ping
+// more often than anything before it. On the loop.
+func (s *Server) retick() {
+	if d := s.tickEvery(); s.tick != nil && d != s.tickLen {
+		s.tickLen = d
+		s.tick.Reset(d)
+	}
 }
 
 // tickEvery checks timeouts often enough for the shortest one.

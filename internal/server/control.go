@@ -416,6 +416,7 @@ func (s *Server) rehash(by string) (*control.Rehash, error) {
 	keepRestartOnly(fresh, &old)
 	*s.cfg = *fresh // services share this Config
 	s.reclass()     // [[class]] blocks may have changed: nobody is dropped for it
+	s.retick()      // and may ping more often
 	if old.Server.OperTag != fresh.Server.OperTag {
 		s.resendOperLooks()
 	}

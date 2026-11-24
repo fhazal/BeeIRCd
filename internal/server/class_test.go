@@ -281,3 +281,31 @@ max_channels = 1
 	n.send("STATS G")
 	n.quiet(" 801 ")
 }
+
+// A rehash that adds a class with a shorter ping makes the client tick
+// faster at once, so that class's pings and timeouts are on time.
+func TestClassRehashTick(t *testing.T) {
+	s, path, _ := fileServerWith(t, "", nil)
+	b := boss(t, s)
+	var before time.Duration
+	onLoop(t, s, func() { before = s.tickLen })
+	if before <= 10*time.Second/4 {
+		t.Fatalf("tick already %s before the rehash", before)
+	}
+	text, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block := "\n[[security_group]]\nname = \"all\"\nmask = [\"*!*@*\"]\n\n[[class]]\nname = \"fast\"\nsecurity_group = [\"all\"]\nping_interval = \"10s\"\n"
+	if err := os.WriteFile(path, append(text, block...), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	b.send("REHASH")
+	b.expect(" 382 Boss ")
+	b.sync()
+	onLoop(t, s, func() {
+		if s.tickLen != 10*time.Second/4 {
+			t.Errorf("tick after the rehash: %s, want 2.5s", s.tickLen)
+		}
+	})
+}
