@@ -836,6 +836,10 @@ reconnects once (as in a normal restart) when:
 - the door keeper itself changed in the new release (it can't hand over to
   a different door keeper).
 
+Links to other servers are not handed over: during the update the link
+splits and comes back by itself once the new program runs (people on the other
+servers see the usual netsplit quits and joins).
+
 If a hand-over fails half-way, the update says so ("the hand-over failed;
 people reconnected as in a normal restart") and still finishes; `--rollback`
 stays there.
