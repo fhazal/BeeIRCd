@@ -129,7 +129,10 @@ func (s *Server) remoteBan(l *linkConn, raw irc.Message, b *link.Ban) {
 	if kind != store.BanZline && kind != store.BanSNLine {
 		mask = orStr(b.User, "*") + "@" + b.Host
 	}
-	mask = strings.ToLower(mask)
+	if kind != store.BanSNLine {
+		// An SNLINE keeps its case: lowercasing a /regex/ changes it.
+		mask = strings.ToLower(mask)
+	}
 	if ext != "" {
 		mask = ext
 	}

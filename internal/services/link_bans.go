@@ -91,7 +91,9 @@ func (s *Services) RemoteBan(b store.NetBan, add bool) (changed, stale bool) {
 			return false, false
 		}
 		b.Mask = m
-	} else {
+	} else if b.Kind != store.BanSNLine {
+		// An SNLINE keeps its case, as OperServ stores it: lowercasing a
+		// /regex/ changes what it means (\W is not \w).
 		b.Mask = strings.ToLower(b.Mask)
 	}
 	if add {
@@ -136,6 +138,17 @@ func (s *Services) RemoteBan(b store.NetBan, add bool) (changed, stale bool) {
 		gone, err := s.store.DelNetBan(b.Kind, b.Mask)
 		if err != nil {
 			s.log.Printf("services database: %v", err)
+		}
+		if !gone && err == nil && b.Kind == store.BanSNLine {
+			// One kept lowercased by an older version.
+			for _, o := range s.netbans {
+				if o.Kind == b.Kind && o.Mask != b.Mask && strings.EqualFold(o.Mask, b.Mask) {
+					if gone, err = s.store.DelNetBan(o.Kind, o.Mask); err != nil {
+						s.log.Printf("services database: %v", err)
+					}
+					break
+				}
+			}
 		}
 		if !gone {
 			return false, false

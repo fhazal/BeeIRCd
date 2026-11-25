@@ -264,3 +264,29 @@ func TestLinkHelperOnLeaf(t *testing.T) {
 	dan.expect("You are on duty")
 	waitLink(t, "hub sees +h", func() bool { u := hub.user("dan"); return u != nil && u.Modes['h'] })
 }
+
+// An SNLINE /regex/ reaches the leaf with its case: lowercased, \W turned
+// into \w there and the leaf refused the opposite set of people.
+func TestLinkSNLineRegexKeepsCase(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	op := login(t, hub.s, "op")
+	hub.s.onLoop(func() { hub.s.operUp(hub.s.clients[hub.s.net.UserByNick("op").UID], &store.Oper{Class: "netadmin"}) })
+	op.expect(" 381 op ")
+	op.send(`OS SNLINE ADD +1h /^\W+$/ symbols only`)
+	op.expect(":OperServ!")
+	var masks []string
+	waitLink(t, "snline on the leaf", func() bool {
+		masks = nil
+		leaf.s.onLoop(func() {
+			for _, b := range leaf.s.svc.LinkedBans() {
+				if b.Kind == store.BanSNLine {
+					masks = append(masks, b.Mask)
+				}
+			}
+		})
+		return len(masks) > 0
+	})
+	if want := `/^\W+$/`; len(masks) != 1 || masks[0] != want {
+		t.Errorf("leaf keeps SNLINE %q, want %s", masks, want)
+	}
+}
