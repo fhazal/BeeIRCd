@@ -160,9 +160,6 @@ scripts/check.sh
 | `tools/` | live checks, load generator, irctest controller |
 | `scripts/` | developer scripts |
 
-<p align="center">
-  <img src="docs/mascot.webp" alt="The BeeIRCd queen bee at her server rack" width="55%">
-</p>
 
 ## 📜 Licence
 
