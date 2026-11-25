@@ -1234,6 +1234,7 @@ func (s *Services) dropAccount(a *store.Account, founderWhy, by string) error {
 		return err
 	}
 	s.clearLockouts(id)
+	delete(s.resets, id) // IDs are reused; see resetInfo
 	s.applyFounderChanges(changes, founderWhy)
 	s.log.Printf("dropped account %s (%s)", name, by)
 	for _, other := range s.clients {

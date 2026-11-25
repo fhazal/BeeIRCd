@@ -788,6 +788,7 @@ func (s *Services) expireAccounts(now time.Time) {
 			s.log.Printf("services database: %v", err)
 			continue
 		}
+		delete(s.resets, a.ID) // IDs are reused; see resetInfo
 		s.applyFounderChanges(changes, "founder "+a.Name+" expired")
 		s.log.Printf("expired account %s (last seen %s)", a.Name, a.LastSeen.UTC().Format(time.DateOnly))
 		s.logTo(s.nickServ, "Expiring nickname "+a.Name+" (group: "+a.Name+") (e-mail: "+orNone(a.Email)+")")

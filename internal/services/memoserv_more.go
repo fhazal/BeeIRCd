@@ -2,6 +2,7 @@ package services
 
 import (
 	crand "crypto/rand"
+	"crypto/subtle"
 	"fmt"
 	"math"
 	"math/big"
@@ -125,9 +126,14 @@ func (s *Services) memoMail(a *store.Account, from, text string, num int) {
 
 // --- NickServ RESETPASS and CONFIRM ---
 
+// resetInfo is one RESETPASS code. name and reg pin it to the account it
+// was made for: account IDs are reused after a drop, so a code must never
+// work for a newer account that got the same ID.
 type resetInfo struct {
 	code string
 	at   time.Time
+	name string
+	reg  time.Time
 }
 
 func nsResetPass(s *Services, c *Client, args []string) {
@@ -151,7 +157,7 @@ func nsResetPass(s *Services, c *Client, args []string) {
 		code := randomPasscode(20)
 		t := map[string]string{"%n": args[0], "%N": s.cfg.Server.Network, "%c": code}
 		if s.mailTo(c, s.nickServ, a, fill(s.cfg.Mail.ResetSubject, t), fill(s.cfg.Mail.ResetMessage, t)) {
-			s.resets[a.ID] = resetInfo{code, time.Now()}
+			s.resets[a.ID] = resetInfo{code, time.Now(), a.Name, a.Registered}
 			s.nsLogCmd(c, "for %s (group: %s)", args[0], a.Name)
 			s.ns(c, "Password reset email for %s has been sent.", args[0])
 		}
@@ -168,6 +174,10 @@ func nsConfirmReset(s *Services, c *Client, args []string) {
 	ri, ok := resetInfo{}, false
 	if a != nil {
 		ri, ok = s.resets[a.ID]
+		if ok && (!strings.EqualFold(ri.name, a.Name) || !ri.reg.Equal(a.Registered)) {
+			delete(s.resets, a.ID) // made for an earlier account with this ID
+			ok = false
+		}
 	}
 	switch {
 	case !ok:
@@ -177,7 +187,7 @@ func nsConfirmReset(s *Services, c *Client, args []string) {
 	case time.Since(ri.at) > time.Hour:
 		delete(s.resets, a.ID)
 		s.ns(c, "Your password reset request has expired.")
-	case args[1] != ri.code:
+	case subtle.ConstantTimeCompare([]byte(args[1]), []byte(ri.code)) != 1:
 		s.ns(c, "Invalid passcode.")
 	default:
 		delete(s.resets, a.ID)

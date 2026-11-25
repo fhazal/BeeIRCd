@@ -244,3 +244,29 @@ func TestMemoServRSend(t *testing.T) {
 	bee.expect("  plain")
 	kes.quiet("new memo from MemoServ")
 }
+
+// A RESETPASS code dies with its account: account IDs are reused after a
+// drop, so an old code must not log anyone in to a newer account that got
+// the same ID.
+func TestResetCodeDiesWithAccount(t *testing.T) {
+	s, _, _ := fileServer(t, mailConf)
+	got := fakeMail(s)
+	mal := login(t, s, "Mal")
+	mal.send("NS REGISTER " + pw + " mal@example.org")
+	mal.expect("Mal is now registered to you.")
+	x := login(t, s, "x")
+	x.send("NS RESETPASS Mal mal@example.org")
+	x.expect(nsLine("x", "Password reset email for Mal has been sent."))
+	code := regexp.MustCompile(`CONFIRM Mal (\S+) `).FindStringSubmatch(nextMail(t, got).body)
+	if code == nil {
+		t.Fatal("no code in the reset mail")
+	}
+	mal.send("NS DROP Mal")
+	mal.expect("has been dropped")
+
+	vic := login(t, s, "Victim")
+	vic.send("NS REGISTER " + pw + " victim@example.org")
+	vic.expect("Victim is now registered to you.")
+	x.send("NS CONFIRM Victim " + code[1])
+	x.expect(nsLine("x", "Invalid passcode."))
+}
