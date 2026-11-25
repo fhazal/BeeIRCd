@@ -20,8 +20,8 @@ func gateNets(s *Services) []string {
 }
 
 // GateZlines gives the gate only ZLINEs it can apply exactly as ZlineFor
-// does: one IP written the way the server writes it, or a CIDR, with no
-// ELINE cutting into it.
+// does: one IP however it is written, or a CIDR, with no ELINE cutting
+// into it.
 func TestGateZlines(t *testing.T) {
 	s, _ := newServices(t)
 	add := func(kind, mask string, expires time.Time) {
@@ -34,14 +34,18 @@ func TestGateZlines(t *testing.T) {
 	later := time.Now().Add(time.Hour)
 	add(store.BanZline, "192.0.2.5", later)
 	add(store.BanZline, "198.51.100.0/24", time.Time{})
-	add(store.BanZline, "203.0.113.*", time.Time{})       // a prefix glob: becomes a /24
-	add(store.BanZline, "203.0.*.5", time.Time{})         // any other glob: the server refuses it
-	add(store.BanZline, "%192.0.2.9", time.Time{})        // soft
-	add(store.BanZline, "2001:DB8::1", time.Time{})       // the same text, case aside
-	add(store.BanZline, "2001:db8:0:0::2", time.Time{})   // not as the server writes it
-	add(store.BanZline, "192.0.2.77", time.Now().Add(-1)) // ran out
+	add(store.BanZline, "203.0.113.*", time.Time{})          // a prefix glob: becomes a /24
+	add(store.BanZline, "203.0.*.5", time.Time{})            // any other glob: the server refuses it
+	add(store.BanZline, "%192.0.2.9", time.Time{})           // soft
+	add(store.BanZline, "2001:DB8::1", time.Time{})          // the same text, case aside
+	add(store.BanZline, "2001:db8:0:0::2", time.Time{})      // long form: still that one IP
+	add(store.BanZline, "0::3", time.Time{})                 // ::3 as zlineMask keeps it
+	add(store.BanZline, "::ffff:192.0.2.66", time.Time{})    // mapped: ZlineFor unmaps it
+	add(store.BanZline, "2001:db8:1::5/48", time.Time{})     // host bits set: the /48
+	add(store.BanZline, "::ffff:192.0.2.0/120", time.Time{}) // mapped range: ZlineFor matches nobody
+	add(store.BanZline, "192.0.2.77", time.Now().Add(-1))    // ran out
 
-	want := []string{"192.0.2.5/32", "198.51.100.0/24", "2001:db8::1/128", "203.0.113.0/24"}
+	want := []string{"192.0.2.5/32", "192.0.2.66/32", "198.51.100.0/24", "2001:db8:1::/48", "2001:db8::1/128", "2001:db8::2/128", "203.0.113.0/24", "::3/128"}
 	if got := gateNets(s); !slices.Equal(got, want) {
 		t.Fatalf("gate ZLINEs %v, want %v", got, want)
 	}
@@ -63,7 +67,7 @@ func TestGateZlines(t *testing.T) {
 	// changes nothing.
 	add(store.BanEline, "*@198.51.100.7", time.Time{})
 	add(store.BanEline, "*@*.example.com", time.Time{})
-	want = []string{"192.0.2.5/32", "2001:db8::1/128", "203.0.113.0/24"}
+	want = []string{"192.0.2.5/32", "192.0.2.66/32", "2001:db8:1::/48", "2001:db8::1/128", "2001:db8::2/128", "203.0.113.0/24", "::3/128"}
 	if got := gateNets(s); !slices.Equal(got, want) {
 		t.Fatalf("with ELINEs: %v, want %v", got, want)
 	}
@@ -73,7 +77,7 @@ func TestGateZlines(t *testing.T) {
 
 	// A prefix ELINE is an allow prefix like a CIDR one: it cuts the /24.
 	add(store.BanEline, "*@203.0.*", time.Time{})
-	want = []string{"192.0.2.5/32", "2001:db8::1/128"}
+	want = []string{"192.0.2.5/32", "192.0.2.66/32", "2001:db8:1::/48", "2001:db8::1/128", "2001:db8::2/128", "::3/128"}
 	if got := gateNets(s); !slices.Equal(got, want) {
 		t.Fatalf("with a prefix ELINE: %v, want %v", got, want)
 	}
@@ -99,7 +103,11 @@ func TestGateNet(t *testing.T) {
 		{"192.0.2.*", true, "192.0.2.0/24"},
 		{"10.*.5", false, ""},
 		{"2001:db8::0001", false, "2001:db8::1/128"},
-		{"2001:db8::0001", true, ""},
+		{"2001:db8::0001", true, "2001:db8::1/128"}, // banMatches compares the address
+		{"0::1", true, "::1/128"},
+		{"::ffff:192.0.2.1", true, "192.0.2.1/32"},
+		{"::ffff:192.0.2.0/120", true, ""}, // MatchHost never matches it
+		{"192.0.2.9/24", true, "192.0.2.0/24"},
 	} {
 		p, ok := gateNet(c.m, c.exact)
 		got := ""

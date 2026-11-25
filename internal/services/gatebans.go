@@ -78,21 +78,30 @@ func (s *Services) BanEnd(b *store.NetBan) time.Time {
 	return b.Expires
 }
 
-// gateNet reads a mask as irc.MatchHost matches it against an IP: a CIDR,
-// one IP, or an IPv4 prefix written with trailing "*" octets (wildcardNet). exact: an IP must be written the way the server writes a
-// client's IP, since MatchHost compares that as text.
+// gateNet reads a mask as the server matches it against an IP: a CIDR,
+// one IP, or an IPv4 prefix written with trailing "*" octets (wildcardNet).
+// exact (a ZLINE): read the way banMatches reads it, so the gate refuses
+// just whom ZlineFor refuses: one IP however it is written (0::1 is ::1,
+// ::ffff:192.0.2.1 is 192.0.2.1), a CIDR as MatchHost reads it (an
+// IPv4-mapped range matches nobody there, so none here either). Not exact
+// (an ELINE, matched as text): an IP only in the form the server writes
+// an IPv4-mapped one in.
 func gateNet(m string, exact bool) (netip.Prefix, bool) {
 	if strings.Contains(m, "/") {
 		p, err := netip.ParsePrefix(m)
-		return p, err == nil
+		if err != nil || exact && p.Addr().Is4In6() {
+			return netip.Prefix{}, false
+		}
+		return p.Masked(), true
 	}
 	if p, ok := wildcardNet(m); ok {
 		return p, true
 	}
 	a, err := netip.ParseAddr(m)
-	if err != nil || a.Zone() != "" || a.Is4In6() || (exact && !strings.EqualFold(a.String(), m)) {
+	if err != nil || a.Zone() != "" || !exact && a.Is4In6() {
 		return netip.Prefix{}, false
 	}
+	a = a.Unmap()
 	return netip.PrefixFrom(a, a.BitLen()), true
 }
 
