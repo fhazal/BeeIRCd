@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/fhazal/beeircd/internal/passwd"
+	"github.com/fhazal/beeircd/internal/state"
 )
 
 func csLine(nick, text string) string {
@@ -542,4 +543,33 @@ func TestChanServFlags(t *testing.T) {
 	bee.expect(csLine("Bee", "ember isn't on the access list of #bchat."))
 	bee.send("CS FLAGS #bchat ember")
 	bee.expect(csLine("Bee", "Syntax: FLAGS #bchat [MODIFY] <nick> <changes>, like +AOtv or -v"))
+}
+
+// CS MODE SET follows SECUREOPS as CS OP does: the founder gave +o to
+// someone without access with CS MODE #chan SET +o.
+func TestChanServModeSetSecureOps(t *testing.T) {
+	s := testServer(t, nil)
+	bee := founded(t, s, "Bee")
+	x := login(t, s, "x")
+	joinAll("#bchat", x)
+	bee.send("CS SET #bchat SECUREOPS ON")
+	bee.expect(csLine("Bee", "Secure ops is now on for #bchat."))
+
+	bee.send("CS MODE #bchat SET +ov x x")
+	bee.expect(csLine("Bee", "x may not hold +o on #bchat: SECUREOPS is on."))
+	x.expect(csSrc + "MODE #bchat +v x")
+	var op bool
+	s.onLoop(func() {
+		ch := s.net.Channel("#bchat")
+		op = ch.Member(s.net.UserByNick("x")).Has(state.RankForMode('o'))
+	})
+	if op {
+		t.Fatal("CS MODE SET +o opped x past SECUREOPS")
+	}
+	bee.send("CS MODE #bchat +o x") // the short form too
+	bee.expect(csLine("Bee", "x may not hold +o on #bchat: SECUREOPS is on."))
+	bee.send("CS MODE #bchat SET -o Bee")
+	bee.expect(csSrc + "MODE #bchat -o Bee")
+	bee.send("CS MODE #bchat SET +o Bee") // someone allowed it still may
+	bee.expect(csSrc + "MODE #bchat +o Bee")
 }

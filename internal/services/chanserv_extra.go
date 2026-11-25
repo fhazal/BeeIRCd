@@ -915,7 +915,8 @@ func (s *Services) csOverflow(c *Client, reg *store.Channel, val string) {
 var statusPrivs = map[byte]string{'q': "OWNER", 'a': "PROTECT", 'o': "OP", 'h': "HALFOP", 'v': "VOICE"}
 
 // statusAllowed drops the status changes in a MODE SET that c's access
-// doesn't allow (Anope answers "Access denied." for each), and returns
+// doesn't allow (Anope answers "Access denied." for each) and those
+// SECUREOPS takes (as CS OP refuses them), and returns
 // the mode string and arguments left ("" modes = nothing left). Opers
 // with flag s may do all of them, like Anope's chanserv/administration.
 func (s *Services) statusAllowed(c *Client, reg *store.Channel, modes []string) []string {
@@ -962,6 +963,11 @@ func (s *Services) statusAllowed(c *Client, reg *store.Channel, modes []string) 
 					s.cs(c, "Access denied.")
 					continue
 				}
+			}
+			if add && reg.SecureOps && !target.Service && !s.secureAllows(reg, s.userLevel(reg, target), m) {
+				// As CS OP: nobody gets a status SECUREOPS takes.
+				s.cs(c, "%s may not hold +%c on %s: SECUREOPS is on.", target.Nick, m, reg.Name)
+				continue
 			}
 		}
 		want := byte('-')
