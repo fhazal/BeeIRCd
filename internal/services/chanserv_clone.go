@@ -43,6 +43,7 @@ func csClone(s *Services, c *Client, args []string) {
 	}
 	now := time.Now()
 	var done []string
+	persist := dst.Persist
 	if what == "ALL" {
 		if err := s.cloneSettings(src, dst); err != nil {
 			s.dbErr(c, s.chanServ, err)
@@ -79,6 +80,14 @@ func csClone(s *Services, c *Client, args []string) {
 	s.cs(c, "Copied from %s to %s: %s.", src.Name, dst.Name, strings.Join(done, ", "))
 	if live := s.net.Channel(dst.Name); live != nil && what == "ALL" {
 		s.csMode(live, mlockChanges(dst, live))
+	}
+	// PERSIST came over: ChanServ joins or leaves as SET PERSIST makes it.
+	if dst.Persist != persist {
+		if dst.Persist {
+			s.persistJoin(dst)
+		} else {
+			s.persistPart(dst)
+		}
 	}
 }
 
