@@ -417,3 +417,27 @@ func TestLogChannelOperServ(t *testing.T) {
 	}
 	b.expect(osl + "THROTTLE: Z-lined 127.0.0.1 for 10 minutes: refused 3 times in 10 minutes for reconnecting too fast")
 }
+
+// OperServ UMODE follows OLINE's rank rule: an oper with only flag s took
+// all of the admin's oper flags away with UMODE Boss -o.
+func TestOperServUmodeHigherOper(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	small := login(t, s, "Small")
+	small.sync()
+	b.send("OS OLINE Small +s")
+	b.expect(osLine("Boss", "Small now has oper flags s until they quit."))
+	small.expect(" 381 Small ")
+
+	small.send("OS UMODE Boss -o")
+	small.expect(osLine("Small", "Boss has oper flag a, which you don't have."))
+	var flags string
+	s.onLoop(func() { flags = s.clients[s.net.UserByNick("Boss").UID].operFlags })
+	if flags == "" {
+		t.Errorf("an oper with flag s de-opered the admin Boss with OS UMODE Boss -o")
+	}
+	small.send("OS UMODE Small +w") // their own modes are theirs
+	small.expect(osLine("Small", "Changed usermodes of Small to +w."))
+	b.send("OS UMODE Small -o") // and someone above may
+	b.expect(osLine("Boss", "Changed usermodes of Small to -o."))
+}

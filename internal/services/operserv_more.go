@@ -250,6 +250,9 @@ func osUmode(s *Services, c *Client, args []string) {
 	if t == nil {
 		return
 	}
+	if s.outranked(c, t) {
+		return
+	}
 	modes := args[1]
 	if s.host.SetUserModes(t.user.UID, s.operServ.user.UID, modes) {
 		s.os(c, "Some of %s aren't user modes we know; the rest was set.", modes)
@@ -264,6 +267,20 @@ func osUmode(s *Services, c *Client, args []string) {
 
 // olineFlags are the oper flags OLINE knows, in the usual order.
 const olineFlags = "abcghks"
+
+// outranked tells c, and reports, when t is an oper with an oper flag c
+// doesn't have: nobody changes an oper who has more than they have (OLINE
+// and UMODE).
+func (s *Services) outranked(c, t *Client) bool {
+	mine := s.host.OperFlags(c.user.UID)
+	for _, f := range []byte(s.host.OperFlags(t.user.UID)) {
+		if strings.IndexByte(olineFlags, f) >= 0 && strings.IndexByte(mine, f) < 0 {
+			s.os(c, "%s has oper flag %c, which you don't have.", t.user.Nick, f)
+			return true
+		}
+	}
+	return false
+}
 
 func osOline(s *Services, c *Client, args []string) {
 	if !s.needFlag(c, s.operServ, 'a') {
@@ -282,14 +299,12 @@ func osOline(s *Services, c *Client, args []string) {
 	if t == nil {
 		return
 	}
+	if s.outranked(c, t) {
+		return
+	}
 	mine := s.host.OperFlags(c.user.UID)
 	have := map[byte]bool{}
 	for _, f := range []byte(s.host.OperFlags(t.user.UID)) {
-		if strings.IndexByte(olineFlags, f) >= 0 && strings.IndexByte(mine, f) < 0 {
-			// Nobody changes an oper who has more than they have.
-			s.os(c, "%s has oper flag %c, which you don't have.", t.user.Nick, f)
-			return
-		}
 		have[f] = true // a remote oper's "o" matches no flag and drops out
 	}
 	add := true
