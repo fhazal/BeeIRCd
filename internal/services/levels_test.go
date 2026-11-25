@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/fhazal/beeircd/internal/state"
+	"github.com/fhazal/beeircd/internal/store"
 )
 
 // regNick connects nick and registers it (pass honeypot42).
@@ -41,5 +42,35 @@ func TestFlagsRankAfterLevelsSet(t *testing.T) {
 	}
 	if _, flags := svc.store.ChanAccess(reg, svc.AccountID(wasp.UID)); flags != "t" {
 		t.Errorf("Wasp's entry changed to %q", flags)
+	}
+}
+
+// AOP ADD for someone whose FLAGS entry ranks as AOP said "already on
+// the AOP list", yet that list leaves FLAGS entries out.
+func TestXopAddFlagsEntry(t *testing.T) {
+	svc, h := newServices(t)
+	cs := h.net.UserByNick("ChanServ")
+	bee := regChannel(t, svc, h, "1LFAAAAAA", "Bee")
+	wasp := regNick(t, svc, h, "1LFAAAAAB", "Wasp")
+	svc.Message(bee.UID, cs, "FLAGS #hive Wasp +o")
+	noticeTo(h, "Bee")
+	reg, _ := svc.store.ChannelByName("#hive")
+	if lvl, flags := svc.store.ChanAccess(reg, svc.AccountID(wasp.UID)); flags == "" || lvl != store.LevelAOP {
+		t.Fatalf("setup: Wasp level %d flags %q", lvl, flags)
+	}
+	svc.Message(bee.UID, cs, "AOP #hive ADD Wasp")
+	if got := noticeTo(h, "Bee"); !strings.Contains(got, "Wasp added to the AOP list of #hive.") {
+		t.Errorf("AOP ADD: %q", got)
+	}
+	if _, flags := svc.store.ChanAccess(reg, svc.AccountID(wasp.UID)); flags != "" {
+		t.Errorf("Wasp is still a FLAGS entry (%q)", flags)
+	}
+	svc.Message(bee.UID, cs, "AOP #hive LIST")
+	if got := noticeTo(h, "Bee"); !strings.Contains(got, "Wasp") {
+		t.Errorf("AOP LIST misses Wasp: %q", got)
+	}
+	svc.Message(bee.UID, cs, "AOP #hive ADD Wasp")
+	if got := noticeTo(h, "Bee"); !strings.Contains(got, "Wasp is on the AOP list of #hive already.") {
+		t.Errorf("second AOP ADD: %q", got)
 	}
 }

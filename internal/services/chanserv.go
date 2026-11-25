@@ -451,8 +451,10 @@ func csLevelList(level int) func(*Services, *Client, []string) {
 			if !ok {
 				return
 			}
-			old, _ := s.store.Level(reg, target.ID)
-			if old == level {
+			// A FLAGS entry ranked at this level isn't on the list: it
+			// becomes a plain entry.
+			old, oldFlags := s.store.ChanAccess(reg, target.ID)
+			if old == level && oldFlags == "" {
 				s.cs(c, "%s is on the %s list of %s already.", target.Name, n, reg.Name)
 				return
 			}
@@ -468,7 +470,7 @@ func csLevelList(level int) func(*Services, *Client, []string) {
 				return
 			}
 			s.csLog(c, reg.Name, false, "to add %s", target.Name)
-			if old == store.LevelNone {
+			if old == store.LevelNone || old == level {
 				s.csUsed(c, reg)
 				s.cs(c, "%s added to the %s list of %s.", target.Name, n, reg.Name)
 			} else {
