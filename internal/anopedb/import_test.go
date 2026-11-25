@@ -360,3 +360,45 @@ END
 		t.Errorf("report changed=%v unknown=%v", r.Changed, r.Unknown)
 	}
 }
+
+// A ban type outside 0-3 came in as it was and later broke ChanServ
+// INFO; it takes the default (2) now.
+func TestImportBadBanType(t *testing.T) {
+	db := `OBJECT NickCore
+DATA display Ann
+END
+OBJECT NickAlias
+DATA nick Ann
+DATA nc Ann
+END
+OBJECT ChannelInfo
+DATA name #seven
+DATA founder Ann
+DATA bantype 7
+END
+OBJECT ChannelInfo
+DATA name #minus
+DATA founder Ann
+DATA bantype -1
+END
+OBJECT ChannelInfo
+DATA name #one
+DATA founder Ann
+DATA bantype 1
+END
+`
+	objs, err := Parse(strings.NewReader(db))
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := newStore(t)
+	if _, err := Import(st, objs, Options{}); err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range map[string]int{"#seven": 2, "#minus": 2, "#one": 1} {
+		c, _ := st.ChannelByName(name)
+		if c == nil || c.BanType != want {
+			t.Errorf("%s: %+v, want ban type %d", name, c, want)
+		}
+	}
+}

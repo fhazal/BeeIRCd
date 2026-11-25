@@ -398,7 +398,9 @@ func (im *importer) channels(_ []Object, by map[string][]Object) error {
 		c.ChanStats = ci.Bool("CS_STATS")
 		c.AutoOp = !ci.Bool("NOAUTOOP")
 		c.NoExpire = ci.Bool("CS_NO_EXPIRE")
-		c.BanType = int(ci.Int("bantype"))
+		if n := ci.Int("bantype"); n >= 0 && n <= 3 {
+			c.BanType = int(n)
+		} // else keep the default (2, *!*@host)
 		c.LastModes = lastModes(ci.Words("last_modes"))
 		if n := ci.Int("memomax"); n > 0 {
 			c.MemoLimit = int(n)

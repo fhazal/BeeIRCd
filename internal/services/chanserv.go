@@ -393,7 +393,7 @@ func csInfo(s *Services, c *Client, args []string) {
 		opts = []string{s.tr(c, "none")}
 	}
 	s.cs(c, "  Options       %s", strings.Join(opts, ", "))
-	s.cs(c, "  Ban type      %d (%s)", reg.BanType, banTypes[reg.BanType])
+	s.cs(c, "  Ban type      %d (%s)", reg.BanType, banTypeName(reg.BanType))
 	for i, e := range s.store.EntryMsgs(reg) {
 		label := ""
 		if i == 0 {
@@ -816,6 +816,15 @@ func (s *Services) svcKick(sv *service, ch *state.Channel, u *state.User, reason
 
 // banTypes say what each BANTYPE bans.
 var banTypes = []string{"*!user@host", "*!*user@host", "*!*@host", "*!*user@*.domain"}
+
+// banTypeName says what BANTYPE n bans; one out of range (an old or
+// hand-edited database) bans as type 2 does, see banMask.
+func banTypeName(n int) string {
+	if n < 0 || n >= len(banTypes) {
+		n = 2
+	}
+	return banTypes[n]
+}
 
 // banMask is the ban BANTYPE gives for u.
 func banMask(reg *store.Channel, u *state.User) string {

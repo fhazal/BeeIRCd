@@ -81,3 +81,26 @@ func TestMemoListSaysUTC(t *testing.T) {
 		t.Errorf("MS LIST in Malay: %q", got)
 	}
 }
+
+// A ban type outside 0-3 (from an old Anope import) made INFO panic; it
+// shows what such a channel bans with: *!*@host, as type 2.
+func TestChanServInfoBadBanType(t *testing.T) {
+	svc, h := newServices(t)
+	cs := h.net.UserByNick("ChanServ")
+	bee := regChannel(t, svc, h, "1LFAAAAAA", "Bee")
+	noticeTo(h, "Bee")
+	reg, _ := svc.store.ChannelByName("#hive")
+	reg.BanType = 7
+	if err := svc.store.SaveChannel(reg); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("INFO panicked: %v", r)
+		}
+	}()
+	svc.Message(bee.UID, cs, "INFO #hive")
+	if got := noticeTo(h, "Bee"); !strings.Contains(got, "  Ban type      7 (*!*@host)") {
+		t.Errorf("INFO: %q", got)
+	}
+}
