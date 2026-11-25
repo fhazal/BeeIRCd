@@ -582,9 +582,13 @@ func ignoreTime(arg string) (time.Duration, bool) {
 }
 
 // liveIgnores drops expired ignores (with Anope's log line) and returns
-// the rest.
+// the rest. While READONLY or NOEXPIRE is on nothing expires: a run-out
+// ignore stays in force, like a network ban.
 func (s *Services) liveIgnores() []store.Ignore {
-	now := time.Now()
+	now := s.banNow()
+	if now.IsZero() {
+		return s.ignores
+	}
 	keep := s.ignores[:0:0]
 	for _, g := range s.ignores {
 		if g.Expires.Unix() > 0 && !now.Before(g.Expires) {

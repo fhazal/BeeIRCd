@@ -379,3 +379,30 @@ func TestReadOnlyOutsideLoginCreatesNothing(t *testing.T) {
 		t.Errorf("READONLY on, yet a first outside login registered account %q", a.Name)
 	}
 }
+
+// The periodic Expire deleted run-out ignores from the database while
+// READONLY was on. Now, as for network bans, nothing expires then (nor
+// under NOEXPIRE): the ignore stays in force until the switch goes off.
+func TestReadOnlyKeepsIgnores(t *testing.T) {
+	svc, _ := newServices(t)
+	past := time.Now().Add(-time.Hour).Truncate(time.Second)
+	if err := svc.store.SetSvcIgnore(store.Ignore{Mask: "*!*@spam.example", SetBy: "Boss", SetAt: past, Expires: past.Add(time.Minute)}); err != nil {
+		t.Fatal(err)
+	}
+	svc.reloadOperData()
+	for _, sw := range []*bool{&svc.readonly, &svc.noexpire} {
+		*sw = true
+		svc.Expire(time.Now())
+		if list, err := svc.store.SvcIgnores(); err != nil || len(list) != 1 {
+			t.Errorf("READONLY %v NOEXPIRE %v: database ignores %v, %v", svc.readonly, svc.noexpire, list, err)
+		}
+		if len(svc.liveIgnores()) != 1 || len(svc.WebIgnores()) != 1 {
+			t.Errorf("READONLY %v NOEXPIRE %v: run-out ignore not kept in force", svc.readonly, svc.noexpire)
+		}
+		*sw = false
+	}
+	svc.Expire(time.Now())
+	if list, _ := svc.store.SvcIgnores(); len(list) != 0 || len(svc.liveIgnores()) != 0 {
+		t.Errorf("switches off: run-out ignore not expired: %v", list)
+	}
+}

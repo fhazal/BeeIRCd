@@ -286,9 +286,10 @@ func (s *Services) WebSessions(max int) (limit int, busiest []SessionHost, excep
 // DefconWords says what DEFCON level n does.
 func DefconWords(n int) string { return defconWords[n] }
 
-// WebIgnores are the live OperServ IGNORE entries.
+// WebIgnores are the live OperServ IGNORE entries (a run-out one stays
+// while READONLY or NOEXPIRE is on, as for IGNORE itself).
 func (s *Services) WebIgnores() []store.Ignore {
-	now := time.Now()
+	now := s.banNow()
 	var out []store.Ignore
 	for _, g := range s.ignores {
 		if g.Expires.IsZero() || g.Expires.Unix() == 0 || now.Before(g.Expires) {
