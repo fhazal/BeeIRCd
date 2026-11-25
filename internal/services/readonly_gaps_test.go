@@ -1,11 +1,13 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/fhazal/beeircd/internal/extauth"
 	"github.com/fhazal/beeircd/internal/spamfilter"
 	"github.com/fhazal/beeircd/internal/state"
 	"github.com/fhazal/beeircd/internal/store"
@@ -344,5 +346,36 @@ func TestNoExpireRemoteSpamFilter(t *testing.T) {
 	svc.expireSpamFilters(time.Now())
 	if list, _ := svc.store.SpamFilters(); len(list) != 0 {
 		t.Errorf("remote spam filter kept with NOEXPIRE off")
+	}
+}
+
+// sayOK is an outside login source that takes every password.
+type sayOK struct{}
+
+func (sayOK) Check(context.Context, extauth.Query) extauth.Answer {
+	return extauth.Answer{Result: extauth.OK}
+}
+func (sayOK) Close() {}
+
+// A first login through the outside source ([auth] create) made a
+// NickServ account while READONLY was on.
+func TestReadOnlyOutsideLoginCreatesNothing(t *testing.T) {
+	svc, h := newServices(t)
+	svc.cfg.Auth.Source = "sql"
+	svc.extCfg = svc.cfg.Auth
+	svc.ext = sayOK{}
+	ns := h.net.UserByNick("NickServ")
+	wasp := helpUser(t, h, "1LFAAAAAD", "Wasp")
+	if !svc.OutsideCreates("Wasp") {
+		t.Fatal("OutsideCreates is off with READONLY off")
+	}
+	svc.readonly = true
+	if svc.OutsideCreates("Wasp") {
+		t.Error("OutsideCreates is on with READONLY on")
+	}
+	svc.Message(wasp.UID, ns, "IDENTIFY honeypot42")
+	h.waitFor("Wasp", "")
+	if a, _ := svc.store.AccountByNick("Wasp"); a != nil {
+		t.Errorf("READONLY on, yet a first outside login registered account %q", a.Name)
 	}
 }

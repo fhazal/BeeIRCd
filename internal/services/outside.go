@@ -66,9 +66,10 @@ func (s *Services) CheckOper(busy *bool, gone func() bool, key int64, src, name,
 }
 
 // OutsideCreates reports whether a login as name, which has no account
-// here, may be asked from the outside source and make the account.
+// here, may be asked from the outside source and make the account. Not
+// while READONLY is on: that would store a new account.
 func (s *Services) OutsideCreates(name string) bool {
-	return !s.off && s.cfg.Auth.On() && s.cfg.Auth.Creates() && s.DefconLevel() > 4 &&
+	return !s.off && !s.readonly && s.cfg.Auth.On() && s.cfg.Auth.Creates() && s.DefconLevel() > 4 &&
 		irc.ValidNick(name, s.cfg.Limits.NickLen) && s.registerForbidden(name) == ""
 }
 
