@@ -18,8 +18,9 @@ var banUnits = map[byte]time.Duration{
 	's': time.Second,
 }
 
-// maxBanDuration keeps a typo from overflowing.
-const maxBanDuration = 100 * 365 * 24 * time.Hour
+// MaxBanDuration is the longest ban (or OperServ IGNORE) time taken: it
+// keeps a typo from overflowing.
+const MaxBanDuration = 100 * 365 * 24 * time.Hour
 
 // ParseBanDuration reads how long a ban (KLINE, GLINE, AKILL, SHUN,
 // ZLINE, ...) lasts: plain seconds ("90"), or units together like
@@ -31,7 +32,7 @@ func ParseBanDuration(v string) (time.Duration, error) {
 		return 0, bad
 	}
 	if n, err := strconv.ParseInt(v, 10, 64); err == nil {
-		if n < 0 || time.Duration(n) > maxBanDuration/time.Second {
+		if n < 0 || time.Duration(n) > MaxBanDuration/time.Second {
 			return 0, bad
 		}
 		return time.Duration(n) * time.Second, nil
@@ -50,11 +51,11 @@ func ParseBanDuration(v string) (time.Duration, error) {
 			return parseGoDuration(v, bad)
 		}
 		n, err := strconv.ParseInt(v[i:j], 10, 64)
-		if err != nil || time.Duration(n) > maxBanDuration/unit {
+		if err != nil || time.Duration(n) > MaxBanDuration/unit {
 			return 0, bad
 		}
 		total += time.Duration(n) * unit
-		if total > maxBanDuration {
+		if total > MaxBanDuration {
 			return 0, bad
 		}
 		i = j + 1
@@ -65,7 +66,7 @@ func ParseBanDuration(v string) (time.Duration, error) {
 // parseGoDuration takes what Go's own form allows too ("1.5h", "500ms").
 func parseGoDuration(v string, bad error) (time.Duration, error) {
 	d, err := time.ParseDuration(v)
-	if err != nil || d < 0 || d > maxBanDuration {
+	if err != nil || d < 0 || d > MaxBanDuration {
 		return 0, bad
 	}
 	return d, nil

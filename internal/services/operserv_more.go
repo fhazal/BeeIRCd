@@ -573,12 +573,21 @@ func (s *Services) ignoreMask(arg string) string {
 }
 
 // ignoreTime reads IGNORE's time: a bare number is seconds, 0 is for good.
+// Longer than config.MaxBanDuration is refused: it would overflow.
 func ignoreTime(arg string) (time.Duration, bool) {
 	if n, err := strconv.Atoi(arg); err == nil && n >= 0 {
+		if time.Duration(n) > config.MaxBanDuration/time.Second {
+			return 0, false
+		}
 		return time.Duration(n) * time.Second, true
 	}
+	if days, ok := strings.CutSuffix(arg, "d"); ok {
+		if n, err := strconv.Atoi(days); err == nil && time.Duration(n) > config.MaxBanDuration/(24*time.Hour) {
+			return 0, false
+		}
+	}
 	d, err := config.ParseDuration(arg)
-	return d, err == nil && d > 0
+	return d, err == nil && d > 0 && d <= config.MaxBanDuration
 }
 
 // liveIgnores drops expired ignores (with Anope's log line) and returns
