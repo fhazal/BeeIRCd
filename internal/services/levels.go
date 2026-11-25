@@ -322,7 +322,9 @@ func csAccess(s *Services, c *Client, args []string) {
 		if s.neverOpBlocks(c, target, old, newLevel) {
 			return
 		}
-		if !s.accessChange(c, reg, lvl, old, newLevel, target.Name) {
+		// A FLAGS entry ranks by what its letters need now (LEVELS SET may
+		// have changed that since it was set), not by the level stored.
+		if !s.accessChange(c, reg, lvl, s.accountLevel(reg, target.ID).level, newLevel, target.Name) {
 			return
 		}
 		if old == newLevel {
@@ -458,7 +460,7 @@ func (s *Services) accessDel(c *Client, reg *store.Channel, lvl access, level in
 	var names []string
 	for _, e := range gone {
 		self := e.AccountID == c.accountID // you may always take yourself off
-		if !self && e.Level >= lvl.level && lvl.level != store.LevelFounder {
+		if !self && lvl.level != store.LevelFounder && s.accountLevel(reg, e.AccountID).level >= lvl.level {
 			s.cs(c, "You can't change %s: their level is the same as or above yours.", e.Account)
 			continue
 		}

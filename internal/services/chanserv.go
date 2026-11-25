@@ -459,7 +459,7 @@ func csLevelList(level int) func(*Services, *Client, []string) {
 			if s.neverOpBlocks(c, target, old, level) {
 				return
 			}
-			if !s.accessChange(c, reg, lvl, old, level, target.Name) {
+			if !s.accessChange(c, reg, lvl, s.accountLevel(reg, target.ID).level, level, target.Name) {
 				return
 			}
 			note := irc.Truncate(strings.Join(args[3:], " "), 100)
