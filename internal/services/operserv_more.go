@@ -269,8 +269,8 @@ func osUmode(s *Services, c *Client, args []string) {
 const olineFlags = "abcghks"
 
 // outranked tells c, and reports, when t is an oper with an oper flag c
-// doesn't have: nobody changes an oper who has more than they have (OLINE
-// and UMODE).
+// doesn't have: nobody changes an oper who has more than they have (OLINE,
+// UMODE and KILL).
 func (s *Services) outranked(c, t *Client) bool {
 	mine := s.host.OperFlags(c.user.UID)
 	for _, f := range []byte(s.host.OperFlags(t.user.UID)) {

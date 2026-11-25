@@ -441,3 +441,29 @@ func TestOperServUmodeHigherOper(t *testing.T) {
 	b.send("OS UMODE Small -o") // and someone above may
 	b.expect(osLine("Boss", "Changed usermodes of Small to -o."))
 }
+
+// OperServ KILL follows the same rank rule: an oper with only flag k could
+// disconnect the admin.
+func TestOperServKillHigherOper(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	small := login(t, s, "Small")
+	small.sync()
+	b.send("OS OLINE Small +k")
+	b.expect(osLine("Boss", "Small now has oper flags k until they quit."))
+	small.expect(" 381 Small ")
+
+	small.send("OS KILL Boss bye")
+	small.expect(osLine("Small", "Boss has oper flag a, which you don't have."))
+	var online bool
+	s.onLoop(func() { online = s.net.UserByNick("Boss") != nil })
+	if !online {
+		t.Fatal("an oper with flag k disconnected the admin Boss with OS KILL")
+	}
+	other := login(t, s, "Other")
+	other.sync()
+	small.send("OS KILL Other bye") // someone without oper flags: as before
+	small.expect(osLine("Small", "Other is disconnected."))
+	b.send("OS KILL Small bye") // and someone above may
+	b.expect(osLine("Boss", "Small is disconnected."))
+}

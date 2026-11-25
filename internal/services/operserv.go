@@ -221,6 +221,8 @@ func osKill(s *Services, c *Client, args []string) {
 		s.os(c, "%s isn't online.", args[0])
 	case t.Service:
 		s.os(c, "%s is a service.", t.Nick)
+	case s.clientOf(t) != nil && s.outranked(c, s.clientOf(t)):
+		// As OLINE and UMODE: nobody disconnects an oper above them.
 	default:
 		s.osLog(c, "on %s for %s", t.Nick, reason)
 		s.killUser(t, "OperServ", reason+" ["+c.user.Nick+"]")
