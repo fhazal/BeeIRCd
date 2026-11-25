@@ -184,7 +184,7 @@ func (s *Services) BanDelVia(by, via, kind, mask string) (removed string, proble
 	case irc.IsPlaceMask(m): // a ban by place, stored in its short form
 	case kind == store.BanSNLine: // stored as typed: a realname mask or /regex/
 	case kind == store.BanZline:
-		m = strings.ToLower(m)
+		m = zlineMask(m)
 	default:
 		m = strings.ToLower(m)
 		if !strings.Contains(m, "@") {
@@ -192,6 +192,12 @@ func (s *Services) BanDelVia(by, via, kind, mask string) (removed string, proble
 		}
 	}
 	ok, err := s.store.DelNetBan(kind, m)
+	if typed := strings.ToLower(strings.TrimSpace(mask)); err == nil && !ok && kind == store.BanZline && typed != m {
+		// One kept as typed, before ZLINEs were kept one way.
+		if ok, err = s.store.DelNetBan(kind, typed); ok {
+			m = typed
+		}
+	}
 	if err != nil {
 		s.log.Printf("services database: %v", err)
 		return "", "Something went wrong on the server. Please try again in a moment."

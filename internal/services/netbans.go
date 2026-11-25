@@ -88,7 +88,15 @@ func (s *Services) banMatches(b *store.NetBan, ident, host, ip, realname string)
 	}
 	switch b.Kind {
 	case store.BanZline:
-		return ip != "" && irc.MatchHost(b.Mask, ip)
+		if ip == "" {
+			return false
+		}
+		if m, err := netip.ParseAddr(b.Mask); err == nil {
+			// One address: the same IP however it is written (0::1 is ::1).
+			a, err := netip.ParseAddr(ip)
+			return err == nil && m.Unmap() == a.Unmap()
+		}
+		return irc.MatchHost(b.Mask, ip)
 	case store.BanSNLine:
 		if re := s.banRegexp(b.Mask); re != nil {
 			return re.MatchString(realname)
@@ -231,7 +239,7 @@ func (s *Services) netbanMask(kind, arg string) (string, string) {
 	switch kind {
 	case store.BanZline:
 		if u != nil && u.IP != "" {
-			return irc.DisplayIP(u.IP), ""
+			return zlineMask(u.IP), ""
 		}
 		m := strings.ToLower(arg)
 		if strings.Contains(m, "/") {
@@ -241,7 +249,7 @@ func (s *Services) netbanMask(kind, arg string) (string, string) {
 			if p, _ := netip.ParsePrefix(m); p.Bits() == 0 {
 				return "", "That mask matches everyone. Give a narrower one."
 			}
-			return m, ""
+			return zlineMask(m), ""
 		}
 		_, ipErr := netip.ParseAddr(m)
 		if m == "" || strings.Trim(m, "0123456789abcdef.:*?") != "" || !strings.ContainsAny(m, "*?") && ipErr != nil {
@@ -250,7 +258,7 @@ func (s *Services) netbanMask(kind, arg string) (string, string) {
 		if strings.Trim(m, "*?.:") == "" {
 			return "", "That mask matches everyone. Give a narrower one."
 		}
-		return m, ""
+		return zlineMask(m), ""
 	case store.BanSNLine:
 		if u != nil {
 			return strings.ReplaceAll(u.Realname, " ", "?"), ""
@@ -282,6 +290,20 @@ func (s *Services) netbanMask(kind, arg string) (string, string) {
 		}
 	}
 	return m, problem
+}
+
+// zlineMask is the one way a ZLINE on an IP or CIDR range is kept, however
+// it was typed: 2001:db8:0:0:0:0:0:1 is 2001:db8::1. One starting with ':'
+// gets a 0 in front (0::1), as a host is shown, so it can travel between
+// servers. A wildcard mask stays as it is, lowercased.
+func zlineMask(m string) string {
+	if p, err := netip.ParsePrefix(m); err == nil {
+		return irc.DisplayIP(p.String())
+	}
+	if a, err := netip.ParseAddr(m); err == nil && a.Zone() == "" {
+		return irc.DisplayIP(a.Unmap().String())
+	}
+	return strings.ToLower(m)
 }
 
 // akillMask turns a nick, host or user@host into a user@host mask.
@@ -453,7 +475,7 @@ func (s *Services) netBanCommand(c *Client, k banKind, args []string) {
 			case irc.IsPlaceMask(m):
 			case k.kind == store.BanSNLine:
 			case k.kind == store.BanZline:
-				m = strings.ToLower(m)
+				m = zlineMask(m)
 			default:
 				m = strings.ToLower(m)
 				if !strings.Contains(m, "@") {
@@ -461,6 +483,9 @@ func (s *Services) netBanCommand(c *Client, k banKind, args []string) {
 				}
 			}
 			masks = []string{m}
+			if typed := strings.ToLower(arg); k.kind == store.BanZline && !irc.IsPlaceMask(m) && typed != m {
+				masks = append(masks, typed) // one kept as typed before
+			}
 			// The nick of someone online: the mask ADD would have made
 			// for them (SHUN -nick, GLINE -nick).
 			if u := s.net.UserByNick(arg); u != nil && !u.Service {

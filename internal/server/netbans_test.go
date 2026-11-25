@@ -264,3 +264,21 @@ func TestXlineNoticeWording(t *testing.T) {
 	b.send("SHUN ~loud@* 3600 too loud")
 	b.expect("*** XLINE: Boss added a timed SHUN on ~loud@*, expires in 1 hour (on ")
 }
+
+// A ZLINE is kept one way however it was typed (2001:db8::1), so it
+// matches the IP the server checks, and DEL finds it typed either way.
+func TestZlineKeptOneWay(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	login(t, s, "loopy")
+	s.onLoop(func() { s.net.UserByNick("loopy").IP = "2001:db8::7" })
+	b.send("OS ZLINE ADD 2001:DB8:0:0:0:0:0:7 by hand")
+	b.expect(osLine("Boss", "ZLINE added: 2001:db8::7 for "))
+	var hit bool
+	s.onLoop(func() { hit = s.svc.ConnectBan("x", "h", "2001:db8::7", "r", false) != nil })
+	if !hit {
+		t.Error("ZLINE typed in full form doesn't match 2001:db8::7")
+	}
+	b.send("OS ZLINE DEL 2001:db8:0:0:0:0:0:7")
+	b.expect(osLine("Boss", "ZLINE on 2001:db8::7 removed."))
+}

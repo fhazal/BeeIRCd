@@ -91,6 +91,8 @@ func (s *Services) RemoteBan(b store.NetBan, add bool) (changed, stale bool) {
 			return false, false
 		}
 		b.Mask = m
+	} else if b.Kind == store.BanZline {
+		b.Mask = zlineMask(b.Mask)
 	} else if b.Kind != store.BanSNLine {
 		// An SNLINE keeps its case, as OperServ stores it: lowercasing a
 		// /regex/ changes what it means (\W is not \w).
