@@ -500,3 +500,36 @@ func TestBotServChangeInPlace(t *testing.T) {
 	ember.send("WHOIS Buzz")
 	ember.expect(" 311 ember Buzz newid new.host * :Other Name")
 }
+
+// BotServ refuses a suspended channel as ChanServ does: the founder of a
+// suspended channel could still ASSIGN, SAY, SET and change kickers there.
+func TestBotServSuspendedChannel(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	b.send("BS BOT ADD Bzz bot bot.host Busy Bee")
+	b.expect(bsLine("Boss", "Bzz!bot@bot.host (Busy Bee) added to the bot list."))
+	bee := founded(t, s, "Bee")
+	b.send("CS SUSPEND #bchat +2h spam wave")
+	b.expect(csLine("Boss", "#bchat is suspended for 2 hours"))
+
+	for _, cmd := range []string{
+		"BS ASSIGN #bchat Bzz",
+		"BS UNASSIGN #bchat",
+		"BS SAY #bchat hi",
+		"BS ACT #bchat waves",
+		"BS SET #bchat GREET ON",
+		"BS KICK #bchat CAPS ON",
+		"BS BADWORDS #bchat ADD spam",
+	} {
+		bee.send(cmd)
+		bee.expect(bsLine("Bee", "#bchat is suspended: spam wave"))
+	}
+	// An oper with flag s still may.
+	b.send("BS ASSIGN #bchat Bzz")
+	b.expect(bsLine("Boss", "Bot Bzz has been assigned to #bchat."))
+
+	b.send("CS UNSUSPEND #bchat")
+	b.expect(csLine("Boss", "#bchat can be used again."))
+	bee.send("BS SET #bchat GREET ON")
+	bee.quiet("suspended")
+}

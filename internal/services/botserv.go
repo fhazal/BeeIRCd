@@ -295,7 +295,9 @@ func (s *Services) bsLog(c *Client, override bool, channel, format string, a ...
 	s.logCmd(c, s.botServ, kind, channel, fmt.Sprintf(format, a...))
 }
 
-// bsReg finds a registered channel for a BotServ command.
+// bsReg finds a registered channel for a BotServ command. A suspended
+// channel is refused, as ChanServ refuses it (csChan), except to opers
+// with flag s.
 func (s *Services) bsReg(c *Client, name string) *store.Channel {
 	reg, err := s.store.ChannelByName(name)
 	if err != nil {
@@ -304,6 +306,10 @@ func (s *Services) bsReg(c *Client, name string) *store.Channel {
 	}
 	if reg == nil {
 		s.bs(c, msgChanNotReg, name)
+		return nil
+	}
+	if reg.Suspended(s.KeepNow()) && !c.can('s') && !s.isSuperAdmin(c) {
+		s.bs(c, "%s is suspended: %s", reg.Name, reg.SuspendReason)
 		return nil
 	}
 	return reg
