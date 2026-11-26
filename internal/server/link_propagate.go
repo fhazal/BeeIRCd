@@ -345,7 +345,7 @@ func (s *Server) linkLive(l *linkConn, m irc.Message, item any) bool {
 	case *link.Login:
 		if u := s.userByUIDOrNick(it.UID); u == nil {
 			s.remoteLogin(l, m.String(), it.Target, it.UID, it.Account)
-		} else if u.Account != it.Account {
+		} else if u.Account != it.Account && s.linkLoginOK(l, u.UID, u.Nick, it.Account, u.Account) {
 			s.emitFrom(l, m.Source, &state.Login{UID: u.UID, Account: it.Account})
 		}
 	case *link.Host:
@@ -597,7 +597,7 @@ func (s *Server) remoteUMode(l *linkConn, m *link.UMode) {
 	if u == nil {
 		return
 	}
-	if m.Login != nil && u.Account != m.Login.Account {
+	if m.Login != nil && u.Account != m.Login.Account && s.linkLoginOK(l, u.UID, u.Nick, m.Login.Account, u.Account) {
 		s.emitFrom(l, m.Source, &state.Login{UID: u.UID, Account: m.Login.Account})
 	}
 	if strings.Trim(m.Modes, "+-") == "" {

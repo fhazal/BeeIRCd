@@ -37,6 +37,7 @@ func (s *Server) emit(ev state.Event) error {
 	}
 	s.dropGoneHistory(histGone)
 	s.linkOut(ev, org)
+	s.noteLogins(ev, org)
 	s.metadataAfter(ev)
 	if mdLogin != nil {
 		mdLogin()

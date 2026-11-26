@@ -293,6 +293,11 @@ func (s *Server) remoteUser(l *linkConn, source string, in *link.User) {
 		}
 		in.Nick = in.UID
 	}
+	if in.Account != "" && !s.linkLoginOK(l, in.UID, in.Nick, in.Account, "") {
+		// Not a login our services gave: they come in logged out (before
+		// the nick collision check, which looks at the account).
+		in.Account = ""
+	}
 	if ex := s.net.UserByNick(in.Nick); ex != nil && !s.ours(ex.UID) && uidServer(ex.UID) == uidServer(in.UID) {
 		// One server never has two users with one nick, so the one we
 		// hold is a ghost: we missed how it left. Drop it here; killing

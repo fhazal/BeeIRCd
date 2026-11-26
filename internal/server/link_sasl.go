@@ -308,6 +308,9 @@ func (s *Server) saslServe(l *linkConn, from, uid, mode, data string, extra []st
 		if u := s.net.UserByUID(uid); u != nil {
 			s.svc.Login(uid, a) // on the network already: a normal login
 		} else {
+			// They are not on the network yet: their server sends the
+			// account in its UID line, which we take because of this.
+			s.grantLogin(uid, a.Name, true)
 			l.send(":" + src + " SVSLOGIN " + server + " " + uid + " " + a.Name)
 		}
 		done(true)

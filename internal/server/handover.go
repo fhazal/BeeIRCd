@@ -119,6 +119,10 @@ type handoverSnap struct {
 	// ([history] secret not set). With a secret it goes through the
 	// history file, as at every stop and start.
 	History history.Snapshot
+	// Logins: the logins our services gave to people on other servers, by
+	// UID (link_logins.go), so they keep them when their server links
+	// again.
+	Logins map[string]string
 }
 
 type timedBanSnap struct {
@@ -401,6 +405,12 @@ func (s *Server) handoverNow() {
 	}
 	for _, f := range s.floodUnsets {
 		snap.FloodUnsets = append(snap.FloodUnsets, floodUnsetSnap{f.channel, f.mode, f.until})
+	}
+	for uid, g := range s.links.logins {
+		if snap.Logins == nil {
+			snap.Logins = map[string]string{}
+		}
+		snap.Logins[uid] = g.account
 	}
 	conns := make(map[string]net.Conn, len(keep))
 	for _, c := range keep {
@@ -774,6 +784,9 @@ func (s *Server) takeOver(r *resume) (err error) {
 	}
 	if len(snap.History) > 0 && s.cfg.History.Secret == "" && s.hist.store != nil {
 		s.hist.store.Restore(snap.History, time.Now())
+	}
+	for uid, account := range snap.Logins {
+		s.grantLogin(uid, account, true) // their server links again soon
 	}
 	s.svc.HandoverLoad(snap.Services, uidNow)
 	for _, uid := range lost {

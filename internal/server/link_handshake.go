@@ -111,6 +111,10 @@ type linkState struct {
 	ipAsked     bool                  // the lookup has started this run
 	// remoteOpers: opers we granted on other servers, by UID (2g live changes).
 	remoteOpers map[string]remoteGrant
+	// logins: the accounts our services logged people on other servers in
+	// to, by UID, kept through a netsplit (link_logins.go).
+	logins      map[string]loginGrant
+	loginsSwept time.Time // when expireLogins last ran
 }
 
 type linkRetry struct {
@@ -1212,6 +1216,7 @@ func (s *Server) linkTick(now time.Time) {
 			s.lnotice("Server \x02%s\x02 has not responded to PING for %d seconds, high latency.", l.peer.Name, int(now.Sub(l.pingSent).Seconds()))
 		}
 	}
+	s.expireLogins(now)
 	s.autoconnect(now)
 }
 
