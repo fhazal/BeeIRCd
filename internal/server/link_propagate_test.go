@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fhazal/beeircd/internal/link"
 	"github.com/fhazal/beeircd/internal/store"
 )
 
@@ -163,6 +164,50 @@ func TestLinkTwoServices(t *testing.T) {
 	if len(hub.servers()) != 0 {
 		t.Error("linked anyway")
 	}
+	// The refused handshake would only come again: the leaf waits
+	// linkServicesRetry, not linkRetryMin, and says why once.
+	waitLink(t, "leaf backs off", func() bool {
+		long := false
+		leaf.s.onLoop(func() {
+			r := leaf.s.links.retry["hub.test.local"]
+			long = r != nil && !r.dialing && time.Until(r.next) > linkRetryMax
+		})
+		return long
+	})
+	if !leaf.logHas("runs its own services; retrying every 10 minutes") {
+		t.Errorf("leaf: no back-off notice in:\n%s", leaf.log.String())
+	}
+	// Each further refusal of an incoming link is told once an hour.
+	hub.s.onLoop(func() {
+		l := &linkConn{addr: "127.0.0.1:1", denied: true}
+		hub.s.linkFailed(l, "leaf.test.local", "Link denied: both a and b "+link.BothServices)
+		hub.s.linkFailed(l, "leaf.test.local", "Link denied: both a and b "+link.BothServices)
+	})
+	if n := strings.Count(hub.log.String(), "Server connection from leaf.test.local denied, "); n != 1 {
+		t.Errorf("hub told opers %d times:\n%s", n, hub.log.String())
+	}
+}
+
+// A handshake refused for any other reason backs off like a failed dial.
+func TestLinkRefusedBacksOff(t *testing.T) {
+	n := newLinkNode(t, "hub.test.local", "0HB", "hub")
+	n.start(t)
+	s := n.s
+	s.onLoop(func() {
+		r := &linkRetry{}
+		s.links.retry["x.test.local"] = r
+		l := &linkConn{out: true}
+		for want := linkRetryMin; want <= linkRetryMax; want *= 2 {
+			s.linkFailed(l, "x.test.local", "they closed the link: Link denied: casemapping differs")
+			if r.wait != want {
+				t.Errorf("wait %v, want %v", r.wait, want)
+			}
+		}
+		s.linkFailed(l, "x.test.local", "again")
+		if r.wait != linkRetryMax {
+			t.Errorf("wait %v past the cap", r.wait)
+		}
+	})
 }
 
 // Network bans reach every server, in the burst and live, and each

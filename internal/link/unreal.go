@@ -314,10 +314,14 @@ func (h *unreal) agree() error {
 		return refuse(fmt.Sprintf("Link denied: casemapping differs (%s here, %s on %s); every server needs the same [server] casemapping", mine, theirs, h.peer.Name))
 	}
 	if h.peer.Bee && h.me.Services && h.peer.Tokens["BEESVC"] != "0" {
-		return refuse(fmt.Sprintf("Link denied: both %s and %s run services; only one server per network may, set [services] enabled = false on the other", h.me.Name, h.peer.Name))
+		return refuse(fmt.Sprintf("Link denied: both %s and %s "+BothServices+", set [services] enabled = false on the other", h.me.Name, h.peer.Name))
 	}
 	return nil
 }
+
+// BothServices is in the refusal when both servers run services, so the
+// side that dialed can tell it from the ERROR it gets back.
+const BothServices = "run services; only one server per network may"
 
 func (l Local) casemapping() string {
 	if l.Casemapping == "" {

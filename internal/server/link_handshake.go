@@ -65,6 +65,7 @@ const (
 const (
 	linkServicesRetry       = 10 * time.Minute
 	linkServicesNoticeEvery = time.Hour
+	linkDeniedNoticeEvery   = 10 * time.Minute // the same refusal of one incoming server
 )
 
 // linkRetryFirst is how soon we reconnect after a lost link (a variable
@@ -1074,8 +1075,12 @@ func (s *Server) dropServicesLink(l *linkConn, name, nick, reason string) {
 	r.next, r.wait = now.Add(linkServicesRetry), 0
 	if !quiet {
 		r.svcNoticed = now
-		s.lnotice("\x02%s\x02 runs its own services (%s); retrying every %d minutes. Turn services off on one side. (%s)",
-			name, nick, int(linkServicesRetry.Minutes()), reason)
+		who := ""
+		if nick != "" {
+			who = " (" + nick + ")"
+		}
+		s.lnotice("\x02%s\x02 runs its own services%s; retrying every %d minutes. Turn services off on one side. (%s)",
+			name, who, int(linkServicesRetry.Minutes()), reason)
 	}
 }
 
@@ -1089,7 +1094,34 @@ func (s *Server) linkServicesOK(name string) {
 
 // linkFailed tells opers why a link ended before its handshake was done:
 // our try to connect failed, they were refused, or their connection broke.
+//
+// A refusal would only come again, so our next autoconnect try backs off as
+// after a failed dial (both sides running services: linkServicesRetry, told
+// once an hour), and the same refusal of an incoming link is told to opers at
+// most every linkDeniedNoticeEvery; the log keeps each one.
 func (s *Server) linkFailed(l *linkConn, name, reason string) {
+	bothSvc := strings.Contains(reason, link.BothServices)
+	if l.out {
+		if r := s.links.retry[strings.ToLower(name)]; r != nil {
+			if bothSvc {
+				s.dropServicesLink(nil, name, "", reason)
+				return
+			}
+			r.wait = min(max(linkRetryMin, r.wait*2), linkRetryMax)
+			r.next = time.Now().Add(r.wait)
+		}
+	} else if l.denied || bothSvc {
+		key, every := "linkdeny:"+strings.ToLower(name)+":"+reason, linkDeniedNoticeEvery
+		if bothSvc {
+			key, every = "linksvc:"+strings.ToLower(name), linkServicesNoticeEvery
+		}
+		now := time.Now()
+		if last, ok := s.noticeAt[key]; ok && now.Sub(last) < every {
+			s.log.Printf("Server connection from %s denied again (opers were told), %s", name, reason)
+			return
+		}
+		s.noticeAt[key] = now
+	}
 	switch {
 	case l.out && reason == linkHandshakeTimedOut:
 		s.lnotice("CONNECT: Error connecting \x02%s\x02 (timeout of %d seconds)", name, int(linkHandshakeTimeout.Seconds()))
