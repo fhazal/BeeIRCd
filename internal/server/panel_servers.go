@@ -164,8 +164,7 @@ func (s *Server) panelLinkSave(po *control.PanelOper, ip string, b *control.Link
 		return fail("Not saved: beeircd.conf couldn't be written. The server log says why.")
 	}
 	if _, err := s.rehash("the Hive Panel (" + po.Account + ")"); err != nil {
-		s.log.Printf("Hive Panel link block: rehash after saving: %v", err)
-		return fail("Saved, but the server couldn't apply it. The server log says why.")
+		return fail("Saved, but the server couldn't apply it: " + err.Error())
 	}
 	what := "changed the link block for " + ls.Name
 	if old == nil {
@@ -195,8 +194,7 @@ func (s *Server) panelLinkDel(po *control.PanelOper, ip, name string) control.Re
 		return control.Response{Error: "Not saved: beeircd.conf couldn't be written. The server log says why."}
 	}
 	if _, err := s.rehash("the Hive Panel (" + po.Account + ")"); err != nil {
-		s.log.Printf("Hive Panel link block: rehash after removing %s: %v", n, err)
-		return control.Response{Error: "Saved, but the server couldn't apply it. The server log says why."}
+		return control.Response{Error: "Saved, but the server couldn't apply it: " + err.Error()}
 	}
 	s.panelEvent(po.Account, ip, "removed the link block for "+n)
 	s.sno('a', "Hive Panel: %s removed the link block for %s", po.Account, n)
