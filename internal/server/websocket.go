@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"strings"
@@ -34,12 +35,18 @@ const (
 	wsBinary     = "binary.ircv3.net"
 	wsText       = "text.ircv3.net"
 	wsReplace    = "�"
+
+	// wsMaxHeader caps the upgrade request. Browsers send a few KB
+	// (cookies included); without a cap one visitor could fill the
+	// server's memory in the seconds the handshake may take.
+	wsMaxHeader = 64 << 10
 )
 
 var (
 	errWSProtocol = errors.New("websocket: protocol error")
 	errWSTooBig   = errors.New("websocket: message too big")
 	errWSBadText  = errors.New("websocket: text message is not UTF-8")
+	errWSHeader   = errors.New("websocket: upgrade request too big")
 )
 
 // acceptWebSocket does the TLS and HTTP handshake off the loop, then hands
@@ -55,7 +62,8 @@ func (a *acceptor) acceptWebSocket(conn net.Conn, l listener) {
 		conn = tls.Server(conn, l.tlsConf)
 	}
 	conn.SetDeadline(time.Now().Add(wsWait))
-	r := bufio.NewReaderSize(conn, 4096)
+	hc := &headerCap{r: conn, n: wsMaxHeader}
+	r := bufio.NewReaderSize(hc, 4096)
 	var deny func(net.IP) bool
 	if a.refuseIP != nil {
 		deny = func(ip net.IP) bool { return a.refuseIP(ip, conn, l) }
@@ -66,6 +74,7 @@ func (a *acceptor) acceptWebSocket(conn net.Conn, l listener) {
 		return
 	}
 	conn.SetDeadline(time.Time{})
+	hc.n = math.MaxInt64 // the request is read; frames have their own limit
 	if !a.hand(ws, ws.secure) {
 		raw.Close()
 	}
@@ -76,14 +85,17 @@ func (a *acceptor) acceptWebSocket(conn net.Conn, l listener) {
 // front gives, before the upgrade is answered: true means it was refused,
 // and gets a 403.
 func wsHandshake(conn net.Conn, r *bufio.Reader, l listener, deny func(net.IP) bool) (*wsConn, error) {
-	req, err := http.ReadRequest(r)
-	if err != nil {
-		return nil, err
-	}
 	refuse := func(code int, text string) (*wsConn, error) {
 		fmt.Fprintf(conn, "HTTP/1.1 %d %s\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s",
 			code, http.StatusText(code), len(text), text)
 		return nil, errors.New(text)
+	}
+	req, err := http.ReadRequest(r)
+	if errors.Is(err, errWSHeader) {
+		return refuse(http.StatusRequestHeaderFieldsTooLarge, "The request headers are too big.\n")
+	}
+	if err != nil {
+		return nil, err
 	}
 	key := req.Header.Get("Sec-WebSocket-Key")
 	switch {
@@ -131,6 +143,25 @@ func wsHandshake(conn net.Conn, r *bufio.Reader, l listener, deny func(net.IP) b
 		return nil, err
 	}
 	return ws, nil
+}
+
+// headerCap reads at most n bytes, then fails with errWSHeader; the
+// handshake lifts the cap once the upgrade request is read.
+type headerCap struct {
+	r io.Reader
+	n int64
+}
+
+func (h *headerCap) Read(p []byte) (int, error) {
+	if h.n <= 0 {
+		return 0, errWSHeader
+	}
+	if int64(len(p)) > h.n {
+		p = p[:h.n]
+	}
+	n, err := h.r.Read(p)
+	h.n -= int64(n)
+	return n, err
 }
 
 // headerTokens returns the comma-separated tokens of header name, lower case.

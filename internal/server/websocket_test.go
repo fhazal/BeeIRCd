@@ -284,3 +284,51 @@ func TestWebSocketTLSAndProxy(t *testing.T) {
 	v.send("USERHOST visitor")
 	v.expect("visitor=+~visitor@203.0.113.7")
 }
+
+// The upgrade request is capped: one visitor can't fill the server's
+// memory with endless headers in the seconds the handshake may take, while
+// a big cookie still gets through.
+func TestWebSocketHeaderTooBig(t *testing.T) {
+	s := wsServer(t, config.Listen{})
+	if c := wsDial(t, s, false, map[string]string{"Cookie": strings.Repeat("c", 20000)}); c.resp.StatusCode != 101 {
+		t.Fatalf("20 KB cookie: %d, want 101", c.resp.StatusCode)
+	}
+	conn, err := net.Dial("tcp", s.Addrs()[len(s.Addrs())-1].String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn.SetDeadline(time.Now().Add(5 * time.Second))
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		io.WriteString(conn, "GET / HTTP/1.1\r\nHost: irc.test.local\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"+
+			"Sec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nCookie: ")
+		io.WriteString(conn, strings.Repeat("a", 2<<20))
+		io.WriteString(conn, "\r\n\r\n")
+	}()
+	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	conn.Close()
+	<-done
+	if err == nil && resp.StatusCode != http.StatusRequestHeaderFieldsTooLarge {
+		t.Fatalf("2 MB of headers: %d, want 431 (or the connection closed)", resp.StatusCode)
+	}
+
+	// The reply itself (over TCP the unread rest can reset it away).
+	sv, cl := net.Pipe()
+	defer cl.Close()
+	code := make(chan int, 1)
+	go func() {
+		resp, err := http.ReadResponse(bufio.NewReader(cl), nil)
+		if err != nil {
+			code <- 0
+			return
+		}
+		code <- resp.StatusCode
+	}()
+	req := "GET / HTTP/1.1\r\nHost: irc.test.local\r\nCookie: " + strings.Repeat("a", 2*wsMaxHeader) + "\r\n\r\n"
+	_, err = wsHandshake(sv, bufio.NewReader(&headerCap{r: strings.NewReader(req), n: wsMaxHeader}), listener{}, nil)
+	sv.Close()
+	if got := <-code; err == nil || got != http.StatusRequestHeaderFieldsTooLarge {
+		t.Fatalf("too big a request: reply %d, err %v; want 431", got, err)
+	}
+}
