@@ -424,7 +424,7 @@ func TestUpdateSaysWhatToMoveBackWhenUndoFails(t *testing.T) {
 	}
 	text := out.String()
 	for _, want := range []string{"couldn't move " + u.exe + ".old back to " + u.exe + ": disk said no", "wasn't restarted",
-		"mv " + u.exe + ".old " + u.exe, "mv " + u.exe + ".old.prev " + u.exe + ".old"} {
+		"mv " + quoted(u.exe+".old") + " " + quoted(u.exe), "mv " + quoted(u.exe+".old.prev") + " " + quoted(u.exe+".old")} {
 		if !strings.Contains(text, want) {
 			t.Errorf("output lacks %q:\n%s", want, text)
 		}
@@ -608,5 +608,27 @@ func TestCopyFileKeepsMode(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(to); string(b) != "x = 1\n" || fi.Mode().Perm() != 0o664 {
 		t.Errorf("copy is %q with mode %v, want the source's text and mode 0664", b, fi.Mode().Perm())
+	}
+}
+
+// quoted is how a path should look in a line to paste by hand.
+func quoted(p string) string {
+	if runtime.GOOS == "windows" {
+		return `"` + p + `"`
+	}
+	return "'" + strings.ReplaceAll(p, "'", `'\''`) + "'"
+}
+
+func TestByHandLinesQuotePaths(t *testing.T) {
+	out := &bytes.Buffer{}
+	u := &updater{out: out, c: &checker{w: out}, rename: func(string, string) error { return errors.New("disk said no") }}
+	from, to := filepath.Join("/srv/my bees", "beeircd.old"), filepath.Join("/srv/my bees", "beeircd")
+	want := []string{"mv " + quoted(from) + " " + quoted(to)}
+	if runtime.GOOS != "windows" {
+		from = "/srv/bee's hive/beeircd.old"
+		want = []string{`mv '/srv/bee'\''s hive/beeircd.old' '/srv/my bees/beeircd'`}
+	}
+	if left := u.moveBack([]move{{from, to}}); len(left) != 1 || left[0] != want[0] {
+		t.Errorf("moveBack lines %q, want %q", left, want)
 	}
 }

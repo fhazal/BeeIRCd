@@ -315,7 +315,7 @@ func (u *updater) install(ctx context.Context, base string, m *release.Manifest,
 	if cfgKept != "" {
 		if err := u.putConfig(cfgKept); err != nil {
 			u.c.bad("couldn't put your config back: " + err.Error())
-			left = append(left, "cp "+cfgKept+" "+u.cfgPath, "rm "+cfgKept)
+			left = append(left, "cp "+shellQuote(cfgKept)+" "+shellQuote(u.cfgPath), "rm "+shellQuote(cfgKept))
 		} else {
 			os.Remove(cfgKept)
 		}
@@ -377,6 +377,16 @@ func (u *updater) putConfig(file string) error {
 	return u.replace(u.cfgPath, b)
 }
 
+// shellQuote quotes a path for a printed command line, so it can be
+// pasted as it is even with spaces in it: single quotes on unix, double
+// quotes on Windows.
+func shellQuote(p string) string {
+	if runtime.GOOS == "windows" {
+		return `"` + p + `"`
+	}
+	return "'" + strings.ReplaceAll(p, "'", `'\''`) + "'"
+}
+
 // move is one rename that undoes a step of an update.
 type move struct{ from, to string }
 
@@ -389,7 +399,7 @@ func (u *updater) moveBack(moves []move) []string {
 			u.c.bad(fmt.Sprintf("couldn't move %s back to %s: %v", mv.from, mv.to, err))
 			var left []string
 			for _, l := range moves[i:] {
-				left = append(left, "mv "+l.from+" "+l.to)
+				left = append(left, "mv "+shellQuote(l.from)+" "+shellQuote(l.to))
 			}
 			return left
 		}
@@ -471,7 +481,7 @@ func (u *updater) rollback(yes bool) int {
 		u.c.bad("couldn't put " + oldVer + " in place: " + err.Error())
 		if err := u.rename(tmp, u.exe); err != nil {
 			u.c.bad("and couldn't put " + u.current + " back: " + err.Error())
-			fmt.Fprintf(u.out, "  The server wasn't touched. Move %s back to %s by hand before it restarts.\n", tmp, u.exe)
+			fmt.Fprintf(u.out, "  The server wasn't touched. Put it back by hand before it restarts:\n    mv %s %s\n", shellQuote(tmp), shellQuote(u.exe))
 			return 1
 		}
 		fmt.Fprintln(u.out, "  Nothing changed.")
