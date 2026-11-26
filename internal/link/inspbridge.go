@@ -397,7 +397,7 @@ func (b *inspBridge) out(m irc.Message) []string {
 		}
 		b.gone(p[0])
 		return []string{line(nil, src, "KILL", true, p[0], last())}
-	case "PART", "KICK", "PRIVMSG", "NOTICE", "TAGMSG", "SVSJOIN", "SVSPART", "ERROR", "SQUIT":
+	case "PART", "KICK", "PRIVMSG", "NOTICE", "TAGMSG", "WALLOPS", "SVSJOIN", "SVSPART", "ERROR", "SQUIT":
 		if m.Command == "SQUIT" && len(p) > 0 {
 			delete(b.behind, b.sidOf(p[0]))
 		}
@@ -1247,7 +1247,7 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 			return nil, []string{line(nil, p[0], "IDLE", false, src, strconv.FormatInt(signon, 10), "0")}
 		}
 		return nil, nil
-	case "PRIVMSG", "NOTICE", "TAGMSG", "PART", "SVSJOIN", "SVSPART", "SVSNICK", "ERROR",
+	case "PRIVMSG", "NOTICE", "TAGMSG", "WALLOPS", "PART", "SVSJOIN", "SVSPART", "SVSNICK", "ERROR",
 		"SAJOIN", "SAPART", "SANICK", "ACCEPT":
 		m.Source = src
 		return one(m.String())

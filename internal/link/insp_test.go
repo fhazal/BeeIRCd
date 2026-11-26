@@ -349,3 +349,15 @@ func TestInspOperRank(t *testing.T) {
 		t.Fatalf("OPERTYPE after deoper %q", out)
 	}
 }
+
+// WALLOPS crosses the InspIRCd bridge both ways as ":<uid> WALLOPS :text"
+// (it was dropped).
+func TestInspBridgeWallops(t *testing.T) {
+	b := testBridge(t)
+	if got := b.Out(":0BEAAAAAA WALLOPS :hello insp"); !has(got, ":0BEAAAAAA WALLOPS :hello insp") {
+		t.Errorf("out: %q", got)
+	}
+	if got, _ := b.In(":1INAAAAAA WALLOPS :hello bee"); !has(got, ":1INAAAAAA WALLOPS :hello bee") {
+		t.Errorf("in: %q", got)
+	}
+}

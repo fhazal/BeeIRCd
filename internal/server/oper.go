@@ -475,12 +475,20 @@ func unwrapKill(reason string) string {
 	return reason
 }
 
-// /WALLOPS <text> goes to everyone with +w.
+// /WALLOPS <text> goes to everyone with +w, here and on every other
+// server (":<uid> WALLOPS :<text>" on the links, as UnrealIRCd, InspIRCd
+// and Solanum send it).
 func (s *Server) cmdWallops(c *Client, m irc.Message) {
 	if !s.needFlag(c, nil, 'g') {
 		return
 	}
-	line := irc.Message{Source: c.user.Prefix(), Command: "WALLOPS", Params: []string{m.Params[0]}, Trailing: true}.String()
+	s.localWallops(c.user.Prefix(), m.Params[0])
+	s.linkBroadcast(nil, irc.Message{Source: c.uid, Command: "WALLOPS", Params: []string{m.Params[0]}, Trailing: true}.String())
+}
+
+// localWallops shows a WALLOPS from src to everyone here with +w.
+func (s *Server) localWallops(src, text string) {
+	line := irc.Message{Source: src, Command: "WALLOPS", Params: []string{text}, Trailing: true}.String()
 	for _, oc := range s.clients {
 		if oc.user != nil && oc.user.Modes['w'] {
 			oc.send(line)

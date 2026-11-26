@@ -783,6 +783,8 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		s.linkSINFO(l, m)
 	case "GLOBOPS":
 		s.remoteGlobops(l, m)
+	case "WALLOPS":
+		s.remoteWallops(l, m)
 	case "SENDUMODE":
 		s.remoteSendUmode(l, m)
 	case "SMOD", "SENDSNO", "SLOG", "SWHOIS", "BOTMOTD":

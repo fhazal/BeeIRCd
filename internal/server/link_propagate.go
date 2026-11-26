@@ -475,6 +475,37 @@ func (s *Server) remoteGlobops(l *linkConn, m irc.Message) {
 	}
 }
 
+// remoteWallops is a WALLOPS from elsewhere (":uid WALLOPS :text", or
+// from a server): from an oper or a server it shows to everyone here with
+// +w and goes on to the other links; from anyone else it is dropped.
+func (s *Server) remoteWallops(l *linkConn, m irc.Message) {
+	if len(m.Params) == 0 || m.Params[len(m.Params)-1] == "" {
+		return
+	}
+	text := m.Params[len(m.Params)-1]
+	srv, u, ok := s.linkSource(l, m.Source)
+	if !ok {
+		return
+	}
+	src := ""
+	switch {
+	case u != nil:
+		if !u.Modes['o'] {
+			return
+		}
+		src = u.Prefix()
+	case srv != nil:
+		src = srv.name
+	default:
+		return
+	}
+	s.localWallops(src, text)
+	line := irc.Message{Source: m.Source, Command: "WALLOPS", Params: []string{text}, Trailing: true}.String()
+	for _, o := range s.upLinks(l) {
+		o.send(line)
+	}
+}
+
 // unrealGlobops is a server's GLOBOPS "From nick: text" the way UnrealIRCd
 // sends one: from the person (":uid GLOBOPS :text", shown there as "from
 // nick: text") when nick is someone known, else ":sid SENDUMODE o :from

@@ -142,3 +142,113 @@ func TestGlobopsServerLineToUnreal(t *testing.T) {
 		return hub.logHas("link a.test.local -> :0BB SENDUMODE o :from ghost: boo")
 	})
 }
+
+// wallopsWatch logs nick in on n with +w, ready to read WALLOPS.
+func wallopsWatch(t *testing.T, n *linkNode, nick string) *tc {
+	t.Helper()
+	c := login(t, n.s, nick)
+	c.send("MODE " + nick + " +w")
+	c.send("PING :umode")
+	c.expect(" :umode")
+	return c
+}
+
+// A WALLOPS went only to +w people on the sender's own server. It now
+// crosses a bee link (":<uid> WALLOPS :<text>") and shows to everyone
+// with +w there, from the oper's full prefix; people without +w don't
+// get it, and one from a non-oper on the other end is dropped.
+func TestWallopsOverLink(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	hop := login(t, hub.s, "hubop")
+	netadminOn(t, hub, hop, "hubop")
+	hw := wallopsWatch(t, hub, "hubw")
+	lw := wallopsWatch(t, leaf, "leafw")
+	plain := login(t, leaf.s, "plain")
+	leaf.seen(t, "hubop")
+	waitLink(t, "hubop is an oper at the leaf", func() bool {
+		u := leaf.user("hubop")
+		return u != nil && u.Modes['o']
+	})
+
+	hop.send("WALLOPS :network maintenance soon")
+	hw.expect(":hubop!~hubop@")
+	if l := lw.expect(" WALLOPS :network maintenance soon"); !strings.HasPrefix(l, ":hubop!~hubop@") {
+		t.Errorf("leaf +w got %q, want the oper's prefix", l)
+	}
+	plain.quiet("WALLOPS")
+
+	// A non-oper on the other end is not believed; a server is.
+	login(t, leaf.s, "bob")
+	hub.seen(t, "bob")
+	bob := hub.user("bob")
+	hub.fromLink(t, ":"+bob.UID+" WALLOPS :sneaky")
+	hub.fromLink(t, ":"+leaf.sid+" WALLOPS :from a server")
+	if l := hw.expect(" WALLOPS :from a server"); l != ":leaf.test.local WALLOPS :from a server" {
+		t.Errorf("server WALLOPS shown as %q", l)
+	}
+	hw.quiet("sneaky")
+}
+
+// On a chain a - hub - b, an oper's WALLOPS on a reaches +w people on b,
+// passed on by the hub (and not sent back to a).
+func TestWallopsThreeServers(t *testing.T) {
+	hub := newLinkNode(t, "hub.test.local", "0HB", "hub")
+	a := newLinkNode(t, "a.test.local", "0AA", "leaf")
+	b := newLinkNode(t, "b.test.local", "0BB", "leaf")
+	hub.expects(a, false, "")
+	hub.expects(b, false, "")
+	a.expects(hub, true, "")
+	b.expects(hub, true, "")
+	hub.start(t)
+	a.start(t)
+	b.start(t)
+	waitLink(t, "tree", func() bool { return len(a.servers()) == 3 && len(b.servers()) == 3 })
+	ann := login(t, a.s, "ann")
+	netadminOn(t, a, ann, "ann")
+	aw := wallopsWatch(t, a, "annw")
+	bw := wallopsWatch(t, b, "benw")
+	waitLink(t, "ann is an oper on b", func() bool {
+		u := b.user("ann")
+		return u != nil && u.Modes['o']
+	})
+	ann.send("WALLOPS :far end hello")
+	aw.expect(":ann!~ann@")
+	if l := bw.expect(" WALLOPS :far end hello"); !strings.HasPrefix(l, ":ann!~ann@") {
+		t.Errorf("far end got %q", l)
+	}
+	aw.quiet("far end hello") // not echoed back by the hub
+}
+
+// UnrealIRCd links: a WALLOPS comes in as ":<uid> WALLOPS :<text>" and
+// goes out the same way (Unreal's cmd_wallops sends client->id).
+func TestWallopsUnrealLinks(t *testing.T) {
+	hub, hop, ann, _ := globopsTree(t)
+	hop.send("MODE hubop +w")
+	hop.send("PING :umode")
+	hop.expect(" :umode")
+
+	hub.fromLinkTo(t, "a.test.local", ":"+ann+" WALLOPS :from unreal")
+	hop.expect(":ann!~ann@")
+	waitLink(t, "sent on to b", func() bool {
+		return hub.logHas("link b.test.local -> :" + ann + " WALLOPS :from unreal")
+	})
+	if hub.logHas("link a.test.local -> :" + ann + " WALLOPS :from unreal") {
+		t.Errorf("WALLOPS sent back to where it came from")
+	}
+
+	hopUID := hub.user("hubop").UID
+	hop.send("WALLOPS :to unreal")
+	hop.expect(" WALLOPS :to unreal")
+	waitLink(t, "sent to both unreal links", func() bool {
+		return hub.logHas("link a.test.local -> :"+hopUID+" WALLOPS :to unreal") &&
+			hub.logHas("link b.test.local -> :"+hopUID+" WALLOPS :to unreal")
+	})
+
+	// bob (on a) is no oper: dropped, not passed on.
+	bob := hub.user("bob").UID
+	hub.fromLinkTo(t, "a.test.local", ":"+bob+" WALLOPS :not an oper")
+	hop.quiet("not an oper")
+	if hub.logHas("WALLOPS :not an oper") {
+		t.Errorf("a non-oper WALLOPS was passed on")
+	}
+}
