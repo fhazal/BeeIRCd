@@ -131,7 +131,8 @@ type valueScan struct {
 	multi string // `"""` or `'''` while inside a multi-line string
 }
 
-func (sc *valueScan) line(l string) {
+// line follows l and returns where a # comment starts on it, or -1.
+func (sc *valueScan) line(l string) int {
 	inStr := byte(0)
 	for i := 0; i < len(l); i++ {
 		ch := l[i]
@@ -153,13 +154,14 @@ func (sc *valueScan) line(l string) {
 		case ch == '"' || ch == '\'':
 			inStr = ch
 		case ch == '#':
-			return
+			return i
 		case ch == '[':
 			sc.depth++
 		case ch == ']' && sc.depth > 0:
 			sc.depth--
 		}
 	}
+	return -1
 }
 
 // stripComment cuts a # comment that isn't inside a string.
@@ -229,23 +231,17 @@ func keyRe(key string) *regexp.Regexp {
 // Set writes key = value (value is TOML, use Quote for text) into table,
 // replacing the old value and keeping a comment after it.
 func (d *Doc) Set(table, key, value string) {
-	re := keyRe(key)
 	for h, name := range d.heads() {
 		if name != table {
 			continue
 		}
 		start, end := d.section(h)
-		for i := start + 1; i < end; i++ {
-			m := re.FindStringSubmatch(d.lines[i])
-			if m == nil {
-				continue
+		if v, ok := d.find(start, end, key); ok {
+			line := v.indent + key + " = " + value
+			if v.comment != "" {
+				line += " " + v.comment
 			}
-			_, comment, _ := splitComment(d.lines[i])
-			line := m[1] + key + " = " + value
-			if comment != "" {
-				line += " " + comment
-			}
-			d.lines[i] = line
+			d.lines = append(d.lines[:v.first], append([]string{line}, d.lines[v.last+1:]...)...)
 			return
 		}
 		d.insert(d.lastContent(start, end), key+" = "+value)
@@ -259,17 +255,13 @@ func (d *Doc) Set(table, key, value string) {
 
 // Unset removes key from table (nothing happens if it isn't there).
 func (d *Doc) Unset(table, key string) {
-	re := keyRe(key)
 	for h, name := range d.heads() {
 		if name != table {
 			continue
 		}
 		start, end := d.section(h)
-		for i := start + 1; i < end; i++ {
-			if re.MatchString(d.lines[i]) {
-				d.lines = append(d.lines[:i], d.lines[i+1:]...)
-				return
-			}
+		if v, ok := d.find(start, end, key); ok {
+			d.lines = append(d.lines[:v.first], d.lines[v.last+1:]...)
 		}
 		return
 	}
@@ -279,27 +271,47 @@ func (d *Doc) Unset(table, key string) {
 // spans lines (an array, a """ string) comes whole, its lines joined by
 // "\n"; a line inside such a value is never taken for a key.
 func (d *Doc) value(start, end int, key string) (string, bool) {
+	v, ok := d.find(start, end, key)
+	return v.text, ok
+}
+
+// keyValue is where a key and its value sit in the file.
+type keyValue struct {
+	first, last int    // the key's line and the last line of its value
+	indent      string // before the key
+	text        string // the value whole, as wholeValue gives it
+	comment     string // the # comment after the value, or ""
+}
+
+// find finds key in the section [start, end), skipping lines inside
+// other values that span lines.
+func (d *Doc) find(start, end int, key string) (keyValue, bool) {
 	re := keyRe(key)
 	var sc valueScan
 	for i := start + 1; i < end; i++ {
 		l := d.lines[i]
 		if sc.depth == 0 && sc.multi == "" {
-			if loc := re.FindStringIndex(l); loc != nil {
-				return d.wholeValue(i, end, l[loc[1]:]), true
+			if m := re.FindStringSubmatchIndex(l); m != nil {
+				v := d.wholeValue(i, end, l[m[1]:])
+				v.indent = l[m[2]:m[3]]
+				return v, true
 			}
 		}
 		sc.line(l)
 	}
-	return "", false
+	return keyValue{}, false
 }
 
 // wholeValue is the value that starts with first on line i and goes on
 // while an array or multi-line string is still open, up to end. Comments
-// and blank lines between array items are left out; the text of a
-// multi-line string is kept as it is.
-func (d *Doc) wholeValue(i, end int, first string) string {
+// and blank lines between array items are left out of its text; the text
+// of a multi-line string is kept as it is.
+func (d *Doc) wholeValue(i, end int, first string) keyValue {
+	v := keyValue{first: i, last: i}
 	var sc valueScan
-	sc.line(first)
+	if at := sc.line(first); at >= 0 {
+		v.comment = first[at:]
+	}
 	parts := []string{strings.TrimSpace(stripComment(first))}
 	for j := i + 1; j < end && (sc.depth > 0 || sc.multi != ""); j++ {
 		l := d.lines[j]
@@ -308,9 +320,13 @@ func (d *Doc) wholeValue(i, end int, first string) string {
 		} else if p := strings.TrimSpace(stripComment(l)); p != "" {
 			parts = append(parts, p)
 		}
-		sc.line(l)
+		v.last, v.comment = j, ""
+		if at := sc.line(l); at >= 0 {
+			v.comment = l[at:]
+		}
 	}
-	return strings.Join(parts, "\n")
+	v.text = strings.Join(parts, "\n")
+	return v
 }
 
 // listens returns the header line of every [[listen]] block.

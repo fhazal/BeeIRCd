@@ -268,3 +268,25 @@ func TestEditOperClassBlocks(t *testing.T) {
 		t.Fatal("a broken class was saved")
 	}
 }
+
+func TestDocSetUnsetMultiLineValues(t *testing.T) {
+	d := &Doc{lines: strings.Split(`[server]
+motd = """
+name = "fake"
+"""
+swhois = [
+  "looks helpful",
+  "and kind",
+] # keep me
+name = "bee"`, "\n")}
+	d.Set("server", "swhois", `["one"]`)
+	d.Unset("server", "motd")
+	d.Set("server", "name", `"hive"`)
+	want := `[server]
+swhois = ["one"] # keep me
+name = "hive"
+`
+	if got := d.String(); got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
