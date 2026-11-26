@@ -105,6 +105,61 @@ func header(line string) string {
 	return strings.TrimSpace(t[1 : len(t)-1])
 }
 
+// heads is header for every line, read in order: a line inside a value
+// that spans lines (an array, or a """ string) is never a header, even
+// one like ["x"] on its own.
+func (d *Doc) heads() []string {
+	out := make([]string, len(d.lines))
+	var sc valueScan
+	for i, l := range d.lines {
+		if sc.depth == 0 && sc.multi == "" {
+			if out[i] = header(l); out[i] != "" {
+				continue
+			}
+		}
+		sc.line(l)
+	}
+	return out
+}
+
+// valueScan follows the brackets and multi-line strings of values from
+// line to line.
+type valueScan struct {
+	depth int    // arrays still open
+	multi string // `"""` or `'''` while inside a multi-line string
+}
+
+func (sc *valueScan) line(l string) {
+	inStr := byte(0)
+	for i := 0; i < len(l); i++ {
+		ch := l[i]
+		switch {
+		case sc.multi != "":
+			if sc.multi == `"""` && ch == '\\' {
+				i++
+			} else if strings.HasPrefix(l[i:], sc.multi) {
+				sc.multi, i = "", i+2
+			}
+		case inStr == '"' && ch == '\\':
+			i++
+		case inStr != 0:
+			if ch == inStr {
+				inStr = 0
+			}
+		case strings.HasPrefix(l[i:], `"""`) || strings.HasPrefix(l[i:], `'''`):
+			sc.multi, i = l[i:i+3], i+2
+		case ch == '"' || ch == '\'':
+			inStr = ch
+		case ch == '#':
+			return
+		case ch == '[':
+			sc.depth++
+		case ch == ']' && sc.depth > 0:
+			sc.depth--
+		}
+	}
+}
+
 // stripComment cuts a # comment that isn't inside a string.
 func stripComment(line string) string {
 	_, _, at := splitComment(line)
@@ -137,8 +192,9 @@ func splitComment(line string) (string, string, int) {
 // header line h. Comments right above the next header belong to that one.
 func (d *Doc) section(h int) (int, int) {
 	end := len(d.lines)
+	hs := d.heads()
 	for i := h + 1; i < len(d.lines); i++ {
-		if header(d.lines[i]) != "" {
+		if hs[i] != "" {
 			end = i
 			for end > h+1 && strings.HasPrefix(strings.TrimSpace(d.lines[end-1]), "#") {
 				end--
@@ -172,8 +228,8 @@ func keyRe(key string) *regexp.Regexp {
 // replacing the old value and keeping a comment after it.
 func (d *Doc) Set(table, key, value string) {
 	re := keyRe(key)
-	for h, l := range d.lines {
-		if header(l) != table {
+	for h, name := range d.heads() {
+		if name != table {
 			continue
 		}
 		start, end := d.section(h)
@@ -202,8 +258,8 @@ func (d *Doc) Set(table, key, value string) {
 // Unset removes key from table (nothing happens if it isn't there).
 func (d *Doc) Unset(table, key string) {
 	re := keyRe(key)
-	for h, l := range d.lines {
-		if header(l) != table {
+	for h, name := range d.heads() {
+		if name != table {
 			continue
 		}
 		start, end := d.section(h)
@@ -231,8 +287,8 @@ func (d *Doc) value(start, end int, key string) (string, bool) {
 // listens returns the header line of every [[listen]] block.
 func (d *Doc) listens() []int {
 	var out []int
-	for i, l := range d.lines {
-		if header(l) == "[listen]" {
+	for i, name := range d.heads() {
+		if name == "[listen]" {
 			out = append(out, i)
 		}
 	}
@@ -331,8 +387,8 @@ type KV struct{ Key, Value string }
 // blocks returns the header line of every [[name]] block.
 func (d *Doc) blocks(name string) []int {
 	var out []int
-	for i, l := range d.lines {
-		if header(l) == "["+name+"]" {
+	for i, h := range d.heads() {
+		if h == "["+name+"]" {
 			out = append(out, i)
 		}
 	}

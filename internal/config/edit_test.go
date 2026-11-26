@@ -110,6 +110,39 @@ func TestEditWritesThroughSymlink(t *testing.T) {
 	}
 }
 
+// A line inside a value that spans lines, like ["x"] in an array of arrays
+// or [limits] in a """ string, is a value, not a table header.
+func TestDocMultiLineValuesHaveNoHeaders(t *testing.T) {
+	d := &Doc{lines: strings.Split(`[spam]
+pairs = [
+  ["x"]
+]
+note = """
+[limits]
+"""
+keep = 1
+
+[limits]
+max_users = 10`, "\n")}
+	d.Set("spam", "keep", "2")
+	d.Set("limits", "max_users", "20")
+	want := `[spam]
+pairs = [
+  ["x"]
+]
+note = """
+[limits]
+"""
+keep = 2
+
+[limits]
+max_users = 20
+`
+	if got := d.String(); got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestEditRefusesBrokenConfig(t *testing.T) {
 	p := writeSample(t)
 	_, err := Edit(p, func(d *Doc) error {
