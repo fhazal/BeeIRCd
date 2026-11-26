@@ -587,3 +587,26 @@ func TestUpdateRestartsHivePanel(t *testing.T) {
 		t.Errorf("no panel: exit %d, restarts %d\n%s", code, restarts(fs), out)
 	}
 }
+
+func TestCopyFileKeepsMode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix file modes")
+	}
+	dir := t.TempDir()
+	from, to := filepath.Join(dir, "beeircd.toml"), filepath.Join(dir, "beeircd.toml.before-1.0.0")
+	if err := os.WriteFile(from, []byte("x = 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	os.Chmod(from, 0o664) // wider than the usual umask lets through
+	os.WriteFile(to, []byte("old"), 0o600)
+	if err := copyFile(from, to); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(to)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(to); string(b) != "x = 1\n" || fi.Mode().Perm() != 0o664 {
+		t.Errorf("copy is %q with mode %v, want the source's text and mode 0664", b, fi.Mode().Perm())
+	}
+}

@@ -574,13 +574,33 @@ func checkRefusal(out string) string {
 	return or(strings.Join(why, "; "), out)
 }
 
+// copyFile copies from to to with the same mode and owner, and syncs the
+// copy to disk before it counts.
 func copyFile(from, to string) error {
 	b, err := os.ReadFile(from)
 	if err != nil {
 		return err
 	}
-	fi, _ := os.Stat(from)
-	if err := os.WriteFile(to, b, fi.Mode().Perm()); err != nil {
+	fi, err := os.Stat(from)
+	if err != nil {
+		return err
+	}
+	f, err := os.OpenFile(to, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, fi.Mode().Perm())
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(b)
+	if err == nil {
+		err = f.Chmod(fi.Mode().Perm()) // past the umask, and over an old copy's mode
+	}
+	if err == nil {
+		err = f.Sync()
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		os.Remove(to)
 		return err
 	}
 	copyOwner(fi, to)
