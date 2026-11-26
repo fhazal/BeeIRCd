@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-26T15:28:00+08:00",
+ "updated": "2026-11-26T15:48:00+08:00",
  "gauges": [
   {
    "id": "g-v1",
@@ -17,13 +17,17 @@
   }
  ],
  "now": {
-  "title": "Chat on beeircd.org",
-  "text": "Chat is live: the Chat link and the \"Chat with us\" button on this site take you to #beeircd.",
-  "start": "2026-11-26T13:25:00+08:00",
-  "end": "2026-11-26T16:25:00+08:00"
+  "title": "BeeRoom 1.1 checks",
+  "text": "BeeRoom passed its release checks: 200 people at once, every button in Day and Night on computer and phone. Two bugs found and fixed.",
+  "start": "2026-11-26T15:30:00+08:00",
+  "end": "2026-11-26T18:30:00+08:00"
  },
- "next": "Back to BeeRoom polish and the 1.8 plan.",
+ "next": "Put the fixed BeeRoom on both live chats, then release BeeRoom 1.1.",
  "done": [
+  [
+   "2026-11-26T15:48",
+   "BeeRoom release checks done. Fixed: one guest could knock everyone off the chat with a strange message, and asking for the changelog again and again made the server call GitHub each time."
+  ],
   [
    "2026-11-26T15:28",
    "This site now has a Chat link and a \"Chat with us\" button. They open chat.beeircd.org, straight into #beeircd."
