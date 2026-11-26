@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -87,7 +88,7 @@ func testUpdater(t *testing.T, current, url string, fs *fakeSystem, answers stri
 	u := &updater{
 		out: out, c: &checker{w: out}, in: bufio.NewReader(strings.NewReader(answers)), tty: true,
 		cfgPath: cfgPath, cfg: cfg, exe: exe, current: current, client: http.DefaultClient,
-		asset: "beeircd-linux-amd64", isRoot: func() bool { return true }, rename: os.Rename, waitUp: 300 * time.Millisecond, pollStep: 10 * time.Millisecond,
+		asset: "beeircd-linux-amd64", isRoot: func() bool { return true }, rename: os.Rename, replace: config.ReplaceFile, waitUp: 300 * time.Millisecond, pollStep: 10 * time.Millisecond,
 	}
 	u.run = func(name string, args ...string) (string, error) {
 		fs.calls = append(fs.calls, filepath.Base(name)+" "+strings.Join(args, " "))
@@ -327,12 +328,7 @@ func TestUpdateUndoesSwapWhenConfigCantBePlaced(t *testing.T) {
 	migratingRun(u)
 	os.WriteFile(u.exe+".old", []byte("PROGRAM 0.9.0"), 0o755)
 	confBefore, _ := os.ReadFile(u.cfgPath)
-	u.rename = func(from, to string) error {
-		if to == u.cfgPath {
-			return errors.New("disk said no")
-		}
-		return os.Rename(from, to)
-	}
+	u.replace = func(string, []byte) error { return errors.New("disk said no") }
 	if code := u.update(false, true, false); code != 1 {
 		t.Fatalf("exit %d, want 1\n%s", code, out)
 	}
@@ -345,6 +341,41 @@ func TestUpdateUndoesSwapWhenConfigCantBePlaced(t *testing.T) {
 	for _, want := range []string{"couldn't put the updated config in place: disk said no", "Nothing changed."} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("output lacks %q:\n%s", want, out)
+		}
+	}
+}
+
+// A config kept elsewhere and linked into place stays a link when an
+// update changes it, and when a failed update puts it back; the file
+// keeps its mode.
+func TestUpdateWritesThroughSymlinkedConfig(t *testing.T) {
+	key := signingKey(t)
+	srv := releaseServer(t, "1.0.1", key)
+	for _, comesUp := range []bool{true, false} {
+		fs := &fakeSystem{running: "1.0.0", comesUp: comesUp}
+		u, out := testUpdater(t, "1.0.0", srv.URL, fs, "y\n")
+		migratingRun(u)
+		real := filepath.Join(t.TempDir(), "beeircd.conf")
+		confBefore, _ := os.ReadFile(u.cfgPath)
+		os.WriteFile(real, confBefore, 0o640)
+		os.Chmod(real, 0o640) // past the umask
+		os.Remove(u.cfgPath)
+		if err := os.Symlink(real, u.cfgPath); err != nil {
+			t.Skipf("can't make a symlink here: %v", err)
+		}
+		u.update(false, true, false)
+		if fi, err := os.Lstat(u.cfgPath); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+			t.Fatalf("new one comes up %v: the link was replaced by a file (%v)\n%s", comesUp, err, out)
+		}
+		b, _ := os.ReadFile(real)
+		if upgraded := strings.Contains(string(b), "# upgraded"); upgraded != comesUp {
+			t.Errorf("new one comes up %v: linked file upgraded %v\n%s", comesUp, upgraded, out)
+		}
+		if fi, _ := os.Stat(real); runtime.GOOS != "windows" && fi.Mode().Perm() != 0o640 {
+			t.Errorf("new one comes up %v: mode %v, want -rw-r-----", comesUp, fi.Mode().Perm())
+		}
+		if _, err := os.Stat(u.cfgPath + ".before-1.0.1"); (err == nil) != comesUp {
+			t.Errorf("new one comes up %v: config copy there: %v", comesUp, err == nil)
 		}
 	}
 }

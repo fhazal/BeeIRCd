@@ -43,6 +43,7 @@ type updater struct {
 	ask      func(cmd, path string, wait time.Duration) (*control.Response, error)
 	isRoot   func() bool
 	rename   func(from, to string) error
+	replace  func(path string, data []byte) error // writes a file in place: config.ReplaceFile
 	waitUp   time.Duration
 	pollStep time.Duration
 }
@@ -83,7 +84,7 @@ func newUpdater(path string, stdout io.Writer) (*updater, error) {
 			out, err := exec.Command(name, args...).CombinedOutput()
 			return strings.TrimSpace(string(out)), err
 		},
-		isRoot: func() bool { return os.Geteuid() == 0 }, rename: os.Rename, waitUp: 30 * time.Second, pollStep: 300 * time.Millisecond,
+		isRoot: func() bool { return os.Geteuid() == 0 }, rename: os.Rename, replace: config.ReplaceFile, waitUp: 30 * time.Second, pollStep: 300 * time.Millisecond,
 	}
 	exe, err := os.Executable()
 	if err == nil {
@@ -287,7 +288,7 @@ func (u *updater) install(ctx context.Context, base string, m *release.Manifest,
 		return undo("couldn't put "+m.Version+" in place: "+err.Error(), putBack)
 	}
 	if cfgKept != "" {
-		if err := u.rename(newCfg, u.cfgPath); err != nil {
+		if err := u.putConfig(newCfg); err != nil {
 			return undo("couldn't put the updated config in place: "+err.Error(), putBack)
 		}
 	}
@@ -312,9 +313,11 @@ func (u *updater) install(ctx context.Context, base string, m *release.Manifest,
 	logs, _ := u.run("journalctl", "-u", serviceName, "-n", "5", "--no-pager", "-o", "short")
 	left := u.moveBack(append([]move{{u.exe, u.exe + ".failed"}}, putBack...))
 	if cfgKept != "" {
-		if err := u.rename(cfgKept, u.cfgPath); err != nil {
+		if err := u.putConfig(cfgKept); err != nil {
 			u.c.bad("couldn't put your config back: " + err.Error())
-			left = append(left, "mv "+cfgKept+" "+u.cfgPath)
+			left = append(left, "cp "+cfgKept+" "+u.cfgPath, "rm "+cfgKept)
+		} else {
+			os.Remove(cfgKept)
 		}
 	}
 	if left != nil {
@@ -361,6 +364,17 @@ func (u *updater) stop(why string) int {
 	u.c.bad(why)
 	fmt.Fprintf(u.out, "  Nothing changed. BeeIRCd %s keeps running.\n", u.current)
 	return 1
+}
+
+// putConfig writes the text of file over the config. A symlinked config
+// is written where the link points, with its mode and owner, on disk
+// before it counts.
+func (u *updater) putConfig(file string) error {
+	b, err := os.ReadFile(file)
+	if err != nil {
+		return err
+	}
+	return u.replace(u.cfgPath, b)
 }
 
 // move is one rename that undoes a step of an update.

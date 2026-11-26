@@ -38,17 +38,18 @@ func Edit(path string, fn func(*Doc) error) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("the change would break the config: %w", err)
 	}
-	if err := replaceFile(path, []byte(out)); err != nil {
+	if err := ReplaceFile(path, []byte(out)); err != nil {
 		return nil, err
 	}
 	return cfg, nil
 }
 
-// replaceFile puts data in the file at path so that a crash leaves either
+// ReplaceFile puts data in the file at path so that a crash leaves either
 // the old text or the new: it goes to a temp file next to it, on disk
-// before it is renamed over the old one, with the old one's mode. A
+// before it is renamed over the old one, with the old one's mode and,
+// where this process may set it, its owner. A
 // symlinked config is written where the link points, so the link stays.
-func replaceFile(path string, data []byte) error {
+func ReplaceFile(path string, data []byte) error {
 	real, err := filepath.EvalSymlinks(path)
 	if err != nil {
 		return err
@@ -65,6 +66,7 @@ func replaceFile(path string, data []byte) error {
 	}
 	_, err = f.Write(data)
 	if err == nil {
+		keepOwner(f, info)
 		err = f.Chmod(info.Mode().Perm()) // not narrowed by the umask
 	}
 	if err == nil {
