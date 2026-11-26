@@ -121,3 +121,38 @@ func (s *Server) linkGate(l *linkConn, m irc.Message) bool {
 	}
 	return true
 }
+
+// maxLinkHostLen is the longest host a linked server may give a user.
+const maxLinkHostLen = 64
+
+// validLinkHost says whether a host from a linked server is safe to show:
+// letters, digits, '.', '-', ':' (IPv6), '_' and '/' (InspIRCd vhosts), at
+// most 64, not starting with ':' (it would end a protocol line's params).
+func validLinkHost(h string) bool {
+	if h == "" || len(h) > maxLinkHostLen || h[0] == ':' {
+		return false
+	}
+	for i := 0; i < len(h); i++ {
+		c := h[i]
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || strings.IndexByte(".-:_/", c) >= 0) {
+			return false
+		}
+	}
+	return true
+}
+
+// validLinkIdent says whether an ident from a linked server is safe: at
+// most maxIdentLen printable ASCII, without '@', '!', '*' or a leading ':'.
+// Looser than SETIDENT's own rule, since other servers allow more.
+func validLinkIdent(id string) bool {
+	if id == "" || len(id) > maxIdentLen || id[0] == ':' {
+		return false
+	}
+	for i := 0; i < len(id); i++ {
+		c := id[i]
+		if c <= ' ' || c >= 0x7f || c == '@' || c == '!' || c == '*' {
+			return false
+		}
+	}
+	return true
+}

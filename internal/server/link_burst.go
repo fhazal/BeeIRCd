@@ -224,6 +224,55 @@ func (s *Server) ignoreOnce(l *linkConn, kind, format string, a ...any) {
 	s.log.Printf("link %s: "+format, append([]any{l.peer.Name}, a...)...)
 }
 
+// linkNoticeOnce is ignoreOnce with a server notice (letter l) too.
+func (s *Server) linkNoticeOnce(l *linkConn, kind, format string, a ...any) {
+	if l.ignored[kind] {
+		return
+	}
+	l.ignored[kind] = true
+	s.sno('l', format, a...)
+}
+
+// badLinkHost stands in for a host from a link that can't be shown.
+const badLinkHost = "invalid.host"
+
+// fixLinkHosts makes a user introduction's hosts and ident safe to show,
+// keeping the user (dropping the link would loop on reconnect). A bad
+// real host becomes the IP, else badLinkHost; a bad shown host the cloak,
+// else (not +x, so nothing is hidden) the real host, else badLinkHost; a
+// bad ident "invalid". Noticed once per link.
+func (s *Server) fixLinkHosts(l *linkConn, in *link.User) {
+	ip := ""
+	if validLinkHost(in.IP) {
+		ip = in.IP
+	}
+	if in.Cloak != "" && !validLinkHost(in.Cloak) {
+		in.Cloak = ""
+	}
+	if !validLinkHost(in.RealHost) {
+		s.linkNoticeOnce(l, "badhost", "Replaced a bad host %q for %s (%s) from %s", in.RealHost, in.Nick, in.UID, l.peer.Name)
+		in.RealHost = badLinkHost
+		if ip != "" {
+			in.RealHost = ip
+		}
+	}
+	if !validLinkHost(in.Host) {
+		s.linkNoticeOnce(l, "badhost", "Replaced a bad host %q for %s (%s) from %s", in.Host, in.Nick, in.UID, l.peer.Name)
+		switch {
+		case in.Cloak != "":
+			in.Host = in.Cloak
+		case strings.IndexByte(in.Modes, 'x') < 0:
+			in.Host = in.RealHost // shown anyway without +x
+		default:
+			in.Host = badLinkHost
+		}
+	}
+	if !validLinkIdent(in.Ident) {
+		s.linkNoticeOnce(l, "badident", "Replaced a bad ident %q for %s (%s) from %s", in.Ident, in.Nick, in.UID, l.peer.Name)
+		in.Ident = "invalid"
+	}
+}
+
 func (s *Server) remoteUser(l *linkConn, source string, in *link.User) {
 	src := s.sourceServer(l, source)
 	home := s.links.servers[uidServer(in.UID)]
@@ -266,6 +315,7 @@ func (s *Server) remoteUser(l *linkConn, source string, in *link.User) {
 			in.Nick = in.UID
 		}
 	}
+	s.fixLinkHosts(l, in)
 	modes := map[byte]bool{}
 	for i := 0; i < len(in.Modes); i++ {
 		if strings.IndexByte(userModes, in.Modes[i]) >= 0 {

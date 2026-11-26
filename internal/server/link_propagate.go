@@ -350,10 +350,18 @@ func (s *Server) linkLive(l *linkConn, m irc.Message, item any) bool {
 		}
 	case *link.Host:
 		if u := s.userByUIDOrNick(it.UID); u != nil && it.Host != "" && u.Host != it.Host {
+			if !validLinkHost(it.Host) {
+				s.linkNoticeOnce(l, "badhost", "Ignored a bad host %q for %s from %s", it.Host, u.Nick, l.peer.Name)
+				break
+			}
 			s.emitFrom(l, m.Source, &state.HostChange{UID: u.UID, Host: it.Host})
 		}
 	case *link.Ident:
 		if u := s.userByUIDOrNick(it.UID); u != nil && it.Ident != "" && u.Ident != it.Ident {
+			if !validLinkIdent(it.Ident) {
+				s.linkNoticeOnce(l, "badident", "Ignored a bad ident %q for %s from %s", it.Ident, u.Nick, l.peer.Name)
+				break
+			}
 			s.emitFrom(l, m.Source, &state.HostChange{UID: u.UID, Host: u.Host, Ident: it.Ident})
 		}
 	case *link.Realname:
