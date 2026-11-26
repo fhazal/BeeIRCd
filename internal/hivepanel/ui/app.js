@@ -367,6 +367,12 @@
     put(crumbEl, 'Hive Panel / ', h('b', { text: p.label }));
     document.title = p.label + ' · Hive Panel';
     drawNav();
+    // On a phone the menu is one row that scrolls sideways: bring the open page's tab into view.
+    const on = navEl.querySelector('a.on');
+    if (on && navEl.scrollWidth > navEl.clientWidth) {
+      const a = on.getBoundingClientRect(), n = navEl.getBoundingClientRect();
+      navEl.scrollLeft += a.left - n.left - (n.width - a.width) / 2;
+    }
     decorate();
     if (status && page.status) page.status(status);
     if (events && page.events) page.events(events);
