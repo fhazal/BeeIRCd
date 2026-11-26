@@ -382,3 +382,19 @@ func TestLinkSNLineRegexKeepsCase(t *testing.T) {
 		t.Errorf("leaf keeps SNLINE %q, want %s", masks, want)
 	}
 }
+
+// OS UMODE on someone on the leaf: the leaf sets the modes (SVS2MODE),
+// not only the reply saying so.
+func TestLinkOperServUmodeRemote(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	eve := login(t, leaf.s, "eve")
+	hub.seen(t, "eve")
+	uid := hub.user("eve").UID
+	hub.s.onLoop(func() { host{hub.s}.SetUserModes(uid, "", "+w") })
+	eve.expect("MODE eve +w")
+	waitLink(t, "hub sees +w", func() bool {
+		var w bool
+		hub.s.onLoop(func() { u := hub.s.net.UserByUID(uid); w = u != nil && u.Modes['w'] })
+		return w
+	})
+}

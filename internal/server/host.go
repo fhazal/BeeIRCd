@@ -283,6 +283,14 @@ func (h host) SessionOper(uid, flags string) bool {
 
 func (h host) SetUserModes(uid, srcUID, modes string) bool {
 	c := h.s.clients[uid]
+	if c == nil && h.s.net.UserByUID(uid) != nil {
+		// On another server: their server sets them (SVS2MODE), as
+		// SVSJOIN does.
+		if o := h.s.linkOf(uid); o != nil {
+			o.send(":" + h.s.svcSource() + " SVS2MODE " + uid + " " + modes)
+		}
+		return false
+	}
 	if c == nil || c.user == nil {
 		return false
 	}
