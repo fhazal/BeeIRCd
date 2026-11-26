@@ -163,3 +163,69 @@ func TestLinkServiceBotCollisionDrops(t *testing.T) {
 		t.Fatalf("hub NickServ is %+v, want our bot", u)
 	}
 }
+
+// A link dropped for two sets of services waits 10 minutes before the next
+// autoconnect try and tells opers once an hour, not on every try.
+func TestLinkTwoServicesBacksOff(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	l := leaf.sid
+	count := func() int { return strings.Count(hub.log.String(), "runs its own services") }
+	var next0 time.Time
+	hub.s.onLoop(func() { next0 = time.Now() })
+	hub.fromLink(t, ":"+l+" UID NickServ 1 1794444176 services leaf.test.local "+l+"ZZZZZZ 0 +iS * * fwAAAQ== :Nickname Services")
+	waitLink(t, "link dropped", func() bool { return count() == 1 })
+	var r *linkRetry
+	hub.s.onLoop(func() { r = hub.s.links.retry["leaf.test.local"] })
+	if r == nil {
+		t.Fatal("no retry state for leaf")
+	}
+	hub.s.onLoop(func() {
+		if d := r.next.Sub(next0); d < linkServicesRetry-time.Minute || d > linkServicesRetry+time.Minute {
+			t.Errorf("next try in %v, want about %v", d, linkServicesRetry)
+		}
+		// a second drop within the hour: no new notice, still 10 minutes
+		r.next = time.Now()
+		hub.s.dropServicesLink(nil, "leaf.test.local", "NickServ", "x")
+		if d := time.Until(r.next); d < linkServicesRetry-time.Minute {
+			t.Errorf("second drop: next try in %v", d)
+		}
+	})
+	if n := count(); n != 1 {
+		t.Fatalf("%d notices, want 1", n)
+	}
+	// an hour later it speaks up again
+	hub.s.onLoop(func() {
+		r.svcNoticed = time.Now().Add(-linkServicesNoticeEvery - time.Second)
+		hub.s.dropServicesLink(nil, "leaf.test.local", "NickServ", "x")
+	})
+	if n := count(); n != 2 {
+		t.Fatalf("%d notices, want 2", n)
+	}
+	// a rehash tries right away again
+	hub.s.onLoop(func() {
+		hub.s.linkRehash()
+		if r.svcNick != "" || time.Until(r.next) > time.Second {
+			t.Errorf("rehash left svcNick=%q next in %v", r.svcNick, time.Until(r.next))
+		}
+	})
+}
+
+// A link that comes up and finishes its burst clears the two-services wait.
+func TestLinkTwoServicesClearedOnBurst(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	_ = leaf
+	hub.s.onLoop(func() {
+		r := hub.s.links.retry["leaf.test.local"]
+		if r == nil {
+			r = &linkRetry{}
+			hub.s.links.retry["leaf.test.local"] = r
+		}
+		r.svcNick, r.svcNoticed = "NickServ", time.Now()
+	})
+	hub.s.onLoop(func() {
+		hub.s.linkServicesOK("leaf.test.local")
+		if r := hub.s.links.retry["leaf.test.local"]; r.svcNick != "" || !r.svcNoticed.IsZero() {
+			t.Errorf("state kept: %+v", r)
+		}
+	})
+}

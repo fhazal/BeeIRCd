@@ -1481,7 +1481,7 @@ difference is a warning to opers, not a refusal.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `enabled` | `true` | Run NickServ, ChanServ and the other bots here. A network has **one** services server: set `false` on every other BeeIRCd; their users reach the services server's bots over the link (`/ns`, `/cs` ... work as before). Two linked servers that both run services are refused, and so is a link to an UnrealIRCd network that has its own services (Anope) while ours run (restart). A plain user on a linked server who takes one of our services nicks is killed instead; the link stays up |
+| `enabled` | `true` | Run NickServ, ChanServ and the other bots here. A network has **one** services server: set `false` on every other BeeIRCd; their users reach the services server's bots over the link (`/ns`, `/cs` ... work as before). Two linked servers that both run services are refused, and so is a link to an UnrealIRCd network that has its own services (Anope) while ours run (restart); autoconnect then retries only every 10 minutes and opers get one notice an hour (CONNECT or a rehash tries at once). A plain user on a linked server who takes one of our services nicks is killed instead; the link stays up |
 | `server_name`, `server_sid` | `services.<domain>`, our SID with `9` first | The pseudo-server the bots sit on when this server links (`irc.example.net` gives `services.example.net`; SID `0BE` gives `9BE`). UnrealIRCd servers U-line this name. Not used when standalone (restart) |
 | `database` | `/var/lib/beeircd/services.db` | Accounts, nicks, channels, memos, bans (restart). With services off it still keeps the network bans that arrive over links |
 | `admin` | – | The admin's account: every oper flag, can't be changed from IRC |

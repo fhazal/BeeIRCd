@@ -60,6 +60,13 @@ const (
 	linkMaxPreLines = 64
 )
 
+// A network with its own services drops again at once: try every 10
+// minutes and tell opers once an hour.
+const (
+	linkServicesRetry       = 10 * time.Minute
+	linkServicesNoticeEvery = time.Hour
+)
+
 // linkRetryFirst is how soon we reconnect after a lost link (a variable
 // for tests).
 var linkRetryFirst = 10 * time.Second
@@ -111,6 +118,11 @@ type linkRetry struct {
 	dialing bool
 	lastErr string
 	ruleNo  bool // the link rule said no last time (told opers once)
+	// svcNick is set while the last drop was because the network behind has
+	// its own services (the nick of its bot); svcNoticed is when opers last
+	// heard of it. Cleared when a link to it finishes its burst, or on rehash.
+	svcNick    string
+	svcNoticed time.Time
 }
 
 // remoteServer is one server behind a link.
@@ -158,6 +170,7 @@ type linkConn struct {
 	netjoin   *netjoinBatch         // JOINs of their burst, for batch clients
 	preLines  int                   // lines before the handshake was done
 	denied    bool                  // the handshake refused it (not a broken connection)
+	svcDrop   bool                  // dropped for two sets of services: dropServicesLink tells opers
 	// renameBack: channels their burst brought back under a name we renamed
 	// away while they were split off, to rename there too (rename.go).
 	renameBack []string
@@ -709,6 +722,7 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		r.synced = true
 		if r.sid == l.peer.SID {
 			l.eos = true
+			s.linkServicesOK(r.name)
 			l.netjoin.end()
 			l.synced = time.Since(l.since)
 			s.lnotice("Received end of netburst from \x02%s\x02 (burst time: %d ms)", r.name, l.synced.Milliseconds())
@@ -1020,7 +1034,9 @@ func (s *Server) dropLink(l *linkConn, reason string) {
 			behind[sid] = true
 		}
 	}
-	s.logSplit(behind, reason)
+	if !l.svcDrop {
+		s.logSplit(behind, reason)
+	}
 	users := s.quitSplit(behind, s.cfg.Server.Name, l.peer.Name)
 	for sid := range behind {
 		delete(s.links.servers, sid)
@@ -1028,9 +1044,47 @@ func (s *Server) dropLink(l *linkConn, reason string) {
 	}
 	gone := len(behind)
 	s.linkBroadcast(nil, fmt.Sprintf(":%s SQUIT %s :%s", s.cfg.Server.SID, l.peer.Name, reason))
+	if l.svcDrop {
+		return // dropServicesLink says it once an hour
+	}
 	s.lnotice("Server \x02%s\x02 split: %s", l.peer.Name, reason)
 	s.netsplitDone(gone, users)
 	s.lnotice("Connection to '\x02%s\x02' was established for %s", l.peer.Name, longDuration(time.Since(l.since)))
+}
+
+// dropServicesLink ends link l (nil in tests) because the network behind it
+// runs its own services (bot nick). It would only drop again, so the next
+// autoconnect try waits linkServicesRetry, and opers hear of it at most once
+// an hour per server; the split notices of dropLink stay out. A manual
+// CONNECT or a rehash tries right away.
+func (s *Server) dropServicesLink(l *linkConn, name, nick, reason string) {
+	key := strings.ToLower(name)
+	r := s.links.retry[key]
+	if r == nil {
+		r = &linkRetry{}
+		s.links.retry[key] = r
+	}
+	now := time.Now()
+	quiet := !r.svcNoticed.IsZero() && now.Sub(r.svcNoticed) < linkServicesNoticeEvery
+	if l != nil {
+		l.svcDrop = true
+		s.dropLink(l, reason)
+	}
+	r.svcNick = nick
+	r.next, r.wait = now.Add(linkServicesRetry), 0
+	if !quiet {
+		r.svcNoticed = now
+		s.lnotice("\x02%s\x02 runs its own services (%s); retrying every %d minutes. Turn services off on one side. (%s)",
+			name, nick, int(linkServicesRetry.Minutes()), reason)
+	}
+}
+
+// linkServicesOK forgets a two-services drop of name: its link got through
+// its burst, so normal retry timing and notices are back.
+func (s *Server) linkServicesOK(name string) {
+	if r := s.links.retry[strings.ToLower(name)]; r != nil {
+		r.svcNick, r.svcNoticed = "", time.Time{}
+	}
 }
 
 // linkFailed tells opers why a link ended before its handshake was done:
@@ -1205,9 +1259,12 @@ func (s *Server) linkRehash() {
 			s.dropLink(l, "its link block was removed")
 		}
 	}
-	for key := range s.links.retry {
+	for key, r := range s.links.retry {
 		if s.cfg.Link.Server(key) == nil {
 			delete(s.links.retry, key)
+		} else if r.svcNick != "" {
+			// The config may have changed (services off): try again now.
+			r.svcNick, r.svcNoticed, r.next = "", time.Time{}, time.Now()
 		}
 	}
 }

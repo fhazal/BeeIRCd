@@ -306,7 +306,7 @@ func (s *Server) remoteUser(l *linkConn, source string, in *link.User) {
 				// A services bot of its own (Anope on UnrealIRCd, or a
 				// BeeIRCd with services on): killing it would loop, as its
 				// services bring it back. One network, one set of services.
-				s.dropLink(l, fmt.Sprintf("the network behind %s has its own services (%s on %s); only one server may run them, set [services] enabled = false here", l.peer.Name, in.Nick, home.name))
+				s.dropServicesLink(l, l.peer.Name, in.Nick, fmt.Sprintf("the network behind %s has its own services (%s on %s); only one server may run them, set [services] enabled = false here", l.peer.Name, in.Nick, home.name))
 				return
 			}
 			// A user has our services nick (U-lined, as Anope and
