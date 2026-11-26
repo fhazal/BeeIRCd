@@ -42,6 +42,7 @@ type updater struct {
 	run      func(name string, args ...string) (string, error)
 	ask      func(cmd, path string, wait time.Duration) (*control.Response, error)
 	isRoot   func() bool
+	rename   func(from, to string) error
 	waitUp   time.Duration
 	pollStep time.Duration
 }
@@ -82,7 +83,7 @@ func newUpdater(path string, stdout io.Writer) (*updater, error) {
 			out, err := exec.Command(name, args...).CombinedOutput()
 			return strings.TrimSpace(string(out)), err
 		},
-		isRoot: func() bool { return os.Geteuid() == 0 }, waitUp: 30 * time.Second, pollStep: 300 * time.Millisecond,
+		isRoot: func() bool { return os.Geteuid() == 0 }, rename: os.Rename, waitUp: 30 * time.Second, pollStep: 300 * time.Millisecond,
 	}
 	exe, err := os.Executable()
 	if err == nil {
@@ -387,12 +388,28 @@ func (u *updater) rollback(yes bool) int {
 		}
 	}
 	tmp := u.exe + ".swap"
-	if err := os.Rename(u.exe, tmp); err != nil {
+	if err := u.rename(u.exe, tmp); err != nil {
 		u.c.bad(err.Error())
 		return 1
 	}
-	os.Rename(oldExe, u.exe)
-	os.Rename(tmp, oldExe) // so going forward again is one more --rollback
+	if err := u.rename(oldExe, u.exe); err != nil {
+		// Stop here: moving on would put the current program over the
+		// kept one. Put the current program back first.
+		u.c.bad("couldn't put " + oldVer + " in place: " + err.Error())
+		if err := u.rename(tmp, u.exe); err != nil {
+			u.c.bad("and couldn't put " + u.current + " back: " + err.Error())
+			fmt.Fprintf(u.out, "  The server wasn't touched. Move %s back to %s by hand before it restarts.\n", tmp, u.exe)
+			return 1
+		}
+		fmt.Fprintln(u.out, "  Nothing changed.")
+		return 1
+	}
+	// So going forward again is one more --rollback.
+	if err := u.rename(tmp, oldExe); err != nil {
+		u.c.bad(oldVer + " is in place, but " + u.current + " couldn't be kept as " + oldExe + ": " + err.Error())
+		fmt.Fprintf(u.out, "  The server wasn't touched. %s is now at %s.\n", u.current, tmp)
+		return 1
+	}
 	if running == nil {
 		u.c.ok("program swapped back to " + oldVer + "; start it with beeircd start")
 		return 0

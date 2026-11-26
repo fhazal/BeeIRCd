@@ -87,7 +87,7 @@ func testUpdater(t *testing.T, current, url string, fs *fakeSystem, answers stri
 	u := &updater{
 		out: out, c: &checker{w: out}, in: bufio.NewReader(strings.NewReader(answers)), tty: true,
 		cfgPath: cfgPath, cfg: cfg, exe: exe, current: current, client: http.DefaultClient,
-		asset: "beeircd-linux-amd64", isRoot: func() bool { return true }, waitUp: 300 * time.Millisecond, pollStep: 10 * time.Millisecond,
+		asset: "beeircd-linux-amd64", isRoot: func() bool { return true }, rename: os.Rename, waitUp: 300 * time.Millisecond, pollStep: 10 * time.Millisecond,
 	}
 	u.run = func(name string, args ...string) (string, error) {
 		fs.calls = append(fs.calls, filepath.Base(name)+" "+strings.Join(args, " "))
@@ -242,6 +242,34 @@ func TestRollbackRefusesConfigOldProgramRejects(t *testing.T) {
 		t.Errorf("program %s, old %s, running %s: rollback changed something\n%s", progVersion(u.exe), progVersion(u.exe+".old"), fs.running, out)
 	}
 	for _, want := range []string{"1.0.0 refuses your config", "flood_rate", "Nothing changed."} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
+	}
+}
+
+// A rename that fails half way through --rollback must stop there: going
+// on would put the current program over the kept one and lose it.
+func TestRollbackStopsWhenRenameFails(t *testing.T) {
+	fs := &fakeSystem{running: "1.0.1", comesUp: true}
+	u, out := testUpdater(t, "1.0.1", "http://127.0.0.1:1", fs, "y\n")
+	os.WriteFile(u.exe+".old", []byte("PROGRAM 1.0.0"), 0o755)
+	u.rename = func(from, to string) error {
+		if from == u.exe+".old" {
+			return errors.New("disk said no")
+		}
+		return os.Rename(from, to)
+	}
+	if code := u.rollback(true); code != 1 {
+		t.Fatalf("rollback exit %d, want 1\n%s", code, out)
+	}
+	if progVersion(u.exe) != "1.0.1" || progVersion(u.exe+".old") != "1.0.0" || fs.running != "1.0.1" {
+		t.Errorf("program %q, old %q, running %q: want both kept and nothing restarted\n%s", progVersion(u.exe), progVersion(u.exe+".old"), fs.running, out)
+	}
+	if _, err := os.Stat(u.exe + ".swap"); err == nil {
+		t.Error(".swap left behind")
+	}
+	for _, want := range []string{"couldn't put 1.0.0 in place: disk said no", "Nothing changed."} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("output lacks %q:\n%s", want, out)
 		}
