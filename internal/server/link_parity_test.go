@@ -80,3 +80,79 @@ func TestKnockUnrealLinks(t *testing.T) {
 		t.Errorf("a refused knock went on")
 	}
 }
+
+// SAMODE on someone on another server said "No such nick". It now goes
+// to their server, which sets it, and the change comes back as theirs.
+func TestSamodeOverLink(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	op := login(t, hub.s, "op")
+	netadminOn(t, hub, op, "op")
+	bob := login(t, leaf.s, "bob")
+	hub.seen(t, "bob")
+	leaf.seen(t, "op")
+
+	op.send("SAMODE bob +B")
+	if l := bob.expect(" MODE bob "); !strings.HasSuffix(l, "+B") {
+		t.Errorf("bob got %q", l)
+	}
+	waitLink(t, "the hub sees bob +B", func() bool {
+		u := hub.user("bob")
+		return u != nil && u.Modes['B']
+	})
+
+	// Not for someone who isn't an oper with flag a.
+	pl := login(t, hub.s, "plain")
+	pl.send("SAMODE bob -B")
+	pl.expectNumeric("481")
+	bob.quiet("-B")
+
+	// A relayed SAMODE from a user who isn't an oper is refused there.
+	leaf.fromLink(t, ":"+leaf.user("plain").UID+" SAMODE "+leaf.user("bob").UID+" :-B")
+	bob.quiet("-B")
+}
+
+// Behind UnrealIRCd, SAMODE on a user goes as services' SVS2MODE to
+// their server (Unreal has no user SAMODE) and is set here as well,
+// since Unreal sends nothing back. +o never goes.
+func TestSamodeUnrealLinks(t *testing.T) {
+	hub, hop, _, _ := globopsTree(t)
+	bob := hub.user("bob").UID
+	var svc string
+	hub.s.onLoop(func() { svc = hub.s.svcSource() })
+
+	hop.send("SAMODE bob +oB")
+	waitLink(t, "SVS2MODE to a", func() bool {
+		return hub.logHas("link a.test.local -> :" + svc + " SVS2MODE " + bob + " +B")
+	})
+	waitLink(t, "set here", func() bool {
+		u := hub.user("bob")
+		return u != nil && u.Modes['B'] && !u.Modes['o']
+	})
+	if !hub.logHas("link b.test.local -> :" + svc + " SVS2MODE " + bob + " +B") {
+		t.Errorf("b didn't hear of it")
+	}
+	if hub.logHas("+oB") {
+		t.Errorf("+o went out")
+	}
+
+	// From a BeeIRCd oper further away, the hub turns it into SVS2MODE.
+	hub.s.onLoop(func() {
+		for l := range hub.s.links.conns {
+			if l.peer.Name == "b.test.local" {
+				l.peer.Bee = true
+			}
+		}
+	})
+	ben := hub.user("ben").UID
+	hub.fromLinkTo(t, "b.test.local", ":"+ben+" SAMODE "+bob+" :-B")
+	waitLink(t, "translated for a", func() bool {
+		return hub.logHas("link a.test.local -> :" + svc + " SVS2MODE " + bob + " -B")
+	})
+	if hub.logHas("link a.test.local -> :" + ben + " SAMODE") {
+		t.Errorf("raw SAMODE sent to UnrealIRCd")
+	}
+
+	// An UnrealIRCd user's SAMODE is not ours to run.
+	hub.fromLinkTo(t, "a.test.local", ":"+bob+" SAMODE "+hub.user("hubop").UID+" :+B")
+	hop.quiet(" MODE hubop")
+}

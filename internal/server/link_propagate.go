@@ -670,6 +670,14 @@ func (s *Server) remoteUMode(l *linkConn, m *link.UMode) {
 // svsMode applies a mode change another server's services make to one
 // of our users; the result travels on as UMODE2 from the user.
 func (s *Server) svsMode(u *state.User, modes string) {
+	if chg := svsChanges(modes); len(chg) > 0 {
+		s.emit(&state.UserMode{UID: u.UID, Changes: chg})
+	}
+}
+
+// svsChanges are the user modes in modes that one server may set on
+// another's user: known ones, no +o, no z.
+func svsChanges(modes string) []state.ModeChange {
 	var chg []state.ModeChange
 	add := true
 	for i := 0; i < len(modes); i++ {
@@ -684,9 +692,7 @@ func (s *Server) svsMode(u *state.User, modes string) {
 			chg = append(chg, state.ModeChange{Add: add, Mode: c})
 		}
 	}
-	if len(chg) > 0 {
-		s.emit(&state.UserMode{UID: u.UID, Changes: chg})
-	}
+	return chg
 }
 
 // ---- messages ----

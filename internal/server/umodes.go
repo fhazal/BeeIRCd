@@ -541,6 +541,9 @@ func (s *Server) cmdSamode(c *Client, m irc.Message) {
 	}
 	text := strings.Join(m.Params[1:], " ")
 	if !irc.IsChannel(m.Params[0]) {
+		if s.relayOper(c, m, false) {
+			return
+		}
 		t := s.opTarget(c, m.Params[0])
 		if t == nil {
 			return

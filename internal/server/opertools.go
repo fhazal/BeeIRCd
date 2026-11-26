@@ -102,7 +102,7 @@ func (s *Server) opUser(c *Client, nick string) *state.User {
 // sender; the value is which parameter names the person.
 var relayCmds = map[string]int{
 	"SAJOIN": 0, "SAPART": 0, "SANICK": 0, "SAQUIT": 0, "NICKLOCK": 0, "NICKUNLOCK": 0,
-	"REMOVE": 1,
+	"REMOVE": 1, "SAMODE": 0,
 }
 
 // relayOper passes an oper command about someone on another server to
@@ -121,6 +121,12 @@ func (s *Server) relayOper(c *Client, m irc.Message, beeOnly bool) bool {
 	switch {
 	case o == nil || !o.up || o.closed:
 		s.reply(c, irc.ErrNoSuchNick, m.Params[idx], "No such nick/channel")
+	case m.Command == "SAMODE" && !o.peer.Bee:
+		if !s.outranked(c, t) {
+			if modes := s.farSamode(o, t, m.Params[1]); modes != "" {
+				s.sno('a', "%s used SAMODE: %s (on %s) %s", c.user.Nick, t.Nick, t.Server, modes)
+			}
+		}
 	case o.bridge != nil && !bridgeCarries[m.Command] || beeOnly && !o.peer.Bee:
 		s.notice(c, "*** "+m.Command+" can't reach "+t.Nick+": "+t.Server+" is behind a link that doesn't carry it")
 	case m.Command == "SANICK" && o.bridge == nil && !o.peer.Bee:
@@ -174,6 +180,8 @@ func (s *Server) relayedIn(l *linkConn, m irc.Message) bool {
 		case "SANICK":
 			s.farSanick(l, m)
 			return true
+		case "SAMODE":
+			return true // they send it only for channels, as MODE
 		}
 	}
 	if idx >= len(m.Params) {
@@ -184,7 +192,11 @@ func (s *Server) relayedIn(l *linkConn, m irc.Message) bool {
 		return true
 	}
 	if !s.ours(t.UID) {
-		if o := s.linkOf(t.UID); o != nil && o != l {
+		switch o := s.linkOf(t.UID); {
+		case o == nil || o == l:
+		case m.Command == "SAMODE" && !o.peer.Bee && len(m.Params) > 1:
+			s.farSamode(o, t, m.Params[1])
+		default:
 			o.send(m.String())
 		}
 		return true
@@ -196,6 +208,30 @@ func (s *Server) relayedIn(l *linkConn, m irc.Message) bool {
 	}
 	s.runFor(m.Source, func(c *Client) { cmd.run(s, c, m) })
 	return true
+}
+
+// farSamode is SAMODE on a user behind an UnrealIRCd or InspIRCd link:
+// their server sets it when services ask (SVS2MODE) and sends nothing
+// back, so it is set here too. It returns the modes it sent ("": none).
+func (s *Server) farSamode(o *linkConn, t *state.User, modes string) string {
+	chg := svsChanges(modes)
+	if len(chg) == 0 {
+		return ""
+	}
+	m := modeString(chg)
+	src := s.svcSource()
+	if !s.sendRemote(t.UID, &link.UMode{Source: src, UID: t.UID, Modes: m}) {
+		return ""
+	}
+	hadX := t.Modes['x']
+	s.emitFrom(o, src, &state.UserMode{UID: t.UID, Changes: chg})
+	switch {
+	case !hadX && t.Modes['x'] && t.Cloak != "" && t.Host == t.RealHost:
+		s.emitQuiet(&state.HostChange{UID: t.UID, Host: t.Cloak})
+	case hadX && !t.Modes['x'] && t.Host == t.Cloak:
+		s.emitQuiet(&state.HostChange{UID: t.UID, Host: t.RealHost})
+	}
+	return m
 }
 
 // bridgeCarries are the relayCmds an InspIRCd link carries too.
