@@ -177,7 +177,7 @@ func (s *Server) panelOperSave(po *control.PanelOper, ip string, req control.Req
 	// own flags
 	flags, bad := cleanFlags(strings.TrimSpace(req.Flags))
 	if bad != 0 {
-		return fail("%c isn't an oper flag. Flags: a admin, c links, g global, h hosts, k kill, s services.", bad)
+		return fail("%c isn't an oper flag. Flags: a admin, b bots, c links, g global, h hosts, k kill, s services.", bad)
 	}
 	o.Flags = flags
 	if o.Class == "" && o.Flags == "" {
