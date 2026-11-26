@@ -45,6 +45,10 @@ type User struct {
 	// looks in WHOIS: their title and extra lines.
 	OperTitle  string
 	OperSwhois []string
+	// Swhois are the extra WHOIS lines (320) other servers (UnrealIRCd's
+	// SWHOIS) set on the user, lowest priority first. Replaced, never
+	// changed in place.
+	Swhois []SwhoisLine
 	// OperTag is the [server] oper_tag of their server (nil: an older
 	// BeeIRCd that doesn't send it).
 	OperTag *string
@@ -592,4 +596,12 @@ func sortedKeys(m map[byte]bool) []byte {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 	return out
+}
+
+// SwhoisLine is one extra WHOIS line: Tag is who set it, Priority orders
+// the lines.
+type SwhoisLine struct {
+	Tag      string
+	Priority int
+	Text     string
 }

@@ -84,8 +84,8 @@ const (
 	BanShun      = 's' // user@host
 	BanException = 'E' // user@host, exempt from the others
 	BanQline     = 'Q' // nick mask (in Host; User is "*")
-	// BanRealname is BeeIRCd-only (SNLINE): the realname mask, base64,
-	// in Host. Only sent to and read from BeeIRCd servers.
+	// BanRealname is a realname ban (SNLINE): the mask, base64, in Host.
+	// UnrealIRCd and InspIRCd links carry it as G ~realname: / R-line.
 	BanRealname = 'n'
 )
 

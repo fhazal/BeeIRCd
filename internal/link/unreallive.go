@@ -1,6 +1,7 @@
 package link
 
 import (
+	"encoding/base64"
 	"fmt"
 	"sort"
 	"strconv"
@@ -81,7 +82,10 @@ func (c *unrealCodec) Encode(item any) []string {
 		ps[last] = ":" + ps[last]
 		return []string{":" + it.Source + " " + it.Code + " " + strings.Join(ps, " ")}
 	case *Ban:
-		return []string{c.encodeBan(it)}
+		if line := c.encodeBan(it); line != "" {
+			return []string{line}
+		}
+		return nil
 	case *SpamFilter:
 		return []string{c.encodeSpam(it)}
 	case *Bee:
@@ -166,10 +170,21 @@ func (c *unrealCodec) encodeBan(b *Ban) string {
 		sign = "+"
 	}
 	user, host := orStar(b.User), b.Host
-	if c.unreal && irc.IsPlaceUser(user) {
+	typ := b.Type
+	if typ == BanRealname && !c.bee {
+		// UnrealIRCd (and InspIRCd, through the bridge) have the realname
+		// ban as an extended server ban: G ~realname: mask, a space
+		// written '_'. A /regex/ has no form there.
+		mask, err := base64.RawURLEncoding.DecodeString(b.Host)
+		if err != nil || strings.HasPrefix(string(mask), "/") {
+			return ""
+		}
+		typ, user, host = BanGline, realnameUser, strings.ReplaceAll(string(mask), " ", "_")
+	}
+	if c.unreal && typ == b.Type && irc.IsPlaceUser(user) {
 		user, host = irc.SplitServerExtban(user+host, true) // ~country: NL
 	}
-	head := fmt.Sprintf(":%s TKL %s %c %s %s %s %d %d", b.Source, sign, b.Type, user, host, b.SetBy, b.Expires, b.SetAt)
+	head := fmt.Sprintf(":%s TKL %s %c %s %s %s %d %d", b.Source, sign, typ, user, host, b.SetBy, b.Expires, b.SetAt)
 	if b.Type == BanException {
 		return head + " " + orStar(b.Exempt) + " :" + b.Reason
 	}
@@ -377,6 +392,15 @@ func (c *unrealCodec) decodeBan(src string, p []string) any {
 	if b.User == "%" {
 		b.User = "%*"
 	}
+	if b.Type == BanGline && !c.bee && b.User == rlineUser {
+		// From an InspIRCd R-line (through the bridge): the host is already
+		// our mask in base64.
+		b.Type, b.User = BanRealname, "*"
+	} else if b.Type == BanGline && !c.bee && b.User == realnameUser {
+		// Back into our own form: the mask (a '_' is a space) in base64.
+		b.Type, b.User = BanRealname, "*"
+		b.Host = base64.RawURLEncoding.EncodeToString([]byte(strings.ReplaceAll(b.Host, "_", " ")))
+	}
 	if len(p) > 6 {
 		b.Expires, _ = strconv.ParseInt(p[5], 10, 64)
 		b.SetAt, _ = strconv.ParseInt(p[6], 10, 64)
@@ -411,3 +435,7 @@ func svidMode(modes string) (string, bool) {
 	}
 	return strings.Trim(out.String(), "+-"), true
 }
+
+// realnameUser is the user field of UnrealIRCd's realname ban, the
+// extended server ban ~realname:mask.
+const realnameUser = "~realname:"

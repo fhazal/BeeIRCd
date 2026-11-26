@@ -369,3 +369,9 @@ func SortedModes(m map[byte]bool) string {
 	sort.Slice(b, func(i, j int) bool { return b[i] < b[j] })
 	return string(b)
 }
+
+// NewUnrealCodec is the codec for a plain UnrealIRCd 6 peer, for tests that
+// need one on a link that came up as BeeIRCd.
+func NewUnrealCodec() Codec {
+	return &unrealCodec{unreal: true, paramModes: "kfLlFH", listModes: "beI", alwaysModes: "kLf", setModes: "lFH", rankModes: "qaohv"}
+}

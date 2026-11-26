@@ -224,6 +224,9 @@ func (s *Server) whoisOne(c *Client, u *state.User, reply func(code string, p ..
 	for _, line := range own {
 		reply(irc.RplWhoisSpecial, u.Nick, line)
 	}
+	for _, w := range u.Swhois { // lines other servers (UnrealIRCd's SWHOIS) set
+		reply(irc.RplWhoisSpecial, u.Nick, w.Text)
+	}
 	if u.HasMode('h') && !u.Service {
 		reply(irc.RplWhoisHelpOp, u.Nick, "is available for help")
 	}

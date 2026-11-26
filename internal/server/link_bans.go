@@ -21,7 +21,7 @@ var banTypes = map[string]byte{
 	store.BanZline:  link.BanGZline,
 	store.BanShun:   link.BanShun,
 	store.BanEline:  link.BanException,
-	store.BanSNLine: link.BanRealname, // BeeIRCd links only
+	store.BanSNLine: link.BanRealname, // UnrealIRCd and InspIRCd get it as ~realname: / R-line
 }
 
 func banKind(t byte) string {
@@ -64,9 +64,6 @@ func (s *Server) banItem(b store.NetBan, add bool) *link.Ban {
 func (s *Server) linkBanChanged(b store.NetBan, add bool) {
 	it := s.banItem(b, add)
 	for _, o := range s.upLinks(s.banFrom) {
-		if it.Type == link.BanRealname && !o.peer.Bee {
-			continue // UnrealIRCd has no realname TKL
-		}
 		for _, line := range o.codecOf().Encode(it) {
 			o.send(line)
 		}
@@ -84,9 +81,6 @@ func (s *Server) banBurst(l *linkConn) []string {
 	var out []string
 	cd := l.codecOf()
 	for _, b := range s.svc.LinkedBans() {
-		if b.Kind == store.BanSNLine && !l.peer.Bee {
-			continue
-		}
 		out = append(out, cd.Encode(s.banItem(b, true))...)
 	}
 	out = append(out, s.qlineBurst(l)...)

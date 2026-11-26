@@ -898,13 +898,21 @@ func (b *inspBridge) outTKL(src string, p []string) []string {
 		return nil
 	}
 	typ := banTypes[p[1][0]]
-	if typ == "" || irc.IsPlaceUser(p[2]) || strings.HasPrefix(p[2], "%") {
+	realname := p[1][0] == BanGline && p[2] == realnameUser
+	if realname {
+		typ = "R" // an R-line: a regex over "nick!user@host realname"
+	}
+	if typ == "" || (!realname && irc.IsPlaceUser(p[2])) || strings.HasPrefix(p[2], "%") {
 		return nil // InspIRCd has no X-line by country or network, and no soft ones
 	}
 	mask := p[2] + "@" + p[3]
 	switch p[1][0] {
 	case BanGZline, BanQline:
 		mask = p[3]
+	}
+	if realname {
+		// Unreal writes a space '_'; InspIRCd wants a regex (inspraline.go).
+		mask = rlineFromGlob(strings.ReplaceAll(p[3], "_", " "))
 	}
 	// InspIRCd names the line's source in its notice ("<nick> added a
 	// timed G-line ..."), so a ban set or removed by someone online goes
@@ -1565,6 +1573,12 @@ func (b *inspBridge) banOf(typ, mask string) (t, user, host string, ok bool) {
 		return t, user, host, true
 	case "Z":
 		return "Z", "*", mask, true
+	case "R":
+		m, why := rlineIn(mask)
+		if why != "" {
+			return "", "", "", false
+		}
+		return "G", rlineUser, rlineHost(m), true
 	case "Q":
 		return "Q", "*", mask, true
 	}
@@ -1577,6 +1591,12 @@ func (b *inspBridge) inAddLine(src string, p []string) []string {
 	}
 	t, user, host, ok := b.banOf(p[0], p[1])
 	if !ok {
+		if strings.EqualFold(p[0], "R") {
+			// Not one we can enforce: say so once, to the opers (as a
+			// server notice from the peer, which the server shows).
+			_, why := rlineIn(p[1])
+			return []string{line(nil, b.peer.SID, "SENDSNO", true, "G", "InspIRCd R-line "+p[1]+" not copied: "+why)}
+		}
 		return nil
 	}
 	setAt, _ := strconv.ParseInt(p[3], 10, 64)
