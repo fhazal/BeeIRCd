@@ -440,7 +440,15 @@ func load(path, text string) (*Config, error) {
 	if c.TLS.ACME && c.TLS.Cert == "" && c.TLS.Key == "" {
 		c.TLS.Cert, c.TLS.Key = filepath.Join("tls", "cert.pem"), filepath.Join("tls", "key.pem")
 	}
-	for _, p := range []*string{&c.TLS.Cert, &c.TLS.Key, &c.MOTD.File, &c.Services.Database, &c.Services.LogFile, &c.History.File, &c.Control.Socket, &c.Backup.Dir} {
+	// Every file setting is read from the config's folder, not from the
+	// folder the program happens to start in (systemd, Docker, scripts).
+	paths := []*string{&c.TLS.Cert, &c.TLS.Key, &c.MOTD.File, &c.MOTD.OperFile, &c.MOTD.BotFile, &c.MOTD.RulesFile, &c.MOTD.QuotesFile,
+		&c.Services.Database, &c.Services.LogFile, &c.History.File, &c.Control.Socket, &c.Backup.Dir, &c.RPC.Socket,
+		&c.Link.Cert, &c.Link.Key, &c.GeoIP.CountryDB, &c.GeoIP.ASNDB, &c.Auth.LDAP.CAFile}
+	for i := range c.ShowFiles {
+		paths = append(paths, &c.ShowFiles[i].File)
+	}
+	for _, p := range paths {
 		if *p != "" && !filepath.IsAbs(*p) {
 			*p = filepath.Join(dir, *p)
 		}

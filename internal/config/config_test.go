@@ -196,3 +196,26 @@ func TestLogEvents(t *testing.T) {
 		t.Errorf("unknown event: %v", err)
 	}
 }
+
+// Relative file settings come from the config's folder, whatever folder
+// the program starts in: a link cert read from the wrong folder gets
+// remade and every linked server refuses the new one.
+func TestRelativePathsFromConfigFolder(t *testing.T) {
+	body := good + "\n[link]\ncert = \"link-cert.pem\"\nkey = \"keys/link-key.pem\"\n" +
+		"\n[geoip]\ncountry_db = \"geo/c.mmdb\"\n\n[rpc]\nsocket = \"rpc.sock\"\n" +
+		"\n[[showfile]]\ncommand = \"FAQ\"\nfile = \"faq.txt\"\n"
+	path := write(t, body)
+	c, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Dir(path)
+	for name, got := range map[string]string{
+		"link-cert.pem": c.Link.Cert, filepath.Join("keys", "link-key.pem"): c.Link.Key,
+		filepath.Join("geo", "c.mmdb"): c.GeoIP.CountryDB, "rpc.sock": c.RPC.Socket, "faq.txt": c.ShowFiles[0].File,
+	} {
+		if want := filepath.Join(dir, name); got != want {
+			t.Errorf("%s: got %q, want %q", name, got, want)
+		}
+	}
+}
