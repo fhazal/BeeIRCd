@@ -48,12 +48,12 @@ for image in "$@"; do
 	# Someone online during the update: what do they see?
 	lxc exec "$n" -- sh -c 'nohup /root/installcheck -watch 127.0.0.1:6667 > /root/watch.txt 2>&1 &'
 	sleep 2
-	want "restarted · 1.0.1-test answering" lxc exec "$n" -- beeircd update --rc --yes
-	want "Server updating to BeeIRCd 1.0.1-test, back in a few seconds" lxc exec "$n" -- cat /root/watch.txt
+	want "switched to 1.0.1-test · 1 of 1 person stayed connected" lxc exec "$n" -- beeircd update --rc --yes
+	want "hand-over done: 1 clients stayed connected" lxc exec "$n" -- journalctl -u beeircd --no-pager
 	want "BeeIRCd 1.0.1-test" lxc exec "$n" -- beeircd version
 	want "1.0.1-test   ● running" lxc exec "$n" -- beeircd status
 	lxc exec "$n" -- /root/installcheck -tls 127.0.0.1:6697 -admin Bee -pass update-pass-1 -again >/dev/null && echo "OK   IRC works on 1.0.1-test (NickServ IDENTIFY + /oper)" || { echo "FAIL IRC after update"; fail=1; }
-	want "stopping: Server updating to BeeIRCd 1.0.1-test" lxc exec "$n" -- journalctl -u beeircd --no-pager
+	want "stopping: handed over" lxc exec "$n" -- journalctl -u beeircd --no-pager
 	lxc exec "$n" -- sh -c 'ls -l /opt/beeircd/; stat -c "%U:%G %a %n" /etc/beeircd/beeircd.conf'
 
 	echo "--- a release that never answers rolls back by itself"
@@ -62,7 +62,7 @@ for image in "$@"; do
 	want "1.0.1-test   ● running" lxc exec "$n" -- beeircd status
 
 	echo "--- --rollback by hand (to 1.0.0-test: the failed 1.0.2 must not have used it up)"
-	want "answering after" lxc exec "$n" -- beeircd update --rollback --yes
+	want "switched to 1.0.0-test" lxc exec "$n" -- beeircd update --rollback --yes
 	want "BeeIRCd 1.0.0-test" lxc exec "$n" -- beeircd version
 	want "1.0.0-test   ● running" lxc exec "$n" -- beeircd status
 	lxc exec "$n" -- /root/installcheck -tls 127.0.0.1:6697 -admin Bee -pass update-pass-1 -again >/dev/null && echo "OK   IRC works after --rollback" || { echo "FAIL IRC after rollback"; fail=1; }
