@@ -88,6 +88,10 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--honey); outline
 
 /* Get BeeIRCd */
 .nav a.dl { color: var(--honey); font-weight: 600; }
+.nav a.chat { display: inline-flex; align-items: center; gap: 6px; color: var(--honey); font-weight: 600; border: 1px solid var(--honey); border-radius: 10px; padding: 3px 10px; margin-block: -4px; }
+.nav a.chat:hover { color: var(--honey); background: var(--honey-soft); }
+.chat-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.btn.chat-btn { border-color: var(--honey); color: var(--honey); }
 .get { border: 1px solid var(--line); border-radius: 14px; padding: 26px 28px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 32px; align-items: center; margin-bottom: 56px; scroll-margin-top: 24px; }
 .get h2 { font: 700 26px/1.15 var(--display); margin: 0 0 8px; letter-spacing: -0.02em; }
 .get p { margin: 0; color: var(--muted); font-size: 15.5px; }
@@ -447,6 +451,9 @@ section > h2:not(.lv-title)::before, .new-head h2::before, .status-head h2::befo
 .scene p.lead { font-size: 17px; max-width: 30em; color: var(--muted); margin: 0 0 24px; }
 .scene .state { backdrop-filter: blur(6px); }
 .scene .btn:not(.main) { color: #fff; }
+.scene .btn.chat-btn { color: #ffc72c; border-color: rgba(255,199,44,.6); }
+.scene .btn.chat-btn:hover { border-color: #ffc72c; }
+.scene .chat-dot { background: #5fd38a; }
 /* pins on the picture */
 .pin { position: absolute; z-index: 2; left: var(--x); top: var(--y); display: flex; align-items: center; gap: 8px;
   text-decoration: none; color: #fff; font: 500 13px/1.2 var(--body); transform: translate(-7px, -50%); white-space: nowrap; }
@@ -592,6 +599,7 @@ section > h2:not(.lv-title)::before, .new-head h2::before, .status-head h2::befo
       <a href="#status">Status</a>
       <a href="#live">Live</a>
       <a href="/docs/">Docs</a>
+      <a class="chat" href="https://chat.beeircd.org/"><span class="chat-dot" aria-hidden="true"></span>Chat</a>
       <a class="dl" href="#get">Download</a>
     </nav>
   </header>
@@ -604,6 +612,7 @@ section > h2:not(.lv-title)::before, .new-head h2::before, .status-head h2::befo
       <div class="actions">
         <a class="btn main" href="#get"><svg aria-hidden="true"><use href="#i-download"/></svg>Download BeeIRCd</a>
         <a class="btn" href="#services"><svg aria-hidden="true"><use href="#i-code"/></svg>What it does</a>
+        <a class="btn chat-btn" href="https://chat.beeircd.org/"><span class="chat-dot" aria-hidden="true"></span>Chat with us</a>
       </div>
     </div><div class="crop"><div class="sc-stage"><img class="art" src="art/pine.webp" alt="A night diorama: a honey-dome server house on a pine hill, bees, and a black and gold steam train carrying chat bubbles out of a tunnel" width="1344" height="752"><div class="fx home"></div><div class="fx beacon"></div><div class="fx lamp"></div><div class="fx glow m1"></div><div class="fx glow m2"></div><div class="fx glow m3"></div><div class="fx steam"><i></i><i></i><i></i></div><div class="fx bee b1"><img src="art/bee1.webp" alt=""></div><div class="fx bee b2"><img src="art/bee2.webp" alt=""></div><div class="fx bee b3"><img src="art/bee3.webp" alt=""></div><span class="set2"><a class="pin " style="--x:73%;--y:22%" href="#services"><i></i><s></s><span><b>Your server</b><em data-live="v0">BeeIRCd 1.6.0</em></span></a><a class="pin l" style="--x:61%;--y:57%" href="#services"><i></i><s></s><span><b>Services in the basement</b></span></a><a class="pin live l" style="--x:86.5%;--y:53%" href="#live"><i></i><s></s><span><b>Messages</b><em data-live="all">97 people online</em></span></a><a class="pin live" style="--x:75.3%;--y:5%" href="#live"><i></i><s></s><span><b>Live beacon</b><em data-live="link">linked</em></span></a></span></div></div></div>
 <div class="wrap after-scene">    <div class="session" id="session" role="img" aria-label="An IRC client connected to BeeIRCd: identifying to NickServ, registering a channel with ChanServ and changing a setting with AdminServ.">

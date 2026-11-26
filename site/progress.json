@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-24T12:01:00+08:00",
+ "updated": "2026-11-26T15:19:00+08:00",
  "gauges": [
   {
    "id": "g-v1",
@@ -17,15 +17,178 @@
   }
  ],
  "now": {
-  "title": "BeeIRCd 1.6.0 is out",
-  "text": "Channel stats (ChanStats) with a Stats tab in the Hive Panel, a limit on accounts per email, extra info fields for nicks and channels, a help channel setting and OLINE, plus three fixes. Signed and published on GitHub. Both SKINTERNET servers now run it.",
-  "start": "2026-11-24T15:02:00+08:00",
-  "end": "2026-12-01T00:00:00+08:00"
+  "title": "Chat on beeircd.org",
+  "text": "chat.beeircd.org is on the server and works: a welcome card, pick a nick, and you are in #beeircd. Next: a Chat button on this site.",
+  "start": "2026-11-26T13:25:00+08:00",
+  "end": "2026-11-26T16:25:00+08:00"
  },
- "next": "Keep an eye on the link between the two servers.",
+ "next": "Add a Chat link and a \"Chat with us\" button to this site.",
  "done": [
   [
-   "2026-11-24T12:01",
+   "2026-11-26T15:19",
+   "chat.beeircd.org is up: the new chat page runs on our main server and takes you straight to #beeircd."
+  ],
+  [
+   "2026-11-26T15:12",
+   "BeeRoom: a simple chat front door. Visitors see a welcome card, pick a nick, and join one set room with one button."
+  ],
+  [
+   "2026-11-26T14:58",
+   "The SKINTERNET web chat now has the new BeeRoom look, with replies and reactions."
+  ],
+  [
+   "2026-11-26T14:42",
+   "BeeRoom: hover a message to reply or react. Replies show a quote of the original line, and reactions show as small emoji chips under the message."
+  ],
+  [
+   "2026-11-26T14:10",
+   "BeeRoom: messages from one person are grouped under a bee avatar, ops and voices get a tag, new visitors see a welcome card, and the people list is sorted by rank."
+  ],
+  [
+   "2026-11-26T13:25",
+   "Hive Panel: every corner now uses one of four calm sizes, the same in all themes."
+  ],
+  [
+   "2026-11-26T13:17",
+   "Web chat on SKINTERNET now shows each person's real address, and BeeRoom has a light Bee Day theme next to the dark one."
+  ],
+  [
+   "2026-11-26T16:10",
+   "BeeRoom: pictures of three new looks and a light theme, ready to choose from."
+  ],
+  [
+   "2026-11-26T15:50",
+   "BeeRoom polish is live on the SKINTERNET web chat."
+  ],
+  [
+   "2026-11-26T15:40",
+   "BeeRoom: logo on the sign-in screen, dark menus, simpler guest form, plain messages and the BeeRoom name everywhere."
+  ],
+  [
+   "2026-11-26T15:00",
+   "BeeRoom: guests can no longer route the chat server through a proxy of their choice."
+  ],
+  [
+   "2026-11-26T14:40",
+   "Hive Panel: hint text and yellow links are easier to read in every theme, most of all the light one."
+  ],
+  [
+   "2026-11-26T14:10",
+   "Polish pass: clearer error and help messages, one spelling for vHost and email, two small message bugs fixed."
+  ],
+  [
+   "2026-11-26T12:55",
+   "Changing a long list in the config through BeeIRCd now keeps your comments on it."
+  ],
+  [
+   "2026-11-26T12:40",
+   "Config edits now change long multi-line settings whole, the config copy made before an update is safely on disk, and the fix-by-hand steps work with folders that have spaces."
+  ],
+  [
+   "2026-11-26T12:20",
+   "A failed update now puts every file back or says exactly what to move by hand, keeps a linked config and its owner, and leaves no stray copies behind."
+  ],
+  [
+   "2026-11-26T11:58",
+   "Updates are safer: a failed step now stops with nothing changed, a restart after an update starts the new program, rehash says when the Hive Panel needs a restart, and saving the config keeps a linked file and writes it to disk safely."
+  ],
+  [
+   "2026-11-26T11:22",
+   "Config and upgrades hunt: OperServ SERVER SET no longer wipes a link's protocol and rule, and update --rollback checks your config first so going back can't take the server down."
+  ],
+  [
+   "2026-11-26T12:15",
+   "Web chat behind a proxy: visitors can no longer fake their address with the X-Real-IP header to get past a ban."
+  ],
+  [
+   "2026-11-26T11:55",
+   "Web chat hunt: one visitor can no longer fill server memory through the WebSocket port, session exceptions on hostnames now work for web chat, and gateways can't give users broken hosts."
+  ],
+  [
+   "2026-11-26T11:10",
+   "Hive Panel hunt: opers can no longer disconnect a higher oper from the panel, and many sign-ins sent at once can no longer get past the 5-try lock."
+  ],
+  [
+   "2026-11-26T10:55",
+   "A link to a network that runs its own services now retries every 10 minutes and tells opers once an hour, instead of retrying every few seconds."
+  ],
+  [
+   "2026-11-26T10:21",
+   "Linked servers can no longer give users broken hosts, and a user on a services nick is now removed instead of dropping the whole link."
+  ],
+  [
+   "2026-11-26T10:06",
+   "Linking hunt: fixed 3 bugs where a linked server could act as services, kill a services bot, or take the cloak off users."
+  ],
+  [
+   "2026-11-26T09:49",
+   "Opers can no longer force a nick change, channel join or part on an oper who ranks above them."
+  ],
+  [
+   "2026-11-26T08:28",
+   "Fixed 8 more bugs: opers on other servers are ranked properly (also from InspIRCd and UnrealIRCd), OS KILL and UMODE respect higher opers, BotServ stops on suspended channels, SECUREOPS can't be skipped with MODE SET, and early ZLINE checks match every IP form."
+  ],
+  [
+   "2026-11-25T17:10",
+   "Bug hunt fixed 10 services bugs: higher opers and channel ranks are protected properly, READONLY now really writes nothing, IPv6 ZLINEs match, and ChanServ INFO can't crash on an old Anope ban type."
+  ],
+  [
+   "2026-11-25T15:30",
+   "Fixed: an old password reset code could open a newer account that got the same number."
+  ],
+  [
+   "2026-11-25T08:07",
+   "6-hour test with 2,000 users passed: memory flat at about 150 MB, lag 7.5 ms, 0 dropped, 12 backups and 4 reloads during the run."
+  ],
+  [
+   "2026-11-25T04:20",
+   "The 6-hour test now measures the server itself, not the small helper that starts it, so a memory leak would show."
+  ],
+  [
+   "2026-11-25T01:40",
+   "Fuzz tests now cover web chat, InspIRCd links and geoip too (three were skipped before)"
+  ],
+  [
+   "2026-11-25T01:03",
+   "Race test for 1.7.0 passed: 25 packages, no races"
+  ],
+  [
+   "2026-11-24T22:35",
+   "BeeIRCd 1.7.0 released",
+   "Signed and published on GitHub. Servers see the update within a day and install it with beeircd update."
+  ],
+  [
+   "2026-11-24T21:44",
+   "Release Test for 1.7.0 passed",
+   "All tests pass, including race and load tests on Linux, the 5,000-user benchmark (same speed and memory as 1.6.0) and link tests with UnrealIRCd and InspIRCd. The bug hunt found four small issues; all are fixed."
+  ],
+  [
+   "2026-11-24T21:05",
+   "Link rules in the Hive Panel",
+   "The Linked servers page now shows which servers have a link rule, lets you change it in the form, refuses a bad rule, and says when a rule stopped a link."
+  ],
+  [
+   "2026-11-24T20:47",
+   "Docs for link rules and classes",
+   "The admin guide and feature list now explain link rules, connect classes and the new Connect classes card. Every planned UnrealIRCd and InspIRCd feature is built."
+  ],
+  [
+   "2026-11-24T20:44",
+   "Connect classes card",
+   "The Hive Panel Settings page now shows every connect class: who is in it, how many people, and its limits."
+  ],
+  [
+   "2026-11-24T20:35",
+   "Calmer icons in the activity list",
+   "The Hive Panel \"What happened\" list shows each icon on a soft tinted tile instead of a hexagon outline, in every theme."
+  ],
+  [
+   "2026-11-24T20:29",
+   "Link rules and connect classes",
+   "A server can now link only when the network is in the right shape, for example join a second hub only while the first is gone. Connect classes give groups of people their own limits, by country, web chat or IP range. Also fixed: saving an InspIRCd link in the Hive Panel lost its protocol."
+  ],
+  [
+   "2026-11-24T20:01",
    "Calmer picture labels and rounded corners",
    "The labels on the home page pictures are now soft text with a thin gold line instead of boxes, the bees float slowly, and every block and picture has rounded corners."
   ],
