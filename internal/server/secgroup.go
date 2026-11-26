@@ -303,7 +303,7 @@ func (s *Server) restrictedCommand(c *Client, cmd string) bool {
 	if r.ConnectTime.Duration > 0 {
 		s.reply(c, irc.ErrUnknownCommand, cmd, "You must be connected for at least "+secs(r.ConnectTime.Duration)+" seconds before you can use this command")
 	} else {
-		s.reply(c, irc.ErrUnknownCommand, cmd, "This command is disabled by the network administrator")
+		s.reply(c, irc.ErrUnknownCommand, cmd, "This command is switched off on this network")
 	}
 	return true
 }

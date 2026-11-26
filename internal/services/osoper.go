@@ -44,7 +44,7 @@ func osOper(s *Services, c *Client, args []string) {
 					s.os(c, "  WHOIS: %s", oc.Title)
 				}
 				if oc.Vhost != "" {
-					s.os(c, "  vhost: %s", oc.Vhost)
+					s.os(c, "  vHost: %s", oc.Vhost)
 				}
 				for _, l := range oc.Swhois {
 					s.os(c, "  swhois: %s", l)

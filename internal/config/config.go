@@ -712,7 +712,7 @@ func (s Services) LogEventOn(event string) bool {
 func (s Services) checkLogEvents() error {
 	for _, e := range s.LogEvents {
 		if e != "*" && !slices.Contains(LogEventNames, strings.ToLower(e)) {
-			return fmt.Errorf("services log_events %q is not an event; use %s or \"*\"", e, strings.Join(LogEventNames, ", "))
+			return fmt.Errorf("[services] log_events %q: is not an event; use %s or \"*\"", e, strings.Join(LogEventNames, ", "))
 		}
 	}
 	return nil
@@ -738,11 +738,11 @@ func checkFields(key string, names, builtIn []string) error {
 		up := strings.ToUpper(n)
 		switch {
 		case !fieldRe.MatchString(n):
-			return fmt.Errorf("services %s %q must be a word of up to 20 letters, digits, - or _", key, n)
+			return fmt.Errorf("[services] %s %q: must be a word of up to 20 letters, digits, - or _", key, n)
 		case slices.Contains(builtIn, up):
-			return fmt.Errorf("services %s %q is a SET option already", key, n)
+			return fmt.Errorf("[services] %s %q: is a SET option already", key, n)
 		case seen[up]:
-			return fmt.Errorf("services %s has %q twice", key, n)
+			return fmt.Errorf("[services] %s: has %q twice", key, n)
 		}
 		seen[up] = true
 	}
@@ -828,27 +828,27 @@ func (c *Config) Check() error {
 	}
 	switch {
 	case !serverRe.MatchString(c.Server.Name) || len(c.Server.Name) > 63:
-		return fmt.Errorf("server name %q must look like irc.example.org", c.Server.Name)
+		return fmt.Errorf("[server] name %q: must look like irc.example.org", c.Server.Name)
 	case !networkRe.MatchString(c.Server.Network):
-		return fmt.Errorf("network name %q must be one word (letters, digits, dot, dash or underscore)", c.Server.Network)
+		return fmt.Errorf("[server] network %q: must be one word (letters, digits, dot, dash or underscore)", c.Server.Network)
 	case !sidRe.MatchString(c.Server.SID):
-		return fmt.Errorf("server sid %q must be a digit and two capital letters or digits, like 0BE", c.Server.SID)
+		return fmt.Errorf("[server] sid %q: must be a digit and two capital letters or digits, like 0BE", c.Server.SID)
 	case c.Server.Casemapping != "ascii" && c.Server.Casemapping != "rfc1459":
-		return fmt.Errorf("server casemapping %q must be \"ascii\" or \"rfc1459\"", c.Server.Casemapping)
+		return fmt.Errorf("[server] casemapping %q: must be \"ascii\" or \"rfc1459\"", c.Server.Casemapping)
 	case c.Server.Prefixes != "@+" && c.Server.Prefixes != "~&@%+":
-		return fmt.Errorf("server prefixes %q must be \"@+\" or \"~&@%%+\"", c.Server.Prefixes)
+		return fmt.Errorf("[server] prefixes %q: must be \"@+\" or \"~&@%%+\"", c.Server.Prefixes)
 	case c.Services.LogChannel != "" && (!strings.HasPrefix(c.Services.LogChannel, "#") || len(c.Services.LogChannel) > 50 || strings.ContainsAny(c.Services.LogChannel, " ,\a")):
-		return fmt.Errorf("services log_channel %q must be a channel like \"#services\" (or empty for none)", c.Services.LogChannel)
+		return fmt.Errorf("[services] log_channel %q: must be a channel like \"#services\" (or empty for none)", c.Services.LogChannel)
 	case c.Services.HelpChannel != "" && (!strings.HasPrefix(c.Services.HelpChannel, "#") || len(c.Services.HelpChannel) > 50 || strings.ContainsAny(c.Services.HelpChannel, " ,\a")):
-		return fmt.Errorf("services help_channel %q must be a channel like \"#help\" (or empty for none)", c.Services.HelpChannel)
+		return fmt.Errorf("[services] help_channel %q: must be a channel like \"#help\" (or empty for none)", c.Services.HelpChannel)
 	case c.Services.LogFileMaxMB < 1 || c.Services.LogFileMaxMB > 100000:
-		return fmt.Errorf("services log_file_max_mb %d must be 1 to 100000", c.Services.LogFileMaxMB)
+		return fmt.Errorf("[services] log_file_max_mb %d: must be 1 to 100000", c.Services.LogFileMaxMB)
 	case strings.ContainsAny(c.Services.LogFile, "\x00\r\n"):
-		return fmt.Errorf("services log_file %q is not a file name", c.Services.LogFile)
+		return fmt.Errorf("[services] log_file %q: is not a file name", c.Services.LogFile)
 	case c.Services.MaxAccountsPerEmail < 0:
-		return fmt.Errorf("services max_accounts_per_email %d must be 0 (no limit) or more", c.Services.MaxAccountsPerEmail)
+		return fmt.Errorf("[services] max_accounts_per_email %d: must be 0 (no limit) or more", c.Services.MaxAccountsPerEmail)
 	case len(c.Listen) == 0:
-		return fmt.Errorf("add at least one [[listen]] port")
+		return fmt.Errorf("[[listen]]: add at least one port")
 	}
 	if err := c.Services.checkLogEvents(); err != nil {
 		return err

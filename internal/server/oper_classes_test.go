@@ -125,7 +125,7 @@ func TestOperVhostOverHostServ(t *testing.T) {
 	b := boss(t, s)
 	e := registered(t, s, "ember")
 	b.send("HS SET ember ember.example.org")
-	b.expect("VHost for")
+	b.expect("vHost for")
 	e.send("HS ON")
 	e.expect(" 396 ember ember.example.org ")
 	b.send("AS CLASS staff ADD FLAGS h")

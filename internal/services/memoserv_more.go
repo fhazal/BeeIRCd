@@ -73,7 +73,7 @@ func (s *Services) mailTo(c *Client, sv *service, a *store.Account, subject, bod
 			s.say(c, sv, "Please wait %d seconds and retry.", int(math.Ceil((m.DelayOr() - now.Sub(c.lastMail)).Seconds())))
 			return false
 		case a.Email == "":
-			s.say(c, sv, "E-mail for %s is invalid.", a.Name)
+			s.say(c, sv, "Email for %s is invalid.", a.Name)
 			return false
 		}
 		c.lastMail = now

@@ -173,6 +173,6 @@ func (s *Services) expireUnconfirmed(now time.Time) {
 		delete(s.resets, a.ID) // IDs are reused; see resetInfo
 		s.applyFounderChanges(changes, "founder "+a.Name+" expired")
 		s.log.Printf("expired unconfirmed account %s (registered %s)", a.Name, a.Registered.UTC().Format(time.DateOnly))
-		s.logTo(s.nickServ, "Expiring unconfirmed nickname "+a.Name+" (group: "+a.Name+") (e-mail: "+orNone(a.Email)+")")
+		s.logTo(s.nickServ, "Expiring unconfirmed nickname "+a.Name+" (group: "+a.Name+") (email: "+orNone(a.Email)+")")
 	}
 }

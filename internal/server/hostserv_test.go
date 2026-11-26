@@ -42,7 +42,7 @@ func TestHostServSetOnOff(t *testing.T) {
 
 	// SET: stored, not shown yet (activate_on_set off).
 	b.send("HS SET user cool.example.org")
-	b.expect(hsLine("Boss", "VHost for \x02user\x02 set to \x02cool.example.org\x02."))
+	b.expect(hsLine("Boss", "vHost for \x02user\x02 set to \x02cool.example.org\x02."))
 	u.quiet("cool.example.org")
 
 	// ON shows it; chghost neighbours see CHGHOST.
@@ -67,7 +67,7 @@ func TestHostServSetOnOff(t *testing.T) {
 
 	// A vident changes the ident too; network bans still see the real one.
 	b.send("HS SET user bee@ident.example.org")
-	b.expect(hsLine("Boss", "VHost for \x02user\x02 set to \x02bee\x02@\x02ident.example.org\x02."))
+	b.expect(hsLine("Boss", "vHost for \x02user\x02 set to \x02bee\x02@\x02ident.example.org\x02."))
 	u.send("HS ON")
 	w.expect(":user!~user@cool.example.org CHGHOST bee ident.example.org")
 	u.send("WHOIS user")
@@ -75,7 +75,7 @@ func TestHostServSetOnOff(t *testing.T) {
 
 	// DEL takes it off whoever shows it.
 	b.send("HS DEL user")
-	b.expect(hsLine("Boss", "Vhost for \x02user\x02 removed."))
+	b.expect(hsLine("Boss", "vHost for \x02user\x02 removed."))
 	w.expect(":user!bee@ident.example.org CHGHOST ~user 127.0.0.1")
 	u.send("HS ON")
 	u.expect(hsLine("user", "Please contact an Operator to get a vHost assigned to this nick."))
@@ -93,7 +93,7 @@ func TestHostServRequestsAndGroups(t *testing.T) {
 	u.send("HS REQUEST my.example.org")
 	u.expect(hsLine("user2", "Your vHost has been requested."))
 	b.send("HS WAITING")
-	b.expect(hsLine("Boss", "  Number  Nick   Vhost           Created"))
+	b.expect(hsLine("Boss", "  Number  Nick   vHost           Created"))
 	b.expect(hsLine("Boss", "  1       user2  my.example.org  "))
 	b.expect(hsLine("Boss", "Displayed \x021\x02 records (\x021\x02 total)."))
 	b.send("HS REJECT user2 not that one")
@@ -112,7 +112,7 @@ func TestHostServRequestsAndGroups(t *testing.T) {
 	u.send("HS GROUP")
 	u.expect(hsLine("user2", "All vhosts in the group \x02user\x02 have been set to \x02other.example.org\x02."))
 	b.send("HS LIST")
-	b.expect(hsLine("Boss", "  Number  Nick   Vhost              Creator  Created"))
+	b.expect(hsLine("Boss", "  Number  Nick   vHost              Creator  Created"))
 	b.expect("  1       user   other.example.org  Boss     ")
 	b.expect("  2       user2  other.example.org  Boss     ")
 	b.expect(hsLine("Boss", "Displayed all records (count: \x022\x02)."))
@@ -124,11 +124,11 @@ func TestHostServRequestsAndGroups(t *testing.T) {
 
 	// DELALL clears the group; dropping a nick drops its vhost.
 	b.send("HS DELALL user")
-	b.expect(hsLine("Boss", "vhosts for group \x02user\x02 have been removed."))
+	b.expect(hsLine("Boss", "vHosts for group \x02user\x02 have been removed."))
 	b.send("HS LIST")
 	b.expect(hsLine("Boss", "No records to display."))
 	b.send("HS SETALL user all.example.org")
-	b.expect(hsLine("Boss", "VHost for group \x02user\x02 set to \x02all.example.org\x02."))
+	b.expect(hsLine("Boss", "vHost for group \x02user\x02 set to \x02all.example.org\x02."))
 	u.send("HS ON")
 	u.expect(" 396 user2 all.example.org ")
 	u.send("NS DROP user2") // a grouped nick drops at once (2.0.20)

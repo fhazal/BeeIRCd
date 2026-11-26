@@ -158,7 +158,7 @@ func TestPanelOperPages(t *testing.T) {
 	if w := svc("vhosts").Waiting; len(w) != 0 {
 		t.Errorf("still waiting: %+v", w)
 	}
-	if got := do(control.Request{Kind: "vhost-set", Name: "Vic", Value: "set.example.org"}); got != "VHost for Vic set to set.example.org." {
+	if got := do(control.Request{Kind: "vhost-set", Name: "Vic", Value: "set.example.org"}); got != "vHost for Vic set to set.example.org." {
 		t.Errorf("vhost-set answer not plain text: %q", got)
 	}
 	if a := account("Vic"); a.VHost != "set.example.org" {

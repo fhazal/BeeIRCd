@@ -378,9 +378,9 @@ func hsSet(all bool) func(*Services, *Client, []string) {
 			mask = ident + "@" + host
 		}
 		s.hsLog(c, logAdmin, "to set the vhost of %s to %s", nick, mask)
-		what := "VHost for"
+		what := "vHost for"
 		if all {
-			what = "VHost for group"
+			what = "vHost for group"
 		}
 		if ident != "" {
 			s.hs(c, "%s \x02%s\x02 set to \x02%s\x02@\x02%s\x02.", what, nick, ident, host)
@@ -429,10 +429,10 @@ func hsDel(all bool) func(*Services, *Client, []string) {
 		}
 		if all {
 			s.hsLog(c, logAdmin, "for all nicks in group %s", a.Name)
-			s.hs(c, "vhosts for group \x02%s\x02 have been removed.", a.Name)
+			s.hs(c, "vHosts for group \x02%s\x02 have been removed.", a.Name)
 		} else {
 			s.hsLog(c, logAdmin, "for user %s", nick)
-			s.hs(c, "Vhost for \x02%s\x02 removed.", nick)
+			s.hs(c, "vHost for \x02%s\x02 removed.", nick)
 		}
 	}
 }
@@ -501,7 +501,7 @@ func hsList(s *Services, c *Client, args []string) {
 		s.hs(c, "No records to display.")
 		return
 	}
-	s.hsTable(c, []string{"Number", "Nick", "Vhost", "Creator", "Created"}, rows)
+	s.hsTable(c, []string{"Number", "Nick", "vHost", "Creator", "Created"}, rows)
 	switch {
 	case from > 0:
 		s.hs(c, "Displayed records from \x02%d\x02 to \x02%d\x02.", from, to)
@@ -522,7 +522,7 @@ func hsWaiting(s *Services, c *Client, args []string) {
 		rows = append(rows, []string{strconv.Itoa(i + 1), r.Nick, r.Mask(), r.Created.UTC().Format("Jan 02 15:04:05 2006 UTC")})
 	}
 	if len(rows) > 0 {
-		s.hsTable(c, []string{"Number", "Nick", "Vhost", "Created"}, rows)
+		s.hsTable(c, []string{"Number", "Nick", "vHost", "Created"}, rows)
 	}
 	s.hs(c, "Displayed \x02%d\x02 records (\x02%d\x02 total).", len(rows), len(reqs))
 }

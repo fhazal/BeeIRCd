@@ -68,17 +68,17 @@ func TestLoadGood(t *testing.T) {
 
 func TestLoadErrors(t *testing.T) {
 	cases := map[string]string{
-		"unknown setting server.nmae": strings.Replace(good, "name =", "nmae =", 1),
-		"must look like irc.example":  strings.Replace(good, `"irc.beenet.org"`, `"localhost"`, 1),
-		"sid":                         strings.Replace(good, `"0BE"`, `"BEE"`, 1),
-		"needs [tls] cert":            strings.Replace(good, `cert = "tls/cert.pem"`, "", 1),
-		"not a time":                  strings.Replace(good, `"2m"`, `"soon"`, 1),
-		"[cloak] secret":              strings.Replace(good, `"0123456789abcdef-test"`, `"short"`, 1),
-		"max_accounts_per_email -1":   good + "\n[services]\nmax_accounts_per_email = -1\n",
-		"is a SET option already":     good + "\n[services]\nnick_fields = [\"ICQ\", \"url\"]\n",
-		"chan_fields has \"X\" twice": good + "\n[services]\nchan_fields = [\"x\", \"X\"]\n",
-		"help_channel \"help\"":       good + "\n[services]\nhelp_channel = \"help\"\n",
-		"must be a word":              good + "\n[services]\nchan_fields = [\"two words\"]\n",
+		"unknown setting server.nmae":  strings.Replace(good, "name =", "nmae =", 1),
+		"must look like irc.example":   strings.Replace(good, `"irc.beenet.org"`, `"localhost"`, 1),
+		"sid":                          strings.Replace(good, `"0BE"`, `"BEE"`, 1),
+		"needs [tls] cert":             strings.Replace(good, `cert = "tls/cert.pem"`, "", 1),
+		"not a time":                   strings.Replace(good, `"2m"`, `"soon"`, 1),
+		"[cloak] secret":               strings.Replace(good, `"0123456789abcdef-test"`, `"short"`, 1),
+		"max_accounts_per_email -1":    good + "\n[services]\nmax_accounts_per_email = -1\n",
+		"is a SET option already":      good + "\n[services]\nnick_fields = [\"ICQ\", \"url\"]\n",
+		"chan_fields: has \"X\" twice": good + "\n[services]\nchan_fields = [\"x\", \"X\"]\n",
+		"help_channel \"help\"":        good + "\n[services]\nhelp_channel = \"help\"\n",
+		"must be a word":               good + "\n[services]\nchan_fields = [\"two words\"]\n",
 	}
 	for want, body := range cases {
 		_, err := Load(write(t, body))
@@ -192,7 +192,7 @@ func TestLogEvents(t *testing.T) {
 	if err != nil || c.Services.LogEventOn("oper") {
 		t.Errorf("empty list: %v, oper %v", err, err == nil && c.Services.LogEventOn("oper"))
 	}
-	if _, err := Load(write(t, good+"\n[services]\nlog_events = [\"oper\", \"joins\"]\n")); err == nil || !strings.Contains(err.Error(), `log_events "joins" is not an event`) {
+	if _, err := Load(write(t, good+"\n[services]\nlog_events = [\"oper\", \"joins\"]\n")); err == nil || !strings.Contains(err.Error(), `log_events "joins": is not an event`) {
 		t.Errorf("unknown event: %v", err)
 	}
 }
