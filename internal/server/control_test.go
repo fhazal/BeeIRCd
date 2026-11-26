@@ -164,6 +164,21 @@ func TestRehash(t *testing.T) {
 	n.expectNumeric("481")
 }
 
+// The Hive Panel reads [web] only when it starts: a rehash must not call
+// those settings applied. members the server answers for, so that one is.
+func TestRehashWebWaitsForPanelRestart(t *testing.T) {
+	s, path, _ := fileServer(t, "\n[web]\nsession_idle = \"30m\"\n")
+	conf, _ := os.ReadFile(path)
+	edited := strings.Replace(string(conf), "session_idle = \"30m\"", "session_idle = \"1h\"\nmembers = true", 1)
+	os.WriteFile(path, []byte(edited), 0o600)
+
+	r := askOK(t, s, control.CmdRehash, "").Rehash
+	applied, restart := strings.Join(r.Applied, " | "), strings.Join(r.NeedsRestart, " | ")
+	if applied != "members false → true" || restart != "session_idle 30m → 1h (restart beeircd-web)" {
+		t.Errorf("applied %q, restart %q", applied, restart)
+	}
+}
+
 func TestCertReload(t *testing.T) {
 	s := testServer(t, nil)
 	var cert, key string

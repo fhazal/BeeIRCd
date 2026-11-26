@@ -363,6 +363,14 @@ func restartOnly(ch config.Change) bool {
 	return false
 }
 
+// panelRestartOnly says whether a changed setting is one the Hive Panel
+// (beeircd-web) reads only when it starts: all of [web] but members, which
+// the server answers for. chat_url the server uses at once too, but the
+// panel lets only the old address show in its Chat tab until it restarts.
+func panelRestartOnly(ch config.Change) bool {
+	return ch.Section == "web" && ch.Key != "members"
+}
+
 // serverLive are the [server] settings a rehash applies at once: they are
 // read each time they are used. The rest (name, SID, cloaking...) is
 // fixed while the server runs.
@@ -407,7 +415,9 @@ func (s *Server) rehash(by string) (*control.Rehash, error) {
 	old := *s.cfg
 	out := &control.Rehash{}
 	for _, ch := range config.Diff(&old, fresh) {
-		if restartOnly(ch) {
+		if panelRestartOnly(ch) {
+			out.NeedsRestart = append(out.NeedsRestart, ch.String()+" (restart beeircd-web)")
+		} else if restartOnly(ch) {
 			out.NeedsRestart = append(out.NeedsRestart, ch.String())
 		} else {
 			out.Applied = append(out.Applied, ch.String())
