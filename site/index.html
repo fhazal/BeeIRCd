@@ -562,6 +562,32 @@ section > h2:not(.lv-title)::before, .new-head h2::before, .status-head h2::befo
 .band-art { border-radius: 16px; overflow: hidden; }
 .band-art .win { border-radius: 16px; }
 </style>
+<style id="polish-mock">
+/* P1 hero type: bigger, tighter, balanced lines */
+.copy h1{font-size:clamp(38px,4.7vw,60px);line-height:1.02;letter-spacing:-.028em;text-wrap:balance;margin-bottom:22px}
+.copy .lead{font-size:18px;line-height:1.6;max-width:54ch;color:var(--muted)}
+/* P2 one load moment, hero only */
+@media (prefers-reduced-motion:no-preference){
+ .copy>*{animation:rise .7s cubic-bezier(.2,.7,.2,1) both}
+ .copy>:nth-child(2){animation-delay:.08s}.copy>:nth-child(3){animation-delay:.16s}.copy>:nth-child(4){animation-delay:.24s}
+ @keyframes rise{from{opacity:0;transform:translateY(10px)}}
+}
+/* P3 rhythm: more air, short intros, calmer headings */
+section{padding-block:120px}
+section>h2,.new-head h2,.status-head h2{font-size:clamp(28px,3.2vw,38px);letter-spacing:-.02em;line-height:1.1}
+.intro{max-width:62ch;font-size:17px;line-height:1.65}
+.band{border-top:1px solid color-mix(in srgb,var(--honey) 22%,var(--line))}
+/* P4 what's new: grouped rows, 3-line clamp */
+.new-row ul{margin:0;padding-left:18px;display:grid;gap:6px}
+.new-row .clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.new-row .more{background:none;border:0;padding:4px 0 0;color:var(--honey);font:500 13.5px var(--body);cursor:pointer}
+.new-row .more:focus-visible,.svc-row code:focus-visible{outline:2px solid var(--honey);outline-offset:3px}
+/* P5 service commands: a real prompt chip, click to copy */
+.svc-row code{position:relative;display:inline-flex;align-items:center;gap:10px;justify-self:start;padding:8px 14px 8px 12px;border-radius:8px;background:var(--term);color:#ece8de;border:1px solid color-mix(in srgb,var(--honey) 30%,transparent);cursor:copy;font-size:13.5px}
+.svc-row code::before{content:"❯";color:var(--term-honey)}
+.svc-row code.ok::after{content:"Copied";position:absolute;right:-70px;color:var(--honey);font:500 12.5px var(--body)}
+@media (max-width:520px){section{padding-block:80px}.copy h1{font-size:clamp(36px,10vw,48px)}}
+</style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -987,11 +1013,16 @@ fetch('whatsnew.json', { cache: 'no-cache' }).then(function (r) { if (!r.ok) thr
   document.getElementById('new-date').textContent = 'Released ' + rel.date;
   document.getElementById('new-log').href = rel.changelog;
   var rows = document.getElementById('new-rows');
-  w.items.forEach(function (it) {
+  var groups=[];w.items.forEach(function(it){var g=groups.find(function(x){return x.title===it.title});if(g)g.list.push(it);else groups.push({title:it.title,list:[it]})});
+  groups.forEach(function (g) { var it=g.list[0];
     var row = document.createElement('div'); row.className = 'new-row';
     row.appendChild(icon(document.getElementById('i-' + it.icon) ? it.icon : 'hex'));
     var b = document.createElement('b'); b.textContent = it.title; row.appendChild(b);
-    var s = document.createElement('span'); s.textContent = it.text; row.appendChild(s);
+    var s = document.createElement('span');
+    if (g.list.length>1){var ul=document.createElement('ul');g.list.forEach(function(x){var li=document.createElement('li');li.textContent=x.text;ul.appendChild(li)});s.appendChild(ul)}
+    else {var t=document.createElement('span');t.className='clamp';t.textContent=it.text;s.appendChild(t);
+      if(it.text.length>220){var m=document.createElement('button');m.className='more';m.textContent='Read more';m.onclick=function(){var o=t.classList.toggle('clamp');m.textContent=o?'Read more':'Show less'};s.appendChild(m)}}
+    row.appendChild(s);
     var a = document.createElement('a'); a.href = it.docs;
     var tag = document.createElement('em'); tag.textContent = 'Docs'; a.appendChild(tag);
     a.appendChild(document.createTextNode(it.docs_title)); row.appendChild(a);
@@ -1140,5 +1171,5 @@ fetch('whatsnew.json', { cache: 'no-cache' }).then(function (r) { if (!r.ok) thr
   }).catch(function () {});
 })();
 </script>
-</body>
+<script>document.querySelectorAll('.svc-row code').forEach(function(c){c.tabIndex=0;c.title='Click to copy';function go(){if(!navigator.clipboard)return;navigator.clipboard.writeText(c.textContent).then(function(){c.classList.add('ok');setTimeout(function(){c.classList.remove('ok')},1400)},function(){})}c.onclick=go;c.onkeydown=function(e){if(e.key==='Enter')go()}})</script></body>
 </html>
