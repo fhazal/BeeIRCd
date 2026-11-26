@@ -249,6 +249,15 @@ func (u *updater) install(ctx context.Context, base string, m *release.Manifest,
 		return u.stop("backup failed, not updating: " + strings.TrimSpace(bk.String()))
 	}
 	u.c.ok("backup " + strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(bk.String()), "✓")))
+	// The config as it is now is kept before anything moves, so a failed
+	// copy stops the update with nothing changed.
+	cfgKept := ""
+	if len(changes) > 0 {
+		cfgKept = u.cfgPath + ".before-" + m.Version
+		if err := copyFile(u.cfgPath, cfgKept); err != nil {
+			return u.stop("couldn't keep a copy of your config, not updating: " + err.Error())
+		}
+	}
 	// Swap: program, then config (when it changed). The version kept by
 	// the last update waits aside, so a failed update leaves --rollback
 	// exactly as it was.
@@ -269,10 +278,7 @@ func (u *updater) install(ctx context.Context, base string, m *release.Manifest,
 		restorePrev()
 		return u.stop(err.Error())
 	}
-	cfgKept := ""
-	if len(changes) > 0 {
-		cfgKept = u.cfgPath + ".before-" + m.Version
-		copyFile(u.cfgPath, cfgKept)
+	if cfgKept != "" {
 		os.Rename(newCfg, u.cfgPath)
 	}
 	u.c.ok(fmt.Sprintf("program swapped; %s kept as %s", u.current, oldExe))

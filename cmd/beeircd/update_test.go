@@ -303,6 +303,45 @@ func TestUpdateRollsBackWhenNewOneFails(t *testing.T) {
 	}
 }
 
+// When the new version changes the config, the current config is kept
+// first; if that copy can't be made, nothing may change.
+func TestUpdateStopsWhenConfigCopyFails(t *testing.T) {
+	key := signingKey(t)
+	srv := releaseServer(t, "1.0.1", key)
+	fs := &fakeSystem{running: "1.0.0", comesUp: true}
+	u, out := testUpdater(t, "1.0.0", srv.URL, fs, "y\n")
+	run := u.run
+	u.run = func(name string, args ...string) (string, error) {
+		if len(args) > 0 && args[0] == "upgrade-config" {
+			// A migration that changes something.
+			b, _ := os.ReadFile(args[2])
+			os.WriteFile(args[4], append(b, "\n# upgraded\n"...), 0o640)
+			return "renamed a setting", nil
+		}
+		return run(name, args...)
+	}
+	confBefore, _ := os.ReadFile(u.cfgPath)
+	// A folder where the copy goes makes the copy fail.
+	os.Mkdir(u.cfgPath+".before-1.0.1", 0o755)
+	if code := u.update(false, true, false); code != 1 {
+		t.Fatalf("exit %d, want 1\n%s", code, out)
+	}
+	if progVersion(u.exe) != "1.0.0" || fs.running != "1.0.0" {
+		t.Errorf("program %s, running %s: want nothing changed\n%s", progVersion(u.exe), fs.running, out)
+	}
+	if _, err := os.Stat(u.exe + ".old"); err == nil {
+		t.Error("program was swapped")
+	}
+	if conf, _ := os.ReadFile(u.cfgPath); string(conf) != string(confBefore) {
+		t.Errorf("config changed:\n%s", conf)
+	}
+	for _, want := range []string{"couldn't keep a copy of your config", "Nothing changed."} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
+	}
+}
+
 func TestUpdateRefusals(t *testing.T) {
 	key := signingKey(t)
 	_, other, _ := ed25519.GenerateKey(rand.Reader)
