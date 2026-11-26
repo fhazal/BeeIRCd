@@ -501,8 +501,17 @@ func (s *Server) certTick(now time.Time) {
 	}
 }
 
-// cmdRehash is REHASH for opers with flag a: like `beeircd rehash`.
+// cmdRehash is REHASH [server] for opers with flag a: like `beeircd rehash`.
 func (s *Server) cmdRehash(c *Client, m irc.Message) {
+	// REHASH <server>: that server rehashes (-flags are not a server).
+	if t := m.Param(0); !strings.HasPrefix(t, "-") && c.can(saFlag) && s.askElsewhere(c, "REHASH", t, "") {
+		return
+	}
+	s.rehashHere(c)
+}
+
+// rehashHere reloads this server's config for c (oper flag a).
+func (s *Server) rehashHere(c *Client) {
 	if !s.needFlag(c, nil, saFlag) {
 		return
 	}

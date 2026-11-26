@@ -196,3 +196,84 @@ func TestServerMaskMessageUnrealLinks(t *testing.T) {
 			hub.logHas("link b.test.local -> :"+uid+" PRIVMSG $*.test.local :to all")
 	})
 }
+
+// INFO, LUSERS, CONNECT and REHASH with a server only ran here (or said
+// "No such server"). They now go to that server, which answers.
+func TestRoutedQueriesOverLink(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	op := login(t, hub.s, "op")
+	netadminOn(t, hub, op, "op")
+	pl := login(t, hub.s, "plain")
+	leaf.seen(t, "op")
+	leaf.seen(t, "plain")
+
+	pl.send("INFO leaf.test.local")
+	pl.expect(":leaf.test.local 371 plain :")
+	pl.expect(":leaf.test.local 374 plain ")
+	pl.send("INFO no.such.server")
+	pl.expectNumeric("402")
+	pl.send("INFO hub.test.local")
+	pl.expect(":hub.test.local 374 plain ")
+
+	pl.send("LUSERS leaf.test.local")
+	pl.expect(":leaf.test.local 251 plain ")
+	pl.send("LUSERS")
+	pl.expect(":hub.test.local 251 plain ")
+
+	op.send("CONNECT nowhere 6667 leaf.test.local")
+	if l := op.expect("nowhere"); !strings.HasPrefix(l, ":leaf.test.local NOTICE op :") || !strings.Contains(l, "no link block for nowhere") {
+		t.Errorf("op got %q", l)
+	}
+	pl.send("CONNECT nowhere 6667 leaf.test.local")
+	pl.expectNumeric("481")
+	op.send("CONNECT nowhere 6667 no.such.server")
+	op.expectNumeric("402")
+
+	op.send("REHASH leaf.test.local")
+	op.expect(":leaf.test.local 382 op ")
+	pl.send("REHASH leaf.test.local")
+	pl.expectNumeric("481")
+	op.send("REHASH no.such.server")
+	op.expectNumeric("402")
+}
+
+// UnrealIRCd's forms (hunt_server): the server argument is replaced by
+// a SID or a UID and sits where the command keeps it (REHASH <server>
+// [-flags], CONNECT <server> <port> <remote>).
+func TestRoutedQueriesUnrealLinks(t *testing.T) {
+	hub, hop, ann, _ := globopsTree(t)
+	bob := hub.user("bob").UID
+	me := hub.user("hubop").UID
+
+	hub.fromLinkTo(t, "a.test.local", ":"+bob+" INFO :0HB")
+	hub.fromLinkTo(t, "a.test.local", ":"+bob+" LUSERS :"+me)
+	waitLink(t, "answered", func() bool {
+		return hub.logHas("374 "+bob+" ") && hub.logHas("251 "+bob+" ")
+	})
+
+	// ann's flags are known here (in this rig her server tells them).
+	hub.fromLinkTo(t, "a.test.local", ":"+ann+" REHASH 0HB -motd")
+	hub.fromLinkTo(t, "a.test.local", ":"+ann+" CONNECT nowhere 6667 :0HB")
+	waitLink(t, "both done", func() bool {
+		return hub.logHas("382 "+ann+" ") && hub.logHas("NOTICE "+ann+" :*** There is no link block for nowhere.")
+	})
+	// Not for users.
+	hub.fromLinkTo(t, "a.test.local", ":"+bob+" REHASH 0HB")
+	hub.fromLinkTo(t, "a.test.local", ":"+bob+" CONNECT nowhere 6667 :0HB")
+	waitLink(t, "both refused", func() bool {
+		return strings.Count(hub.log.String(), "481 "+bob+" ") >= 2
+	})
+	if hub.logHas("382 " + bob) {
+		t.Errorf("rehashed for a user")
+	}
+
+	// Ours go out the same way.
+	hop.send("INFO a.test.local")
+	hop.send("CONNECT nowhere 6667 b.test.local")
+	hop.send("REHASH a.test.local")
+	waitLink(t, "sent", func() bool {
+		return hub.logHas("link a.test.local -> :"+me+" INFO :a.test.local") &&
+			hub.logHas("link b.test.local -> :"+me+" CONNECT nowhere 6667 :b.test.local") &&
+			hub.logHas("link a.test.local -> :"+me+" REHASH :a.test.local")
+	})
+}

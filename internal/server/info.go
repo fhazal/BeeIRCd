@@ -11,12 +11,16 @@ import (
 )
 
 // cmdInfo answers INFO with what this server is (RPL_INFO, RPL_ENDOFINFO).
-// A server name, when given, can only be this one.
+// INFO <server|nick> asks that server.
 func (s *Server) cmdInfo(c *Client, m irc.Message) {
-	if t := m.Param(0); t != "" && !irc.Match(t, s.cfg.Server.Name) && s.net.UserByNick(t) == nil {
-		s.reply(c, irc.ErrNoSuchServer, t, "No such server")
+	if s.askElsewhere(c, "INFO", m.Param(0), "") {
 		return
 	}
+	s.infoHere(c)
+}
+
+// infoHere is this server's INFO.
+func (s *Server) infoHere(c *Client) {
 	for _, l := range s.infoLines(c) {
 		s.reply(c, irc.RplInfo, l)
 	}
