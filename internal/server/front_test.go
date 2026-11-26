@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/netip"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -266,7 +267,6 @@ func TestFrontDenyWebSocketProxy(t *testing.T) {
 	for _, c := range []struct{ hdr, ip string }{
 		{"X-Forwarded-For: 192.0.2.9\r\n", "192.0.2.9"},
 		{"X-Forwarded-For: 10.1.1.1, 192.0.2.10\r\n", "192.0.2.10"}, // the entry our proxy added
-		{"X-Real-IP: 192.0.2.11\r\n", "192.0.2.11"},
 		{"X-Forwarded-For: 2001:db8::7\r\n", "2001:db8::7"},
 		{"X-Forwarded-For: ::ffff:192.0.2.12\r\n", "192.0.2.12"},
 	} {
@@ -289,7 +289,9 @@ func TestFrontDenyWebSocketProxy(t *testing.T) {
 	}
 
 	// A visitor that isn't denied (or gives no address) is answered as before.
-	for _, hdr := range []string{"X-Forwarded-For: 198.51.100.4\r\n", ""} {
+	// X-Real-IP isn't believed: a visitor can send it themself when the
+	// proxy doesn't set it, so it would get them past a ban.
+	for _, hdr := range []string{"X-Forwarded-For: 198.51.100.4\r\n", "", "X-Real-IP: 192.0.2.11\r\n"} {
 		br, conn := upgrade(hdr)
 		if got := status(br); got != http.StatusSwitchingProtocols {
 			t.Fatalf("%q: status %d, want 101", hdr, got)
@@ -297,7 +299,7 @@ func TestFrontDenyWebSocketProxy(t *testing.T) {
 		conn.Close()
 		select {
 		case info := <-r.got:
-			if hdr != "" {
+			if strings.HasPrefix(hdr, "X-Forwarded-For") {
 				if host, _, _ := net.SplitHostPort(info.Remote); host != "198.51.100.4" {
 					t.Fatalf("handed on %+v", info)
 				}

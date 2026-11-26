@@ -167,15 +167,15 @@ func headerHas(h http.Header, name, token string) bool {
 }
 
 // forwardedIP is the visitor's address from the proxy's headers: the last
-// X-Forwarded-For entry (the one our proxy added), else X-Real-IP.
+// X-Forwarded-For entry (the one our proxy added). X-Real-IP is not
+// believed: when the proxy doesn't set it, the visitor's own one gets
+// through and would let them pick any address (and dodge a ban).
 func forwardedIP(h http.Header) net.IP {
 	if v := h.Values("X-Forwarded-For"); len(v) > 0 {
 		parts := strings.Split(v[len(v)-1], ",")
-		if ip := net.ParseIP(strings.TrimSpace(parts[len(parts)-1])); ip != nil {
-			return ip
-		}
+		return net.ParseIP(strings.TrimSpace(parts[len(parts)-1]))
 	}
-	return net.ParseIP(strings.TrimSpace(h.Get("X-Real-IP")))
+	return nil
 }
 
 // originAllowed reports whether a page from origin may connect: any page
