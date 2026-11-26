@@ -110,6 +110,41 @@ func TestLinkOperFlags(t *testing.T) {
 	}
 }
 
+// An UnrealIRCd oper's flags (worked out from their class) reach the
+// BeeIRCd servers behind us live, not only in a burst: those take flags
+// only from bee-operflags.
+func TestLinkClassFlagsPassedOn(t *testing.T) {
+	hub := newLinkNode(t, "hub.test.local", "0HB", "hub")
+	a := newLinkNode(t, "a.test.local", "0AA", "leaf")
+	b := newLinkNode(t, "b.test.local", "0BB", "leaf")
+	hub.expects(a, false, "")
+	hub.expects(b, false, "")
+	a.expects(hub, true, "")
+	b.expects(hub, true, "")
+	hub.start(t)
+	a.start(t)
+	b.start(t)
+	waitLink(t, "tree", func() bool { return len(a.servers()) == 3 && len(b.servers()) == 3 })
+	login(t, a.s, "bob")
+	b.seen(t, "bob")
+	uid := b.user("bob").UID
+	hub.s.onLoop(func() { // a plays UnrealIRCd
+		for l := range hub.s.links.conns {
+			if l.peer.Name == "a.test.local" {
+				l.peer.Bee = false
+			}
+		}
+	})
+	hub.fromLinkTo(t, "a.test.local", ":"+uid+" UMODE2 +o")
+	hub.fromLinkTo(t, "a.test.local", ":0AA MD client "+uid+" operclass :globop")
+	waitLink(t, "bob's flags on b", func() bool {
+		u := b.user("bob")
+		return u != nil && u.Modes['o'] && u.OperClass == "globop" && u.OperFlags == "hk"
+	})
+	hub.fromLinkTo(t, "a.test.local", ":0AA MD client "+uid+" operclass")
+	waitLink(t, "bob's flags gone on b", func() bool { u := b.user("bob"); return u != nil && u.OperFlags == "" })
+}
+
 // OLINE and UMODE check the target's rank across a link: an admin on the
 // leaf has flags the hub knows (bee-operflags), and an oper whose flags
 // aren't known (only +o arrived, as from an InspIRCd type or UnrealIRCd

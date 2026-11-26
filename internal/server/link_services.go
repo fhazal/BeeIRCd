@@ -289,6 +289,11 @@ func (s *Server) remoteOperMD(l *linkConn, m irc.Message) {
 				o.send(mdLine(s.cfg.Server.SID, uid, "bee-opertype", s.operRank(value, u.OperTitle)))
 			}
 			o.send(m.String())
+			if o.peer.Bee && !l.peer.Bee && key == "operclass" {
+				// BeeIRCd takes flags only from bee-operflags: the ones
+				// worked out here from the class go on (as in the burst).
+				o.send(mdLine(s.cfg.Server.SID, uid, "bee-operflags", u.OperFlags))
+			}
 		}
 	}
 }
