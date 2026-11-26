@@ -512,7 +512,9 @@ func (s *Server) cmdRehash(c *Client, m irc.Message) {
 		s.notice(c, "*** "+err.Error())
 		return
 	}
-	s.notice(c, "*** "+rehashSummary(r))
+	if !c.wantsSno('r') { // they already saw "Rehash done" as a server notice
+		s.notice(c, "*** "+rehashSummary(r))
+	}
 }
 
 // machineMB is the machine's total memory from /proc/meminfo (Linux), or

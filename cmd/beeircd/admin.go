@@ -87,9 +87,20 @@ func cmdStatus(args []string, stdout, stderr io.Writer) int {
 			return 0
 		}
 	}
+	if cfgErr == nil && len(cfg.Control.Socket) > maxSocketPath {
+		// The server can't open a socket at so long a path, so nothing
+		// answers even while it runs: say so instead of "stopped".
+		fmt.Fprintf(stdout, "\n  %s   %s\n\n  The control socket path is %d characters long; the limit is %d, so this\n  command can't reach the server:\n    %s\n  Set a shorter path in [control] socket and restart BeeIRCd.\n",
+			p.title("BeeIRCd "+version.Version), p.bad("● can't tell"), len(cfg.Control.Socket), maxSocketPath, cfg.Control.Socket)
+		return 1
+	}
 	fmt.Fprint(stdout, stoppedScreen(p, cfgErr))
 	return 3 // like systemctl status for a stopped service
 }
+
+// maxSocketPath is the longest local socket path the system takes (Linux
+// and Windows hold 108 bytes with the closing zero; macOS 104).
+const maxSocketPath = 103
 
 func statusScreen(st *control.Status, p paint, now time.Time, timerOff bool) string {
 	var b strings.Builder

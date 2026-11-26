@@ -175,7 +175,7 @@ func (u *updater) update(checkOnly, yes, rc bool) int {
 		return 0
 	}
 	if !u.isRoot() {
-		u.c.bad("run it as root (sudo beeircd update): it replaces " + u.exe)
+		u.c.bad(rootHint("beeircd update") + ": it replaces " + u.exe)
 		return 1
 	}
 	var running *control.Status // nil: not running
@@ -430,7 +430,7 @@ func (u *updater) rollback(yes bool) int {
 		return 1
 	}
 	if !u.isRoot() {
-		u.c.bad("run it as root (sudo beeircd update --rollback)")
+		u.c.bad(rootHint("beeircd update --rollback"))
 		return 1
 	}
 	out, _ := u.run(oldExe, "version")
@@ -639,4 +639,14 @@ func people(n int) string {
 		return "the 1 person"
 	}
 	return fmt.Sprintf("the %d people", n)
+}
+
+// rootHint says how to run cmd with the rights it needs. Windows has no
+// sudo, and update works on Linux only there: on Windows the new
+// beeircd.exe comes from the release page.
+func rootHint(cmd string) string {
+	if runtime.GOOS == "windows" {
+		return "on Windows, update by hand: stop BeeIRCd, put the new beeircd.exe from the release page in place of this one, and start it again"
+	}
+	return "run it as root (sudo " + cmd + ")"
 }

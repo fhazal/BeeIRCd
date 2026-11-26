@@ -204,3 +204,16 @@ func TestStoppedScreenWithoutSystemd(t *testing.T) {
 		t.Fatalf("systemd: want beeircd start, got:\n%s", out)
 	}
 }
+
+// A control socket path too long for the system: status says it can't
+// tell instead of "stopped", and why.
+func TestStatusLongSocketPath(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "beeircd.conf")
+	long := strings.Repeat("s", 120) + ".sock"
+	os.WriteFile(path, []byte(testConf+"\n[control]\nsocket = \""+long+"\"\n"), 0o600)
+	code, out := runCmd("status", "-config", path)
+	if code != 1 || !strings.Contains(out, "can't tell") || !strings.Contains(out, "[control] socket") || strings.Contains(out, "● stopped") {
+		t.Errorf("code %d:\n%s", code, out)
+	}
+}

@@ -158,7 +158,7 @@ func TestRehash(t *testing.T) {
 	os.WriteFile(path, []byte(edited), 0o600)
 	b.send("REHASH")
 	b.expectNumeric("382", "beeircd.conf", ":Rehashing")
-	b.expect("*** nothing changed")
+	b.expect("*** REHASH: Rehash done: nothing changed") // once: as the server notice only
 	n := login(t, s, "nobody")
 	n.send("REHASH")
 	n.expectNumeric("481")
