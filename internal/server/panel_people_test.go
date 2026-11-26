@@ -147,3 +147,43 @@ func TestPanelLife(t *testing.T) {
 		}
 	}
 }
+
+// The Disconnect button follows OperServ KILL's rank rule: an oper with
+// flag k can't disconnect an oper who has a flag they don't have (the
+// network admin, say).
+func TestPanelKillHigherOper(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	e := registered(t, s, "ember")
+	b.send("AS OPER ember ADD CLASS globop HOST *@127.0.0.0/8 PASSWORD " + emberPW) // hk
+	b.expect("ember is an oper now")
+	e.send("OPER ember " + emberPW)
+	e.expect(" 381 ember ")
+	g := login(t, s, "guesty")
+	g.sync()
+
+	as := func(who string, r control.Request) *control.Response {
+		r.As, r.IP = who, "127.0.0.1"
+		return panelAsk(t, s, r)
+	}
+	uid := map[string]string{}
+	for _, r := range as("Boss", control.Request{Cmd: control.CmdPeople}).People.Rows {
+		uid[r.Nick] = r.UID
+	}
+
+	r := as("ember", control.Request{Cmd: control.CmdKill, UID: uid["Boss"], Value: "bye"})
+	if r.Done != nil || !strings.Contains(r.Error, "flag a") {
+		t.Errorf("ember (hk) disconnecting Boss (abcghks): %+v", r)
+	}
+	var online bool
+	s.onLoop(func() { online = s.net.UserByNick("Boss") != nil })
+	if !online {
+		t.Fatal("an oper with flag k disconnected the admin Boss from the Hive Panel")
+	}
+	if r := as("ember", control.Request{Cmd: control.CmdKill, UID: uid["guesty"]}); r.Done == nil {
+		t.Errorf("ember disconnecting a plain user: %+v", r)
+	}
+	if r := as("Boss", control.Request{Cmd: control.CmdKill, UID: uid["ember"]}); r.Done == nil {
+		t.Errorf("Boss disconnecting ember: %+v", r)
+	}
+}
