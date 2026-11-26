@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-26T18:22:00+08:00",
+ "updated": "2026-11-26T19:02:00+08:00",
  "gauges": [
   {
    "id": "g-v1",
@@ -18,12 +18,16 @@
  ],
  "now": {
   "title": "Testing BeeIRCd 1.7.1",
-  "text": "The full release test for 1.7.1 is running: long tests on the homelab overnight, after a clean check and a Hive Panel click-through.",
+  "text": "The full release test for 1.7.1 is running: the last fixes are in, and the long linking tests run again on the newest code overnight on the homelab.",
   "start": "2026-11-26T17:14:00+08:00",
-  "end": "2026-11-27T05:00:00+08:00"
+  "end": "2026-11-27T06:00:00+08:00"
  },
  "next": "Release BeeIRCd 1.7.1 once the long tests pass.",
  "done": [
+  [
+   "2026-11-26T19:02",
+   "Release test for BeeIRCd 1.7.1, part 3: logins for people on other servers now survive a cold restart of the services server, the light panel theme is easier to read, the update test passes 32 of 32, the load test and the Windows symlink tests pass."
+  ],
   [
    "2026-11-26T18:22",
    "Release test for BeeIRCd 1.7.1, part 2: the tester's bugs are fixed (a linked server could log its users in to other people's accounts, AS OPER ADD and WEBIRC replies, Rehash answering twice, Windows update and status hints), race test clean, overnight tests still running."
