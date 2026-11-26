@@ -757,6 +757,8 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		s.remoteQuery(l, m)
 	case "TSCTL":
 		s.remoteTsctl(l, m)
+	case "KNOCK":
+		s.remoteKnock(l, m)
 	case "ACCEPT":
 		s.remoteAccept(l, m)
 	case "SDESC":
