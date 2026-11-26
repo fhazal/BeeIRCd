@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-26T15:53:00+08:00",
+ "updated": "2026-11-26T16:29:00+08:00",
  "gauges": [
   {
    "id": "g-v1",
@@ -17,13 +17,17 @@
   }
  ],
  "now": {
-  "title": "BeeRoom 1.1 checks",
-  "text": "BeeRoom passed its release checks, and both live chats now run the fixed version.",
+  "title": "BeeRoom 1.1 out",
+  "text": "BeeRoom 1.1 is out: a signed download at beeircd.org and Docker tags 1.1.0, 1.1, 1 and latest.",
   "start": "2026-11-26T15:30:00+08:00",
-  "end": "2026-11-26T18:30:00+08:00"
+  "end": "2026-11-26T16:30:00+08:00"
  },
- "next": "Release BeeRoom 1.1.",
+ "next": "Pick the next step for BeeIRCd.",
  "done": [
+  [
+   "2026-11-26T16:29",
+   "BeeRoom 1.1 released: new Bee Day and Bee Night look, replies and reactions, a front door for guests. Signed download at beeircd.org, checked with a clean install."
+  ],
   [
    "2026-11-26T15:51",
    "Both live chats (webchat and chat.beeircd.org) now run the fixed BeeRoom. A strange message can no longer knock everyone off."
