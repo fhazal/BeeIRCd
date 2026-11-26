@@ -747,3 +747,62 @@ func TestMailRoutes(t *testing.T) {
 		t.Errorf("signed out: %d", w.Code)
 	}
 }
+
+// Sign-ins sent all at once from one address count against its limit
+// while they are still being checked: before, every one of them got past
+// the 5-try lock, because a wrong try was only counted once the server
+// had answered it.
+func TestLoginLimitAllAtOnce(t *testing.T) {
+	rg := newRig(t)
+	release := make(chan struct{})
+	var mu sync.Mutex
+	asked := 0
+	rg.p.ask = func(r control.Request, d time.Duration) (*control.Response, error) {
+		if r.Cmd == control.CmdPanelLogin {
+			mu.Lock()
+			asked++
+			mu.Unlock()
+			<-release
+		}
+		return rg.f.ask(r, d)
+	}
+	const n = 30
+	codes := make(chan int, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			codes <- rg.do("POST", "/api/login", `{"nick":"Bee","password":"bad"}`, "", nil).Code
+		}()
+	}
+	// Every try has either reached the server or been turned away.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		mu.Lock()
+		a := asked
+		mu.Unlock()
+		if a+len(codes) >= n || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	close(release)
+	wg.Wait()
+	close(codes)
+	if asked > ipMaxFails {
+		t.Errorf("%d sign-ins sent at once from one address were checked (at most %d may be)", asked, ipMaxFails)
+	}
+	refused := 0
+	for c := range codes {
+		if c == http.StatusTooManyRequests {
+			refused++
+		}
+	}
+	if refused != n-asked {
+		t.Errorf("%d of %d refused, %d checked", refused, n, asked)
+	}
+	if w := rg.do("POST", "/api/login", `{"nick":"Bee","password":"pw"}`, "", nil); w.Code != 429 {
+		t.Errorf("after 5 wrong tries at once: %d", w.Code)
+	}
+}

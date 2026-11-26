@@ -78,6 +78,7 @@ type Panel struct {
 	mu       sync.Mutex
 	sessions map[string]*session // by sha256 of the cookie value
 	fails    map[string]*ipFails
+	checking map[string]int // sign-ins from an address still being checked
 }
 
 type session struct {
@@ -96,7 +97,7 @@ type ipFails struct {
 // New makes the panel.
 func New(o Options) *Panel {
 	p := &Panel{ask: o.Ask, idle: o.Idle, now: o.Now, proxies: map[string]bool{}, host: o.HostAddr,
-		sessions: map[string]*session{}, fails: map[string]*ipFails{}}
+		sessions: map[string]*session{}, fails: map[string]*ipFails{}, checking: map[string]int{}}
 	if p.now == nil {
 		p.now = time.Now
 	}
@@ -784,15 +785,43 @@ func (p *Panel) mapFile(w http.ResponseWriter, r *http.Request) {
 	w.Write(mapFiles[name+"#raw"])
 }
 
-// ipLocked reports how long ip must still wait after wrong sign-ins.
+// ipLocked reports how long ip must still wait after wrong sign-ins
+// (p.mu held).
 func (p *Panel) ipLocked(ip string) time.Duration {
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	f := p.fails[ip]
 	if f == nil {
 		return 0
 	}
 	return f.until.Sub(p.now())
+}
+
+// ipTry starts a sign-in check from ip. Tries still being checked count
+// against the limit like wrong ones, so many sent at once can't all get
+// past it. ok false: wait (0 when only tries still being checked are in
+// the way). ipTryDone ends a try that started.
+func (p *Panel) ipTry(ip string) (wait time.Duration, ok bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if d := p.ipLocked(ip); d > 0 {
+		return d, false
+	}
+	n := p.checking[ip]
+	if f := p.fails[ip]; f != nil && p.now().Sub(f.last) <= ipLockFor {
+		n += f.n
+	}
+	if n >= ipMaxFails {
+		return 0, false
+	}
+	p.checking[ip]++
+	return 0, true
+}
+
+func (p *Panel) ipTryDone(ip string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.checking[ip]--; p.checking[ip] <= 0 {
+		delete(p.checking, ip)
+	}
 }
 
 // ipFailed counts a wrong sign-in from ip and says how many are left.
@@ -836,10 +865,16 @@ func waitNoun(d time.Duration) string {
 
 func (p *Panel) login(w http.ResponseWriter, r *http.Request) {
 	ip := p.clientIP(r)
-	if d := p.ipLocked(ip); d > 0 {
+	d, ok := p.ipTry(ip)
+	switch {
+	case d > 0:
 		writeErr(w, http.StatusTooManyRequests, "Too many wrong tries from here. Try again in "+waitWords(d)+".")
 		return
+	case !ok:
+		writeErr(w, http.StatusTooManyRequests, "Too many sign-ins from here at once. Try again in a moment.")
+		return
 	}
+	defer p.ipTryDone(ip)
 	var in struct{ Nick, Password string }
 	if json.NewDecoder(r.Body).Decode(&in) != nil {
 		writeErr(w, http.StatusBadRequest, "Bad request.")
