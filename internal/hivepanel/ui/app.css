@@ -24,10 +24,10 @@
 :root[data-theme="catppuccin-latte"]{color-scheme:light;
   --acc2-rgb:64,160,43;--acc3-rgb:136,57,239;--acc4-rgb:30,102,245;--bold-a:.20;
   --ground:#eff1f5;--menu:#e6e9ef;--card:#f6f7fa;--card2:#e6e9ef;--field:#ffffff;--line:#ccd0da;--line-soft:#dce0e8;--hover:#4c4f690c;
-  --ink:#4c4f69;--muted:#5c5f77;--dim:#6c6f85;
-  --honey:#df8e1d;--honey-text:#9a5a08;--honey-hi:#c76a00;--honey-rgb:223,142,29;--honey-soft:#f6e3c4;--honey-tint:rgba(223,142,29,.12);--on-honey:#ffffff;
+  --ink:#4c4f69;--muted:#50536a;--dim:#575a70;
+  --honey:#df8e1d;--honey-text:#874d00;--honey-hi:#874800;--honey-fill:#c76a00;--honey-rgb:223,142,29;--honey-soft:#f6e3c4;--honey-tint:rgba(223,142,29,.12);--on-honey:#ffffff;
   --on-main:#1e1e2e;--main-hover:#e9a54a;
-  --cyan:#04a5e5;--ok:#40a02b;--ok-soft:#dcebd3;--ok-line:#a6d189;--bad:#d20f39;--bad-soft:#fce4e7;--bad-line:#e9a2b0;
+  --cyan:#04a5e5;--ok:#2d7520;--ok-soft:#dcebd3;--ok-line:#a6d189;--bad:#d20f39;--bad-soft:#fce4e7;--bad-line:#e9a2b0;
   --warn-soft:#fdf1d6;--warn-line:#e9c27a;--btn:#ffffff;--btn-line:#bcc0cc;--btn-hover:#e6e9ef;--shadow:rgba(76,79,105,.18);
   --ty-z:#e6e0fa;--ty-zi:#7c3aed;--ty-s:#dbe9f7;--ty-si:#1e66f5;--ty-n:#f6dff0;--ty-ni:#b8288a;--ty-a:#fbe3e6;
   --map-sea1:#e9ecf2;--map-sea2:#dfe3eb;--map-grid:rgba(76,79,105,.06);--map-land:#cdd2dc;--map-coast:rgba(76,79,105,.18);--map-coast-hi:rgba(76,79,105,.28);
@@ -61,7 +61,7 @@
 /* One colour per oper flag, like forum user group badges (same in
    every place a flag shows: Overview "You" tiles, Opers page chips). */
 :root{--f-a:#f28a7d;--f-b:#b9a7ff;--f-c:#8cc4ef;--f-g:#6fd3e0;--f-h:#8fd19a;--f-k:#f0a35e;--f-s:#e9a6d6;--f-on:#14151a}
-:root[data-theme="catppuccin-latte"]{--f-a:#d20f39;--f-b:#8839ef;--f-c:#1e66f5;--f-g:#179299;--f-h:#40a02b;--f-k:#fe640b;--f-s:#ea76cb;--f-on:#ffffff}
+:root[data-theme="catppuccin-latte"]{--f-a:#d20f39;--f-b:#8839ef;--f-c:#1e66f5;--f-g:#0f6f75;--f-h:#2f7a1f;--f-k:#b8450a;--f-s:#a8327f;--f-on:#ffffff}
 :root[data-theme="catppuccin-mocha"]{--f-a:#f38ba8;--f-b:#cba6f7;--f-c:#89b4fa;--f-g:#94e2d5;--f-h:#a6e3a1;--f-k:#fab387;--f-s:#f5c2e7;--f-on:#1e1e2e}
 :root[data-theme="one-dark-pro"]{--f-a:#e06c75;--f-b:#c678dd;--f-c:#61afef;--f-g:#56b6c2;--f-h:#98c379;--f-k:#d19a66;--f-s:#e3a1c8;--f-on:#21252b}
 :root[data-theme="dracula"]{--f-a:#ff5555;--f-b:#bd93f9;--f-c:#82aaff;--f-g:#8be9fd;--f-h:#50fa7b;--f-k:#ffb86c;--f-s:#ff79c6;--f-on:#282a36}
@@ -268,7 +268,7 @@ select.in option{background:var(--card);color:var(--ink)}
 .ov-bold .num{font-size:34px;margin-top:14px}
 .ov-bold .foot-n{font:13px var(--body);color:var(--ink);opacity:.8}
 .ov-page .card:not(.tight){border-radius:var(--r-l);background:linear-gradient(180deg,var(--card2),var(--card));box-shadow:0 16px 36px var(--shadow),inset 0 1px 0 rgba(255,255,255,.05)}
-.ov-page .card:not(.tight) h2 .sico,.ov-page .card:not(.tight) .ch .sico{border:0;border-radius:var(--r-m);background:linear-gradient(145deg,var(--honey-hi),var(--honey));color:var(--on-honey)}
+.ov-page .card:not(.tight) h2 .sico,.ov-page .card:not(.tight) .ch .sico{border:0;border-radius:var(--r-m);background:linear-gradient(145deg,var(--honey-fill,var(--honey-hi)),var(--honey));color:var(--on-honey)}
 .list-card{padding:16px 0 10px;gap:12px}
 .list-card>:is(.ch,.tools,.bk-head):first-child{margin:-16px 0 0;padding:13px 16px;border-bottom:1px solid var(--line)}
 .tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:0 16px}
@@ -630,7 +630,7 @@ td.empty{padding:18px 16px;text-align:center;height:auto}
 .hs-facts span{display:block;font:10px var(--mono);letter-spacing:1.2px;text-transform:uppercase;color:var(--dim);margin-bottom:3px}
 .hs-facts b{font:600 16px var(--display);color:var(--ink)}
 .up-card{position:relative;overflow:hidden;isolation:isolate;min-height:210px;border-radius:var(--r-l);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:18px;color:var(--on-honey);
-  background:linear-gradient(145deg,rgba(255,255,255,.2) 0,rgba(255,255,255,.2) 15%,transparent 15%),linear-gradient(145deg,var(--honey-hi),var(--honey) 55%,color-mix(in srgb,var(--honey) 84%,#000));
+  background:linear-gradient(145deg,rgba(255,255,255,.2) 0,rgba(255,255,255,.2) 15%,transparent 15%),linear-gradient(145deg,var(--honey-fill,var(--honey-hi)),var(--honey) 55%,color-mix(in srgb,var(--honey) 84%,#000));
   border:2px solid rgba(0,0,0,.35);box-shadow:0 14px 30px var(--shadow),inset 0 1px 0 rgba(255,255,255,.45)}
 .up-card .comb{position:absolute;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none}
 .up-card .comb .wall{fill:currentColor;stroke:currentColor;stroke-width:2.6;stroke-linejoin:round}
