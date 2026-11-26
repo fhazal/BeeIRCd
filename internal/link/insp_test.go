@@ -443,3 +443,29 @@ func TestInspBridgeKnock(t *testing.T) {
 		t.Errorf("KNOCK without a reason ran %q", run)
 	}
 }
+
+// InspIRCd 4's server notices from other servers come in under our letter
+// for the same news; letters we make ourselves, or have none for, are
+// dropped. G stays GLOBOPS.
+func TestInspBridgeSnotice(t *testing.T) {
+	b := testBridge(t)
+	cases := []struct{ in, want string }{
+		{":1IN SNONOTICE A :Module m_foo loaded", ":1IN SENDSNO a :Module m_foo loaded"},
+		{":1IN SNONOTICE F :FILTER: x had their message filtered", ":1IN SENDSNO f :FILTER: x had their message filtered"},
+		{":1IN SNONOTICE O :Failed oper attempt by x", ":1IN SENDSNO O :Failed oper attempt by x"},
+		{":1IN SNONOTICE L :Netsplit complete", ":1IN SENDSNO L :Netsplit complete"},
+		{":1IN SNONOTICE X :Q-lined nickname x", ":1IN SENDSNO X :Q-lined nickname x"},
+		{":1IN SNONOTICE d :DNSBL hit", ":1IN SENDSNO d :DNSBL hit"},
+		{":1IN SNONOTICE G :hello", ":1IN GLOBOPS :hello"},
+	}
+	for _, c := range cases {
+		if run, _ := b.In(c.in); len(run) != 1 || run[0] != c.want {
+			t.Errorf("%q ran %q, want %q", c.in, run, c.want)
+		}
+	}
+	for _, in := range []string{":1IN SNONOTICE K :Local kill by x", ":1IN SNONOTICE C :x connects", ":1IN SNONOTICE W :gateway", ":1IN SNONOTICE Z :what", ":1IN SNONOTICE AB :two"} {
+		if run, _ := b.In(in); len(run) != 0 {
+			t.Errorf("%q ran %q", in, run)
+		}
+	}
+}

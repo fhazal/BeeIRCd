@@ -1050,10 +1050,19 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 	}
 	one := func(l string) ([]string, []string) { return []string{l}, nil }
 	switch m.Command {
-	case "SNONOTICE": // :sid SNONOTICE G :text: their GLOBOPS (every other letter is dropped)
-		if len(p) < 2 || (p[0] != "G" && p[0] != "g") {
+	case "SNONOTICE": // :sid SNONOTICE <letter> :text
+		if len(p) < 2 || p[0] == "" {
 			return nil, nil
 		}
+		if p[0] != "G" && p[0] != "g" {
+			// Any other letter: a server notice for our opers, under our
+			// letter for the same news (see inspSno).
+			if l, ok := inspSno[p[0][0]|0x20]; ok && len(p[0]) == 1 {
+				return one(line(nil, src, "SENDSNO", true, string(l), p[1]))
+			}
+			return nil, nil
+		}
+		// G: their GLOBOPS.
 		// "From nick: text" from one of their opers goes on from that
 		// person, so UnrealIRCd shows "from nick: text", not the server.
 		if rest, ok := strings.CutPrefix(p[1], "From "); ok {
@@ -1316,6 +1325,24 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 		return one(line(nil, src, "TSCTL", false, "alltime"))
 	}
 	return nil, nil
+}
+
+// inspSno maps the letter of an InspIRCd 4 server notice from another
+// server (WriteGlobalSno sends it uppercase; looked up lowercase) to our
+// snomask letter for the same news. Left out on purpose, so dropped:
+// k (their "Local kill by" - we announce their kills from the KILL line
+// as K), c, q and n (we make C, Q and N from their UID, QUIT and NICK
+// lines ourselves), w (WebIRC gateways) and j (channel creation), which
+// have no letter here, and any letter we don't know. g is GLOBOPS.
+var inspSno = map[byte]byte{
+	'a': 'a', // announcements, SA* commands, module loads
+	'd': 'd', // DNSBL hits
+	'f': 'f', // spam filter hits (and the bans it sets)
+	'r': 'r', // rehash
+	'v': 'v', // oper override
+	'l': 'L', // their links and splits
+	'o': 'O', // failed oper logins, oper commands (m_operlog)
+	'x': 'X', // Q-lined nick attempts
 }
 
 // theirServer is the name of the server on their side that x names (a

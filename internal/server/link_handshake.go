@@ -802,7 +802,9 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		s.remoteWallops(l, m)
 	case "SENDUMODE":
 		s.remoteSendUmode(l, m)
-	case "SMOD", "SENDSNO", "SLOG", "SWHOIS", "BOTMOTD":
+	case "SENDSNO":
+		s.remoteSnotice(l, m)
+	case "SMOD", "SLOG", "SWHOIS", "BOTMOTD":
 		// Server info, module lists and notices for opers: nothing to do,
 		// and nothing worth a log line.
 	default:

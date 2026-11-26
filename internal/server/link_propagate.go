@@ -522,6 +522,23 @@ func (s *Server) unrealGlobops(src, text string) string {
 	return irc.Message{Source: src, Command: "SENDUMODE", Params: []string{"o", "from " + nick + ": " + msg}, Trailing: true}.String()
 }
 
+// remoteSnotice is a server notice from a server behind an InspIRCd link
+// (":sid SENDSNO <letter> :text", the bridge's form of InspIRCd 4's
+// SNONOTICE with the letter already ours): our opers with that letter
+// get it as "From <server>: text", as InspIRCd shows them. It goes no
+// further. UnrealIRCd's SENDSNO uses its own letters, so it is ignored.
+func (s *Server) remoteSnotice(l *linkConn, m irc.Message) {
+	if l.bridge == nil || len(m.Params) != 2 || len(m.Params[0]) != 1 || m.Params[1] == "" ||
+		strings.IndexByte(snomaskLetters, m.Params[0][0]) < 0 {
+		return
+	}
+	r := s.links.servers[m.Source]
+	if r == nil || r.via != l {
+		return
+	}
+	s.sno(m.Params[0][0], "From %s: %s", r.name, m.Params[1])
+}
+
 // remoteSendUmode is UnrealIRCd's ":sid SENDUMODE o :from nick: text", how
 // a GLOBOPS crosses its links. Only that form, from an oper (or a server or
 // services bot) behind l, is oper chat; every other SENDUMODE is left alone.

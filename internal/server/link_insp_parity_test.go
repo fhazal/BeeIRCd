@@ -138,3 +138,24 @@ func TestLinkInspKnock(t *testing.T) {
 	hub.fromLink(t, ":"+bobUID+" KNOCK #hive :me too")
 	alice.expect("[Knock] by bob!")
 }
+
+// A server notice from a server behind an InspIRCd link reaches our opers
+// with that letter, as "From <server>: text"; one from an UnrealIRCd link
+// (other letters) or from a user is ignored.
+func TestLinkInspSnotice(t *testing.T) {
+	hub, _ := linkedPair(t)
+	op := login(t, hub.s, "op")
+	netadminOn(t, hub, op, "op")
+	op.send("MODE op +s +fL")
+	op.send("PING :umode")
+	op.expect(" :umode")
+	hub.fromLink(t, ":0LF SENDSNO f :not from a bridge")
+	bridged(t, hub)
+	hub.fromLink(t, ":0LF SENDSNO f :someone was filtered")
+	if l := op.expect("someone was filtered"); !strings.Contains(l, "*** FILTER: From leaf.test.local: someone was filtered") {
+		t.Errorf("got %q", l)
+	}
+	hub.fromLink(t, ":0LF SENDSNO L :Netsplit complete")
+	op.expect("REMOTELINK: From leaf.test.local: Netsplit complete")
+	op.quiet("not from a bridge")
+}
