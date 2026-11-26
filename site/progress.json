@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-26T17:28:00+08:00",
+ "updated": "2026-11-26T18:22:00+08:00",
  "gauges": [
   {
    "id": "g-v1",
@@ -24,6 +24,10 @@
  },
  "next": "Release BeeIRCd 1.7.1 once the long tests pass.",
  "done": [
+  [
+   "2026-11-26T18:22",
+   "Release test for BeeIRCd 1.7.1, part 2: the tester's bugs are fixed (a linked server could log its users in to other people's accounts, AS OPER ADD and WEBIRC replies, Rehash answering twice, Windows update and status hints), race test clean, overnight tests still running."
+  ],
   [
    "2026-11-26T17:28",
    "Release test for BeeIRCd 1.7.1 started: all checks pass, a Hive Panel click-through fixed 3 phone layout bugs, and a bug sweep fixed 4 more (the live overview while the server stops, ChanServ ACCESS ADD on a FLAGS entry, a public error text, a grammar slip)."
