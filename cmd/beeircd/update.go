@@ -171,7 +171,11 @@ func (u *updater) update(checkOnly, yes, rc bool) int {
 		}
 	}
 	if checkOnly {
-		fmt.Fprintln(u.out, "\n  Install it with:  beeircd update")
+		hint := "beeircd update"
+		if rc {
+			hint += " --rc" // plain update would refuse a test version
+		}
+		fmt.Fprintln(u.out, "\n  Install it with:  "+hint)
 		return 0
 	}
 	if !u.isRoot() {
