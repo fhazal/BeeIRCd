@@ -72,6 +72,12 @@ func (s *Server) linkMD(l *linkConn, m irc.Message) {
 	if r == nil || r.via != l {
 		return
 	}
+	if s.cfg.Services.On() {
+		// Services run here: this is the network's one SASL server. Another
+		// server saying it is would get the services' rights (fromServices).
+		s.ignoreOnce(l, "svs:saslmechlist", "refused saslmechlist from %s: services run on this server", r.name)
+		return
+	}
 	mechs := ""
 	if len(m.Params) > 3 {
 		mechs = m.Params[3]
