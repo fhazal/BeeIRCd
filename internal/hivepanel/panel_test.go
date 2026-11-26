@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -24,6 +25,7 @@ type fakeServer struct {
 	gone    bool // the oper entry was removed
 	reqs    []control.Request
 	offline bool
+	stop    bool   // the server is shutting down: status answers with an error
 	bkDir   string // backup-get answers with files here
 }
 
@@ -69,6 +71,9 @@ func (f *fakeServer) ask(r control.Request, _ time.Duration) (*control.Response,
 	}
 	switch r.Cmd {
 	case control.CmdStatus:
+		if f.stop { // control.Ask hands back both the answer and its error
+			return &control.Response{Error: "the server is stopping"}, errors.New("the server is stopping")
+		}
 		return &control.Response{Status: &control.Status{Server: "irc.test", Online: 3, MaxUsers: 10}}, nil
 	case control.CmdPanelLog:
 		return &control.Response{Events: []control.Event{{Who: "Bee", What: "signed in"}}}, nil
@@ -360,6 +365,44 @@ func TestLiveStream(t *testing.T) {
 	if json.Unmarshal([]byte(got["status"]), &st) != nil || st.Online != 3 || !strings.Contains(got["events"], "signed in") {
 		t.Errorf("live: %v", got)
 	}
+}
+
+// A server that is stopping answers status with an error and no status:
+// the live view must say it isn't answering, never send an empty status.
+func TestLiveStreamStopping(t *testing.T) {
+	rg := newRig(t)
+	tok := rg.login()
+	rg.f.mu.Lock()
+	rg.f.stop = true
+	rg.f.mu.Unlock()
+	srv := httptest.NewServer(rg.p)
+	defer srv.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, "GET", srv.URL+"/api/live", nil)
+	req.AddCookie(&http.Cookie{Name: cookieName, Value: tok})
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	sc := bufio.NewScanner(resp.Body)
+	var ev string
+	for sc.Scan() {
+		line := sc.Text()
+		if strings.HasPrefix(line, "event: ") {
+			ev = line[7:]
+			continue
+		}
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		if ev != "offline" {
+			t.Fatalf("first event is %q with %s, want offline", ev, line[6:])
+		}
+		return
+	}
+	t.Fatal("no event")
 }
 
 func TestPeopleRoutes(t *testing.T) {

@@ -1012,6 +1012,9 @@ func (p *Panel) live(w http.ResponseWriter, r *http.Request) {
 			p.drop(key)
 			sendEv("signin", map[string]any{"error": resp.Error})
 			return
+		case err != nil || resp.Status == nil: // stopping, or any other refusal: no status to show
+			sendEv("offline", map[string]any{"error": "The server isn't answering."})
+			continue
 		}
 		sendEv("status", resp.Status)
 		ev, err := p.ask(control.Request{Cmd: control.CmdPanelLog, As: as, IP: ip, Seal: seal}, 5*time.Second)
