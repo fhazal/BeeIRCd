@@ -290,3 +290,23 @@ name = "hive"
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
 	}
 }
+
+func TestDocSetKeepsFirstLineComment(t *testing.T) {
+	d := &Doc{lines: strings.Split(`[server]
+swhois = [ # my list
+  "a",
+]
+vhosts = [ # top
+  "b",
+] # bottom`, "\n")}
+	d.Set("server", "swhois", `["one"]`)
+	d.Set("server", "vhosts", `["two"]`)
+	want := `[server]
+swhois = ["one"] # my list
+# top
+vhosts = ["two"] # bottom
+`
+	if got := d.String(); got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}

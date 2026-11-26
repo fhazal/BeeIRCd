@@ -237,11 +237,19 @@ func (d *Doc) Set(table, key, value string) {
 		}
 		start, end := d.section(h)
 		if v, ok := d.find(start, end, key); ok {
+			// The value now fits one line: a comment from its first line
+			// goes after it, or above it when the old last line had one.
 			line := v.indent + key + " = " + value
-			if v.comment != "" {
-				line += " " + v.comment
+			lines := []string{line}
+			switch {
+			case v.lead != "" && v.comment != "":
+				lines = []string{v.indent + v.lead, line + " " + v.comment}
+			case v.lead != "":
+				lines[0] += " " + v.lead
+			case v.comment != "":
+				lines[0] += " " + v.comment
 			}
-			d.lines = append(d.lines[:v.first], append([]string{line}, d.lines[v.last+1:]...)...)
+			d.lines = append(d.lines[:v.first], append(lines, d.lines[v.last+1:]...)...)
 			return
 		}
 		d.insert(d.lastContent(start, end), key+" = "+value)
@@ -281,6 +289,7 @@ type keyValue struct {
 	indent      string // before the key
 	text        string // the value whole, as wholeValue gives it
 	comment     string // the # comment after the value, or ""
+	lead        string // a # comment on the key's line when the value goes on past it
 }
 
 // find finds key in the section [start, end), skipping lines inside
@@ -313,6 +322,9 @@ func (d *Doc) wholeValue(i, end int, first string) keyValue {
 		v.comment = first[at:]
 	}
 	parts := []string{strings.TrimSpace(stripComment(first))}
+	if sc.depth > 0 || sc.multi != "" {
+		v.lead, v.comment = v.comment, ""
+	}
 	for j := i + 1; j < end && (sc.depth > 0 || sc.multi != ""); j++ {
 		l := d.lines[j]
 		if sc.multi != "" {
