@@ -326,7 +326,7 @@ func TestWebSocketHeaderTooBig(t *testing.T) {
 		code <- resp.StatusCode
 	}()
 	req := "GET / HTTP/1.1\r\nHost: irc.test.local\r\nCookie: " + strings.Repeat("a", 2*wsMaxHeader) + "\r\n\r\n"
-	_, err = wsHandshake(sv, bufio.NewReader(&headerCap{r: strings.NewReader(req), n: wsMaxHeader}), listener{}, nil)
+	_, err = wsHandshake(sv, bufio.NewReader(&cappedReader{r: strings.NewReader(req), left: wsMaxHeader}), listener{}, nil)
 	sv.Close()
 	if got := <-code; err == nil || got != http.StatusRequestHeaderFieldsTooLarge {
 		t.Fatalf("too big a request: reply %d, err %v; want 431", got, err)
