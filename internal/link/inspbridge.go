@@ -348,8 +348,42 @@ func (b *inspBridge) out(m irc.Message) []string {
 	case "EOS":
 		return []string{line(nil, src, "ENDBURST", false)}
 	case "NETINFO", "PROTOCTL", "PASS", "BEESESS", "BEEOPER", "BEEOPERR", "BEEADMIN", "BEEPLACE", "REPUTATION",
-		"SVSNOOP", "WHOIS", "MOTD", "VERSION", "ADMIN", "TIME", "STATS", "BATCH", "SMOD", "SINFO", "SWHOIS":
+		"SVSNOOP", "VERSION", "BATCH", "SMOD", "SINFO", "SWHOIS":
+		// VERSION: InspIRCd 4 answers it only for its own users (no
+		// remote form), so our side answers instead.
 		return nil
+	case "MOTD", "ADMIN", "TIME": // :uid CMD :server -> :uid CMD <server name>
+		// InspIRCd 4 routes these only by a server name (one with a dot),
+		// and the server named checks it is its own name.
+		if len(p) == 0 {
+			return nil
+		}
+		name := b.theirServer(last())
+		if name == "" {
+			return nil
+		}
+		return []string{line(nil, src, m.Command, false, name)}
+	case "STATS": // :uid STATS letter :server -> :uid STATS letter <server name>
+		if len(p) < 2 || p[0] == "" {
+			return nil
+		}
+		name := b.theirServer(last())
+		if name == "" {
+			return nil
+		}
+		return []string{line(nil, src, "STATS", false, p[0][:1], name)}
+	case "WHOIS": // :uid WHOIS server :nick -> :uid IDLE <their uid>
+		// InspIRCd 4 never sends WHOIS between servers: the asker's server
+		// asks the user's own server for the idle time (IDLE) and builds
+		// the WHOIS itself from the answer.
+		if len(p) < 2 {
+			return nil
+		}
+		uid := b.theirUID(strings.SplitN(last(), ",", 2)[0])
+		if uid == "" {
+			return nil
+		}
+		return []string{line(nil, src, "IDLE", false, uid)}
 	case "UID":
 		return b.outUID(src, p)
 	case "AWAY":
@@ -1246,7 +1280,22 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 			signon := b.nickTS[p[0]]
 			return nil, []string{line(nil, p[0], "IDLE", false, src, strconv.FormatInt(signon, 10), "0")}
 		}
+		if len(p) >= 3 && b.behind[sourceSID(src)] && !b.behind[sourceSID(p[0])] {
+			// :their uid IDLE our asker signon idle: the answer to a WHOIS
+			// we sent on; our server builds the WHOIS from it.
+			return one(line(nil, src, "IDLE", false, p[0], p[1], p[2]))
+		}
 		return nil, nil
+	case "MOTD", "ADMIN", "TIME", "VERSION": // :uid CMD server -> :uid CMD :server
+		if len(p) < 1 || !b.behind[sourceSID(src)] {
+			return nil, nil
+		}
+		return one(line(nil, src, m.Command, true, p[0]))
+	case "STATS": // :uid STATS letter server -> :uid STATS letter :server
+		if len(p) < 2 || !b.behind[sourceSID(src)] {
+			return nil, nil
+		}
+		return one(line(nil, src, "STATS", true, p[0], p[1]))
 	case "PRIVMSG", "NOTICE", "TAGMSG", "WALLOPS", "PART", "SVSJOIN", "SVSPART", "SVSNICK", "ERROR",
 		"SAJOIN", "SAPART", "SANICK", "ACCEPT":
 		m.Source = src
@@ -1255,6 +1304,17 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 		return one(line(nil, src, "TSCTL", false, "alltime"))
 	}
 	return nil, nil
+}
+
+// theirServer is the name of the server on their side that x names (a
+// server name or SID), "" when it is not one of theirs.
+func (b *inspBridge) theirServer(x string) string {
+	for sid, n := range b.names {
+		if b.behind[sid] && (sid == x || strings.EqualFold(n, x)) {
+			return n
+		}
+	}
+	return ""
 }
 
 // theirUID is the UID of the person on their side with nick, "" when

@@ -173,7 +173,7 @@ func TestInspBridgeOut(t *testing.T) {
 			t.Errorf("%s\n  sent %q\n  want %q", c.in, got, c.want)
 		}
 	}
-	for _, drop := range []string{":0BE NETINFO 1 2 3 4 5 6 7 :BeeNet", ":0BE BEESESS x", ":0BEAAAAAA WHOIS 1INAAAAAA :x"} {
+	for _, drop := range []string{":0BE NETINFO 1 2 3 4 5 6 7 :BeeNet", ":0BE BEESESS x"} {
 		if got := b.Out(drop); len(got) != 0 {
 			t.Errorf("%s not dropped: %q", drop, got)
 		}
@@ -359,5 +359,51 @@ func TestInspBridgeWallops(t *testing.T) {
 	}
 	if got, _ := b.In(":1INAAAAAA WALLOPS :hello bee"); !has(got, ":1INAAAAAA WALLOPS :hello bee") {
 		t.Errorf("in: %q", got)
+	}
+}
+
+// Server queries cross the bridge as InspIRCd 4 routes them: MOTD, ADMIN,
+// TIME and STATS by server name, WHOIS as IDLE to the user's server (and
+// its IDLE answer back); VERSION and TRACE have no remote form there.
+func TestInspBridgeQueries(t *testing.T) {
+	b := testBridge(t)
+	b.In(":1IN SERVER leaf.insp 2IN :a leaf")
+	b.In(":1IN ENDBURST")
+	b.In(":1IN UID 1INAAAAAB 1700000100 live h h u u 192.0.2.2 1700000100 + :x")
+	b.Out(":0BE EOS") // the first line out brings our BURST
+	for in, want := range map[string]string{
+		":0BEAAAAAA MOTD :insp.test":         ":0BEAAAAAA MOTD insp.test",
+		":0BEAAAAAA ADMIN :2IN":              ":0BEAAAAAA ADMIN leaf.insp",
+		":0BEAAAAAA TIME :leaf.insp":         ":0BEAAAAAA TIME leaf.insp",
+		":0BEAAAAAA STATS u :insp.test":      ":0BEAAAAAA STATS u insp.test",
+		":0BEAAAAAA WHOIS 1IN :live":         ":0BEAAAAAA IDLE 1INAAAAAB",
+		":0BEAAAAAA WHOIS 1INAAAAAB :LIVE,x": ":0BEAAAAAA IDLE 1INAAAAAB",
+	} {
+		if got := b.Out(in); len(got) != 1 || got[0] != want {
+			t.Errorf("%s\n  sent %q\n  want %q", in, got, want)
+		}
+	}
+	for _, drop := range []string{
+		":0BEAAAAAA VERSION :insp.test", ":0BEAAAAAA TRACE :insp.test",
+		":0BEAAAAAA MOTD :bee.test", ":0BEAAAAAA WHOIS 1IN :nobody",
+	} {
+		if got := b.Out(drop); len(got) != 0 {
+			t.Errorf("%s not dropped: %q", drop, got)
+		}
+	}
+	run := func(l string) []string {
+		r, _ := b.In(l)
+		return r
+	}
+	for in, want := range map[string]string{
+		":1INAAAAAB MOTD bee.test":                ":1INAAAAAB MOTD :bee.test",
+		":1INAAAAAB ADMIN bee.test":               ":1INAAAAAB ADMIN :bee.test",
+		":1INAAAAAB TIME bee.test":                ":1INAAAAAB TIME :bee.test",
+		":1INAAAAAB STATS u bee.test":             ":1INAAAAAB STATS u :bee.test",
+		":1INAAAAAB IDLE 0BEAAAAAA 1700000100 42": ":1INAAAAAB IDLE 0BEAAAAAA 1700000100 42",
+	} {
+		if got := run(in); len(got) != 1 || got[0] != want {
+			t.Errorf("%s\n  ran %q\n  want %q", in, got, want)
+		}
 	}
 }

@@ -753,6 +753,8 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		s.linkSASL(l, m)
 	case "WHOIS":
 		s.remoteWhois(l, m)
+	case "IDLE":
+		s.remoteIdle(l, m)
 	case "MOTD", "VERSION", "ADMIN", "TIME", "STATS", "TRACE":
 		s.remoteQuery(l, m)
 	case "TSCTL":

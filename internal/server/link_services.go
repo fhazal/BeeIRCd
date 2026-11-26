@@ -5,6 +5,7 @@ package server
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"time"
 
@@ -332,11 +333,22 @@ func (s *Server) whoisElsewhere(c *Client, where, nick string) bool {
 		sid, target = uidServer(u.UID), u.UID
 	}
 	r := s.links.servers[sid]
-	if r == nil || r.via == nil {
+	if r == nil || r.via == nil || !s.whoisCarried(r.via, nick) {
 		return false
 	}
 	r.via.send(":" + c.uid + " WHOIS " + target + " :" + nick)
 	return true
+}
+
+// whoisCarried says whether a WHOIS for nick may go out on l: an InspIRCd
+// link only asks the server of someone behind it (as IDLE), so anyone
+// else is answered here.
+func (s *Server) whoisCarried(l *linkConn, nick string) bool {
+	if l.bridge == nil {
+		return true
+	}
+	u := s.net.UserByNick(nick)
+	return u != nil && s.behind(l, uidServer(u.UID))
 }
 
 // remoteWhois is WHOIS from someone on another server: answer when it is
@@ -367,10 +379,14 @@ func (s *Server) remoteWhois(l *linkConn, m irc.Message) {
 		sid = s.cfg.Server.SID // our services server: we answer
 	}
 	if sid != s.cfg.Server.SID {
-		if r := s.links.servers[sid]; r != nil && r.via != l {
-			r.via.send(m.String())
+		r := s.links.servers[sid]
+		if r == nil || r.via == nil || r.via == l {
+			return
 		}
-		return
+		if s.whoisCarried(r.via, nick) {
+			r.via.send(m.String())
+			return
+		}
 	}
 	h := host{s}
 	reply := func(code string, p ...string) { h.Numeric(asker.UID, code, p...) }
@@ -380,8 +396,13 @@ func (s *Server) remoteWhois(l *linkConn, m irc.Message) {
 		reply(irc.RplEndOfWhois, nick, "End of /WHOIS list.")
 		return
 	}
-	// A stand-in for the asker: what they may see is what their own
-	// server says (oper flags), nothing is ever sent to it.
+	s.whoisOne(whoisStandIn(asker), u, reply)
+}
+
+// whoisStandIn is a stand-in for an asker on another server: what they
+// may see is what their own server says (oper flags), nothing is ever
+// sent to it.
+func whoisStandIn(asker *state.User) *Client {
 	stand := &Client{uid: asker.UID, user: asker, caps: map[string]bool{"multi-prefix": true}}
 	if asker.Modes['o'] {
 		stand.operFlags = asker.OperFlags
@@ -389,7 +410,42 @@ func (s *Server) remoteWhois(l *linkConn, m irc.Message) {
 			stand.operFlags = "o"
 		}
 	}
-	s.whoisOne(stand, u, reply)
+	return stand
+}
+
+// remoteIdle is InspIRCd's answer to a WHOIS we sent on as IDLE
+// (":their uid IDLE asker signon idle"): the WHOIS is built here, as
+// InspIRCd does, with the idle and signon time it gave.
+func (s *Server) remoteIdle(l *linkConn, m irc.Message) {
+	if l.bridge == nil || len(m.Params) < 3 {
+		return
+	}
+	u, asker := s.net.UserByUID(m.Source), s.net.UserByUID(m.Params[0])
+	if u == nil || asker == nil || !s.behind(l, uidServer(u.UID)) || s.behind(l, uidServer(asker.UID)) {
+		return
+	}
+	signon, err1 := strconv.ParseInt(m.Params[1], 10, 64)
+	idle, err2 := strconv.ParseInt(m.Params[2], 10, 64)
+	if err1 != nil || err2 != nil {
+		return
+	}
+	h := host{s}
+	c := s.clients[asker.UID]
+	if c == nil || c.user == nil {
+		c = whoisStandIn(asker)
+	}
+	idleSaid := false
+	reply := func(code string, p ...string) {
+		switch {
+		case code == irc.RplWhoisIdle:
+			idleSaid = true
+		case code == irc.RplEndOfWhois && !idleSaid:
+			idleSaid = true
+			h.Numeric(asker.UID, irc.RplWhoisIdle, u.Nick, strconv.FormatInt(idle, 10), strconv.FormatInt(signon, 10), "seconds idle, signon time")
+		}
+		h.Numeric(asker.UID, code, p...)
+	}
+	s.whoisOne(c, u, reply)
 }
 
 // ---- nick bans (SQLINE) and realname bans (SNLINE) over links ----

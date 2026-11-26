@@ -345,12 +345,33 @@ func (s *Server) queryElsewhere(c *Client, cmd, where, arg string) bool {
 		s.reply(c, errNoSuchSrv, where, "No such server")
 		return true
 	}
+	if r.via.bridge != nil && !bridgeQueries[cmd] {
+		h := host{s}
+		s.cantQuery(h, c.uid, cmd, r.name)
+		return true
+	}
 	if arg != "" {
 		r.via.send(":" + c.uid + " " + cmd + " " + arg + " :" + r.name)
 	} else {
 		r.via.send(":" + c.uid + " " + cmd + " :" + r.name)
 	}
 	return true
+}
+
+// bridgeQueries are the server queries an InspIRCd link carries:
+// InspIRCd 4 answers VERSION only for its own users and has no TRACE.
+var bridgeQueries = map[string]bool{"MOTD": true, "ADMIN": true, "TIME": true, "STATS": true}
+
+// cantQuery tells uid that cmd can't reach server (behind an InspIRCd
+// link), with the numeric that ends that command, so the asker isn't
+// left waiting.
+func (s *Server) cantQuery(h host, uid, cmd, server string) {
+	h.ServerNotice(uid, "*** "+cmd+" can't reach "+server+": it is behind a link that doesn't carry it")
+	if cmd == "TRACE" {
+		h.Numeric(uid, rplTraceEnd, server, "End of TRACE")
+		return
+	}
+	h.Numeric(uid, errNoSuchSrv, server, "No such server")
 }
 
 // remoteQuery is MOTD/VERSION/ADMIN/TIME/STATS <server> from someone on
@@ -366,7 +387,11 @@ func (s *Server) remoteQuery(l *linkConn, m irc.Message) {
 		if r == nil {
 			r = s.links.servers[target]
 		}
-		if r != nil && r.via != nil && r.via != l {
+		switch {
+		case r == nil || r.via == nil || r.via == l:
+		case r.via.bridge != nil && !bridgeQueries[m.Command]:
+			s.cantQuery(host{s}, asker.UID, m.Command, r.name)
+		default:
 			r.via.send(m.String())
 		}
 		return
