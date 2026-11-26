@@ -180,6 +180,10 @@ func TestPanelKillHigherOper(t *testing.T) {
 	if !online {
 		t.Fatal("an oper with flag k disconnected the admin Boss from the Hive Panel")
 	}
+	r = as("ember", control.Request{Cmd: control.CmdBan, UID: uid["Boss"], Value: "bye", Life: "1h"})
+	if r.Done != nil || !strings.Contains(r.Error, "flag a") {
+		t.Errorf("ember (hk) banning Boss (abcghks): %+v", r)
+	}
 	if r := as("ember", control.Request{Cmd: control.CmdKill, UID: uid["guesty"]}); r.Done == nil {
 		t.Errorf("ember disconnecting a plain user: %+v", r)
 	}

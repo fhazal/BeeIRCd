@@ -272,6 +272,9 @@ func (s *Server) panelBan(po *control.PanelOper, ip, uid, reason, life string) c
 	if problem != "" {
 		return control.Response{Error: problem}
 	}
+	if problem := s.panelOutranked(po, u); problem != "" {
+		return control.Response{Error: problem}
+	}
 	d, ok := panelLife(life)
 	if !ok {
 		return control.Response{Error: "That ban length isn't one I know. Use 1h, 1d, 7d, 30d or 0 for until removed."}
