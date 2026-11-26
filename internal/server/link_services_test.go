@@ -102,6 +102,12 @@ func TestLinkOperFlags(t *testing.T) {
 	if f := hub.s.flagsForClass("admin-with-override"); f != "ghks" {
 		t.Errorf("admin-with-override = %q", f)
 	}
+	// InspIRCd sends its oper type: its default names match ours.
+	for typ, want := range map[string]string{"NetAdmin": "abcghks", "GlobalOp": "hk", "Helper": "h", "Custom": ""} {
+		if f := hub.s.flagsForClass(typ); f != want {
+			t.Errorf("type %s = %q, want %q", typ, f, want)
+		}
+	}
 }
 
 // OLINE and UMODE check the target's rank across a link: an admin on the

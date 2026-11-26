@@ -1051,8 +1051,14 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 		return nil, nil
 	case "METADATA":
 		return b.inMetadata(src, p), nil
-	case "OPERTYPE":
-		return one(line(nil, src, "UMODE2", false, "+o"))
+	case "OPERTYPE": // :uid OPERTYPE :type
+		// The type goes on as their oper class, which ranks them here
+		// (a type with our class's name gets that class's flags).
+		out := []string{line(nil, src, "UMODE2", false, "+o")}
+		if t := strings.TrimSpace(last()); t != "" {
+			out = append(out, line(nil, sourceSID(src), "MD", true, "client", src, "operclass", t))
+		}
+		return out, nil
 	case "FJOIN":
 		return b.inFJoin(src, p), nil
 	case "IJOIN": // :uid IJOIN #chan membid [ts modes]
@@ -1100,10 +1106,14 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 		if ms == "" {
 			return nil, nil
 		}
+		out := []string{line(nil, src, "SVS2MODE", false, p[0], ms)}
 		if src == p[0] {
-			return one(line(nil, src, "UMODE2", false, ms))
+			out[0] = line(nil, src, "UMODE2", false, ms)
 		}
-		return one(line(nil, src, "SVS2MODE", false, p[0], ms))
+		if dropsMode(ms, 'o') { // no longer an oper: their class goes too
+			out = append(out, line(nil, sourceSID(p[0]), "MD", false, "client", p[0], "operclass"))
+		}
+		return out, nil
 	case "NICK": // :uid NICK new ts
 		if len(p) < 1 {
 			return nil, nil
@@ -1393,6 +1403,24 @@ func (b *inspBridge) inUserModes(modes string, args []string) string {
 	}
 	ms, _ := writeModes(cs)
 	return ms
+}
+
+// dropsMode tells whether a mode string like "+i-o" takes mode l off.
+func dropsMode(ms string, l byte) bool {
+	minus := false
+	for i := 0; i < len(ms); i++ {
+		switch ms[i] {
+		case '+':
+			minus = false
+		case '-':
+			minus = true
+		case l:
+			if minus {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // inTopic: FTOPIC #chan chants topicts [setter] :text

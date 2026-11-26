@@ -200,6 +200,10 @@ func TestInspBridgeIn(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{":1IN SERVER leaf.insp 2IN :a leaf", ":1IN SID leaf.insp 2 2IN :a leaf"},
 		{":1INAAAAAA OPERTYPE :NetAdmin", "UMODE2 +o"},
+		// the type ranks them here as their oper class; -o clears it
+		{":1INAAAAAA OPERTYPE :NetAdmin", ":1IN MD client 1INAAAAAA operclass :NetAdmin"},
+		{":1INAAAAAA MODE 1INAAAAAA -o", ":1INAAAAAA UMODE2 -o"},
+		{":1INAAAAAA MODE 1INAAAAAA -o", ":1IN MD client 1INAAAAAA operclass"},
 		{":1IN LMODE #hive 1700000000 b *!*@x setter 1700000000", "SJOIN 1700000000 #hive"},
 		{":1INAAAAAA FMODE #hive 1700000000 +m", ":1INAAAAAA MODE #hive +m"},
 		{":1INAAAAAA FTOPIC #hive 1700000000 1700000005 insp!~i@h :new topic", "TOPIC #hive"},
@@ -216,6 +220,9 @@ func TestInspBridgeIn(t *testing.T) {
 		if got := run(c.in); !has(got, c.want) {
 			t.Errorf("%s\n  ran %q\n  want %q", c.in, got, c.want)
 		}
+	}
+	if got := run(":1INAAAAAA MODE 1INAAAAAA +w-i"); has(got, " MD ") {
+		t.Errorf("MD operclass without -o: %q", got)
 	}
 	// a channel mode with a newer TS than ours for the channel is dropped
 	if got := run(":1INAAAAAA FMODE #hive 1800000000 +s"); len(got) != 0 {

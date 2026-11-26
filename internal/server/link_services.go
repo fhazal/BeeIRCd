@@ -294,14 +294,19 @@ func (s *Server) remoteOperMD(l *linkConn, m irc.Message) {
 }
 
 // flagsForClass is what an oper class from another server may do here:
-// ours when we have that class, else UnrealIRCd's default names.
+// ours when we have that class, else UnrealIRCd's default names. An
+// InspIRCd oper's type counts as their class: its default types are
+// NetAdmin, GlobalOp and Helper.
 func (s *Server) flagsForClass(name string) string {
 	if name == "" {
 		return ""
 	}
 	base := strings.TrimSuffix(strings.ToLower(name), "-with-override")
-	if base == "locop" {
+	switch base {
+	case "locop":
 		base = "helper"
+	case "globalop":
+		base = "globop"
 	}
 	if oc, ok := s.cfg.Class(base); ok {
 		f, _ := cleanFlags(oc.Flags)
