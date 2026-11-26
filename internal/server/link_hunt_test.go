@@ -68,3 +68,27 @@ func inChan(n *linkNode, nick, name string) bool {
 	})
 	return in
 }
+
+// Only services change someone else's user modes over a link (SVS2MODE,
+// which the gate keeps to services); a plain MODE <uid> from a user or
+// server on a linked server must not reach our users, or it could take
+// off their cloak (-x) or mark them registered (+r).
+func TestLinkUserModeOnOursNeedsServices(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	on := true
+	hub.s.onLoop(func() { hub.s.cfg.Cloak.Enabled = &on })
+	login(t, hub.s, "alice")
+	if u := hub.user("alice"); !u.Modes['x'] || u.Host == u.RealHost {
+		t.Fatalf("alice has no cloak to start with: %s %s", u.ModeString(), u.Host)
+	}
+	login(t, leaf.s, "bob")
+	hub.seen(t, "bob")
+	a, b := hub.user("alice").UID, hub.user("bob").UID
+	hub.fromLink(t, ":"+b+" MODE "+a+" -x+r")
+	hub.fromLink(t, ":"+leaf.sid+" MODE "+a+" -x+r")
+	time.Sleep(100 * time.Millisecond)
+	u := hub.user("alice")
+	if !u.Modes['x'] || u.Modes['r'] || u.Host == u.RealHost {
+		t.Fatalf("a MODE from the leaf changed alice: modes %s, host %s", u.ModeString(), u.Host)
+	}
+}

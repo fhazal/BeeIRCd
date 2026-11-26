@@ -100,6 +100,15 @@ func (s *Server) linkGate(l *linkConn, m irc.Message) bool {
 		s.ignoreOnce(l, "oper:KILL", "refused KILL from %s: not an IRC operator", u.Nick)
 		return false
 	}
+	// MODE on a user: services change someone on another server with
+	// SVS2MODE; a plain MODE may only touch the users behind this link (it
+	// could take the cloak off ours with -x, or mark them +r).
+	if m.Command == "MODE" && len(m.Params) >= 2 && !strings.HasPrefix(m.Params[0], "#") && !s.fromServices(srv) {
+		if t := s.userByUIDOrNick(m.Params[0]); t != nil && s.linkOf(t.UID) != l {
+			s.ignoreOnce(l, "svs:MODE", "refused MODE on %s from %s: only services change a user on another server", t.Nick, m.Source)
+			return false
+		}
+	}
 	if operOnly[m.Command] {
 		switch {
 		case u == nil && !s.fromServices(srv):
