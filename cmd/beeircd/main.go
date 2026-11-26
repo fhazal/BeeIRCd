@@ -42,35 +42,51 @@ func configPath(container bool) string {
 	return instConf
 }
 
-const usage = `Usage: beeircd <command>
+const usage = `Usage: beeircd <command> [flags]
 
-  install   set up BeeIRCd on this machine (asks 9 questions first)
-  uninstall remove the program and service (--purge: data too)
-  start     start the server
-  stop      stop the server
-  restart   check the config, then restart
-  status    show what the server is doing
-  check     test config, certificate and database
-  update    install the newest release: checks, backs up, rolls back
-            by itself if it fails (--check only looks, --rc test
-            versions, --yes no questions, --rollback goes back)
-  backup    save config, database and certificates [to file]
-  rehash    read beeircd.conf again, apply what is safe live
-  mail-test <address>: send a test mail with the [mail] settings
-            and check SPF, DKIM and DMARC of the sender domain
-  link-info show this server's link fingerprint and the blocks
-            another BeeIRCd or UnrealIRCd server needs to link
-  webirc    add <name> <ip>: let a web chat (BeeRoom) on <ip>
-            pass on each person's real IP
-  import-anope <anope.db>: bring accounts, channels and settings
-            over from Anope 2.0 (server stopped; shows them first)
-  web       run the Hive Panel, the web admin (used by the
-            beeircd-web service; reach it with an SSH tunnel)
-  version   show the version
-  mkpasswd  read a password on standard input, print its hash
-            (for admin_password in beeircd.conf)
-  run       run in the foreground (used by the service)
-            beeircd run [-config /etc/beeircd/beeircd.conf]
+Most commands take -config <file> (default: the installed beeircd.conf).
+
+  install       set up BeeIRCd on this machine (asks 9 questions first)
+  uninstall     remove the program and service
+                  --purge       delete the data too
+  start         start the server
+  stop          stop the server
+  restart       check the config, then restart
+  status        show what the server is doing
+  check         test config, certificate and database
+  update        install the newest release: checks, backs up, rolls back
+                by itself if it fails
+                  --check       only look for a newer release
+                  --rc          include test versions
+                  --yes         no questions
+                  --rollback    go back to the version kept before
+  backup [file] save config, database and certificates
+  rehash        read beeircd.conf again, apply what is safe live
+  mail-test <address>
+                send a test mail with the [mail] settings and check
+                SPF, DKIM and DMARC of the sender domain
+  link-info     show this server's link fingerprint and the blocks
+                another BeeIRCd or UnrealIRCd server needs to link
+  webirc add <name> <ip>
+                let a web chat (BeeRoom) on <ip> pass on each
+                person's real IP
+                  -q            print only the password
+  import-anope <anope.db>
+                bring accounts, channels and settings over from
+                Anope 2.0 (server stopped; shows them first)
+                  --dry-run         only show what would come in
+                  --yes             don't ask before importing
+                  --replace         take Anope's for names that exist
+                  --unreal-opers <unrealircd.conf>
+                                    also bring its oper blocks over
+  web           run the Hive Panel, the web admin (used by the
+                beeircd-web service; reach it with an SSH tunnel)
+                  --listen <addr>   address to answer on
+  run           run in the foreground (used by the service)
+                  --no-gate         one process, no client-port gate (Linux)
+  version       show the version
+  mkpasswd      read a password on standard input, print its hash
+                (for admin_password in beeircd.conf)
 `
 
 func main() {

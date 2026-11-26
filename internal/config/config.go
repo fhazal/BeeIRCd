@@ -395,11 +395,27 @@ func (c *Config) NeedsTLS() bool {
 	return false
 }
 
+// noConfigError is the friendly "no file there" error; it still unwraps to
+// the original one, so errors.Is(err, fs.ErrNotExist) holds.
+type noConfigError struct {
+	path string
+	err  error
+}
+
+func (e *noConfigError) Error() string {
+	return "no config file at " + e.path + " (run \"beeircd install\", or pass -config <file>)"
+}
+
+func (e *noConfigError) Unwrap() error { return e.err }
+
 // Load reads, fills in defaults and checks the file at path. Relative paths
 // inside it are taken from the file's folder.
 func Load(path string) (*Config, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, &noConfigError{path: path, err: err}
+		}
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	return load(path, string(raw))

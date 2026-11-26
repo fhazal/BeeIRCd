@@ -909,7 +909,7 @@ type Rehash struct {
 }
 
 // ErrNotRunning means nothing answers on the socket.
-var ErrNotRunning = errors.New("the server is not running")
+var ErrNotRunning = errors.New("the server is not running (start it with: beeircd start)")
 
 // Ask sends req to the server at socket and waits up to timeout.
 func Ask(socket string, req Request, timeout time.Duration) (*Response, error) {
