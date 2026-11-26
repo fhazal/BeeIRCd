@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-26T23:56:00+08:00",
+ "updated": "2026-11-27T00:06:00+08:00",
  "gauges": [
   {
    "id": "g-v1",
@@ -24,6 +24,10 @@
  },
  "next": "Release BeeIRCd 1.7.1 once the long tests pass.",
  "done": [
+  [
+   "2026-11-27T00:06",
+   "Website: the LEAF label on the live server cards is now leaf green, and HUB gets a matching soft honey fill."
+  ],
   [
    "2026-11-26T23:56",
    "Website polish is live: a bigger, calmer hero headline, What's new grouped by kind, service commands you can click to copy, and more room between sections."
