@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-26T17:01:00+08:00",
+ "updated": "2026-11-26T17:28:00+08:00",
  "gauges": [
   {
    "id": "g-v1",
@@ -17,13 +17,17 @@
   }
  ],
  "now": {
-  "title": "BeeRoom 1.1.1 out",
-  "text": "BeeRoom 1.1.1 fixes four small things from 1.1. Both live chats run it.",
-  "start": "2026-11-26T16:35:00+08:00",
-  "end": "2026-11-26T17:05:00+08:00"
+  "title": "Testing BeeIRCd 1.7.1",
+  "text": "The full release test for 1.7.1 is running: long tests on the homelab overnight, after a clean check and a Hive Panel click-through.",
+  "start": "2026-11-26T17:14:00+08:00",
+  "end": "2026-11-27T05:00:00+08:00"
  },
- "next": "Pick the next step for BeeIRCd.",
+ "next": "Release BeeIRCd 1.7.1 once the long tests pass.",
  "done": [
+  [
+   "2026-11-26T17:28",
+   "Release test for BeeIRCd 1.7.1 started: all checks pass, a Hive Panel click-through fixed 3 phone layout bugs, and a bug sweep fixed 4 more (the live overview while the server stops, ChanServ ACCESS ADD on a FLAGS entry, a public error text, a grammar slip)."
+  ],
   [
    "2026-11-26T17:01",
    "BeeRoom 1.1.1 released and live on both chats: reactions can no longer hide invisible marks, a reply keeps its link when the first line is empty, reply and react follow server changes at once, and the people search shows nicks safely."
