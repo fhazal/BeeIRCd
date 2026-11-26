@@ -115,6 +115,11 @@ type linkState struct {
 	// to, by UID, kept through a netsplit (link_logins.go).
 	logins      map[string]loginGrant
 	loginsSwept time.Time // when expireLogins last ran
+	// Changes to logins not in the database yet (flushLogins): the UIDs,
+	// or loginsAll for "write everything, replacing what is there".
+	loginsDirty map[string]struct{}
+	loginsAll   bool
+	loginsRetry time.Time // no database write before this, after a failed one
 }
 
 type linkRetry struct {
@@ -1217,6 +1222,7 @@ func (s *Server) linkTick(now time.Time) {
 		}
 	}
 	s.expireLogins(now)
+	s.flushLogins(now, false)
 	s.autoconnect(now)
 }
 

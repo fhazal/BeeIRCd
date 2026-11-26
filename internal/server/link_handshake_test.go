@@ -42,7 +42,8 @@ type linkNode struct {
 	cert, key string
 	fp        string
 	blocks    []config.LinkServer
-	services  bool // runs services (one server per network)
+	services  bool   // runs services (one server per network)
+	db        string // services database of an earlier start: a restart keeps it
 	s         *Server
 	log       *syncBuf
 }
@@ -132,7 +133,11 @@ func (n *linkNode) start(t *testing.T) {
 		c.Link = config.Link{Role: n.role, Port: n.port, Cert: n.cert, Key: n.key, Servers: n.blocks}
 		on := n.services
 		c.Services.Enabled = &on
+		if n.db != "" {
+			c.Services.Database = n.db
+		}
 	}, func(s *Server) { s.log = log.New(n.log, "", 0) })
+	n.db = n.s.cfg.Services.Database
 	t.Cleanup(func() {
 		if t.Failed() {
 			t.Logf("%s log:\n%s", n.name, n.log)

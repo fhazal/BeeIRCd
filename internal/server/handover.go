@@ -785,6 +785,10 @@ func (s *Server) takeOver(r *resume) (err error) {
 	if len(snap.History) > 0 && s.cfg.History.Secret == "" && s.hist.store != nil {
 		s.hist.store.Restore(snap.History, time.Now())
 	}
+	// The snapshot is the truth now, not what the database held at start:
+	// the last server may have changed records after its last write. The
+	// database is rewritten from it at the next flush.
+	s.links.logins, s.links.loginsDirty, s.links.loginsAll = nil, nil, true
 	for uid, account := range snap.Logins {
 		s.grantLogin(uid, account, true) // their server links again soon
 	}

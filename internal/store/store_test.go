@@ -698,3 +698,47 @@ func TestRemovedSpamFilters(t *testing.T) {
 		t.Errorf("cap: %d kept, m5 %v, m6 %v", n, oldest, next)
 	}
 }
+
+func TestLinkLoginsKeptOverRestart(t *testing.T) {
+	s, path := open(t)
+	gone := time.Unix(1_800_000_000, 0)
+	if err := s.SaveLinkLogins([]LinkLogin{
+		{UID: "0LFAAAAAA", Account: "Bee", AccountID: 7},
+		{UID: "0LFAAAAAB", Account: "Ann", AccountID: 8, Gone: gone},
+		{UID: "0LFAAAAAC", Account: "Cy"},
+	}, nil, false); err != nil {
+		t.Fatal(err)
+	}
+	// One batch: change one, drop one.
+	if err := s.SaveLinkLogins([]LinkLogin{{UID: "0LFAAAAAA", Account: "Bee", AccountID: 7, Gone: gone}}, []string{"0LFAAAAAC", "0LFNOBODY"}, false); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	s2, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s2.Close()
+	all, err := s2.LinkLogins()
+	if err != nil || len(all) != 2 {
+		t.Fatalf("LinkLogins = %+v, %v", all, err)
+	}
+	got := map[string]LinkLogin{}
+	for _, l := range all {
+		got[l.UID] = l
+	}
+	if l := got["0LFAAAAAA"]; l.Account != "Bee" || l.AccountID != 7 || !l.Gone.Equal(gone) {
+		t.Errorf("0LFAAAAAA = %+v", l)
+	}
+	if l := got["0LFAAAAAB"]; l.Account != "Ann" || l.AccountID != 8 || !l.Gone.Equal(gone) {
+		t.Errorf("0LFAAAAAB = %+v", l)
+	}
+	// Replace: only what is given stays; zero Gone reads back as zero.
+	if err := s2.SaveLinkLogins([]LinkLogin{{UID: "0LFAAAAAD", Account: "Dee"}}, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	all, _ = s2.LinkLogins()
+	if len(all) != 1 || all[0].UID != "0LFAAAAAD" || !all[0].Gone.IsZero() {
+		t.Errorf("after replace: %+v", all)
+	}
+}

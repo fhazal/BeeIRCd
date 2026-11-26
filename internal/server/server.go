@@ -260,6 +260,7 @@ func newServer(cfg *config.Config, logger *log.Logger, child *gate.Child, r *res
 		return nil, fmt.Errorf("services database: %w", err)
 	}
 	s.svc = svc
+	s.loadLogins(time.Now())
 	svc.OnSecretDone(s.releaseHeld)
 	svc.OnBanChange(s.linkBanChanged)
 	svc.OnSpamChange(s.linkSpamChanged)
@@ -642,6 +643,7 @@ func (s *Server) finishStop(snap history.Snapshot) {
 	s.svc.SaveChanStats()
 	s.saveReputation(time.Now())
 	s.saveWhowas(time.Now())
+	s.flushLogins(time.Now(), true)
 	s.svc.CloseOutside()
 	s.svc.CloseLogFile()
 	if err := s.store.Close(); err != nil {

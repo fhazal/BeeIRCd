@@ -12,6 +12,17 @@ package server
 // on other servers. It lives through a netsplit, so a user who comes back
 // in the next burst keeps their login, and goes when the user really quits
 // or logs out. A server with services off keeps trusting what arrives.
+//
+// The records are kept in the services database too (table link_logins),
+// so they live through a restart of this server as well: the other servers
+// keep their users' UIDs, so after a cold restart the next burst matches.
+// Changes are only noted in memory (loginsDirty) and written, all of them
+// in one transaction, from the link tick (flushLogins) and when the server
+// stops, so a netsplit of thousands is one write and no per-message
+// database work is added. At a cold start nobody is on the network yet, so
+// every loaded record counts as gone from that moment: the 24 hour wait
+// and the expiry work as after a netsplit. After a hand-over the snapshot
+// of the last server is used and the database is rewritten from it.
 
 import (
 	"fmt"
@@ -21,6 +32,7 @@ import (
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/link"
 	"github.com/fhazal/beeircd/internal/state"
+	"github.com/fhazal/beeircd/internal/store"
 )
 
 // loginGrant is one login our services gave to someone on another server.
@@ -58,7 +70,7 @@ func (s *Server) grantLogin(uid, account string, away bool) {
 		// their records.
 		for k, g := range s.links.logins {
 			if !g.gone.IsZero() {
-				delete(s.links.logins, k)
+				s.dropLogin(k)
 			}
 		}
 	}
@@ -69,7 +81,32 @@ func (s *Server) grantLogin(uid, account string, away bool) {
 	if away {
 		g.gone = time.Now()
 	}
+	s.setLogin(uid, g)
+}
+
+// setLogin stores g as uid's record and notes it for the database.
+func (s *Server) setLogin(uid string, g loginGrant) {
+	if s.links.logins == nil {
+		s.links.logins = map[string]loginGrant{}
+	}
 	s.links.logins[uid] = g
+	s.noteLoginChange(uid)
+}
+
+// dropLogin deletes uid's record (if any) and notes it for the database.
+func (s *Server) dropLogin(uid string) {
+	if _, ok := s.links.logins[uid]; ok {
+		delete(s.links.logins, uid)
+		s.noteLoginChange(uid)
+	}
+}
+
+// noteLoginChange says uid's record changed since the last flushLogins.
+func (s *Server) noteLoginChange(uid string) {
+	if s.links.loginsDirty == nil {
+		s.links.loginsDirty = map[string]struct{}{}
+	}
+	s.links.loginsDirty[uid] = struct{}{}
 }
 
 // linkLoginOK says whether to take account for uid (nick) from l. When not,
@@ -111,7 +148,7 @@ func (s *Server) noteLogins(ev state.Event, org *linkOrigin) {
 		switch {
 		case s.ours(e.UID):
 		case e.Account == "":
-			delete(s.links.logins, e.UID)
+			s.dropLogin(e.UID)
 		case org == nil || org.l == nil:
 			s.grantLogin(e.UID, e.Account, false) // our services
 		default:
@@ -128,9 +165,9 @@ func (s *Server) noteLogins(ev state.Event, org *linkOrigin) {
 		case s.netsplit != nil:
 			// Gone in a split: kept for when they come back.
 			g.gone = time.Now()
-			s.links.logins[e.UID] = g
+			s.setLogin(e.UID, g)
 		default:
-			delete(s.links.logins, e.UID)
+			s.dropLogin(e.UID)
 		}
 	}
 }
@@ -140,7 +177,7 @@ func (s *Server) noteLogins(ev state.Event, org *linkOrigin) {
 func (s *Server) loginBack(uid, account string) {
 	if g, ok := s.links.logins[uid]; ok && irc.EqualFold(g.account, account) && !g.gone.IsZero() {
 		g.gone = time.Time{}
-		s.links.logins[uid] = g
+		s.setLogin(uid, g)
 	}
 }
 
@@ -157,10 +194,85 @@ func (s *Server) expireLogins(now time.Time) {
 			if s.net.UserByUID(uid) == nil {
 				// We missed how they left: give them the usual wait.
 				g.gone = now
-				s.links.logins[uid] = g
+				s.setLogin(uid, g)
 			}
 		case now.Sub(g.gone) >= loginGrantKeep:
-			delete(s.links.logins, uid)
+			s.dropLogin(uid)
 		}
 	}
+}
+
+// loginsRetryAfter: how long to wait before trying the database again after
+// a failed write (the changes stay noted).
+const loginsRetryAfter = time.Minute
+
+// loadLogins reads the saved records at start (a cold start; a hand-over
+// replaces them, see takeOver). Nobody is on the network yet, so a record
+// that was on the network counts as gone from now on; ones past the wait
+// are dropped.
+func (s *Server) loadLogins(now time.Time) {
+	if s.svc.Off() {
+		return
+	}
+	all, err := s.store.LinkLogins()
+	if err != nil {
+		s.log.Printf("services database: link logins: %v", err)
+		return
+	}
+	if s.links.logins == nil {
+		s.links.logins = map[string]loginGrant{}
+	}
+	for _, l := range all {
+		g := loginGrant{account: l.Account, id: l.AccountID, gone: l.Gone}
+		switch {
+		case !l.Gone.IsZero() && now.Sub(l.Gone) >= loginGrantKeep, len(s.links.logins) >= loginGrantCap:
+			s.noteLoginChange(l.UID) // not in the map: deleted at the next flush
+		case l.Gone.IsZero() || l.Gone.After(now):
+			g.gone = now
+			s.setLogin(l.UID, g) // changed: written back
+		default:
+			s.links.logins[l.UID] = g
+		}
+	}
+}
+
+// flushLogins writes the noted changes to the database in one transaction.
+// It runs from the link tick (now) and at stop (force: no waiting after an
+// earlier failure).
+func (s *Server) flushLogins(now time.Time, force bool) {
+	l := &s.links
+	if len(l.loginsDirty) == 0 && !l.loginsAll {
+		return
+	}
+	if s.svc.Off() {
+		l.loginsDirty, l.loginsAll = nil, false
+		return
+	}
+	if !force && now.Before(l.loginsRetry) {
+		return
+	}
+	var save []store.LinkLogin
+	var drop []string
+	add := func(uid string, g loginGrant) {
+		save = append(save, store.LinkLogin{UID: uid, Account: g.account, AccountID: g.id, Gone: g.gone})
+	}
+	if l.loginsAll {
+		for uid, g := range l.logins {
+			add(uid, g)
+		}
+	} else {
+		for uid := range l.loginsDirty {
+			if g, ok := l.logins[uid]; ok {
+				add(uid, g)
+			} else {
+				drop = append(drop, uid)
+			}
+		}
+	}
+	if err := s.store.SaveLinkLogins(save, drop, l.loginsAll); err != nil {
+		s.log.Printf("services database: link logins: %v", err)
+		l.loginsRetry = now.Add(loginsRetryAfter)
+		return
+	}
+	l.loginsDirty, l.loginsAll = nil, false
 }

@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/link"
 	"github.com/fhazal/beeircd/internal/state"
+	"github.com/fhazal/beeircd/internal/store"
 )
 
 // lastHost is NickServ's "Last host" of account on n.
@@ -260,4 +262,252 @@ func TestLinkInspAccountnameIgnored(t *testing.T) {
 	if hub.logHas("for inspy2 (") {
 		t.Error("inspy2's login was dropped")
 	}
+}
+
+// loggedInPeople is a hub and a leaf with dan (NickServ) and sam (SASL) on
+// the leaf, both logged in to dan's account, on both servers. It returns
+// their UIDs.
+func loggedInPeople(t *testing.T) (hub, leaf *linkNode, danUID, samUID string) {
+	t.Helper()
+	hub, leaf = linkedPair(t)
+	dan := login(t, leaf.s, "dan")
+	hub.seen(t, "dan")
+	dan.send("NS REGISTER " + pw)
+	dan.expect("is now registered to you.")
+	c := raw(t, leaf.s)
+	c.nick = "*"
+	c.send("CAP REQ :sasl")
+	c.send("NICK sam")
+	c.send("USER sam 0 * :Sam")
+	c.send("AUTHENTICATE PLAIN")
+	c.expect("AUTHENTICATE +")
+	c.send("AUTHENTICATE " + saslPlain("dan", pw))
+	c.expect(" 903 ")
+	c.send("CAP END")
+	c.expect(" 001 sam ")
+	logged := func(n *linkNode, nick string) bool { u := n.user(nick); return u != nil && u.Account == "dan" }
+	waitLink(t, "both logged in on both", func() bool {
+		return logged(hub, "dan") && logged(hub, "sam") && logged(leaf, "dan") && logged(leaf, "sam")
+	})
+	return hub, leaf, hub.user("dan").UID, hub.user("sam").UID
+}
+
+// coldRestart stops the hub for good and starts it again on the same
+// database (edit may change the saved records in between); the leaf links
+// again and the test waits for its people to be back on the hub.
+func coldRestart(t *testing.T, hub, leaf *linkNode, edit func(*store.Store)) {
+	t.Helper()
+	stopServer(hub.s)
+	waitLink(t, "leaf lost the hub", func() bool { return len(leaf.servers()) == 0 })
+	if edit != nil {
+		db, err := store.Open(hub.db)
+		if err != nil {
+			t.Fatal(err)
+		}
+		edit(db)
+		db.Close()
+	}
+	hub.start(t)
+	waitLink(t, "leaf back", func() bool {
+		leaf.s.onLoop(func() {
+			for _, r := range leaf.s.links.retry {
+				r.next = time.Time{}
+			}
+		})
+		return hub.user("sam") != nil && hub.user("dan") != nil
+	})
+}
+
+// Logins our services gave to people on a leaf come back with them after
+// the hub itself stopped and started again (no hand-over): the leaf's UIDs
+// are the same, so the burst matches the saved records.
+func TestLinkLoginSurvivesColdRestart(t *testing.T) {
+	hub, leaf, danUID, samUID := loggedInPeople(t)
+	coldRestart(t, hub, leaf, func(db *store.Store) {
+		all, err := db.LinkLogins()
+		if err != nil || len(all) != 2 {
+			t.Fatalf("saved at stop: %+v, %v", all, err)
+		}
+		for _, l := range all {
+			if (l.UID != danUID && l.UID != samUID) || l.Account != "dan" || l.AccountID == 0 {
+				t.Errorf("saved record %+v", l)
+			}
+		}
+	})
+	for _, nick := range []string{"dan", "sam"} {
+		if u := hub.user(nick); u == nil || u.Account != "dan" {
+			t.Errorf("%s lost the login on the hub after a restart: %+v", nick, u)
+		}
+		if u := leaf.user(nick); u == nil || u.Account != "dan" {
+			t.Errorf("%s lost the login on the leaf after a restart: %+v", nick, u)
+		}
+	}
+	if hub.logHas("ignored a login") {
+		t.Errorf("the hub dropped a real login:\n%s", hub.log.String())
+	}
+	// Back on the network: no longer waiting to expire.
+	hub.s.onLoop(func() {
+		for uid, g := range hub.s.links.logins {
+			if !g.gone.IsZero() {
+				t.Errorf("%s still counted as gone: %+v", uid, g)
+			}
+		}
+	})
+}
+
+// After a restart, a record that is too old, or belongs to an account that
+// was dropped and registered again, does not give a login back.
+func TestLinkLoginColdRestartRefuses(t *testing.T) {
+	hub, leaf, danUID, samUID := loggedInPeople(t)
+	coldRestart(t, hub, leaf, func(db *store.Store) {
+		all, _ := db.LinkLogins()
+		var save []store.LinkLogin
+		for _, l := range all {
+			switch l.UID {
+			case samUID:
+				l.Gone = time.Now().Add(-loginGrantKeep - time.Hour) // left long ago
+			case danUID:
+				l.AccountID += 100 // another account of that name by now
+			}
+			save = append(save, l)
+		}
+		if err := db.SaveLinkLogins(save, nil, false); err != nil {
+			t.Fatal(err)
+		}
+	})
+	for _, nick := range []string{"dan", "sam"} {
+		if u := hub.user(nick); u == nil || u.Account != "" {
+			t.Errorf("%s got a login back that should be refused: %+v", nick, u)
+		}
+	}
+	waitLink(t, "the leaf takes the logouts", func() bool {
+		d, s := leaf.user("dan"), leaf.user("sam")
+		return d != nil && s != nil && d.Account == "" && s.Account == ""
+	})
+	for _, uid := range []string{danUID, samUID} {
+		if !hub.logHas("(" + uid + "): our services did not log them in") {
+			t.Errorf("no log line for %s:\n%s", uid, hub.log.String())
+		}
+	}
+	// The expired record is gone from the database after the next write.
+	hub.s.onLoop(func() {
+		if _, ok := hub.s.links.logins[samUID]; ok {
+			t.Errorf("expired record for %s kept in memory", samUID)
+		}
+		hub.s.flushLogins(time.Now(), true)
+	})
+	all, err := hub.s.store.LinkLogins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, l := range all {
+		if l.UID == samUID {
+			t.Errorf("expired record for %s kept in the database", samUID)
+		}
+	}
+}
+
+// What the server loads at start: records that were on the network count as
+// gone from now, ones kept longer than the wait are dropped (and deleted
+// from the database), the id and the account are kept.
+func TestLoginsLoadedAtColdStart(t *testing.T) {
+	db := filepath.Join(t.TempDir(), "services.db")
+	useDB := func(c *config.Config) { c.Services.Database = db }
+	s1 := testServer(t, useDB)
+	now := time.Now()
+	s1.onLoop(func() {
+		s1.setLogin("0LFAAAAAA", loginGrant{account: "Bee", id: 3})
+		s1.setLogin("0LFAAAAAB", loginGrant{account: "Ann", id: 4, gone: now.Add(-time.Hour)})
+		s1.setLogin("0LFAAAAAC", loginGrant{account: "Cy", id: 5, gone: now.Add(-loginGrantKeep - time.Hour)})
+	})
+	stopServer(s1) // the stop writes them
+	s2 := testServer(t, useDB)
+	s2.onLoop(func() {
+		g := s2.links.logins
+		if len(g) != 2 {
+			t.Errorf("loaded %+v, want Bee and Ann", g)
+		}
+		if a := g["0LFAAAAAA"]; a.account != "Bee" || a.id != 3 || a.gone.IsZero() || time.Since(a.gone) > time.Minute {
+			t.Errorf("Bee: %+v", a)
+		}
+		if a := g["0LFAAAAAB"]; a.account != "Ann" || a.id != 4 || time.Since(a.gone) < 59*time.Minute || time.Since(a.gone) > 61*time.Minute {
+			t.Errorf("Ann: %+v", a)
+		}
+		if _, ok := g["0LFAAAAAC"]; ok {
+			t.Error("Cy is past the wait but was loaded")
+		}
+		s2.flushLogins(time.Now(), true)
+	})
+	all, err := s2.store.LinkLogins()
+	if err != nil || len(all) != 2 {
+		t.Fatalf("database after load: %+v, %v", all, err)
+	}
+	for _, l := range all {
+		if l.Gone.IsZero() {
+			t.Errorf("%s saved as on the network after a cold start", l.UID)
+		}
+	}
+}
+
+// A netsplit that takes many people at once is written in one batch, and
+// the database matches the memory after it.
+func TestLoginsNetsplitWrittenInOneBatch(t *testing.T) {
+	s := testServer(t, nil)
+	const n = 5000
+	uid := func(i int) string { return fmt.Sprintf("0LF%06d", i) }
+	same := func(when string) {
+		t.Helper()
+		all, err := s.store.LinkLogins()
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := map[string]store.LinkLogin{}
+		for _, l := range all {
+			got[l.UID] = l
+		}
+		if len(got) != len(s.links.logins) {
+			t.Errorf("%s: %d records in the database, %d in memory", when, len(got), len(s.links.logins))
+		}
+		for u, g := range s.links.logins {
+			l, ok := got[u]
+			if !ok || l.Account != g.account || l.AccountID != g.id || l.Gone.IsZero() != g.gone.IsZero() ||
+				(!g.gone.IsZero() && l.Gone.Unix() != g.gone.Unix()) {
+				t.Errorf("%s: %s is %+v in the database, %+v in memory", when, u, l, g)
+				return
+			}
+		}
+	}
+	s.onLoop(func() {
+		for i := range n {
+			s.grantLogin(uid(i), "Bee", false)
+		}
+		if len(s.links.loginsDirty) != n {
+			t.Errorf("%d changes noted, want %d", len(s.links.loginsDirty), n)
+		}
+		s.flushLogins(time.Now(), false)
+		if len(s.links.loginsDirty) != 0 {
+			t.Errorf("changes left after a flush: %d", len(s.links.loginsDirty))
+		}
+		same("after granting")
+		// The split takes everyone, then some really quit.
+		s.netsplit = &netjoinBatch{}
+		for i := range n {
+			s.noteLogins(&state.UserQuit{UID: uid(i), Reason: "split"}, nil)
+		}
+		s.netsplit = nil
+		for i := 0; i < n; i += 5 {
+			s.noteLogins(&state.UserQuit{UID: uid(i), Reason: "quit"}, nil)
+		}
+		s.flushLogins(time.Now(), false)
+		same("after the split")
+		if len(s.links.logins) != n-n/5 {
+			t.Errorf("%d records after the split, want %d", len(s.links.logins), n-n/5)
+		}
+		for _, g := range s.links.logins {
+			if g.gone.IsZero() {
+				t.Error("a record not marked gone after the split")
+				break
+			}
+		}
+	})
 }
