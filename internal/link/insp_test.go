@@ -173,7 +173,7 @@ func TestInspBridgeOut(t *testing.T) {
 			t.Errorf("%s\n  sent %q\n  want %q", c.in, got, c.want)
 		}
 	}
-	for _, drop := range []string{":0BE NETINFO 1 2 3 4 5 6 7 :BeeNet", ":0BE BEESESS x", ":0BEAAAAAA WHOIS 1INAAAAAA :x"} {
+	for _, drop := range []string{":0BE NETINFO 1 2 3 4 5 6 7 :BeeNet", ":0BE BEESESS x"} {
 		if got := b.Out(drop); len(got) != 0 {
 			t.Errorf("%s not dropped: %q", drop, got)
 		}
@@ -359,5 +359,214 @@ func TestInspBridgeWallops(t *testing.T) {
 	}
 	if got, _ := b.In(":1INAAAAAA WALLOPS :hello bee"); !has(got, ":1INAAAAAA WALLOPS :hello bee") {
 		t.Errorf("in: %q", got)
+	}
+}
+
+// Server queries cross the bridge as InspIRCd 4 routes them: MOTD, ADMIN,
+// TIME and STATS by server name, WHOIS as IDLE to the user's server (and
+// its IDLE answer back); VERSION and TRACE have no remote form there.
+func TestInspBridgeQueries(t *testing.T) {
+	b := testBridge(t)
+	b.In(":1IN SERVER leaf.insp 2IN :a leaf")
+	b.In(":1IN ENDBURST")
+	b.In(":1IN UID 1INAAAAAB 1700000100 live h h u u 192.0.2.2 1700000100 + :x")
+	b.Out(":0BE EOS") // the first line out brings our BURST
+	for in, want := range map[string]string{
+		":0BEAAAAAA MOTD :insp.test":         ":0BEAAAAAA MOTD insp.test",
+		":0BEAAAAAA ADMIN :2IN":              ":0BEAAAAAA ADMIN leaf.insp",
+		":0BEAAAAAA TIME :leaf.insp":         ":0BEAAAAAA TIME leaf.insp",
+		":0BEAAAAAA STATS u :insp.test":      ":0BEAAAAAA STATS u insp.test",
+		":0BEAAAAAA WHOIS 1IN :live":         ":0BEAAAAAA IDLE 1INAAAAAB",
+		":0BEAAAAAA WHOIS 1INAAAAAB :LIVE,x": ":0BEAAAAAA IDLE 1INAAAAAB",
+	} {
+		if got := b.Out(in); len(got) != 1 || got[0] != want {
+			t.Errorf("%s\n  sent %q\n  want %q", in, got, want)
+		}
+	}
+	for _, drop := range []string{
+		":0BEAAAAAA VERSION :insp.test", ":0BEAAAAAA TRACE :insp.test",
+		":0BEAAAAAA MOTD :bee.test", ":0BEAAAAAA WHOIS 1IN :nobody",
+	} {
+		if got := b.Out(drop); len(got) != 0 {
+			t.Errorf("%s not dropped: %q", drop, got)
+		}
+	}
+	run := func(l string) []string {
+		r, _ := b.In(l)
+		return r
+	}
+	for in, want := range map[string]string{
+		":1INAAAAAB MOTD bee.test":                ":1INAAAAAB MOTD :bee.test",
+		":1INAAAAAB ADMIN bee.test":               ":1INAAAAAB ADMIN :bee.test",
+		":1INAAAAAB TIME bee.test":                ":1INAAAAAB TIME :bee.test",
+		":1INAAAAAB STATS u bee.test":             ":1INAAAAAB STATS u :bee.test",
+		":1INAAAAAB IDLE 0BEAAAAAA 1700000100 42": ":1INAAAAAB IDLE 0BEAAAAAA 1700000100 42",
+	} {
+		if got := run(in); len(got) != 1 || got[0] != want {
+			t.Errorf("%s\n  ran %q\n  want %q", in, got, want)
+		}
+	}
+}
+
+// IDLE from InspIRCd (their WHOIS of one of ours) is answered with our
+// user's real signon and idle time; anyone the server doesn't know keeps
+// the nick time and 0.
+func TestInspBridgeIdle(t *testing.T) {
+	b := testBridge(t)
+	b.me.Idle = func(uid string) (int64, int64, bool) {
+		if uid == "0BEAAAAAA" {
+			return 1700000050, 75, true
+		}
+		return 0, 0, false
+	}
+	if _, rep := b.In(":1INAAAAAA IDLE 0BEAAAAAA"); len(rep) != 1 || rep[0] != ":0BEAAAAAA IDLE 1INAAAAAA 1700000050 75" {
+		t.Errorf("IDLE answered %q", rep)
+	}
+	b.Out(":0BE UID bot 1 1700000009 bot services.test 0BEAAAAAS 0 +io * * * :svc")
+	if _, rep := b.In(":1INAAAAAA IDLE 0BEAAAAAS"); len(rep) != 1 || !strings.HasSuffix(rep[0], " IDLE 1INAAAAAA 1700000009 0") {
+		t.Errorf("IDLE for a bot answered %q", rep)
+	}
+}
+
+// KNOCK crosses as InspIRCd 4's m_knock form (ENCAP * KNOCK) and comes
+// back in as the plain ":uid KNOCK #chan :reason" our links use.
+func TestInspBridgeKnock(t *testing.T) {
+	b := testBridge(t)
+	b.Out(":0BE EOS")
+	if out := b.Out(":0BEAAAAAA KNOCK #hive :let me in"); len(out) != 1 || out[0] != ":0BEAAAAAA ENCAP * KNOCK #hive :let me in" {
+		t.Errorf("KNOCK out %q", out)
+	}
+	if run, _ := b.In(":1INAAAAAA ENCAP * KNOCK #hive :let me in"); len(run) != 1 || run[0] != ":1INAAAAAA KNOCK #hive :let me in" {
+		t.Errorf("KNOCK in %q", run)
+	}
+	if run, _ := b.In(":1INAAAAAA ENCAP * KNOCK #hive"); len(run) != 0 {
+		t.Errorf("KNOCK without a reason ran %q", run)
+	}
+}
+
+// A server description crosses as InspIRCd 4's SINFO desc, from the server
+// it is about; their other SINFO keys, or one for a server on our side,
+// are dropped.
+func TestInspBridgeSdesc(t *testing.T) {
+	b := testBridge(t)
+	b.Out(":0BE EOS")
+	if out := b.Out(":0BEAAAAAA SDESC :Hub of the hive"); len(out) != 1 || out[0] != ":0BE SINFO desc :Hub of the hive" {
+		t.Errorf("SDESC out %q", out)
+	}
+	if out := b.Out(":1INAAAAAA SDESC :theirs"); len(out) != 0 {
+		t.Errorf("SDESC for their server went out: %q", out)
+	}
+	if run, _ := b.In(":1IN SINFO desc :Their hive"); len(run) != 1 || run[0] != ":1IN SDESC :Their hive" {
+		t.Errorf("SINFO desc in %q", run)
+	}
+	for _, in := range []string{":1IN SINFO rawversion :InspIRCd-4.5.0", ":0BE SINFO desc :spoofed"} {
+		if run, _ := b.In(in); len(run) != 0 {
+			t.Errorf("%q ran %q", in, run)
+		}
+	}
+}
+
+// UNINVITE crosses as InspIRCd 4's ENCAP to the target's server, both ways;
+// one for someone on our side does not go out.
+func TestInspBridgeUninvite(t *testing.T) {
+	b := testBridge(t)
+	b.Out(":0BE EOS")
+	if out := b.Out(":0BEAAAAAA UNINVITE 1INAAAAAA #hive"); len(out) != 1 || out[0] != ":0BEAAAAAA ENCAP 1IN UNINVITE 1INAAAAAA #hive" {
+		t.Errorf("UNINVITE out %q", out)
+	}
+	if out := b.Out(":0BEAAAAAA UNINVITE 0BEAAAAAB #hive"); len(out) != 0 {
+		t.Errorf("UNINVITE for one of ours went out: %q", out)
+	}
+	if run, _ := b.In(":1INAAAAAA ENCAP 0BE UNINVITE 0BEAAAAAA #hive"); len(run) != 1 || run[0] != ":1INAAAAAA UNINVITE 0BEAAAAAA #hive" {
+		t.Errorf("UNINVITE in %q", run)
+	}
+	for _, in := range []string{":1INAAAAAA ENCAP 1IN UNINVITE 1INAAAAAB #hive", ":1INAAAAAA ENCAP 0BE UNINVITE 0BEAAAAAA"} {
+		if run, _ := b.In(in); len(run) != 0 {
+			t.Errorf("%q ran %q", in, run)
+		}
+	}
+}
+
+// REHASH and CONNECT for a server behind the link go as InspIRCd 4's
+// REHASH <name> and RCONNECT <server> <target>; theirs come in for each
+// server on our side the mask matches (ours first). REHASH with a word
+// (their module rehash) is dropped.
+func TestInspBridgeRehashConnect(t *testing.T) {
+	b := testBridge(t)
+	b.Out(":0BE EOS")
+	b.Out(":0BE SID leaf.test 2 0LF :Leaf")
+	out := func(raw, want string) {
+		t.Helper()
+		if got := b.Out(raw); len(got) != 1 || got[0] != want {
+			t.Errorf("%q went out as %q, want %q", raw, got, want)
+		}
+	}
+	out(":0BEAAAAAA REHASH :insp.test", ":0BEAAAAAA REHASH insp.test")
+	out(":0BEAAAAAA CONNECT other.test 7000 :insp.test", ":0BEAAAAAA RCONNECT insp.test other.test")
+	if got := b.Out(":0BEAAAAAA REHASH :leaf.test"); len(got) != 0 {
+		t.Errorf("REHASH for our side went out: %q", got)
+	}
+	cases := []struct {
+		in   string
+		want []string
+	}{
+		{":1INAAAAAA REHASH *.test", []string{":1INAAAAAA REHASH :bee.test", ":1INAAAAAA REHASH :leaf.test"}},
+		{":1INAAAAAA REHASH leaf.test", []string{":1INAAAAAA REHASH :leaf.test"}},
+		{":1INAAAAAA REHASH ssl", nil},
+		{":1INAAAAAA REHASH nowhere.test", nil},
+		{":1INAAAAAA RCONNECT bee.test other.test", []string{":1INAAAAAA CONNECT other.test 0 :bee.test"}},
+		{":1INAAAAAA RCONNECT leaf.* other.test", []string{":1INAAAAAA CONNECT other.test 0 :leaf.test"}},
+		{":1INAAAAAA RCONNECT nowhere.test other.test", nil},
+	}
+	for _, c := range cases {
+		if run, _ := b.In(c.in); strings.Join(run, "|") != strings.Join(c.want, "|") {
+			t.Errorf("%q ran %q, want %q", c.in, run, c.want)
+		}
+	}
+}
+
+// SAMODE on one of their users (SVS2MODE from us) goes as InspIRCd 4's
+// server MODE, which their server takes without an access check; $mask
+// messages pass both ways as they are.
+func TestInspBridgeSamodeServerMask(t *testing.T) {
+	b := testBridge(t)
+	b.Out(":0BE EOS")
+	for raw, want := range map[string]string{
+		":0BE SVS2MODE 1INAAAAAA -x+i":     ":0BE MODE 1INAAAAAA -x+i",
+		":0BEAAAAAA PRIVMSG $*.test :hi":   ":0BEAAAAAA PRIVMSG $*.test hi",
+		":0BEAAAAAA NOTICE $insp.test :hi": ":0BEAAAAAA NOTICE $insp.test hi",
+	} {
+		if out := b.Out(raw); len(out) != 1 || out[0] != want {
+			t.Errorf("%q went out as %q, want %q", raw, out, want)
+		}
+	}
+	if run, _ := b.In(":1INAAAAAA NOTICE $bee.test :hi all"); len(run) != 1 || run[0] != ":1INAAAAAA NOTICE $bee.test :hi all" {
+		t.Errorf("$mask NOTICE in %q", run)
+	}
+}
+
+// InspIRCd 4's server notices from other servers come in under our letter
+// for the same news; letters we make ourselves, or have none for, are
+// dropped. G stays GLOBOPS.
+func TestInspBridgeSnotice(t *testing.T) {
+	b := testBridge(t)
+	cases := []struct{ in, want string }{
+		{":1IN SNONOTICE A :Module m_foo loaded", ":1IN SENDSNO a :Module m_foo loaded"},
+		{":1IN SNONOTICE F :FILTER: x had their message filtered", ":1IN SENDSNO f :FILTER: x had their message filtered"},
+		{":1IN SNONOTICE O :Failed oper attempt by x", ":1IN SENDSNO O :Failed oper attempt by x"},
+		{":1IN SNONOTICE L :Netsplit complete", ":1IN SENDSNO L :Netsplit complete"},
+		{":1IN SNONOTICE X :Q-lined nickname x", ":1IN SENDSNO X :Q-lined nickname x"},
+		{":1IN SNONOTICE d :DNSBL hit", ":1IN SENDSNO d :DNSBL hit"},
+		{":1IN SNONOTICE G :hello", ":1IN GLOBOPS :hello"},
+	}
+	for _, c := range cases {
+		if run, _ := b.In(c.in); len(run) != 1 || run[0] != c.want {
+			t.Errorf("%q ran %q, want %q", c.in, run, c.want)
+		}
+	}
+	for _, in := range []string{":1IN SNONOTICE K :Local kill by x", ":1IN SNONOTICE C :x connects", ":1IN SNONOTICE W :gateway", ":1IN SNONOTICE Z :what", ":1IN SNONOTICE AB :two"} {
+		if run, _ := b.In(in); len(run) != 0 {
+			t.Errorf("%q ran %q", in, run)
+		}
 	}
 }

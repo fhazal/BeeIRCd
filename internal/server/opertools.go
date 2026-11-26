@@ -727,14 +727,30 @@ func (s *Server) cmdSdesc(c *Client, m irc.Message) {
 // remoteSdesc is SDESC from an oper elsewhere: their server's new
 // description.
 func (s *Server) remoteSdesc(l *linkConn, m irc.Message) {
-	u := s.net.UserByUID(m.Source)
-	if u == nil || len(m.Params) == 0 {
+	if len(m.Params) == 0 {
 		return
 	}
-	if r := s.links.servers[uidServer(u.UID)]; r != nil {
-		r.desc = irc.Truncate(m.Params[len(m.Params)-1], maxServerDesc)
+	desc := irc.Truncate(m.Params[len(m.Params)-1], maxServerDesc)
+	if u := s.net.UserByUID(m.Source); u != nil {
+		if r := s.links.servers[uidServer(u.UID)]; r != nil {
+			r.desc = desc
+		}
+		s.linkBroadcast(l, m.String())
+		return
 	}
-	s.linkBroadcast(l, m.String())
+	// From a server, about itself (InspIRCd's SINFO desc). UnrealIRCd
+	// takes SDESC only from a user (it would change its uplink's), so it
+	// goes on only to BeeIRCd and InspIRCd links.
+	r := s.sourceServer(l, m.Source)
+	if r == nil {
+		return
+	}
+	r.desc = desc
+	for o := range s.links.conns {
+		if o != l && o.up && !o.closed && (o.peer.Bee || o.bridge != nil) {
+			o.send(":" + r.sid + " SDESC :" + desc)
+		}
+	}
 }
 
 // ---- JUMPSERVER ----

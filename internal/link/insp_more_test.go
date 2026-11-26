@@ -79,7 +79,8 @@ func TestInspBanOut(t *testing.T) {
 }
 
 // GLOBOPS goes to InspIRCd as its SNONOTICE G ("From nick: text") and an
-// SNONOTICE G from it comes in as GLOBOPS. Other letters stay ignored.
+// SNONOTICE G from it comes in as GLOBOPS. A letter we have no match for
+// stays ignored (the rest: TestInspBridgeSnotice).
 func TestInspGlobops(t *testing.T) {
 	b := testBridge(t)
 	b.Out(":0BE EOS")
@@ -94,7 +95,7 @@ func TestInspGlobops(t *testing.T) {
 	if got, _ := b.In(":1IN SNONOTICE g :From carol: hello"); !has(got, ":1IN GLOBOPS :From carol: hello") {
 		t.Errorf("in g %q", got)
 	}
-	if got, _ := b.In(":1IN SNONOTICE A :announcement"); len(got) != 0 {
+	if got, _ := b.In(":1IN SNONOTICE W :gateway"); len(got) != 0 {
 		t.Errorf("another letter came in: %q", got)
 	}
 	// From one of their people it comes in from that person, so

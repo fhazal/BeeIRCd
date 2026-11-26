@@ -23,6 +23,10 @@ type Local struct {
 	Known func(sidOrName string) bool
 	// Block finds the [[link.server]] block for a server name.
 	Block func(name string) *config.LinkServer
+	// Idle is the signon time and seconds idle of a user connected to
+	// this server (for InspIRCd's IDLE, its WHOIS); ok is false for
+	// anyone else. It runs on the server loop.
+	Idle func(uid string) (signon, idle int64, ok bool)
 }
 
 // Peer is what a handshake learned about the other server.

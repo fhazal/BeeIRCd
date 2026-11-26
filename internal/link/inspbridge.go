@@ -348,8 +348,63 @@ func (b *inspBridge) out(m irc.Message) []string {
 	case "EOS":
 		return []string{line(nil, src, "ENDBURST", false)}
 	case "NETINFO", "PROTOCTL", "PASS", "BEESESS", "BEEOPER", "BEEOPERR", "BEEADMIN", "BEEPLACE", "REPUTATION",
-		"SVSNOOP", "WHOIS", "MOTD", "VERSION", "ADMIN", "TIME", "STATS", "BATCH", "SMOD", "SINFO", "SWHOIS":
+		"SVSNOOP", "VERSION", "BATCH", "SMOD", "SINFO", "SWHOIS":
+		// VERSION: InspIRCd 4 answers it only for its own users (no
+		// remote form), so our side answers instead.
 		return nil
+	case "MOTD", "ADMIN", "TIME": // :uid CMD :server -> :uid CMD <server name>
+		// InspIRCd 4 routes these only by a server name (one with a dot),
+		// and the server named checks it is its own name.
+		if len(p) == 0 {
+			return nil
+		}
+		name := b.theirServer(last())
+		if name == "" {
+			return nil
+		}
+		return []string{line(nil, src, m.Command, false, name)}
+	case "REHASH": // :uid REHASH :server [-flags] -> :uid REHASH <server name>
+		// InspIRCd 4 passes REHASH <mask> (a name has a dot) to every
+		// server; each one it matches rehashes.
+		if len(p) == 0 {
+			return nil
+		}
+		name := b.theirServer(p[0])
+		if name == "" {
+			return nil
+		}
+		return []string{line(nil, src, "REHASH", false, name)}
+	case "CONNECT": // :uid CONNECT target port :server -> :uid RCONNECT <server name> <target>
+		// InspIRCd 4 has no port here: the server uses its own link block.
+		if len(p) < 3 {
+			return nil
+		}
+		name := b.theirServer(last())
+		if name == "" {
+			return nil
+		}
+		return []string{line(nil, src, "RCONNECT", false, name, p[0])}
+	case "STATS": // :uid STATS letter :server -> :uid STATS letter <server name>
+		if len(p) < 2 || p[0] == "" {
+			return nil
+		}
+		name := b.theirServer(last())
+		if name == "" {
+			return nil
+		}
+		return []string{line(nil, src, "STATS", false, p[0][:1], name)}
+	case "WHOIS": // :uid WHOIS server :nick -> :uid IDLE <their uid>
+		// InspIRCd 4 never sends WHOIS between servers: the asker's server
+		// asks the user's own server for the idle time (IDLE) and builds
+		// the WHOIS itself from the answer.
+		if len(p) < 2 {
+			return nil
+		}
+		uid := b.theirUID(strings.SplitN(last(), ",", 2)[0])
+		if uid == "" {
+			return nil
+		}
+		return []string{line(nil, src, "IDLE", false, uid)}
 	case "UID":
 		return b.outUID(src, p)
 	case "AWAY":
@@ -489,6 +544,27 @@ func (b *inspBridge) out(m irc.Message) []string {
 			text = "From " + n + ": " + text
 		}
 		return []string{line(nil, sourceSID(src), "SNONOTICE", true, "G", text)}
+	case "KNOCK": // :uid KNOCK #chan :reason -> :uid ENCAP * KNOCK #chan :reason
+		// InspIRCd 4's m_knock is an optional broadcast command, so it
+		// goes as ENCAP * (a server without m_knock ignores it).
+		if len(p) < 2 || len(src) != 9 {
+			return nil
+		}
+		return []string{line(nil, src, "ENCAP", true, "*", "KNOCK", p[0], last())}
+	case "SDESC": // :uid SDESC :text -> :sid SINFO desc :text
+		// InspIRCd 4 keeps a server's description as its SINFO desc, sent
+		// by that server (here: the server of the oper who changed it).
+		sid := sourceSID(src)
+		if last() == "" || b.behind[sid] {
+			return nil
+		}
+		return []string{line(nil, sid, "SINFO", true, "desc", last())}
+	case "UNINVITE": // :src UNINVITE <uid> #chan -> :src ENCAP <sid> UNINVITE <uid> #chan
+		// InspIRCd 4's m_uninvite goes to the target's server as ENCAP.
+		if len(p) < 2 || len(p[0]) != 9 || !b.behind[sourceSID(p[0])] {
+			return nil
+		}
+		return []string{line(nil, src, "ENCAP", false, sourceSID(p[0]), "UNINVITE", p[0], p[1])}
 	}
 	if len(m.Command) == 3 && m.Command[0] >= '0' && m.Command[0] <= '9' && len(p) > 0 {
 		// :src 401 uid params -> NUM src uid 401 params
@@ -1017,10 +1093,19 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 	}
 	one := func(l string) ([]string, []string) { return []string{l}, nil }
 	switch m.Command {
-	case "SNONOTICE": // :sid SNONOTICE G :text: their GLOBOPS (every other letter is dropped)
-		if len(p) < 2 || (p[0] != "G" && p[0] != "g") {
+	case "SNONOTICE": // :sid SNONOTICE <letter> :text
+		if len(p) < 2 || p[0] == "" {
 			return nil, nil
 		}
+		if p[0] != "G" && p[0] != "g" {
+			// Any other letter: a server notice for our opers, under our
+			// letter for the same news (see inspSno).
+			if l, ok := inspSno[p[0][0]|0x20]; ok && len(p[0]) == 1 {
+				return one(line(nil, src, "SENDSNO", true, string(l), p[1]))
+			}
+			return nil, nil
+		}
+		// G: their GLOBOPS.
 		// "From nick: text" from one of their opers goes on from that
 		// person, so UnrealIRCd shows "from nick: text", not the server.
 		if rest, ok := strings.CutPrefix(p[1], "From "); ok {
@@ -1031,7 +1116,14 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 			}
 		}
 		return one(line(nil, src, "GLOBOPS", true, p[1]))
-	case "BURST", "SINFO", "RSQUIT", "RESYNC", "SVSHOLD", "SVSOPER", "SVSCMODE", "MAP", "RCONNECT":
+	case "SINFO": // :sid SINFO desc :text -> :sid SDESC :text
+		// Their server's new description; the other keys (version and
+		// such) are only shown by InspIRCd itself.
+		if len(p) >= 2 && p[0] == "desc" && b.behind[src] {
+			return one(line(nil, src, "SDESC", true, last()))
+		}
+		return nil, nil
+	case "BURST", "RSQUIT", "RESYNC", "SVSHOLD", "SVSOPER", "SVSCMODE", "MAP":
 		return nil, nil
 	case "SERVER": // :up SERVER name sid [key=value...] :desc
 		if len(p) < 3 {
@@ -1251,10 +1343,49 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 		return one(line(nil, p[0], p[2], true, append([]string{p[1]}, p[3:]...)...))
 	case "IDLE": // :uid IDLE target -> :target IDLE uid signon idle
 		if len(p) == 1 && !b.behind[sourceSID(p[0])] {
-			signon := b.nickTS[p[0]]
-			return nil, []string{line(nil, p[0], "IDLE", false, src, strconv.FormatInt(signon, 10), "0")}
+			signon, idle := b.nickTS[p[0]], int64(0)
+			if b.me.Idle != nil {
+				if on, i, ok := b.me.Idle(p[0]); ok {
+					signon, idle = on, i
+				}
+			}
+			return nil, []string{line(nil, p[0], "IDLE", false, src, strconv.FormatInt(signon, 10), strconv.FormatInt(idle, 10))}
+		}
+		if len(p) >= 3 && b.behind[sourceSID(src)] && !b.behind[sourceSID(p[0])] {
+			// :their uid IDLE our asker signon idle: the answer to a WHOIS
+			// we sent on; our server builds the WHOIS from it.
+			return one(line(nil, src, "IDLE", false, p[0], p[1], p[2]))
 		}
 		return nil, nil
+	case "MOTD", "ADMIN", "TIME", "VERSION": // :uid CMD server -> :uid CMD :server
+		if len(p) < 1 || !b.behind[sourceSID(src)] {
+			return nil, nil
+		}
+		return one(line(nil, src, m.Command, true, p[0]))
+	case "STATS": // :uid STATS letter server -> :uid STATS letter :server
+		if len(p) < 2 || !b.behind[sourceSID(src)] {
+			return nil, nil
+		}
+		return one(line(nil, src, "STATS", true, p[0], p[1]))
+	case "REHASH": // :uid REHASH <mask> -> :uid REHASH :<server> for each of ours it matches
+		// InspIRCd 4 sends REHASH on to every server; a word without a dot
+		// or * (REHASH ssl) is for its own modules.
+		if len(p) < 1 || !b.behind[sourceSID(src)] || !strings.ContainsAny(p[0], "*.") {
+			return nil, nil
+		}
+		for _, n := range b.ourServers(p[0]) {
+			run = append(run, line(nil, src, "REHASH", true, n))
+		}
+		return run, nil
+	case "RCONNECT": // :uid RCONNECT <server mask> <target> -> :uid CONNECT <target> 0 :<server>
+		if len(p) < 2 || !b.behind[sourceSID(src)] {
+			return nil, nil
+		}
+		ns := b.ourServers(p[0])
+		if len(ns) == 0 {
+			return nil, nil
+		}
+		return one(line(nil, src, "CONNECT", true, p[1], "0", ns[0]))
 	case "PRIVMSG", "NOTICE", "TAGMSG", "WALLOPS", "PART", "SVSJOIN", "SVSPART", "SVSNICK", "ERROR",
 		"SAJOIN", "SAPART", "SANICK", "ACCEPT":
 		m.Source = src
@@ -1263,6 +1394,52 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 		return one(line(nil, src, "TSCTL", false, "alltime"))
 	}
 	return nil, nil
+}
+
+// inspSno maps the letter of an InspIRCd 4 server notice from another
+// server (WriteGlobalSno sends it uppercase; looked up lowercase) to our
+// snomask letter for the same news. Left out on purpose, so dropped:
+// k (their "Local kill by" - we announce their kills from the KILL line
+// as K), c, q and n (we make C, Q and N from their UID, QUIT and NICK
+// lines ourselves), w (WebIRC gateways) and j (channel creation), which
+// have no letter here, and any letter we don't know. g is GLOBOPS.
+var inspSno = map[byte]byte{
+	'a': 'a', // announcements, SA* commands, module loads
+	'd': 'd', // DNSBL hits
+	'f': 'f', // spam filter hits (and the bans it sets)
+	'r': 'r', // rehash
+	'v': 'v', // oper override
+	'l': 'L', // their links and splits
+	'o': 'O', // failed oper logins, oper commands (m_operlog)
+	'x': 'X', // Q-lined nick attempts
+}
+
+// theirServer is the name of the server on their side that x names (a
+// server name or SID), "" when it is not one of theirs.
+func (b *inspBridge) theirServer(x string) string {
+	for sid, n := range b.names {
+		if b.behind[sid] && (sid == x || strings.EqualFold(n, x)) {
+			return n
+		}
+	}
+	return ""
+}
+
+// ourServers are the names of the servers on our side that mask matches,
+// ours first.
+func (b *inspBridge) ourServers(mask string) []string {
+	mask = irc.Fold(mask)
+	var out, more []string
+	if irc.Match(mask, irc.Fold(b.me.Name)) {
+		out = append(out, b.me.Name)
+	}
+	for sid, n := range b.names {
+		if !b.behind[sid] && sid != b.me.SID && irc.Match(mask, irc.Fold(n)) {
+			more = append(more, n)
+		}
+	}
+	sort.Strings(more)
+	return append(out, more...)
 }
 
 // theirUID is the UID of the person on their side with nick, "" when
@@ -1526,8 +1703,18 @@ func (b *inspBridge) inEncap(src, target, cmd string, p []string) []string {
 			return []string{line(nil, src, "SASL", false, append([]string{target, p[1]}, p[2:]...)...)}
 		}
 		return []string{line(nil, src, "SASL", false, append([]string{target, p[0]}, p[2:]...)...)}
-	case "KNOCK":
-		return nil
+	case "KNOCK": // :uid ENCAP * KNOCK #chan :reason -> :uid KNOCK #chan :reason
+		// Our server shows it to the channel's ops here and passes it on
+		// in this form, as UnrealIRCd 6 sends it.
+		if len(p) < 2 || len(src) != 9 {
+			return nil
+		}
+		return []string{line(nil, src, "KNOCK", true, p[0], p[len(p)-1])}
+	case "UNINVITE": // :src ENCAP <sid> UNINVITE <uid> #chan -> :src UNINVITE <uid> #chan
+		if len(p) < 2 {
+			return nil
+		}
+		return []string{line(nil, src, "UNINVITE", false, p[0], p[1])}
 	case "SAJOIN", "SAPART", "SANICK":
 		// :oper ENCAP <sid> SAJOIN <uid> <#channel>
 		return []string{line(nil, src, cmd, len(p) > 2, p...)}

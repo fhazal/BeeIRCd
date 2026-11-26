@@ -112,7 +112,8 @@ func (s *Server) linkGate(l *linkConn, m irc.Message) bool {
 	}
 	if operOnly[m.Command] {
 		switch {
-		case u == nil && !s.fromServices(srv):
+		case u == nil && !s.fromServices(srv) && m.Command != "SDESC":
+			// A server may give its own description (remoteSdesc).
 			s.ignoreOnce(l, "svs:"+m.Command, "refused %s from %s: only services may send it as a server", m.Command, m.Source)
 			return false
 		case u != nil && !u.Modes['o']:
