@@ -392,7 +392,11 @@ func (c *unrealCodec) decodeBan(src string, p []string) any {
 	if b.User == "%" {
 		b.User = "%*"
 	}
-	if b.Type == BanGline && !c.bee && b.User == realnameUser {
+	if b.Type == BanGline && !c.bee && b.User == rlineUser {
+		// From an InspIRCd R-line (through the bridge): the host is already
+		// our mask in base64.
+		b.Type, b.User = BanRealname, "*"
+	} else if b.Type == BanGline && !c.bee && b.User == realnameUser {
 		// Back into our own form: the mask (a '_' is a space) in base64.
 		b.Type, b.User = BanRealname, "*"
 		b.Host = base64.RawURLEncoding.EncodeToString([]byte(strings.ReplaceAll(b.Host, "_", " ")))
