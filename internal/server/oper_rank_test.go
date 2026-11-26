@@ -24,7 +24,7 @@ func TestOperRankGuard(t *testing.T) {
 
 	for _, cmd := range []string{"KILL Boss :bye", "CHGHOST Boss evil.host", "CHGIDENT Boss evil", "CHGNAME Boss :evil"} {
 		g.send(cmd)
-		g.expect(" 481 Guard :Permission Denied - Boss has oper flag a, which you don't have.")
+		g.expect(" 481 Guard :Permission denied: Boss has oper flag a, which you don't have.")
 	}
 	b.send("PING :still-here")
 	b.expect("PONG")

@@ -235,7 +235,7 @@ func (s *Server) outranked(c *Client, t *state.User) bool {
 		return false
 	}
 	if problem := s.outrankProblem(c.operFlags, t); problem != "" {
-		s.reply(c, irc.ErrNoPrivileges, "Permission Denied - "+problem)
+		s.reply(c, irc.ErrNoPrivileges, "Permission denied: "+problem)
 		return true
 	}
 	return false

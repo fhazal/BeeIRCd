@@ -17,7 +17,7 @@ func TestOperOnlyMode(t *testing.T) {
 	u := login(t, s, "user")
 	joinAll("#staff", u)
 	u.send("MODE #staff +O")
-	u.expect(" 481 user :Permission Denied - only IRC operators may set +O")
+	u.expect(" 481 user :Permission denied: only IRC operators may set +O")
 	joinAll("#opers", b)
 	b.send("MODE #opers +O")
 	b.expect("MODE #opers +O")

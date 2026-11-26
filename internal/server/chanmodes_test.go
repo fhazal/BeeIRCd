@@ -72,7 +72,7 @@ func TestContentModes(t *testing.T) {
 
 	// +O and +P are for opers, +Z for the server.
 	bee.send("MODE #a +P")
-	bee.expect(" 481 Bee2 :Permission Denied - only IRC operators may set +P")
+	bee.expect(" 481 Bee2 :Permission denied: only IRC operators may set +P")
 	bee.send("MODE #a +Z")
 	bee.send("MODE #a")
 	bee.expect(" 324 Bee2 #a +CNQSTVnt")

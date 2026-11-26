@@ -46,7 +46,7 @@ func TestSnomaskStarAndNonOperPlusS(t *testing.T) {
 
 	plain := login(t, s, "plain")
 	plain.send("MODE plain +s")
-	plain.expect(" 481 plain :Permission Denied - Only operators may set user mode s")
+	plain.expect(" 481 plain :Permission denied: only IRC operators may set user mode s")
 }
 
 // The oper chat letters are g and G, worded GLOBOPS.

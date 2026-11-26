@@ -63,7 +63,7 @@ func (s *Server) userMode(c *Client, m irc.Message) {
 	denied := !c.isOper() && addsUserMode(m.Params[1], 's')
 	unknown := s.setUserModes(c, u.UID, m.Params[1], m.Params[2:]...)
 	if denied {
-		s.reply(c, irc.ErrNoPrivileges, "Permission Denied - Only operators may set user mode s")
+		s.reply(c, irc.ErrNoPrivileges, "Permission denied: only IRC operators may set user mode s")
 	}
 	if unknown {
 		s.reply(c, irc.ErrUModeUnknownFlag, "Unknown MODE flag")
@@ -428,7 +428,7 @@ func (s *Server) applyChannelModes(c *Client, src *state.User, ch *state.Channel
 			// a service on its own (no asker) may.
 			if c != nil && !c.isOper() || c == nil && !src.Service {
 				if c != nil {
-					s.reply(c, irc.ErrNoPrivileges, "Permission Denied - only IRC operators may set +"+string(mc))
+					s.reply(c, irc.ErrNoPrivileges, "Permission denied: only IRC operators may set +"+string(mc))
 				}
 				continue
 			}

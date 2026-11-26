@@ -17,7 +17,7 @@ func TestOperModesThroughServices(t *testing.T) {
 	// unset, through ChanServ.
 	for _, m := range []string{"+P", "+O", "+PO"} {
 		bee.send("CS MODE #bchat SET " + m)
-		bee.expect(" 481 Bee :Permission Denied - only IRC operators may set +" + m[1:2])
+		bee.expect(" 481 Bee :Permission denied: only IRC operators may set +" + m[1:2])
 	}
 	bee.send("MODE #bchat")
 	if line := bee.expect(" 324 Bee #bchat "); strings.ContainsAny(strings.Fields(line)[4], "OP") {
@@ -32,7 +32,7 @@ func TestOperModesThroughServices(t *testing.T) {
 	bee.expect("MODE #bchat +P")
 	// Negative again: the founder can't take it off through ChanServ.
 	bee.send("CS MODE #bchat SET -P")
-	bee.expect(" 481 Bee :Permission Denied - only IRC operators may set +P")
+	bee.expect(" 481 Bee :Permission denied: only IRC operators may set +P")
 	bee.send("MODE #bchat")
 	bee.expect(" 324 Bee #bchat +Pnrt")
 
