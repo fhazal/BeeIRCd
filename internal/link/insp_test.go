@@ -525,6 +525,26 @@ func TestInspBridgeRehashConnect(t *testing.T) {
 	}
 }
 
+// SAMODE on one of their users (SVS2MODE from us) goes as InspIRCd 4's
+// server MODE, which their server takes without an access check; $mask
+// messages pass both ways as they are.
+func TestInspBridgeSamodeServerMask(t *testing.T) {
+	b := testBridge(t)
+	b.Out(":0BE EOS")
+	for raw, want := range map[string]string{
+		":0BE SVS2MODE 1INAAAAAA -x+i":     ":0BE MODE 1INAAAAAA -x+i",
+		":0BEAAAAAA PRIVMSG $*.test :hi":   ":0BEAAAAAA PRIVMSG $*.test hi",
+		":0BEAAAAAA NOTICE $insp.test :hi": ":0BEAAAAAA NOTICE $insp.test hi",
+	} {
+		if out := b.Out(raw); len(out) != 1 || out[0] != want {
+			t.Errorf("%q went out as %q, want %q", raw, out, want)
+		}
+	}
+	if run, _ := b.In(":1INAAAAAA NOTICE $bee.test :hi all"); len(run) != 1 || run[0] != ":1INAAAAAA NOTICE $bee.test :hi all" {
+		t.Errorf("$mask NOTICE in %q", run)
+	}
+}
+
 // InspIRCd 4's server notices from other servers come in under our letter
 // for the same news; letters we make ourselves, or have none for, are
 // dropped. G stays GLOBOPS.

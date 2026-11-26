@@ -232,3 +232,32 @@ func TestLinkInspRoutedQueries(t *testing.T) {
 		op.expectNumeric("402", "leaf.test.local")
 	}
 }
+
+// SAMODE on someone behind an InspIRCd link goes out as services' SVS2MODE
+// (the bridge makes it InspIRCd's server MODE), and $mask messages cross
+// the link both ways.
+func TestLinkInspSamodeServerMask(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	op := login(t, hub.s, "op")
+	netadminOn(t, hub, op, "op")
+	home := login(t, hub.s, "home")
+	login(t, leaf.s, "bob")
+	hub.seen(t, "bob")
+	rec := bridged(t, hub)
+	hub.s.onLoop(func() {
+		for l := range hub.s.links.conns {
+			l.peer.Bee = false // as a real InspIRCd link
+		}
+	})
+	opUID, bobUID := hub.user("op").UID, hub.user("bob").UID
+
+	op.send("SAMODE bob +i")
+	op.send("NOTICE $*.test.local :hello everyone")
+	home.expect("NOTICE $*.test.local :hello everyone")
+	waitLink(t, "SVS2MODE and the $mask NOTICE sent on", func() bool {
+		return rec.sent(" SVS2MODE "+bobUID+" +i") && rec.sent(":"+opUID+" NOTICE $*.test.local :hello everyone")
+	})
+
+	hub.fromLink(t, ":"+bobUID+" NOTICE $hub.test.local :from their side")
+	home.expect("NOTICE $hub.test.local :from their side")
+}
