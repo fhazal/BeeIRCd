@@ -363,6 +363,27 @@ func (b *inspBridge) out(m irc.Message) []string {
 			return nil
 		}
 		return []string{line(nil, src, m.Command, false, name)}
+	case "REHASH": // :uid REHASH :server [-flags] -> :uid REHASH <server name>
+		// InspIRCd 4 passes REHASH <mask> (a name has a dot) to every
+		// server; each one it matches rehashes.
+		if len(p) == 0 {
+			return nil
+		}
+		name := b.theirServer(p[0])
+		if name == "" {
+			return nil
+		}
+		return []string{line(nil, src, "REHASH", false, name)}
+	case "CONNECT": // :uid CONNECT target port :server -> :uid RCONNECT <server name> <target>
+		// InspIRCd 4 has no port here: the server uses its own link block.
+		if len(p) < 3 {
+			return nil
+		}
+		name := b.theirServer(last())
+		if name == "" {
+			return nil
+		}
+		return []string{line(nil, src, "RCONNECT", false, name, p[0])}
 	case "STATS": // :uid STATS letter :server -> :uid STATS letter <server name>
 		if len(p) < 2 || p[0] == "" {
 			return nil
@@ -1094,7 +1115,7 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 			return one(line(nil, src, "SDESC", true, last()))
 		}
 		return nil, nil
-	case "BURST", "RSQUIT", "RESYNC", "SVSHOLD", "SVSOPER", "SVSCMODE", "MAP", "RCONNECT":
+	case "BURST", "RSQUIT", "RESYNC", "SVSHOLD", "SVSOPER", "SVSCMODE", "MAP":
 		return nil, nil
 	case "SERVER": // :up SERVER name sid [key=value...] :desc
 		if len(p) < 3 {
@@ -1338,6 +1359,25 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 			return nil, nil
 		}
 		return one(line(nil, src, "STATS", true, p[0], p[1]))
+	case "REHASH": // :uid REHASH <mask> -> :uid REHASH :<server> for each of ours it matches
+		// InspIRCd 4 sends REHASH on to every server; a word without a dot
+		// or * (REHASH ssl) is for its own modules.
+		if len(p) < 1 || !b.behind[sourceSID(src)] || !strings.ContainsAny(p[0], "*.") {
+			return nil, nil
+		}
+		for _, n := range b.ourServers(p[0]) {
+			run = append(run, line(nil, src, "REHASH", true, n))
+		}
+		return run, nil
+	case "RCONNECT": // :uid RCONNECT <server mask> <target> -> :uid CONNECT <target> 0 :<server>
+		if len(p) < 2 || !b.behind[sourceSID(src)] {
+			return nil, nil
+		}
+		ns := b.ourServers(p[0])
+		if len(ns) == 0 {
+			return nil, nil
+		}
+		return one(line(nil, src, "CONNECT", true, p[1], "0", ns[0]))
 	case "PRIVMSG", "NOTICE", "TAGMSG", "WALLOPS", "PART", "SVSJOIN", "SVSPART", "SVSNICK", "ERROR",
 		"SAJOIN", "SAPART", "SANICK", "ACCEPT":
 		m.Source = src
@@ -1375,6 +1415,23 @@ func (b *inspBridge) theirServer(x string) string {
 		}
 	}
 	return ""
+}
+
+// ourServers are the names of the servers on our side that mask matches,
+// ours first.
+func (b *inspBridge) ourServers(mask string) []string {
+	mask = irc.Fold(mask)
+	var out, more []string
+	if irc.Match(mask, irc.Fold(b.me.Name)) {
+		out = append(out, b.me.Name)
+	}
+	for sid, n := range b.names {
+		if !b.behind[sid] && sid != b.me.SID && irc.Match(mask, irc.Fold(n)) {
+			more = append(more, n)
+		}
+	}
+	sort.Strings(more)
+	return append(out, more...)
 }
 
 // theirUID is the UID of the person on their side with nick, "" when

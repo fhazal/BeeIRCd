@@ -363,8 +363,9 @@ func (s *Server) queryElsewhere(c *Client, cmd, where, arg string) bool {
 }
 
 // bridgeQueries are the server queries an InspIRCd link carries:
-// InspIRCd 4 answers VERSION only for its own users and has no TRACE.
-var bridgeQueries = map[string]bool{"MOTD": true, "ADMIN": true, "TIME": true, "STATS": true}
+// InspIRCd 4 answers VERSION, INFO and LUSERS only for its own users and
+// has no TRACE.
+var bridgeQueries = map[string]bool{"MOTD": true, "ADMIN": true, "TIME": true, "STATS": true, "REHASH": true, "CONNECT": true}
 
 // cantQuery tells uid that cmd can't reach server (behind an InspIRCd
 // link), with the numeric that ends that command, so the asker isn't

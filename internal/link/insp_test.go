@@ -487,6 +487,44 @@ func TestInspBridgeUninvite(t *testing.T) {
 	}
 }
 
+// REHASH and CONNECT for a server behind the link go as InspIRCd 4's
+// REHASH <name> and RCONNECT <server> <target>; theirs come in for each
+// server on our side the mask matches (ours first). REHASH with a word
+// (their module rehash) is dropped.
+func TestInspBridgeRehashConnect(t *testing.T) {
+	b := testBridge(t)
+	b.Out(":0BE EOS")
+	b.Out(":0BE SID leaf.test 2 0LF :Leaf")
+	out := func(raw, want string) {
+		t.Helper()
+		if got := b.Out(raw); len(got) != 1 || got[0] != want {
+			t.Errorf("%q went out as %q, want %q", raw, got, want)
+		}
+	}
+	out(":0BEAAAAAA REHASH :insp.test", ":0BEAAAAAA REHASH insp.test")
+	out(":0BEAAAAAA CONNECT other.test 7000 :insp.test", ":0BEAAAAAA RCONNECT insp.test other.test")
+	if got := b.Out(":0BEAAAAAA REHASH :leaf.test"); len(got) != 0 {
+		t.Errorf("REHASH for our side went out: %q", got)
+	}
+	cases := []struct {
+		in   string
+		want []string
+	}{
+		{":1INAAAAAA REHASH *.test", []string{":1INAAAAAA REHASH :bee.test", ":1INAAAAAA REHASH :leaf.test"}},
+		{":1INAAAAAA REHASH leaf.test", []string{":1INAAAAAA REHASH :leaf.test"}},
+		{":1INAAAAAA REHASH ssl", nil},
+		{":1INAAAAAA REHASH nowhere.test", nil},
+		{":1INAAAAAA RCONNECT bee.test other.test", []string{":1INAAAAAA CONNECT other.test 0 :bee.test"}},
+		{":1INAAAAAA RCONNECT leaf.* other.test", []string{":1INAAAAAA CONNECT other.test 0 :leaf.test"}},
+		{":1INAAAAAA RCONNECT nowhere.test other.test", nil},
+	}
+	for _, c := range cases {
+		if run, _ := b.In(c.in); strings.Join(run, "|") != strings.Join(c.want, "|") {
+			t.Errorf("%q ran %q, want %q", c.in, run, c.want)
+		}
+	}
+}
+
 // InspIRCd 4's server notices from other servers come in under our letter
 // for the same news; letters we make ourselves, or have none for, are
 // dropped. G stays GLOBOPS.

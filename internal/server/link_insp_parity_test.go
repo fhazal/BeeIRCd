@@ -210,3 +210,25 @@ func TestLinkInspUninvite(t *testing.T) {
 	hub.fromLink(t, ":"+bobUID+" UNINVITE "+carolUID+" #hive")
 	carol.expect(" 493 carol :You were uninvited from #hive by bob")
 }
+
+// REHASH and CONNECT for a server behind an InspIRCd link go out on it
+// (the bridge makes them InspIRCd's REHASH and RCONNECT); INFO and
+// LUSERS, which InspIRCd 4 answers only for its own users, end with 402.
+func TestLinkInspRoutedQueries(t *testing.T) {
+	hub, _ := linkedPair(t)
+	op := login(t, hub.s, "op")
+	netadminOn(t, hub, op, "op")
+	rec := bridged(t, hub)
+	opUID := hub.user("op").UID
+
+	op.send("REHASH leaf.test.local")
+	op.send("CONNECT other.test.local 7000 leaf.test.local")
+	waitLink(t, "REHASH and CONNECT sent on", func() bool {
+		return rec.sent(":"+opUID+" REHASH :leaf.test.local") && rec.sent(":"+opUID+" CONNECT other.test.local 7000 :leaf.test.local")
+	})
+	for _, cmd := range []string{"INFO", "LUSERS"} {
+		op.send(cmd + " leaf.test.local")
+		op.expect(cmd + " can't reach leaf.test.local")
+		op.expectNumeric("402", "leaf.test.local")
+	}
+}
