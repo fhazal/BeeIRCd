@@ -230,22 +230,27 @@ func (s *Server) panelKill(po *control.PanelOper, ip, uid, reason string) contro
 	return control.Response{Done: &control.Done{Text: nick + " was disconnected."}}
 }
 
-// panelOutranked is OperServ's rank rule for the panel: nobody acts on an
-// oper who has an oper flag they don't have. An oper on another server
-// whose flags aren't known here ("o") may be the network admin, so only
-// someone with every flag may.
+// panelOutranked is OperServ's rank rule for the panel (see outrankProblem).
 func (s *Server) panelOutranked(po *control.PanelOper, u *state.User) string {
+	return s.outrankProblem(po.Flags, u)
+}
+
+// outrankProblem is OperServ's rank rule, said as the reason it refuses, or
+// "": nobody acts on an oper who has an oper flag they don't have. An oper
+// on another server whose flags aren't known here ("o") may be the network
+// admin, so only someone with every flag may.
+func (s *Server) outrankProblem(mine string, u *state.User) string {
 	theirs := host{s}.OperFlags(u.UID)
 	if theirs == "o" {
 		for _, f := range []byte(allFlags) {
-			if strings.IndexByte(po.Flags, f) < 0 {
+			if strings.IndexByte(mine, f) < 0 {
 				return fmt.Sprintf("%s is an oper on another server whose oper flags aren't known here; only an oper with every flag (%s) may do that.", u.Nick, allFlags)
 			}
 		}
 		return ""
 	}
 	for _, f := range []byte(theirs) {
-		if strings.IndexByte(allFlags, f) >= 0 && strings.IndexByte(po.Flags, f) < 0 {
+		if strings.IndexByte(allFlags, f) >= 0 && strings.IndexByte(mine, f) < 0 {
 			return fmt.Sprintf("%s has oper flag %c, which you don't have.", u.Nick, f)
 		}
 	}

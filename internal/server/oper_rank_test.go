@@ -3,24 +3,38 @@ package server
 import (
 	"testing"
 
-	"github.com/fhazal/beeircd/internal/config"
+	"github.com/fhazal/beeircd/internal/passwd"
+	"github.com/fhazal/beeircd/internal/store"
 )
 
-// operRank is the InspIRCd oper type: WHOIS's rank without "is a".
-func TestOperRank(t *testing.T) {
-	s := testServer(t, func(c *config.Config) {
-		c.OperClasses = append(c.OperClasses, config.OperClass{Name: "keeper", Flags: "h", Title: "is the Hive Keeper"})
+// A lower oper can't KILL, CHGHOST, CHGIDENT, CHGNAME or SA an oper who
+// has a flag they lack; they can still change themselves, and the higher
+// oper can act on them.
+func TestOperRankGuard(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	g := registered(t, s, "Guard")
+	h, _ := passwd.Hash(operPW)
+	s.onLoop(func() {
+		a, _ := s.store.AccountByNick("Guard")
+		s.store.SaveOper(&store.Oper{AccountID: a.ID, Account: a.Name, Flags: "khg", Hosts: []string{"*@*"}, PassHash: h, AddedBy: "test"})
 	})
-	for _, c := range []struct{ class, title, want string }{
-		{"netadmin", "", "Network Administrator"},
-		{"admin", "", "Server Administrator"},
-		{"globop", "", "IRC Operator"},
-		{"keeper", "", "Hive Keeper"},
-		{"netadmin", "is a Queen Bee", "Queen Bee"},
-		{"nosuch", "", "IRC Operator"},
-	} {
-		if got := s.operRank(c.class, c.title); got != c.want {
-			t.Errorf("operRank(%q, %q) = %q, want %q", c.class, c.title, got, c.want)
-		}
+	g.send("OPER Guard " + operPW)
+	g.expect(" 381 Guard ")
+
+	for _, cmd := range []string{"KILL Boss :bye", "CHGHOST Boss evil.host", "CHGIDENT Boss evil", "CHGNAME Boss :evil"} {
+		g.send(cmd)
+		g.expect(" 481 Guard :Permission Denied - Boss has oper flag a, which you don't have.")
 	}
+	b.send("PING :still-here")
+	b.expect("PONG")
+
+	g.send("CHGNAME Guard :Night Watch")
+	g.send("WHOIS Guard")
+	g.expect(" 311 Guard Guard ")
+
+	b.send("CHGHOST Guard watch.host")
+	g.expect("watch.host")
+	b.send("KILL Guard :done")
+	g.expect("done")
 }

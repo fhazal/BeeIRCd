@@ -218,8 +218,27 @@ func (s *Server) opTarget(c *Client, nick string) *Client {
 	tc := s.clientOf(t)
 	if tc == nil {
 		s.reply(c, irc.ErrNoSuchNick, nick, "No such nick/channel")
+		return nil
+	}
+	if s.outranked(c, t) {
+		return nil
 	}
 	return tc
+}
+
+// outranked tells c, and reports true, when t is an oper with an oper flag
+// c doesn't have (outrankProblem): nobody uses KILL, CHGHOST, CHGIDENT,
+// CHGNAME, the SA commands or NICKLOCK on an oper who has more than they
+// have. Acting on yourself is allowed.
+func (s *Server) outranked(c *Client, t *state.User) bool {
+	if t.UID == c.uid {
+		return false
+	}
+	if problem := s.outrankProblem(c.operFlags, t); problem != "" {
+		s.reply(c, irc.ErrNoPrivileges, "Permission Denied - "+problem)
+		return true
+	}
+	return false
 }
 
 // cmdChgname is CHGNAME <nick> <realname> (opers with flag h).
@@ -254,6 +273,9 @@ func (s *Server) chgTarget(c *Client, nick string) *state.User {
 	}
 	if t.Service {
 		s.reply(c, irc.ErrNoPrivileges, "Cannot use this command on a network service")
+		return nil
+	}
+	if s.outranked(c, t) {
 		return nil
 	}
 	return t

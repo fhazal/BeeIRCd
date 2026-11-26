@@ -430,6 +430,9 @@ func (s *Server) cmdKill(c *Client, m irc.Message) {
 		s.reply(c, irc.ErrCantKillServer, "You can't kill a service")
 		return
 	}
+	if s.outranked(c, t) {
+		return
+	}
 	reason := m.Param(1)
 	if reason == "" {
 		reason = "No reason"
