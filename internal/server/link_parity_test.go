@@ -156,3 +156,43 @@ func TestSamodeUnrealLinks(t *testing.T) {
 	hub.fromLinkTo(t, "a.test.local", ":"+bob+" SAMODE "+hub.user("hubop").UID+" :+B")
 	hop.quiet(" MODE hubop")
 }
+
+// Opers could not send to $servermask from a client ("No such nick").
+// With oper flag g (UnrealIRCd's chat:notice:global) it now reaches
+// everyone on the matching servers, here and over the links.
+func TestServerMaskMessage(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	op := login(t, hub.s, "op")
+	netadminOn(t, hub, op, "op")
+	home := login(t, hub.s, "home")
+	far := login(t, leaf.s, "far")
+	leaf.seen(t, "op")
+
+	op.send("NOTICE $*.test.local :hello everyone")
+	if l := far.expect("hello everyone"); !strings.HasPrefix(l, ":op!") || !strings.Contains(l, " NOTICE $*.test.local :") {
+		t.Errorf("far got %q", l)
+	}
+	home.expect("NOTICE $*.test.local :hello everyone")
+	op.quiet("hello everyone")
+
+	// Only the servers the mask names.
+	op.send("PRIVMSG $leaf.test.local :leaf only")
+	far.expect("PRIVMSG $leaf.test.local :leaf only")
+	home.quiet("leaf only")
+
+	// Not for users.
+	home.send("PRIVMSG $*.test.local :spam")
+	home.expectNumeric("481")
+	far.quiet("spam")
+}
+
+// To UnrealIRCd links a $mask message goes as ":<uid> PRIVMSG $mask :text".
+func TestServerMaskMessageUnrealLinks(t *testing.T) {
+	hub, hop, _, _ := globopsTree(t)
+	uid := hub.user("hubop").UID
+	hop.send("PRIVMSG $*.test.local :to all")
+	waitLink(t, "sent to both links", func() bool {
+		return hub.logHas("link a.test.local -> :"+uid+" PRIVMSG $*.test.local :to all") &&
+			hub.logHas("link b.test.local -> :"+uid+" PRIVMSG $*.test.local :to all")
+	})
+}

@@ -697,6 +697,20 @@ func svsChanges(modes string) []state.ModeChange {
 
 // ---- messages ----
 
+// maskHere reports whether a "$mask" target names this server.
+func (s *Server) maskHere(target string) bool {
+	return irc.Match(target[1:], s.cfg.Server.Name)
+}
+
+// deliverMask gives a "$mask" message to everyone here except skip.
+func (s *Server) deliverMask(o *outMsg, skip *Client) {
+	for _, c := range s.clients {
+		if c.user != nil && c != skip {
+			c.deliver(o)
+		}
+	}
+}
+
 // routeChannel sends a channel message on to every link with members of
 // ch, except one. status is a prefix like "@" or "".
 func (s *Server) routeChannel(except *linkConn, src string, ch *state.Channel, status, verb, text string, tags map[string]string) {
@@ -786,13 +800,8 @@ func (s *Server) remoteMessage(l *linkConn, raw irc.Message, m *link.Message) {
 	switch {
 	case strings.HasPrefix(target, "$"):
 		// $mask: a global notice to everyone on matching servers.
-		if irc.Match(target[1:], s.cfg.Server.Name) {
-			o := build(target)
-			for _, c := range s.clients {
-				if c.user != nil {
-					c.deliver(o)
-				}
-			}
+		if s.maskHere(target) {
+			s.deliverMask(build(target), nil)
 		}
 		for _, o := range s.upLinks(l) {
 			o.send(raw.String())
