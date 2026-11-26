@@ -211,3 +211,18 @@ func gwUser(s *Server, nick string) *state.User {
 	})
 	return u
 }
+
+// An IPv6 zone (the gateway's own network interface) never becomes part
+// of the person's IP or host: it could carry ! @ * and break prefixes.
+func TestWebircIPv6ZoneDropped(t *testing.T) {
+	s := testServer(t, webircGW())
+	c := raw(t, s)
+	c.nick = "Zone"
+	c.conn.Write([]byte("WEBIRC " + webircPW + " beeroom - fe80::1%a!b@c :secure\r\nNICK Zone\r\nUSER zone 0 * :Zone\r\n"))
+	c.expect(" 001 Zone ")
+	c.send("USERHOST Zone")
+	c.expect("Zone=+~zone@fe80::1\r")
+	if u := gwUser(s, "Zone"); u == nil || u.IP != "fe80::1" {
+		t.Fatalf("user %+v, want IP fe80::1", u)
+	}
+}

@@ -146,7 +146,9 @@ func webircIP(v string) (string, bool) {
 	if err != nil || a.IsUnspecified() {
 		return "", false
 	}
-	return a.Unmap().String(), true
+	// A zone names the gateway's own network interface: nothing to keep,
+	// and it may hold ! @ * that would break the person's prefix.
+	return a.Unmap().WithZone("").String(), true
 }
 
 // webircHost uses the gateway's hostname when it looks like one, else the IP.
