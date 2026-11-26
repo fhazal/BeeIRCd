@@ -39,6 +39,14 @@ func (s *Server) cmdWebirc(c *Client, m irc.Message) {
 		s.quit(c, "WEBIRC: this address is not a trusted gateway")
 		return
 	}
+	if len(m.Params) < 4 {
+		// Usually an IPv6 IP like ::ffff:10.1.2.3 sent as a middle
+		// param: its leading ':' makes it the last param. Gateways
+		// should send 0::ffff:10.1.2.3.
+		s.snoticeEvery("webirc-short:"+gw, time.Minute, 'a', "WEBIRC from %s refused: %d of 4 params (an IP starting with ':' must be sent as 0%s)", gw, len(m.Params), "::...")
+		s.quit(c, "WEBIRC: needs password, gateway, hostname and IP; send an IP that starts with ':' as 0::...")
+		return
+	}
 	pw, name, flags := m.Param(0), m.Param(1), m.Param(4)
 	ip, ok := webircIP(m.Param(3))
 	if !ok {

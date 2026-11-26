@@ -82,6 +82,10 @@ func TestWebircRefusals(t *testing.T) {
 	c.send("WEBIRC " + webircPW + " beeroom h.example.net 0.0.0.0")
 	c.expect("WEBIRC: the IP is not valid")
 
+	c = raw(t, s) // ::ffff:... as the hostname's neighbour turns into the trailing param
+	c.send("WEBIRC " + webircPW + " beeroom :h.example.net ::ffff:10.1.2.3")
+	c.expect("WEBIRC: needs password, gateway, hostname and IP")
+
 	other := testServer(t, webircGW("192.0.2.10")) // the gateway lives elsewhere
 	c = raw(t, other)
 	c.send("WEBIRC " + webircPW + " beeroom h.example.net 203.0.113.7")

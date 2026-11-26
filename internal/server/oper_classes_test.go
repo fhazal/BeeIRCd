@@ -36,6 +36,8 @@ func TestOperClasses(t *testing.T) {
 	// An entry with a class and a CIDR host.
 	b.send("AS OPER ember ADD CLASS globop HOST *@127.0.0.0/8 PASSWORD " + emberPW)
 	b.expect(asLine("Boss", "ember is an oper now: class globop, hk (hosts, kill), from *@127.0.0.0/8."))
+	b.send("AS OPER ember ADD FLAGS k HOST *@* PASSWORD " + emberPW) // class-only: shows the class and its flags
+	b.expect(asLine("Boss", "ember is an oper already (class globop, flags hk). Change it: /as oper ember set flags <letters>"))
 	e.send("OPER ember " + emberPW)
 	e.expect(" 381 ember :You are now an IRC operator")
 	e.expect("*** Oper class globop: hk (hosts, kill)")

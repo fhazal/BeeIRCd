@@ -1298,7 +1298,11 @@ func asOper(s *Server, c *Client, args []string) {
 		}
 	case "ADD":
 		if cur != nil {
-			s.as(c, "%s is an oper already (%s). Change it: /as oper %s set flags <letters>", a.Name, cur.Flags, a.Name)
+			have := "flags " + orNone(s.viewOf(cur).flags)
+			if cur.Class != "" {
+				have = "class " + cur.Class + ", " + have
+			}
+			s.as(c, "%s is an oper already (%s). Change it: /as oper %s set flags <letters>", a.Name, have, a.Name)
 			return
 		}
 		var flagArg, classArg, title, pass string
