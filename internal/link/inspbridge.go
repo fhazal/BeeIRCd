@@ -523,6 +523,13 @@ func (b *inspBridge) out(m irc.Message) []string {
 			text = "From " + n + ": " + text
 		}
 		return []string{line(nil, sourceSID(src), "SNONOTICE", true, "G", text)}
+	case "KNOCK": // :uid KNOCK #chan :reason -> :uid ENCAP * KNOCK #chan :reason
+		// InspIRCd 4's m_knock is an optional broadcast command, so it
+		// goes as ENCAP * (a server without m_knock ignores it).
+		if len(p) < 2 || len(src) != 9 {
+			return nil
+		}
+		return []string{line(nil, src, "ENCAP", true, "*", "KNOCK", p[0], last())}
 	}
 	if len(m.Command) == 3 && m.Command[0] >= '0' && m.Command[0] <= '9' && len(p) > 0 {
 		// :src 401 uid params -> NUM src uid 401 params
@@ -1583,8 +1590,13 @@ func (b *inspBridge) inEncap(src, target, cmd string, p []string) []string {
 			return []string{line(nil, src, "SASL", false, append([]string{target, p[1]}, p[2:]...)...)}
 		}
 		return []string{line(nil, src, "SASL", false, append([]string{target, p[0]}, p[2:]...)...)}
-	case "KNOCK":
-		return nil
+	case "KNOCK": // :uid ENCAP * KNOCK #chan :reason -> :uid KNOCK #chan :reason
+		// Our server shows it to the channel's ops here and passes it on
+		// in this form, as UnrealIRCd 6 sends it.
+		if len(p) < 2 || len(src) != 9 {
+			return nil
+		}
+		return []string{line(nil, src, "KNOCK", true, p[0], p[len(p)-1])}
 	case "SAJOIN", "SAPART", "SANICK":
 		// :oper ENCAP <sid> SAJOIN <uid> <#channel>
 		return []string{line(nil, src, cmd, len(p) > 2, p...)}

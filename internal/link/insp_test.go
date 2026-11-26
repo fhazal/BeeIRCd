@@ -427,3 +427,19 @@ func TestInspBridgeIdle(t *testing.T) {
 		t.Errorf("IDLE for a bot answered %q", rep)
 	}
 }
+
+// KNOCK crosses as InspIRCd 4's m_knock form (ENCAP * KNOCK) and comes
+// back in as the plain ":uid KNOCK #chan :reason" our links use.
+func TestInspBridgeKnock(t *testing.T) {
+	b := testBridge(t)
+	b.Out(":0BE EOS")
+	if out := b.Out(":0BEAAAAAA KNOCK #hive :let me in"); len(out) != 1 || out[0] != ":0BEAAAAAA ENCAP * KNOCK #hive :let me in" {
+		t.Errorf("KNOCK out %q", out)
+	}
+	if run, _ := b.In(":1INAAAAAA ENCAP * KNOCK #hive :let me in"); len(run) != 1 || run[0] != ":1INAAAAAA KNOCK #hive :let me in" {
+		t.Errorf("KNOCK in %q", run)
+	}
+	if run, _ := b.In(":1INAAAAAA ENCAP * KNOCK #hive"); len(run) != 0 {
+		t.Errorf("KNOCK without a reason ran %q", run)
+	}
+}

@@ -115,3 +115,26 @@ func TestLinkIdleHook(t *testing.T) {
 		t.Error("an idle time for someone on another server")
 	}
 }
+
+// A KNOCK here goes out on an InspIRCd link too (the bridge turns it into
+// ENCAP * KNOCK), and one from their side reaches our ops.
+func TestLinkInspKnock(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	alice := login(t, hub.s, "alice")
+	carol := login(t, hub.s, "carol")
+	login(t, leaf.s, "bob")
+	hub.seen(t, "bob")
+	alice.send("JOIN #hive")
+	alice.expectNumeric("366")
+	alice.send("MODE #hive +i")
+	alice.expect("MODE #hive +i")
+	rec := bridged(t, hub)
+	carolUID, bobUID := hub.user("carol").UID, hub.user("bob").UID
+
+	carol.send("KNOCK #hive :let me in")
+	alice.expect("[Knock] by carol!")
+	waitLink(t, "KNOCK sent on", func() bool { return rec.sent(":" + carolUID + " KNOCK #hive :let me in") })
+
+	hub.fromLink(t, ":"+bobUID+" KNOCK #hive :me too")
+	alice.expect("[Knock] by bob!")
+}
