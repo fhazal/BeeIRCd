@@ -349,6 +349,30 @@ func TestUpdateUndoesSwapWhenConfigCantBePlaced(t *testing.T) {
 	}
 }
 
+// A program swap that fails after the config copy was made takes that
+// copy away again: nothing changed, so nothing is left behind.
+func TestUpdateDropsConfigCopyWhenSwapFails(t *testing.T) {
+	key := signingKey(t)
+	srv := releaseServer(t, "1.0.1", key)
+	for _, failFrom := range []string{".new", ""} {
+		fs := &fakeSystem{running: "1.0.0", comesUp: true}
+		u, out := testUpdater(t, "1.0.0", srv.URL, fs, "y\n")
+		migratingRun(u)
+		u.rename = func(from, to string) error {
+			if from == u.exe+failFrom {
+				return errors.New("disk said no")
+			}
+			return os.Rename(from, to)
+		}
+		if code := u.update(false, true, false); code != 1 || progVersion(u.exe) != "1.0.0" {
+			t.Fatalf("exit %d, program %q\n%s", code, progVersion(u.exe), out)
+		}
+		if _, err := os.Stat(u.cfgPath + ".before-1.0.1"); err == nil {
+			t.Errorf("rename of %s failed: config copy left behind\n%s", u.exe+failFrom, out)
+		}
+	}
+}
+
 // When putting the old program back after a failed update doesn't work,
 // the update says what to move by hand and doesn't restart on half put
 // back files.

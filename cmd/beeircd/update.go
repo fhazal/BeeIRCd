@@ -261,28 +261,34 @@ func (u *updater) install(ctx context.Context, base string, m *release.Manifest,
 	// Swap: program, then config (when it changed). The version kept by
 	// the last update waits aside, so a failed update leaves --rollback
 	// exactly as it was.
+	undo := func(why string, moves []move) int {
+		if cfgKept != "" {
+			os.Remove(cfgKept) // the config wasn't touched: no copy needed
+		}
+		return u.undoSwap(why, moves)
+	}
 	prevOld := oldExe + ".prev"
 	os.Remove(prevOld)
 	hadOld := false
 	if err := u.rename(oldExe, prevOld); err == nil {
 		hadOld = true
 	} else if !errors.Is(err, os.ErrNotExist) {
-		return u.stop("couldn't move " + oldExe + " aside: " + err.Error())
+		return undo("couldn't move "+oldExe+" aside: "+err.Error(), nil)
 	}
 	var putPrevBack []move
 	if hadOld {
 		putPrevBack = []move{{prevOld, oldExe}}
 	}
 	if err := u.rename(u.exe, oldExe); err != nil {
-		return u.undoSwap("couldn't move "+u.current+" aside: "+err.Error(), putPrevBack)
+		return undo("couldn't move "+u.current+" aside: "+err.Error(), putPrevBack)
 	}
 	putBack := append([]move{{oldExe, u.exe}}, putPrevBack...)
 	if err := u.rename(newExe, u.exe); err != nil {
-		return u.undoSwap("couldn't put "+m.Version+" in place: "+err.Error(), putBack)
+		return undo("couldn't put "+m.Version+" in place: "+err.Error(), putBack)
 	}
 	if cfgKept != "" {
 		if err := u.rename(newCfg, u.cfgPath); err != nil {
-			return u.undoSwap("couldn't put the updated config in place: "+err.Error(), putBack)
+			return undo("couldn't put the updated config in place: "+err.Error(), putBack)
 		}
 	}
 	u.c.ok(fmt.Sprintf("program swapped; %s kept as %s", u.current, oldExe))
