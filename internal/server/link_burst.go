@@ -410,6 +410,14 @@ func (s *Server) remoteKill(l *linkConn, k *link.Kill) {
 	if u == nil {
 		return // gone already (both sides killed it in a collision)
 	}
+	if u.Service && s.ours(u.UID) {
+		// Our services bots can't be killed (481 here). The side that sent
+		// the KILL has dropped the bot already: give it back to them, as
+		// Anope does, and keep it everywhere else.
+		s.sno('K', "Refused remote kill of %s by %s: services can't be killed", u.Nick, k.Source)
+		s.reintroduceBot(l, u)
+		return
+	}
 	by, shown, src := k.Source, k.Source, k.Source
 	if r := s.links.servers[by]; r != nil {
 		by, shown, src = r.name, r.name, r.name // a server's kill keeps its name
@@ -432,6 +440,33 @@ func (s *Server) remoteKill(l *linkConn, k *link.Kill) {
 	}
 	s.snoRemoteQuit(u, reason)
 	s.emitQuiet(&state.UserQuit{UID: u.UID, Reason: reason})
+}
+
+// reintroduceBot sends our services bot u to l again (after l killed it):
+// the user, then a join to each of its channels with its ranks only.
+func (s *Server) reintroduceBot(l *linkConn, u *state.User) {
+	cd := l.codecOf()
+	sid := uidServer(u.UID)
+	for _, line := range cd.User(s.linkUser(u, s.userHops(sid)), sid) {
+		l.send(line)
+	}
+	for _, it := range s.metadataBurst(mdTarget{u: u}) {
+		for _, line := range cd.Encode(it) {
+			l.send(line)
+		}
+	}
+	names := make([]string, 0, len(u.Channels))
+	for name := range u.Channels {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		lc := s.linkChannel(u.Channels[name], func(uid string) bool { return uid == u.UID })
+		lc.Modes, lc.Args, lc.Lists = "", map[byte]string{}, nil // the channel is there already
+		for _, line := range cd.Channel(lc, s.cfg.Server.SID) {
+			l.send(line)
+		}
+	}
 }
 
 // remoteSvsKill is SVSKILL: services remove a user anywhere. UnrealIRCd
