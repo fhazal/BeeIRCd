@@ -238,7 +238,7 @@ func (s *Server) linkLines(o *linkConn, ev state.Event, src string, from *linkCo
 	case *state.Invite:
 		if e.Remove {
 			if !o.peer.Bee {
-				return nil // UNINVITE is ours and InspIRCd's; nothing to say to UnrealIRCd
+				return nil // UnrealIRCd has no server-to-server uninvite (its invite.c only sends INVITE; del_invite is local), so there is nothing to send
 			}
 			return []string{":" + srcOr(e.Source, src) + " UNINVITE " + e.UID + " " + e.Channel}
 		}
