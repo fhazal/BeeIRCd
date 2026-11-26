@@ -419,6 +419,12 @@ func (s *Server) remoteNick(l *linkConn, src string, n *link.Nick) {
 		s.linkBroadcastKill(l, s.cfg.Server.SID, u.UID, "Bad nickname")
 		return
 	}
+	if ex := s.net.UserByNick(nick); ex != nil && ex != u && ex.Service && s.ours(ex.UID) && !u.Service {
+		s.killServiceNick(l, u.UID, nick, u.Server)
+		s.emitQuiet(&state.UserQuit{UID: u.UID, Reason: "Killed (" + s.cfg.Server.Name + " (Nick collision with services))"})
+		s.linkBroadcastKill(l, s.cfg.Server.SID, u.UID, "Nick collision with services ("+nick+")")
+		return
+	}
 	if ex := s.net.UserByNick(nick); ex != nil && ex != u {
 		in := &link.User{UID: u.UID, Nick: nick, NickTS: n.TS, Ident: u.TrueIdent(), RealHost: u.RealHost, Account: u.Account}
 		keep, ok := s.collide(l, ex, in, u.Server)

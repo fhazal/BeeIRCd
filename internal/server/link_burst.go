@@ -302,9 +302,16 @@ func (s *Server) remoteUser(l *linkConn, source string, in *link.User) {
 	}
 	if ex := s.net.UserByNick(in.Nick); ex != nil {
 		if ex.Service && s.ours(ex.UID) {
-			// A services server behind the link (Anope on UnrealIRCd):
-			// one network, one set of services.
-			s.dropLink(l, fmt.Sprintf("the network behind %s has its own services (%s on %s); only one server may run them, set [services] enabled = false here", l.peer.Name, in.Nick, home.name))
+			if strings.IndexByte(in.Modes, 'S') >= 0 {
+				// A services bot of its own (Anope on UnrealIRCd, or a
+				// BeeIRCd with services on): killing it would loop, as its
+				// services bring it back. One network, one set of services.
+				s.dropLink(l, fmt.Sprintf("the network behind %s has its own services (%s on %s); only one server may run them, set [services] enabled = false here", l.peer.Name, in.Nick, home.name))
+				return
+			}
+			// A user has our services nick (U-lined, as Anope and
+			// UnrealIRCd hold it): the user loses. Only l has seen it yet.
+			s.killServiceNick(l, in.UID, in.Nick, home.name)
 			return
 		}
 		keep, ok := s.collide(l, ex, in, home.name)
@@ -336,6 +343,15 @@ func (s *Server) remoteUser(l *linkConn, source string, in *link.User) {
 	if !u.Service && s.serverSynced(uidServer(u.UID)) {
 		s.snoOnly('C', "Client connecting at "+u.Server+": "+snoMaskIP(u)+" ["+u.Realname+"\x0F]")
 	}
+}
+
+// killServiceNick kills a user behind l who has one of our services nicks
+// (our bot keeps it, the link stays up: dropping it looped on reconnect).
+// The caller removes the user here and from other links if they had it.
+func (s *Server) killServiceNick(l *linkConn, uid, nick, server string) {
+	reason := "Nick collision with services (" + nick + ")"
+	s.sno('l', "Nick collision on %s: services keep it, %s (%s) killed", nick, uid, server)
+	l.send(l.codecOf().Kill(s.cfg.Server.SID, uid, reason))
 }
 
 // renames reports whether u's side settles collisions by renaming: a user
