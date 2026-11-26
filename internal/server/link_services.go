@@ -91,6 +91,13 @@ func operMD(o *linkConn, src, uid, class, flags, look string) []string {
 		title, _, _ := readOperLook(look)
 		out = append(out, mdLine(src, uid, "bee-opertype", o.s.operRank(class, title)))
 	}
+	if !o.peer.Bee && o.bridge == nil { // UnrealIRCd: our oper's extra lines as SWHOIS
+		_, lines, _ := readOperLook(look)
+		out = append(out, swhoisLine(src, uid, false, "beeoper", 0, "*"))
+		for i, t := range lines {
+			out = append(out, swhoisLine(src, uid, true, "beeoper", i, t))
+		}
+	}
 	out = append(out, mdLine(src, uid, "operclass", class))
 	if o.peer.Bee {
 		out = append(out, mdLine(src, uid, "bee-operflags", flags), mdLine(src, uid, "bee-operlook", look))

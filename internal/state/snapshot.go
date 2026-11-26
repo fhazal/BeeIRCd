@@ -59,6 +59,7 @@ func (n *Network) Snapshot() *Snapshot {
 		cp.Channels = nil
 		cp.Groups = append([]string(nil), u.Groups...)
 		cp.OperSwhois = append([]string(nil), u.OperSwhois...)
+		cp.Swhois = append([]SwhoisLine(nil), u.Swhois...)
 		s.Users = append(s.Users, cp)
 	}
 	sort.SliceStable(s.Users, func(i, j int) bool { return s.Users[i].UID < s.Users[j].UID })

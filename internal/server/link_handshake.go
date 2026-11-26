@@ -629,7 +629,7 @@ func (s *Server) linkUp(l *linkConn) {
 	for _, line := range l.hs.Burst(others, s.burstBody(l)) {
 		l.send(line)
 	}
-	for _, line := range s.operBurst(l) {
+	for _, line := range append(s.operBurst(l), s.swhoisBurst(l)...) {
 		l.send(line)
 	}
 	if p.Bee {
@@ -791,7 +791,9 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		s.remoteSendSno(l, m)
 	case "SLOG":
 		s.remoteSlog(l, m)
-	case "SMOD", "SWHOIS", "BOTMOTD":
+	case "SWHOIS":
+		s.remoteSwhois(l, m)
+	case "SMOD", "BOTMOTD":
 		// Server info, module lists and notices for opers: nothing to do,
 		// and nothing worth a log line.
 	default:
