@@ -390,7 +390,7 @@ func (p *Panel) asked(w http.ResponseWriter, oc operCtx, req control.Request, ti
 		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "The server isn't running.", "offline": true})
 		return nil
 	case resp == nil && err != nil:
-		writeErr(w, http.StatusBadGateway, "The server didn't answer: "+err.Error())
+		writeErr(w, http.StatusBadGateway, "The server didn't answer. Try again in a moment.") // no raw error: anyone sees this page
 		return nil
 	case resp.Denied == "signin":
 		p.drop(oc.key)
@@ -886,7 +886,7 @@ func (p *Panel) login(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "The server isn't running.", "offline": true})
 		return
 	case resp == nil && err != nil:
-		writeErr(w, http.StatusBadGateway, "The server didn't answer: "+err.Error())
+		writeErr(w, http.StatusBadGateway, "The server didn't answer. Try again in a moment.") // no raw error: anyone sees this page
 		return
 	case resp.Oper == nil:
 		msg := resp.Error
