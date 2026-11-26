@@ -608,6 +608,16 @@ func linkBlockKV(b config.LinkServer) []config.KV {
 	if b.SendQMB != 0 && b.SendQMB != 20 {
 		kv = append(kv, config.KV{Key: "sendq_mb", Value: strconv.Itoa(b.SendQMB)})
 	}
+	// SET rewrites the whole block: keep the keys it has no option for.
+	if b.Protocol != "" {
+		kv = append(kv, config.KV{Key: "protocol", Value: config.Quote(b.Protocol)})
+	}
+	if b.Rule != "" {
+		kv = append(kv, config.KV{Key: "rule", Value: config.Quote(b.Rule)})
+		if b.RuleForAll() {
+			kv = append(kv, config.KV{Key: "rule_for", Value: config.Quote(config.RuleForAll)})
+		}
+	}
 	return kv
 }
 

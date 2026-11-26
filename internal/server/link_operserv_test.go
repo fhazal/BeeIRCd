@@ -123,6 +123,27 @@ func TestLinkServerBlocks(t *testing.T) {
 	}
 }
 
+// SERVER SET rewrites the whole block, so it must keep the keys it doesn't
+// change: protocol (an InspIRCd link) and the link rule.
+func TestLinkServerSetKeepsProtocolAndRule(t *testing.T) {
+	port := freePort(t)
+	fp := "iGbKErLtGToIR5WUi4fhBLfaPhxmZngpT/sLquE7WX0="
+	s, path, _ := fileServer(t, "\n[link]\nrole = \"hub\"\naddress = \"127.0.0.1\"\nport = "+strconv.Itoa(port)+"\n"+
+		"\n[[link.server]]\nname = \"insp.test.local\"\nhost = \"127.0.0.1\"\nport = 7001\nfingerprint = \""+fp+"\"\n"+
+		"password = \"linkpass\"\nprotocol = \"inspircd\"\nrule = \"!connected(hub1.*)\"\nrule_for = \"all\"\n")
+	b := login(t, s, "Boss")
+	s.onLoop(func() { s.operUp(s.clients[s.net.UserByNick("Boss").UID], &store.Oper{Class: "netadmin"}) })
+	b.expect(" 381 Boss ")
+	b.send("OS SERVER SET insp.test.local PORT 7002")
+	b.expect("Changed PORT for insp.test.local.")
+	text, _ := os.ReadFile(path)
+	for _, want := range []string{"port = 7002", `password = "linkpass"`, `protocol = "inspircd"`, `rule = "!connected(hub1.*)"`, `rule_for = "all"`} {
+		if !strings.Contains(string(text), want) {
+			t.Errorf("config lacks %q:\n%s", want, text)
+		}
+	}
+}
+
 // /as server <leaf> ...: STATUS always (admins); commands only for admins
 // with network reach (and [link] outside_admins = "network" on the leaf,
 // the default). AdminServ on the hub refuses leaf admins with home reach.
