@@ -898,12 +898,19 @@ func (b *inspBridge) outTKL(src string, p []string) []string {
 		return nil
 	}
 	typ := banTypes[p[1][0]]
-	if typ == "" || irc.IsPlaceUser(p[2]) || strings.HasPrefix(p[2], "%") {
+	realname := p[1][0] == BanGline && p[2] == realnameUser
+	if realname {
+		typ = "R" // an R-line: the realname mask, a space written '_' as here
+	}
+	if typ == "" || (!realname && irc.IsPlaceUser(p[2])) || strings.HasPrefix(p[2], "%") {
 		return nil // InspIRCd has no X-line by country or network, and no soft ones
 	}
 	mask := p[2] + "@" + p[3]
 	switch p[1][0] {
 	case BanGZline, BanQline:
+		mask = p[3]
+	}
+	if realname {
 		mask = p[3]
 	}
 	// InspIRCd names the line's source in its notice ("<nick> added a
@@ -1565,6 +1572,8 @@ func (b *inspBridge) banOf(typ, mask string) (t, user, host string, ok bool) {
 		return t, user, host, true
 	case "Z":
 		return "Z", "*", mask, true
+	case "R":
+		return "G", realnameUser, mask, true // the mask keeps its '_' for a space
 	case "Q":
 		return "Q", "*", mask, true
 	}
