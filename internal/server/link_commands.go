@@ -146,6 +146,10 @@ func (s *Server) cmdConnect(c *Client, m irc.Message) {
 		s.reply(c, irc.ErrNeedMoreParams, "CONNECT", "Not enough parameters")
 		return
 	}
+	// CONNECT <server> <port> <remote server>: that server connects.
+	if len(m.Params) > 2 && s.askElsewhere(c, "CONNECT", m.Params[2], m.Params[0]+" "+m.Params[1]) {
+		return
+	}
 	s.notice(c, "*** "+s.linkNow(c, m.Params[0]))
 }
 
@@ -374,18 +378,42 @@ func (s *Server) cantQuery(h host, uid, cmd, server string) {
 	h.Numeric(uid, errNoSuchSrv, server, "No such server")
 }
 
-// remoteQuery is MOTD/VERSION/ADMIN/TIME/STATS <server> from someone on
-// another server: answered here when it names us, else passed on.
+// askElsewhere is queryElsewhere for a server argument that may be
+// empty or a mask that names us (both: answer here).
+func (s *Server) askElsewhere(c *Client, cmd, where, arg string) bool {
+	return where != "" && !irc.Match(where, s.cfg.Server.Name) && s.queryElsewhere(c, cmd, where, arg)
+}
+
+// remoteQuery is MOTD/VERSION/ADMIN/TIME/STATS/INFO/LUSERS/CONNECT/REHASH
+// <server> from someone on another server: answered here when it names
+// us (by name, SID, or the UID of one of ours, as UnrealIRCd may send),
+// else passed on.
 func (s *Server) remoteQuery(l *linkConn, m irc.Message) {
 	asker := s.net.UserByUID(m.Source)
 	if asker == nil || !s.behind(l, uidServer(asker.UID)) || len(m.Params) == 0 {
 		return
 	}
-	target := m.Params[len(m.Params)-1]
+	at := len(m.Params) - 1
+	switch m.Command {
+	case "REHASH":
+		at = 0 // UnrealIRCd: REHASH <server> [-flags]
+	case "CONNECT":
+		if len(m.Params) < 3 {
+			return
+		}
+		at = 2
+	}
+	target := m.Params[at]
+	if isUID(target) && s.ours(target) {
+		target = s.cfg.Server.SID
+	}
 	if !strings.EqualFold(target, s.cfg.Server.Name) && target != s.cfg.Server.SID {
 		r := s.serverByName(target)
 		if r == nil {
 			r = s.links.servers[target]
+		}
+		if r == nil && isUID(target) {
+			r = s.links.servers[uidServer(target)]
 		}
 		switch {
 		case r == nil || r.via == nil || r.via == l:
@@ -414,6 +442,16 @@ func (s *Server) remoteQuery(l *linkConn, m irc.Message) {
 				letter = m.Params[0][:1]
 			}
 			s.statsHere(c, letter)
+		case "INFO":
+			s.infoHere(c)
+		case "LUSERS":
+			s.lusers(c)
+		case "CONNECT":
+			if s.needFlag(c, nil, 'c') {
+				s.notice(c, "*** "+s.linkNow(c, m.Params[0]))
+			}
+		case "REHASH":
+			s.rehashHere(c)
 		}
 	})
 }

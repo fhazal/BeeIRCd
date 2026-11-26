@@ -766,10 +766,12 @@ func (s *Server) linkCommand(l *linkConn, m irc.Message) {
 		s.remoteWhois(l, m)
 	case "IDLE":
 		s.remoteIdle(l, m)
-	case "MOTD", "VERSION", "ADMIN", "TIME", "STATS", "TRACE":
+	case "MOTD", "VERSION", "ADMIN", "TIME", "STATS", "TRACE", "INFO", "LUSERS", "CONNECT", "REHASH":
 		s.remoteQuery(l, m)
 	case "TSCTL":
 		s.remoteTsctl(l, m)
+	case "KNOCK":
+		s.remoteKnock(l, m)
 	case "ACCEPT":
 		s.remoteAccept(l, m)
 	case "SDESC":

@@ -670,6 +670,14 @@ func (s *Server) remoteUMode(l *linkConn, m *link.UMode) {
 // svsMode applies a mode change another server's services make to one
 // of our users; the result travels on as UMODE2 from the user.
 func (s *Server) svsMode(u *state.User, modes string) {
+	if chg := svsChanges(modes); len(chg) > 0 {
+		s.emit(&state.UserMode{UID: u.UID, Changes: chg})
+	}
+}
+
+// svsChanges are the user modes in modes that one server may set on
+// another's user: known ones, no +o, no z.
+func svsChanges(modes string) []state.ModeChange {
 	var chg []state.ModeChange
 	add := true
 	for i := 0; i < len(modes); i++ {
@@ -684,12 +692,24 @@ func (s *Server) svsMode(u *state.User, modes string) {
 			chg = append(chg, state.ModeChange{Add: add, Mode: c})
 		}
 	}
-	if len(chg) > 0 {
-		s.emit(&state.UserMode{UID: u.UID, Changes: chg})
-	}
+	return chg
 }
 
 // ---- messages ----
+
+// maskHere reports whether a "$mask" target names this server.
+func (s *Server) maskHere(target string) bool {
+	return irc.Match(target[1:], s.cfg.Server.Name)
+}
+
+// deliverMask gives a "$mask" message to everyone here except skip.
+func (s *Server) deliverMask(o *outMsg, skip *Client) {
+	for _, c := range s.clients {
+		if c.user != nil && c != skip {
+			c.deliver(o)
+		}
+	}
+}
 
 // routeChannel sends a channel message on to every link with members of
 // ch, except one. status is a prefix like "@" or "".
@@ -780,13 +800,8 @@ func (s *Server) remoteMessage(l *linkConn, raw irc.Message, m *link.Message) {
 	switch {
 	case strings.HasPrefix(target, "$"):
 		// $mask: a global notice to everyone on matching servers.
-		if irc.Match(target[1:], s.cfg.Server.Name) {
-			o := build(target)
-			for _, c := range s.clients {
-				if c.user != nil {
-					c.deliver(o)
-				}
-			}
+		if s.maskHere(target) {
+			s.deliverMask(build(target), nil)
 		}
 		for _, o := range s.upLinks(l) {
 			o.send(raw.String())

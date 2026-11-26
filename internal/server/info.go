@@ -11,12 +11,16 @@ import (
 )
 
 // cmdInfo answers INFO with what this server is (RPL_INFO, RPL_ENDOFINFO).
-// A server name, when given, can only be this one.
+// INFO <server|nick> asks that server.
 func (s *Server) cmdInfo(c *Client, m irc.Message) {
-	if t := m.Param(0); t != "" && !irc.Match(t, s.cfg.Server.Name) && s.net.UserByNick(t) == nil {
-		s.reply(c, irc.ErrNoSuchServer, t, "No such server")
+	if s.askElsewhere(c, "INFO", m.Param(0), "") {
 		return
 	}
+	s.infoHere(c)
+}
+
+// infoHere is this server's INFO.
+func (s *Server) infoHere(c *Client) {
 	for _, l := range s.infoLines(c) {
 		s.reply(c, irc.RplInfo, l)
 	}
@@ -138,7 +142,7 @@ var helpTopics = map[string][]string{
 	"USERHOST": {"USERHOST <nick> [nick ...]", "Shows the user@host of these nicks."},
 	"VERSION":  {"VERSION", "Shows the server's version and what it supports."},
 	"GLOBOPS":  {"GLOBOPS <text>", "Sends a message to the opers who have the g server notice letter, here and on the other servers."},
-	"WALLOPS":  {"WALLOPS <text>", "Sends a message to everyone with user mode +w (opers)."},
+	"WALLOPS":  {"WALLOPS <text>", "Sends a message to everyone with user mode +w, which anyone can set (opers, flag g)."},
 	"WHO":      {"WHO <#channel|mask> [o][%fields[,token]]", "Lists people on a channel or matching a mask; o shows only opers. With %fields (WHOX: t c u i h s n f d l a o r) each person is one line with just those fields, a for the account."},
 	"WHOIS":    {"WHOIS <nick>", "Shows who someone is."},
 	"WHOWAS":   {"WHOWAS <nick> [count]", "Shows who used a nick that is gone."},

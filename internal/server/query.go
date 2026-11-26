@@ -394,7 +394,14 @@ func (s *Server) cmdMotd(c *Client, m irc.Message) {
 	}
 	s.motd(c)
 }
-func (s *Server) cmdLusers(c *Client, m irc.Message) { s.lusers(c) }
+
+// cmdLusers is LUSERS [server]: another server's counts come from it.
+func (s *Server) cmdLusers(c *Client, m irc.Message) {
+	if s.askElsewhere(c, "LUSERS", m.Param(0), "") {
+		return
+	}
+	s.lusers(c)
+}
 
 func (s *Server) cmdVersion(c *Client, m irc.Message) {
 	if len(m.Params) > 0 && s.queryElsewhere(c, "VERSION", m.Params[0], "") {

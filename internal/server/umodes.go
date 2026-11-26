@@ -161,16 +161,58 @@ func (s *Server) cmdKnock(c *Client, m irc.Message) {
 	case !c.can('g') && !s.knockAllowed(c):
 		refuse("You are KNOCK flooding")
 	default:
-		text := "[Knock] by " + u.Prefix() + " (" + reason + ")"
-		for _, mem := range ch.Members {
-			if mem.AtLeast(state.RankOp) && !mem.User.Service {
-				if tc := s.clientOf(mem.User); tc != nil {
-					tc.send(":" + s.cfg.Server.Name + " NOTICE @" + ch.Name + " :" + text)
-				}
-			}
-		}
+		s.knockOps(ch, u, reason)
+		s.linkBroadcast(nil, irc.Message{Source: c.uid, Command: "KNOCK", Params: []string{ch.Name, reason}, Trailing: true}.String())
 		s.notice(c, "Knocked on "+ch.Name)
 		s.floodEvent(c, ch, 'k')
+	}
+}
+
+// knockOps shows a knock by u on ch to the channel's ops on this server.
+// Every server does this for its own ops; the knock itself crosses the
+// links as ":<uid> KNOCK #chan :reason", as UnrealIRCd 6 sends it.
+func (s *Server) knockOps(ch *state.Channel, u *state.User, reason string) {
+	text := "[Knock] by " + u.Prefix() + " (" + reason + ")"
+	for _, mem := range ch.Members {
+		if mem.AtLeast(state.RankOp) && !mem.User.Service {
+			if tc := s.clientOf(mem.User); tc != nil {
+				tc.send(":" + s.cfg.Server.Name + " NOTICE @" + ch.Name + " :" + text)
+			}
+		}
+	}
+}
+
+// remoteKnock is a KNOCK from someone on another server (":<uid> KNOCK
+// #chan :reason", from a BeeIRCd or UnrealIRCd link; the InspIRCd bridge
+// turns its own into this form too): the ops here see it and it goes on
+// to the other links. Like UnrealIRCd's cmd_knock, a knock on a channel
+// that is gone, that they are on, that is not closed to them, that has +K
+// or that bans them is dropped here.
+func (s *Server) remoteKnock(l *linkConn, m irc.Message) {
+	if len(m.Params) == 0 {
+		return
+	}
+	_, u, ok := s.linkSource(l, m.Source)
+	if !ok || u == nil {
+		return
+	}
+	ch := s.net.Channel(m.Params[0])
+	if ch == nil {
+		return
+	}
+	reason := m.Param(1)
+	if reason == "" {
+		reason = "no reason specified"
+	}
+	reason = irc.Truncate(reason, s.cfg.Limits.KickLen)
+	full := ch.HasMode('l') && len(ch.Members) >= ch.Limit
+	if ch.Member(u) != nil || ch.HasMode('K') || !ch.HasMode('i') && !ch.HasMode('k') && !full || ch.IsBanned(u) {
+		return
+	}
+	s.knockOps(ch, u, reason)
+	line := irc.Message{Source: u.UID, Command: "KNOCK", Params: []string{ch.Name, reason}, Trailing: true}.String()
+	for _, o := range s.upLinks(l) {
+		o.send(line)
 	}
 }
 
@@ -499,6 +541,9 @@ func (s *Server) cmdSamode(c *Client, m irc.Message) {
 	}
 	text := strings.Join(m.Params[1:], " ")
 	if !irc.IsChannel(m.Params[0]) {
+		if s.relayOper(c, m, false) {
+			return
+		}
 		t := s.opTarget(c, m.Params[0])
 		if t == nil {
 			return

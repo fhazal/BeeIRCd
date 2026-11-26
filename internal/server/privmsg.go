@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/fhazal/beeircd/internal/irc"
+	"github.com/fhazal/beeircd/internal/link"
 	"github.com/fhazal/beeircd/internal/state"
 )
 
@@ -68,6 +69,26 @@ func (s *Server) message(c *Client, m irc.Message, verb string) {
 				o.needCap = "message-tags"
 			}
 			return o
+		}
+		if len(name) > 1 && name[0] == '$' {
+			// $servermask: to everyone on the matching servers (opers
+			// with flag g, as UnrealIRCd's chat:notice:global).
+			if tagOnly || !s.needFlag(c, nil, 'g') {
+				continue
+			}
+			o := build(name)
+			if s.maskHere(name) {
+				s.deliverMask(o, c)
+			}
+			if c.caps["echo-message"] {
+				c.deliver(o)
+			}
+			for _, l := range s.upLinks(nil) {
+				for _, line := range l.codecOf().Encode(&link.Message{Source: c.uid, Verb: verb, Target: name, Text: text, Tags: tags}) {
+					l.send(line)
+				}
+			}
+			continue
 		}
 		if irc.IsChannel(name) {
 			ch := s.net.Channel(name)
