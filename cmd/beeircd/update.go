@@ -263,23 +263,27 @@ func (u *updater) install(ctx context.Context, base string, m *release.Manifest,
 	// exactly as it was.
 	prevOld := oldExe + ".prev"
 	os.Remove(prevOld)
-	hadOld := os.Rename(oldExe, prevOld) == nil
-	restorePrev := func() {
-		if hadOld {
-			os.Rename(prevOld, oldExe)
-		}
+	hadOld := false
+	if err := u.rename(oldExe, prevOld); err == nil {
+		hadOld = true
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return u.stop("couldn't move " + oldExe + " aside: " + err.Error())
 	}
-	if err := os.Rename(u.exe, oldExe); err != nil {
-		restorePrev()
-		return u.stop(err.Error())
+	var putPrevBack []move
+	if hadOld {
+		putPrevBack = []move{{prevOld, oldExe}}
 	}
-	if err := os.Rename(newExe, u.exe); err != nil {
-		os.Rename(oldExe, u.exe)
-		restorePrev()
-		return u.stop(err.Error())
+	if err := u.rename(u.exe, oldExe); err != nil {
+		return u.undoSwap("couldn't move "+u.current+" aside: "+err.Error(), putPrevBack)
+	}
+	putBack := append([]move{{oldExe, u.exe}}, putPrevBack...)
+	if err := u.rename(newExe, u.exe); err != nil {
+		return u.undoSwap("couldn't put "+m.Version+" in place: "+err.Error(), putBack)
 	}
 	if cfgKept != "" {
-		os.Rename(newCfg, u.cfgPath)
+		if err := u.rename(newCfg, u.cfgPath); err != nil {
+			return u.undoSwap("couldn't put the updated config in place: "+err.Error(), putBack)
+		}
 	}
 	u.c.ok(fmt.Sprintf("program swapped; %s kept as %s", u.current, oldExe))
 	if running == nil {
@@ -300,11 +304,19 @@ func (u *updater) install(ctx context.Context, base string, m *release.Manifest,
 	// The new one didn't come up: put the old one back.
 	u.c.bad(fmt.Sprintf("%s didn't answer within %s", m.Version, secs(u.waitUp)))
 	logs, _ := u.run("journalctl", "-u", serviceName, "-n", "5", "--no-pager", "-o", "short")
-	os.Rename(u.exe, u.exe+".failed")
-	os.Rename(oldExe, u.exe)
-	restorePrev()
+	left := u.moveBack(append([]move{{u.exe, u.exe + ".failed"}}, putBack...))
 	if cfgKept != "" {
-		os.Rename(cfgKept, u.cfgPath)
+		if err := u.rename(cfgKept, u.cfgPath); err != nil {
+			u.c.bad("couldn't put your config back: " + err.Error())
+			left = append(left, "mv "+cfgKept+" "+u.cfgPath)
+		}
+	}
+	if left != nil {
+		fmt.Fprintf(u.out, "  BeeIRCd wasn't restarted, so nothing runs on half put back files.\n  Do these by hand, then run:  systemctl restart %s\n", serviceName)
+		for _, l := range left {
+			fmt.Fprintln(u.out, "    "+l)
+		}
+		return 1
 	}
 	u.run("systemctl", "restart", serviceName)
 	if u.waitFor(u.current) {
@@ -341,6 +353,41 @@ func (u *updater) waitFor(v string) bool {
 
 func (u *updater) stop(why string) int {
 	u.c.bad(why)
+	fmt.Fprintf(u.out, "  Nothing changed. BeeIRCd %s keeps running.\n", u.current)
+	return 1
+}
+
+// move is one rename that undoes a step of an update.
+type move struct{ from, to string }
+
+// moveBack does the moves in order. It stops at the first one that fails,
+// since going on could put one program over another, and returns the
+// moves left as lines to type by hand.
+func (u *updater) moveBack(moves []move) []string {
+	for i, mv := range moves {
+		if err := u.rename(mv.from, mv.to); err != nil {
+			u.c.bad(fmt.Sprintf("couldn't move %s back to %s: %v", mv.from, mv.to, err))
+			var left []string
+			for _, l := range moves[i:] {
+				left = append(left, "mv "+l.from+" "+l.to)
+			}
+			return left
+		}
+	}
+	return nil
+}
+
+// undoSwap puts the program files back after a swap failed half way;
+// the server hasn't been touched yet.
+func (u *updater) undoSwap(why string, moves []move) int {
+	u.c.bad(why)
+	if left := u.moveBack(moves); left != nil {
+		fmt.Fprintln(u.out, "  The server wasn't touched, but the program files are half swapped.\n  Put them back by hand before BeeIRCd restarts:")
+		for _, l := range left {
+			fmt.Fprintln(u.out, "    "+l)
+		}
+		return 1
+	}
 	fmt.Fprintf(u.out, "  Nothing changed. BeeIRCd %s keeps running.\n", u.current)
 	return 1
 }

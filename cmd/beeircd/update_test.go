@@ -303,6 +303,86 @@ func TestUpdateRollsBackWhenNewOneFails(t *testing.T) {
 	}
 }
 
+// migratingRun makes upgrade-config report a change, as a release with a
+// config migration does.
+func migratingRun(u *updater) {
+	run := u.run
+	u.run = func(name string, args ...string) (string, error) {
+		if len(args) > 0 && args[0] == "upgrade-config" {
+			b, _ := os.ReadFile(args[2])
+			os.WriteFile(args[4], append(b, "\n# upgraded\n"...), 0o640)
+			return "renamed a setting", nil
+		}
+		return run(name, args...)
+	}
+}
+
+// A new config that can't be put in place undoes the program swap: the
+// update stops with nothing changed.
+func TestUpdateUndoesSwapWhenConfigCantBePlaced(t *testing.T) {
+	key := signingKey(t)
+	srv := releaseServer(t, "1.0.1", key)
+	fs := &fakeSystem{running: "1.0.0", comesUp: true}
+	u, out := testUpdater(t, "1.0.0", srv.URL, fs, "y\n")
+	migratingRun(u)
+	os.WriteFile(u.exe+".old", []byte("PROGRAM 0.9.0"), 0o755)
+	confBefore, _ := os.ReadFile(u.cfgPath)
+	u.rename = func(from, to string) error {
+		if to == u.cfgPath {
+			return errors.New("disk said no")
+		}
+		return os.Rename(from, to)
+	}
+	if code := u.update(false, true, false); code != 1 {
+		t.Fatalf("exit %d, want 1\n%s", code, out)
+	}
+	if progVersion(u.exe) != "1.0.0" || progVersion(u.exe+".old") != "0.9.0" || fs.running != "1.0.0" {
+		t.Errorf("program %q, old %q, running %q: want nothing changed\n%s", progVersion(u.exe), progVersion(u.exe+".old"), fs.running, out)
+	}
+	if conf, _ := os.ReadFile(u.cfgPath); string(conf) != string(confBefore) {
+		t.Errorf("config changed:\n%s", conf)
+	}
+	for _, want := range []string{"couldn't put the updated config in place: disk said no", "Nothing changed."} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
+	}
+}
+
+// When putting the old program back after a failed update doesn't work,
+// the update says what to move by hand and doesn't restart on half put
+// back files.
+func TestUpdateSaysWhatToMoveBackWhenUndoFails(t *testing.T) {
+	key := signingKey(t)
+	srv := releaseServer(t, "1.0.1", key)
+	fs := &fakeSystem{running: "1.0.0", comesUp: false}
+	u, out := testUpdater(t, "1.0.0", srv.URL, fs, "y\n")
+	os.WriteFile(u.exe+".old", []byte("PROGRAM 0.9.0"), 0o755)
+	u.rename = func(from, to string) error {
+		if from == u.exe+".old" && to == u.exe {
+			return errors.New("disk said no")
+		}
+		return os.Rename(from, to)
+	}
+	if code := u.update(false, true, false); code != 1 {
+		t.Fatalf("exit %d, want 1\n%s", code, out)
+	}
+	text := out.String()
+	for _, want := range []string{"couldn't move " + u.exe + ".old back to " + u.exe + ": disk said no", "wasn't restarted",
+		"mv " + u.exe + ".old " + u.exe, "mv " + u.exe + ".old.prev " + u.exe + ".old"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("output lacks %q:\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "rolled back") {
+		t.Errorf("restarted on half put back files:\n%s", text)
+	}
+	// Every program is still somewhere: nothing was moved over another.
+	if progVersion(u.exe+".failed") != "1.0.1" || progVersion(u.exe+".old") != "1.0.0" || progVersion(u.exe+".old.prev") != "0.9.0" {
+		t.Errorf("failed %q, old %q, prev %q", progVersion(u.exe+".failed"), progVersion(u.exe+".old"), progVersion(u.exe+".old.prev"))
+	}
+}
+
 // When the new version changes the config, the current config is kept
 // first; if that copy can't be made, nothing may change.
 func TestUpdateStopsWhenConfigCopyFails(t *testing.T) {
