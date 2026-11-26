@@ -237,7 +237,7 @@ func (s *Server) linkLines(o *linkConn, ev state.Event, src string, from *linkCo
 		return s.renameLinkLines(o, e, src)
 	case *state.Invite:
 		if e.Remove {
-			if !o.peer.Bee {
+			if !o.peer.Bee && o.bridge == nil {
 				return nil // UNINVITE is ours and InspIRCd's; nothing to say to UnrealIRCd
 			}
 			return []string{":" + srcOr(e.Source, src) + " UNINVITE " + e.UID + " " + e.Channel}

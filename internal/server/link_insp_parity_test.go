@@ -182,3 +182,31 @@ func TestLinkInspSdesc(t *testing.T) {
 		return desc == "Leaf of the hive"
 	})
 }
+
+// UNINVITE of someone behind an InspIRCd link goes out on it, and one from
+// their side reaches our user.
+func TestLinkInspUninvite(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	alice := login(t, hub.s, "alice")
+	carol := login(t, hub.s, "carol")
+	login(t, leaf.s, "bob")
+	hub.seen(t, "bob")
+	alice.send("JOIN #hive")
+	alice.expectNumeric("366")
+	rec := bridged(t, hub)
+	hub.s.onLoop(func() {
+		for l := range hub.s.links.conns {
+			l.peer.Bee = false // as a real InspIRCd link
+		}
+	})
+	aliceUID, bobUID, carolUID := hub.user("alice").UID, hub.user("bob").UID, hub.user("carol").UID
+
+	alice.send("UNINVITE bob #hive")
+	alice.expectNumeric("494", "#hive", "bob")
+	waitLink(t, "UNINVITE sent on", func() bool { return rec.sent(":" + aliceUID + " UNINVITE " + bobUID + " #hive") })
+
+	alice.send("INVITE carol #hive")
+	carol.expect("INVITE carol #hive")
+	hub.fromLink(t, ":"+bobUID+" UNINVITE "+carolUID+" #hive")
+	carol.expect(" 493 carol :You were uninvited from #hive by bob")
+}

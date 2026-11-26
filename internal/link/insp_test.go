@@ -466,6 +466,27 @@ func TestInspBridgeSdesc(t *testing.T) {
 	}
 }
 
+// UNINVITE crosses as InspIRCd 4's ENCAP to the target's server, both ways;
+// one for someone on our side does not go out.
+func TestInspBridgeUninvite(t *testing.T) {
+	b := testBridge(t)
+	b.Out(":0BE EOS")
+	if out := b.Out(":0BEAAAAAA UNINVITE 1INAAAAAA #hive"); len(out) != 1 || out[0] != ":0BEAAAAAA ENCAP 1IN UNINVITE 1INAAAAAA #hive" {
+		t.Errorf("UNINVITE out %q", out)
+	}
+	if out := b.Out(":0BEAAAAAA UNINVITE 0BEAAAAAB #hive"); len(out) != 0 {
+		t.Errorf("UNINVITE for one of ours went out: %q", out)
+	}
+	if run, _ := b.In(":1INAAAAAA ENCAP 0BE UNINVITE 0BEAAAAAA #hive"); len(run) != 1 || run[0] != ":1INAAAAAA UNINVITE 0BEAAAAAA #hive" {
+		t.Errorf("UNINVITE in %q", run)
+	}
+	for _, in := range []string{":1INAAAAAA ENCAP 1IN UNINVITE 1INAAAAAB #hive", ":1INAAAAAA ENCAP 0BE UNINVITE 0BEAAAAAA"} {
+		if run, _ := b.In(in); len(run) != 0 {
+			t.Errorf("%q ran %q", in, run)
+		}
+	}
+}
+
 // InspIRCd 4's server notices from other servers come in under our letter
 // for the same news; letters we make ourselves, or have none for, are
 // dropped. G stays GLOBOPS.

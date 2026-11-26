@@ -538,6 +538,12 @@ func (b *inspBridge) out(m irc.Message) []string {
 			return nil
 		}
 		return []string{line(nil, sid, "SINFO", true, "desc", last())}
+	case "UNINVITE": // :src UNINVITE <uid> #chan -> :src ENCAP <sid> UNINVITE <uid> #chan
+		// InspIRCd 4's m_uninvite goes to the target's server as ENCAP.
+		if len(p) < 2 || len(p[0]) != 9 || !b.behind[sourceSID(p[0])] {
+			return nil
+		}
+		return []string{line(nil, src, "ENCAP", false, sourceSID(p[0]), "UNINVITE", p[0], p[1])}
 	}
 	if len(m.Command) == 3 && m.Command[0] >= '0' && m.Command[0] <= '9' && len(p) > 0 {
 		// :src 401 uid params -> NUM src uid 401 params
@@ -1639,6 +1645,11 @@ func (b *inspBridge) inEncap(src, target, cmd string, p []string) []string {
 			return nil
 		}
 		return []string{line(nil, src, "KNOCK", true, p[0], p[len(p)-1])}
+	case "UNINVITE": // :src ENCAP <sid> UNINVITE <uid> #chan -> :src UNINVITE <uid> #chan
+		if len(p) < 2 {
+			return nil
+		}
+		return []string{line(nil, src, "UNINVITE", false, p[0], p[1])}
 	case "SAJOIN", "SAPART", "SANICK":
 		// :oper ENCAP <sid> SAJOIN <uid> <#channel>
 		return []string{line(nil, src, cmd, len(p) > 2, p...)}
