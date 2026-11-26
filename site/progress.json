@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-26T15:48:00+08:00",
+ "updated": "2026-11-26T15:53:00+08:00",
  "gauges": [
   {
    "id": "g-v1",
@@ -18,12 +18,16 @@
  ],
  "now": {
   "title": "BeeRoom 1.1 checks",
-  "text": "BeeRoom passed its release checks: 200 people at once, every button in Day and Night on computer and phone. Two bugs found and fixed.",
+  "text": "BeeRoom passed its release checks, and both live chats now run the fixed version.",
   "start": "2026-11-26T15:30:00+08:00",
   "end": "2026-11-26T18:30:00+08:00"
  },
- "next": "Put the fixed BeeRoom on both live chats, then release BeeRoom 1.1.",
+ "next": "Release BeeRoom 1.1.",
  "done": [
+  [
+   "2026-11-26T15:51",
+   "Both live chats (webchat and chat.beeircd.org) now run the fixed BeeRoom. A strange message can no longer knock everyone off."
+  ],
   [
    "2026-11-26T15:48",
    "BeeRoom release checks done. Fixed: one guest could knock everyone off the chat with a strange message, and asking for the changelog again and again made the server call GitHub each time."
