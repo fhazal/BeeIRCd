@@ -327,7 +327,7 @@ func (s *Server) restrictedMessage(c *Client, verb string, toChannel bool) strin
 	if r.ConnectTime.Duration > 0 {
 		return "You cannot send " + what + "s to " + to + "s until you've been connected for " + secs(r.ConnectTime.Duration) + " seconds or more"
 	}
-	return "Sending of " + what + "s to " + to + "s been disabled by the network administrators"
+	return "Sending of " + what + "s to " + to + "s have been disabled by the network administrators"
 }
 
 // restrictedCreate is why c may not make a new channel yet, "" = it may.
