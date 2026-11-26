@@ -268,12 +268,27 @@ func osUmode(s *Services, c *Client, args []string) {
 // olineFlags are the oper flags OLINE knows, in the usual order.
 const olineFlags = "abcghks"
 
+// unknownRank is what OperFlags says for an oper on another server whose
+// flags aren't known here: an InspIRCd or UnrealIRCd oper whose type or
+// class has no match here, or one whose flags haven't arrived yet.
+const unknownRank = "o"
+
 // outranked tells c, and reports, when t is an oper with an oper flag c
 // doesn't have: nobody changes an oper who has more than they have (OLINE,
-// UMODE and KILL).
+// UMODE and KILL). An oper whose rank isn't known may be the network admin,
+// so only someone with every flag may change them.
 func (s *Services) outranked(c, t *Client) bool {
-	mine := s.host.OperFlags(c.user.UID)
-	for _, f := range []byte(s.host.OperFlags(t.user.UID)) {
+	mine, theirs := s.host.OperFlags(c.user.UID), s.host.OperFlags(t.user.UID)
+	if theirs == unknownRank {
+		for _, f := range []byte(olineFlags) {
+			if strings.IndexByte(mine, f) < 0 {
+				s.os(c, "%s is an oper on another server whose oper flags aren't known here; only an oper with every flag (%s) may change them.", t.user.Nick, olineFlags)
+				return true
+			}
+		}
+		return false
+	}
+	for _, f := range []byte(theirs) {
 		if strings.IndexByte(olineFlags, f) >= 0 && strings.IndexByte(mine, f) < 0 {
 			s.os(c, "%s has oper flag %c, which you don't have.", t.user.Nick, f)
 			return true

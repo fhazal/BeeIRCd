@@ -104,6 +104,57 @@ func TestLinkOperFlags(t *testing.T) {
 	}
 }
 
+// OLINE and UMODE check the target's rank across a link: an admin on the
+// leaf has flags the hub knows (bee-operflags), and an oper whose flags
+// aren't known (only +o arrived, as from an InspIRCd type or UnrealIRCd
+// class with no match here) counts as having every flag.
+func TestLinkRemoteOperRank(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	fay := login(t, leaf.s, "fay")
+	gus := login(t, leaf.s, "gus")
+	small := login(t, hub.s, "Small")
+	mid := login(t, hub.s, "Mid")
+	top := login(t, hub.s, "Top")
+	hub.seen(t, "gus")
+	operOn := func(c *tc, nick string, o *store.Oper) {
+		hub.s.onLoop(func() { hub.s.operUp(hub.s.clients[hub.s.net.UserByNick(nick).UID], o) })
+		c.expect(" 381 " + nick + " ")
+	}
+	operOn(small, "Small", &store.Oper{Flags: "s"})
+	operOn(mid, "Mid", &store.Oper{Flags: "aghks"})
+	operOn(top, "Top", &store.Oper{Class: "netadmin"})
+	fuid, guid := hub.user("fay").UID, hub.user("gus").UID
+	hubOS := func(nick, text string) string {
+		return ":OperServ!services@services.test.local NOTICE " + nick + " :" + text
+	}
+	flags := func(uid string) string {
+		var f string
+		hub.s.onLoop(func() { f = host{hub.s}.OperFlags(uid) })
+		return f
+	}
+
+	// A known admin: their flags crossed the link.
+	leaf.s.onLoop(func() { leaf.s.operUp(leaf.s.clients[fuid], &store.Oper{Class: "netadmin"}) })
+	fay.expect(" 381 fay ")
+	waitLink(t, "fay's flags on the hub", func() bool { return flags(fuid) == "abcghks" })
+	small.send("OS UMODE fay -o")
+	small.expect(hubOS("Small", "fay has oper flag a, which you don't have."))
+	mid.send("OS OLINE fay -k")
+	mid.expect(hubOS("Mid", "fay has oper flag b, which you don't have."))
+
+	// Rank not known: only +o.
+	hub.fromLink(t, ":"+guid+" UMODE2 +o")
+	waitLink(t, "gus is an oper on the hub", func() bool { return flags(guid) == "o" })
+	unknown := "gus is an oper on another server whose oper flags aren't known here; only an oper with every flag (abcghks) may change them."
+	small.send("OS UMODE gus -o")
+	small.expect(hubOS("Small", unknown))
+	mid.send("OS OLINE gus -k")
+	mid.expect(hubOS("Mid", unknown))
+	top.send("OS OLINE gus +k") // every flag: on to OLINE's own answer
+	top.expect(hubOS("Top", "gus is on another server; OLINE works only for people on this server."))
+	_ = gus
+}
+
 // "WHOIS nick nick" asks the user's own server, which knows the idle time.
 func TestLinkRemoteWhois(t *testing.T) {
 	hub, leaf := linkedPair(t)
