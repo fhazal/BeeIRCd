@@ -74,3 +74,29 @@ func TestXopAddFlagsEntry(t *testing.T) {
 		t.Errorf("second AOP ADD: %q", got)
 	}
 }
+
+// ACCESS ADD at the level a FLAGS entry was stored at said "at level AOP
+// already" and left the +o entry as it was, as AOP ADD did before.
+func TestAccessAddFlagsEntry(t *testing.T) {
+	svc, h := newServices(t)
+	cs := h.net.UserByNick("ChanServ")
+	bee := regChannel(t, svc, h, "1LFAAAAAA", "Bee")
+	wasp := regNick(t, svc, h, "1LFAAAAAB", "Wasp")
+	svc.Message(bee.UID, cs, "FLAGS #hive Wasp +o")
+	noticeTo(h, "Bee")
+	reg, _ := svc.store.ChannelByName("#hive")
+	if lvl, flags := svc.store.ChanAccess(reg, svc.AccountID(wasp.UID)); flags == "" || lvl != store.LevelAOP {
+		t.Fatalf("setup: Wasp level %d flags %q", lvl, flags)
+	}
+	svc.Message(bee.UID, cs, "ACCESS #hive ADD Wasp AOP")
+	if got := noticeTo(h, "Bee"); !strings.Contains(got, "Wasp moved from level +o to AOP on #hive.") {
+		t.Errorf("ACCESS ADD: %q", got)
+	}
+	if lvl, flags := svc.store.ChanAccess(reg, svc.AccountID(wasp.UID)); flags != "" || lvl != store.LevelAOP {
+		t.Errorf("Wasp: level %d flags %q, want a plain AOP entry", lvl, flags)
+	}
+	svc.Message(bee.UID, cs, "ACCESS #hive ADD Wasp AOP")
+	if got := noticeTo(h, "Bee"); !strings.Contains(got, "Wasp is at level AOP on #hive already.") {
+		t.Errorf("second ACCESS ADD: %q", got)
+	}
+}

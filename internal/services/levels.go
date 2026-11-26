@@ -318,7 +318,7 @@ func csAccess(s *Services, c *Client, args []string) {
 		if !ok {
 			return
 		}
-		old, _ := s.store.Level(reg, target.ID)
+		old, oldFlags := s.store.ChanAccess(reg, target.ID)
 		if s.neverOpBlocks(c, target, old, newLevel) {
 			return
 		}
@@ -327,7 +327,8 @@ func csAccess(s *Services, c *Client, args []string) {
 		if !s.accessChange(c, reg, lvl, s.accountLevel(reg, target.ID).level, newLevel, target.Name) {
 			return
 		}
-		if old == newLevel {
+		// A FLAGS entry stored at this level still becomes a plain one.
+		if old == newLevel && oldFlags == "" {
 			s.cs(c, "%s is at level %s on %s already.", target.Name, store.LevelName(newLevel), reg.Name)
 			return
 		}
@@ -341,7 +342,7 @@ func csAccess(s *Services, c *Client, args []string) {
 		if old == store.LevelNone {
 			s.cs(c, "%s added to the access list of %s at level %s.", target.Name, reg.Name, store.LevelName(newLevel))
 		} else {
-			s.cs(c, "%s moved from level %s to %s on %s.", target.Name, store.LevelName(old), store.LevelName(newLevel), reg.Name)
+			s.cs(c, "%s moved from level %s to %s on %s.", target.Name, access{level: old, flags: oldFlags}.name(), store.LevelName(newLevel), reg.Name)
 		}
 		s.afterAccessChange(reg, target.ID)
 	case "DEL":
