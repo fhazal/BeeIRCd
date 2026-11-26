@@ -143,6 +143,35 @@ max_users = 20
 	}
 }
 
+// A value that spans lines is read whole, and a key-like line inside one
+// isn't taken for a key; DelBlock still finds its block by name.
+func TestDocValueReadsMultiLineValues(t *testing.T) {
+	d := &Doc{lines: strings.Split(`[[operclass]]
+motd = """
+name = "fake"
+"""
+name = "staff"
+swhois = [
+  "looks helpful", # the first
+
+  "and kind",
+]
+flags = "hk"`, "\n")}
+	for key, want := range map[string]string{
+		"name":   `"staff"`,
+		"swhois": "[\n\"looks helpful\",\n\"and kind\",\n]",
+		"motd":   "\"\"\"\nname = \"fake\"\n\"\"\"",
+		"flags":  `"hk"`,
+	} {
+		if got, ok := d.value(0, len(d.lines), key); !ok || got != want {
+			t.Errorf("value(%s) = %q, %v; want %q", key, got, ok, want)
+		}
+	}
+	if d.DelBlock("operclass", "name", "fake") || !d.DelBlock("operclass", "name", "staff") {
+		t.Errorf("DelBlock went by the wrong name:\n%s", d)
+	}
+}
+
 func TestEditRefusesBrokenConfig(t *testing.T) {
 	p := writeSample(t)
 	_, err := Edit(p, func(d *Doc) error {

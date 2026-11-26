@@ -275,15 +275,42 @@ func (d *Doc) Unset(table, key string) {
 	}
 }
 
-// value reads key's raw value in the section [start, end).
+// value reads key's raw value in the section [start, end). A value that
+// spans lines (an array, a """ string) comes whole, its lines joined by
+// "\n"; a line inside such a value is never taken for a key.
 func (d *Doc) value(start, end int, key string) (string, bool) {
 	re := keyRe(key)
+	var sc valueScan
 	for i := start + 1; i < end; i++ {
-		if loc := re.FindStringIndex(d.lines[i]); loc != nil {
-			return strings.TrimSpace(stripComment(d.lines[i][loc[1]:])), true
+		l := d.lines[i]
+		if sc.depth == 0 && sc.multi == "" {
+			if loc := re.FindStringIndex(l); loc != nil {
+				return d.wholeValue(i, end, l[loc[1]:]), true
+			}
 		}
+		sc.line(l)
 	}
 	return "", false
+}
+
+// wholeValue is the value that starts with first on line i and goes on
+// while an array or multi-line string is still open, up to end. Comments
+// and blank lines between array items are left out; the text of a
+// multi-line string is kept as it is.
+func (d *Doc) wholeValue(i, end int, first string) string {
+	var sc valueScan
+	sc.line(first)
+	parts := []string{strings.TrimSpace(stripComment(first))}
+	for j := i + 1; j < end && (sc.depth > 0 || sc.multi != ""); j++ {
+		l := d.lines[j]
+		if sc.multi != "" {
+			parts = append(parts, l)
+		} else if p := strings.TrimSpace(stripComment(l)); p != "" {
+			parts = append(parts, p)
+		}
+		sc.line(l)
+	}
+	return strings.Join(parts, "\n")
 }
 
 // listens returns the header line of every [[listen]] block.
