@@ -159,3 +159,26 @@ func TestLinkInspSnotice(t *testing.T) {
 	op.expect("REMOTELINK: From leaf.test.local: Netsplit complete")
 	op.quiet("not from a bridge")
 }
+
+// SDESC goes out on an InspIRCd link (the bridge makes it SINFO desc), and
+// their server's new description (SDESC from that server) is kept here.
+func TestLinkInspSdesc(t *testing.T) {
+	hub, _ := linkedPair(t)
+	op := login(t, hub.s, "op")
+	netadminOn(t, hub, op, "op")
+	rec := bridged(t, hub)
+	opUID := hub.user("op").UID
+	op.send("SDESC :Hub of the hive")
+	waitLink(t, "SDESC sent on", func() bool { return rec.sent(":" + opUID + " SDESC :Hub of the hive") })
+
+	hub.fromLink(t, ":0LF SDESC :Leaf of the hive")
+	waitLink(t, "their description kept", func() bool {
+		desc := ""
+		hub.s.onLoop(func() {
+			if r := hub.s.links.servers["0LF"]; r != nil {
+				desc = r.desc
+			}
+		})
+		return desc == "Leaf of the hive"
+	})
+}

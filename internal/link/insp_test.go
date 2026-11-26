@@ -444,6 +444,28 @@ func TestInspBridgeKnock(t *testing.T) {
 	}
 }
 
+// A server description crosses as InspIRCd 4's SINFO desc, from the server
+// it is about; their other SINFO keys, or one for a server on our side,
+// are dropped.
+func TestInspBridgeSdesc(t *testing.T) {
+	b := testBridge(t)
+	b.Out(":0BE EOS")
+	if out := b.Out(":0BEAAAAAA SDESC :Hub of the hive"); len(out) != 1 || out[0] != ":0BE SINFO desc :Hub of the hive" {
+		t.Errorf("SDESC out %q", out)
+	}
+	if out := b.Out(":1INAAAAAA SDESC :theirs"); len(out) != 0 {
+		t.Errorf("SDESC for their server went out: %q", out)
+	}
+	if run, _ := b.In(":1IN SINFO desc :Their hive"); len(run) != 1 || run[0] != ":1IN SDESC :Their hive" {
+		t.Errorf("SINFO desc in %q", run)
+	}
+	for _, in := range []string{":1IN SINFO rawversion :InspIRCd-4.5.0", ":0BE SINFO desc :spoofed"} {
+		if run, _ := b.In(in); len(run) != 0 {
+			t.Errorf("%q ran %q", in, run)
+		}
+	}
+}
+
 // InspIRCd 4's server notices from other servers come in under our letter
 // for the same news; letters we make ourselves, or have none for, are
 // dropped. G stays GLOBOPS.

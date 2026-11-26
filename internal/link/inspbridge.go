@@ -530,6 +530,14 @@ func (b *inspBridge) out(m irc.Message) []string {
 			return nil
 		}
 		return []string{line(nil, src, "ENCAP", true, "*", "KNOCK", p[0], last())}
+	case "SDESC": // :uid SDESC :text -> :sid SINFO desc :text
+		// InspIRCd 4 keeps a server's description as its SINFO desc, sent
+		// by that server (here: the server of the oper who changed it).
+		sid := sourceSID(src)
+		if last() == "" || b.behind[sid] {
+			return nil
+		}
+		return []string{line(nil, sid, "SINFO", true, "desc", last())}
 	}
 	if len(m.Command) == 3 && m.Command[0] >= '0' && m.Command[0] <= '9' && len(p) > 0 {
 		// :src 401 uid params -> NUM src uid 401 params
@@ -1073,7 +1081,14 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 			}
 		}
 		return one(line(nil, src, "GLOBOPS", true, p[1]))
-	case "BURST", "SINFO", "RSQUIT", "RESYNC", "SVSHOLD", "SVSOPER", "SVSCMODE", "MAP", "RCONNECT":
+	case "SINFO": // :sid SINFO desc :text -> :sid SDESC :text
+		// Their server's new description; the other keys (version and
+		// such) are only shown by InspIRCd itself.
+		if len(p) >= 2 && p[0] == "desc" && b.behind[src] {
+			return one(line(nil, src, "SDESC", true, last()))
+		}
+		return nil, nil
+	case "BURST", "RSQUIT", "RESYNC", "SVSHOLD", "SVSOPER", "SVSCMODE", "MAP", "RCONNECT":
 		return nil, nil
 	case "SERVER": // :up SERVER name sid [key=value...] :desc
 		if len(p) < 3 {
