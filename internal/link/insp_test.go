@@ -407,3 +407,23 @@ func TestInspBridgeQueries(t *testing.T) {
 		}
 	}
 }
+
+// IDLE from InspIRCd (their WHOIS of one of ours) is answered with our
+// user's real signon and idle time; anyone the server doesn't know keeps
+// the nick time and 0.
+func TestInspBridgeIdle(t *testing.T) {
+	b := testBridge(t)
+	b.me.Idle = func(uid string) (int64, int64, bool) {
+		if uid == "0BEAAAAAA" {
+			return 1700000050, 75, true
+		}
+		return 0, 0, false
+	}
+	if _, rep := b.In(":1INAAAAAA IDLE 0BEAAAAAA"); len(rep) != 1 || rep[0] != ":0BEAAAAAA IDLE 1INAAAAAA 1700000050 75" {
+		t.Errorf("IDLE answered %q", rep)
+	}
+	b.Out(":0BE UID bot 1 1700000009 bot services.test 0BEAAAAAS 0 +io * * * :svc")
+	if _, rep := b.In(":1INAAAAAA IDLE 0BEAAAAAS"); len(rep) != 1 || !strings.HasSuffix(rep[0], " IDLE 1INAAAAAA 1700000009 0") {
+		t.Errorf("IDLE for a bot answered %q", rep)
+	}
+}

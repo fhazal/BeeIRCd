@@ -4,6 +4,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // recBridge stands in for the InspIRCd bridge: what goes out is kept (and
@@ -87,4 +88,30 @@ func TestLinkInspQueries(t *testing.T) {
 	// Their user asks us: the answer goes back on the link.
 	hub.fromLink(t, ":"+bobUID+" TIME :hub.test.local")
 	waitLink(t, "TIME answered", func() bool { return rec.sent(" 391 " + bobUID + " hub.test.local") })
+}
+
+// The link hook gives our client's own signon and idle time (for IDLE
+// from InspIRCd), nothing for anyone else.
+func TestLinkIdleHook(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	login(t, hub.s, "alice")
+	login(t, leaf.s, "bob")
+	hub.seen(t, "bob")
+	var on, idle int64
+	var ok, bobOK bool
+	var want int64
+	aliceUID, bobUID := hub.user("alice").UID, hub.user("bob").UID
+	hub.s.onLoop(func() {
+		c := hub.s.clients[aliceUID]
+		c.lastMsg = time.Now().Add(-90 * time.Second)
+		want = c.user.SignOn.Unix()
+		on, idle, ok = hub.s.linkLocal().Idle(aliceUID)
+		_, _, bobOK = hub.s.linkLocal().Idle(bobUID)
+	})
+	if !ok || on != want || idle < 89 || idle > 95 {
+		t.Errorf("alice: signon %d (want %d) idle %d ok %v", on, want, idle, ok)
+	}
+	if bobOK {
+		t.Error("an idle time for someone on another server")
+	}
 }

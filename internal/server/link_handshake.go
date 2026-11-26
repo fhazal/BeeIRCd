@@ -464,7 +464,18 @@ func (s *Server) linkLocal() link.Local {
 			}
 			return nil
 		},
+		Idle: s.linkIdle,
 	}
+}
+
+// linkIdle is the signon time and seconds idle of our client uid, as
+// WHOIS shows them here.
+func (s *Server) linkIdle(uid string) (signon, idle int64, ok bool) {
+	c := s.clients[uid]
+	if c == nil || c.user == nil {
+		return 0, 0, false
+	}
+	return c.user.SignOn.Unix(), max(int64(time.Since(c.lastMsg).Seconds()), 0), true
 }
 
 // linkKnown reports whether a SID or server name is on the network

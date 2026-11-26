@@ -1277,8 +1277,13 @@ func (b *inspBridge) in(m irc.Message) (run, reply []string) {
 		return one(line(nil, p[0], p[2], true, append([]string{p[1]}, p[3:]...)...))
 	case "IDLE": // :uid IDLE target -> :target IDLE uid signon idle
 		if len(p) == 1 && !b.behind[sourceSID(p[0])] {
-			signon := b.nickTS[p[0]]
-			return nil, []string{line(nil, p[0], "IDLE", false, src, strconv.FormatInt(signon, 10), "0")}
+			signon, idle := b.nickTS[p[0]], int64(0)
+			if b.me.Idle != nil {
+				if on, i, ok := b.me.Idle(p[0]); ok {
+					signon, idle = on, i
+				}
+			}
+			return nil, []string{line(nil, p[0], "IDLE", false, src, strconv.FormatInt(signon, 10), strconv.FormatInt(idle, 10))}
 		}
 		if len(p) >= 3 && b.behind[sourceSID(src)] && !b.behind[sourceSID(p[0])] {
 			// :their uid IDLE our asker signon idle: the answer to a WHOIS
