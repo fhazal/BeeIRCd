@@ -124,6 +124,21 @@ func TestWebircSessionLimitPerPerson(t *testing.T) {
 	viaGateway(t, s, "B2", "198.51.100.4").expect(" 001 B2 ")
 }
 
+// A session exception on the hostname the gateway gives counts, as it
+// does for someone connecting straight in.
+func TestWebircSessionExceptionOnHostName(t *testing.T) {
+	s, _, _ := fileServerWith(t, "", func(s *Server) {
+		webircGW()(s.cfg)
+		s.cfg.Limits.SessionLimit = 2
+	})
+	b := boss(t, s)
+	b.send("OS EXCEPTION ADD *.example.net 10 the web chat")
+	b.expect("*.example.net may now have 10 connections.")
+	for _, n := range []string{"W1", "W2", "W3"} {
+		viaGateway(t, s, n, "203.0.113.7").expect(" 001 " + n + " ")
+	}
+}
+
 // Z-lines and network bans hit the person's real IP.
 func TestWebircBansUseRealIP(t *testing.T) {
 	s := testServer(t, webircGW())
