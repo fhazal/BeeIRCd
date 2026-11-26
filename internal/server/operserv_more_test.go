@@ -467,3 +467,46 @@ func TestOperServKillHigherOper(t *testing.T) {
 	b.send("OS KILL Small bye") // and someone above may
 	b.expect(osLine("Boss", "Small is disconnected."))
 }
+
+// OperServ SVSNICK, SVSJOIN and SVSPART follow the same rank rule: an oper
+// with only flag s could rename the admin or move them in and out of channels.
+func TestOperServSvsHigherOper(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	b := boss(t, s)
+	small := login(t, s, "Small")
+	small.sync()
+	b.send("OS OLINE Small +s")
+	b.expect(osLine("Boss", "Small now has oper flags s until they quit."))
+	small.expect(" 381 Small ")
+	b.send("JOIN #here")
+	b.expect(" JOIN #here")
+
+	small.send("OS SVSNICK Boss Rude")
+	small.expect(osLine("Small", "Boss has oper flag a, which you don't have."))
+	small.send("OS SVSJOIN Boss #there")
+	small.expect(osLine("Small", "Boss has oper flag a, which you don't have."))
+	small.send("OS SVSPART Boss #here")
+	small.expect(osLine("Small", "Boss has oper flag a, which you don't have."))
+	var nick string
+	var inThere, inHere bool
+	s.onLoop(func() {
+		u := s.net.UserByUID(s.clients[s.net.UserByNick("Boss").UID].uid)
+		nick = u.Nick
+		if ch := s.net.Channel("#there"); ch != nil {
+			inThere = ch.Member(u) != nil
+		}
+		if ch := s.net.Channel("#here"); ch != nil {
+			inHere = ch.Member(u) != nil
+		}
+	})
+	if nick != "Boss" || inThere || !inHere {
+		t.Fatalf("an oper with flag s moved the admin: nick %s, in #there %v, in #here %v", nick, inThere, inHere)
+	}
+
+	other := login(t, s, "Other")
+	other.sync()
+	small.send("OS SVSNICK Other Other2") // someone without oper flags: as before
+	small.expect(osLine("Small", "The nick Other is now being changed to Other2."))
+	b.send("OS SVSJOIN Small #there") // and someone above may
+	b.expect(osLine("Boss", "Small has been joined to #there."))
+}

@@ -158,6 +158,9 @@ func osSvsNick(s *Services, c *Client, args []string) {
 	if t == nil {
 		return
 	}
+	if s.outranked(c, t) {
+		return
+	}
 	newnick := args[1]
 	if max := s.cfg.Limits.NickLen; len(newnick) > max {
 		newnick = newnick[:max]
@@ -190,6 +193,9 @@ func osSvsJoin(s *Services, c *Client, args []string) {
 	if t == nil {
 		return
 	}
+	if s.outranked(c, t) {
+		return
+	}
 	name := args[1]
 	if !irc.ValidChannel(name, s.cfg.Limits.ChannelLen) {
 		s.os(c, "%s isn't a valid channel name.", name)
@@ -215,6 +221,9 @@ func osSvsPart(s *Services, c *Client, args []string) {
 	}
 	t := s.svsTarget(c, args[0])
 	if t == nil {
+		return
+	}
+	if s.outranked(c, t) {
 		return
 	}
 	ch := s.net.Channel(args[1])
@@ -275,8 +284,9 @@ const unknownRank = "o"
 
 // outranked tells c, and reports, when t is an oper with an oper flag c
 // doesn't have: nobody changes an oper who has more than they have (OLINE,
-// UMODE and KILL). An oper whose rank isn't known may be the network admin,
-// so only someone with every flag may change them.
+// UMODE, KILL, SVSNICK, SVSJOIN and SVSPART). An oper whose rank isn't
+// known may be the network admin, so only someone with every flag may
+// change them.
 func (s *Services) outranked(c, t *Client) bool {
 	mine, theirs := s.host.OperFlags(c.user.UID), s.host.OperFlags(t.user.UID)
 	if theirs == unknownRank {
