@@ -34,25 +34,59 @@ func Edit(path string, fn func(*Doc) error) (*Config, error) {
 		return nil, err
 	}
 	out := strings.Join(d.lines, eol) + eol
-	info, err := os.Stat(path)
+	cfg, err := load(path, out)
 	if err != nil {
-		return nil, err
-	}
-	tmp := filepath.Join(filepath.Dir(path), "."+filepath.Base(path)+".new")
-	if err := os.WriteFile(tmp, []byte(out), info.Mode().Perm()); err != nil {
-		return nil, err
-	}
-	cfg, err := Load(tmp)
-	if err != nil {
-		os.Remove(tmp)
 		return nil, fmt.Errorf("the change would break the config: %w", err)
 	}
-	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp)
+	if err := replaceFile(path, []byte(out)); err != nil {
 		return nil, err
 	}
-	cfg.Path = path
 	return cfg, nil
+}
+
+// replaceFile puts data in the file at path so that a crash leaves either
+// the old text or the new: it goes to a temp file next to it, on disk
+// before it is renamed over the old one, with the old one's mode. A
+// symlinked config is written where the link points, so the link stays.
+func replaceFile(path string, data []byte) error {
+	real, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return err
+	}
+	info, err := os.Stat(real)
+	if err != nil {
+		return err
+	}
+	dir := filepath.Dir(real)
+	tmp := filepath.Join(dir, "."+filepath.Base(real)+".new")
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode().Perm())
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(data)
+	if err == nil {
+		err = f.Chmod(info.Mode().Perm()) // not narrowed by the umask
+	}
+	if err == nil {
+		err = f.Sync()
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Rename(tmp, real)
+	}
+	if err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	// The rename itself reaches the disk with the folder. Not every system
+	// can sync a folder (Windows can't); the file is already safe there.
+	if d, err := os.Open(dir); err == nil {
+		d.Sync()
+		d.Close()
+	}
+	return nil
 }
 
 // String is the file as text.

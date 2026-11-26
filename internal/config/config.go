@@ -398,8 +398,17 @@ func (c *Config) NeedsTLS() bool {
 // Load reads, fills in defaults and checks the file at path. Relative paths
 // inside it are taken from the file's folder.
 func Load(path string) (*Config, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return load(path, string(raw))
+}
+
+// load is Load for text that is (or is about to be) the file at path.
+func load(path, text string) (*Config, error) {
 	var c Config
-	meta, err := toml.DecodeFile(path, &c)
+	meta, err := toml.Decode(text, &c)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}

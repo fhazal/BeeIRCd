@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -69,6 +70,43 @@ func TestEditKeepsComments(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(filepath.Dir(p), ".beeircd.conf.new")); !os.IsNotExist(err) {
 		t.Error("temp file left behind")
+	}
+}
+
+// A config kept elsewhere and linked into place is written where the link
+// points: the link stays a link, and the file keeps its mode.
+func TestEditWritesThroughSymlink(t *testing.T) {
+	real := filepath.Join(t.TempDir(), "beeircd.conf")
+	if err := os.WriteFile(real, []byte(sample), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	os.Chmod(real, 0o640) // past the umask
+	link := filepath.Join(t.TempDir(), "beeircd.conf")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("can't make a symlink here: %v", err)
+	}
+	cfg, err := Edit(link, func(d *Doc) error {
+		d.Set("server", "name", Quote("irc.bee.example"))
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi, err := os.Lstat(link); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("the link was replaced by a file (%v)", err)
+	}
+	if b, _ := os.ReadFile(real); !strings.Contains(string(b), `name = "irc.bee.example"`) {
+		t.Errorf("the linked file wasn't changed:\n%s", b)
+	}
+	if fi, _ := os.Stat(real); runtime.GOOS != "windows" && fi.Mode().Perm() != 0o640 {
+		t.Errorf("mode %v, want -rw-r-----", fi.Mode().Perm())
+	}
+	// Relative paths still come from the folder the server read it from.
+	if cfg.Path != link || cfg.TLS.Cert != filepath.Join(filepath.Dir(link), "cert.pem") {
+		t.Errorf("path %q, cert %q", cfg.Path, cfg.TLS.Cert)
+	}
+	if left, _ := filepath.Glob(filepath.Join(filepath.Dir(real), ".*.new")); len(left) > 0 {
+		t.Errorf("temp file left behind: %v", left)
 	}
 }
 
