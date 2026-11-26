@@ -234,13 +234,7 @@ func (u *updater) install(ctx context.Context, base string, m *release.Manifest,
 	}
 	changes := nonEmptyLines(out)
 	if out, err := u.run(newExe, "check", "-config", newCfg); err != nil {
-		var why []string
-		for _, l := range nonEmptyLines(out) {
-			if strings.Contains(l, "✗") {
-				why = append(why, strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(l), "✗")))
-			}
-		}
-		u.c.bad(fmt.Sprintf("%s refuses your config: %s", m.Version, or(strings.Join(why, "; "), out)))
+		u.c.bad(fmt.Sprintf("%s refuses your config: %s", m.Version, checkRefusal(out)))
 		fmt.Fprintln(u.out, "  Nothing changed. Fix the line, then run beeircd update again.")
 		return 1
 	}
@@ -360,6 +354,13 @@ func (u *updater) rollback(yes bool) int {
 	if f := strings.Fields(out); len(f) >= 2 {
 		oldVer = f[1] // "BeeIRCd 1.0.0 (abc1234)"
 	}
+	// The kept program must read today's config (a setting added since it
+	// came out stops it), or going back takes the server down.
+	if out, err := u.run(oldExe, "check", "-config", u.cfgPath); err != nil {
+		u.c.bad(fmt.Sprintf("%s refuses your config: %s", oldVer, checkRefusal(out)))
+		fmt.Fprintln(u.out, "  Nothing changed. Fix or remove that line, then run beeircd update --rollback again.")
+		return 1
+	}
 	fi, _ := os.Stat(oldExe)
 	var running *control.Status // nil: not running
 	var plan switchPlan
@@ -470,6 +471,17 @@ func nonEmptyLines(s string) []string {
 		}
 	}
 	return out
+}
+
+// checkRefusal is why `beeircd check` said no: its ✗ lines, or all of it.
+func checkRefusal(out string) string {
+	var why []string
+	for _, l := range nonEmptyLines(out) {
+		if strings.Contains(l, "✗") {
+			why = append(why, strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(l), "✗")))
+		}
+	}
+	return or(strings.Join(why, "; "), out)
 }
 
 func copyFile(from, to string) error {

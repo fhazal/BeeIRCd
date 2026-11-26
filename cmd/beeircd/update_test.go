@@ -229,6 +229,25 @@ func TestUpdateHappyPath(t *testing.T) {
 	}
 }
 
+// --rollback asks the kept program about the config first: one that
+// refuses it (a setting it doesn't know yet) must not replace the running one.
+func TestRollbackRefusesConfigOldProgramRejects(t *testing.T) {
+	fs := &fakeSystem{running: "1.0.1", comesUp: true, checkFails: true}
+	u, out := testUpdater(t, "1.0.1", "http://127.0.0.1:1", fs, "y\n")
+	os.WriteFile(u.exe+".old", []byte("PROGRAM 1.0.0"), 0o755)
+	if code := u.rollback(true); code != 1 {
+		t.Fatalf("rollback exit %d, want 1\n%s", code, out)
+	}
+	if progVersion(u.exe) != "1.0.1" || progVersion(u.exe+".old") != "1.0.0" || fs.running != "1.0.1" {
+		t.Errorf("program %s, old %s, running %s: rollback changed something\n%s", progVersion(u.exe), progVersion(u.exe+".old"), fs.running, out)
+	}
+	for _, want := range []string{"1.0.0 refuses your config", "flood_rate", "Nothing changed."} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
+	}
+}
+
 func TestUpdateRollsBackWhenNewOneFails(t *testing.T) {
 	key := signingKey(t)
 	srv := releaseServer(t, "1.0.1", key)
