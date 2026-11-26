@@ -389,7 +389,7 @@ func (s *Server) firstOperPassword(c *Client, a *store.Account, o *store.Oper, p
 	s.hashPassword(c, pw, func(hash string) {
 		if err := s.saveAdminPassword(hash); err != nil {
 			s.log.Printf("saving the admin oper password: %v", err)
-			s.stdReply(c, "FAIL", "OPER", "INTERNAL_ERROR", "Couldn't save the oper password to beeircd.conf: "+err.Error(), "")
+			s.stdReply(c, "FAIL", "OPER", "INTERNAL_ERROR", "Couldn't save the oper password to beeircd.conf. The server log says why.", "")
 			return
 		}
 		o.PassHash = hash

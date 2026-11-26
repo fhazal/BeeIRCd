@@ -50,7 +50,8 @@ func (s *Server) panelMapPlace(po *control.PanelOper, ip string, req control.Req
 			d.DelBlock("map.place", "server", s.cfg.Map.Place(name).Server)
 			return nil
 		}); err != nil {
-			return fail("Not saved: " + err.Error())
+			s.log.Printf("Hive Panel map place: removing it: %v", err)
+			return fail("Not saved: beeircd.conf couldn't be written. The server log says why.")
 		}
 		kept := s.cfg.Map.Places[:0:0]
 		for _, p := range s.cfg.Map.Places {
@@ -94,7 +95,7 @@ func (s *Server) panelMapPlace(po *control.PanelOper, ip string, req control.Req
 		return nil
 	}); err != nil {
 		s.log.Printf("Hive Panel map place: %v", err)
-		return fail("Not saved: " + err.Error())
+		return fail("Not saved: beeircd.conf couldn't be written. The server log says why.")
 	}
 	// Round as saved, so the map shows what the file holds.
 	if fresh, err := config.Load(s.cfg.Path); err == nil {

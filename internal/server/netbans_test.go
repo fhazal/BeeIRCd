@@ -96,7 +96,7 @@ func TestAkillCIDRShunSNLine(t *testing.T) {
 	b.send(`OS SNLINE ADD /^w.tcher\sreal$/ regex test`) // a mask is one word: \s for spaces
 	watcher.expect(" 465 watcher ")
 	b.send("OS SNLINE ADD /([/ broken")
-	b.expect(osLine("Boss", "That regex doesn't work: error parsing regexp: "))
+	b.expect(osLine("Boss", "That pattern isn't a valid regular expression: "))
 	b.send("OS SNLINE ADD Boss match me")
 	b.expect(osLine("Boss", "Boss?Real matches you. Give a narrower one."))
 	b.send("OS STATS")

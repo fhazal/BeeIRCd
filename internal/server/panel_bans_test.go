@@ -130,7 +130,7 @@ func TestPanelSNLine(t *testing.T) {
 	if m := ask(control.Request{Cmd: control.CmdBanMatch, Kind: "snline", Mask: "/^free bitcoin/"}).Match; m == nil || m.Mask != "/^free bitcoin/" || m.People != 1 {
 		t.Errorf("regex: %+v", m)
 	}
-	if r := ask(control.Request{Cmd: control.CmdBanMatch, Kind: "snline", Mask: "/([/"}); !strings.Contains(r.Error, "regex doesn't work") {
+	if r := ask(control.Request{Cmd: control.CmdBanMatch, Kind: "snline", Mask: "/([/"}); !strings.Contains(r.Error, "pattern isn't a valid regular expression") {
 		t.Errorf("bad regex: %+v", r)
 	}
 	if r := ask(control.Request{Cmd: control.CmdBanMatch, Kind: "snline", Mask: "* *"}); !strings.Contains(r.Error, "matches everyone") {

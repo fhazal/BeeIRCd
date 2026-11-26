@@ -332,7 +332,8 @@ func asDnsbl(s *Server, c *Client, args []string) {
 					var text string
 					switch {
 					case err != nil:
-						text = "lookup failed: " + err.Error()
+						s.log.Printf("DNSBL %s: lookup of %s failed: %v", d.Name, arg, err)
+						text = "the lookup didn't work (the server log says why)"
 					case n > 0:
 						text = fmt.Sprintf("LISTED (answer %d): %s", n, d.Action)
 					case len(all) > 0:

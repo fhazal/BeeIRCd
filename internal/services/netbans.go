@@ -1,9 +1,11 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"net/netip"
 	"regexp"
+	"regexp/syntax"
 	"strings"
 	"time"
 
@@ -268,7 +270,7 @@ func (s *Services) netbanMask(kind, arg string) (string, string) {
 		}
 		if len(arg) >= 3 && arg[0] == '/' && arg[len(arg)-1] == '/' {
 			if _, err := regexp.Compile(arg[1 : len(arg)-1]); err != nil {
-				return "", "That regex doesn't work: " + err.Error()
+				return "", "That pattern isn't a valid regular expression: " + regexReason(err)
 			}
 		}
 		return arg, ""
@@ -634,4 +636,14 @@ func anopeLineAdd(mask, reason string, life time.Duration, affected, people int)
 		percent = affected * 100 / people
 	}
 	return fmt.Sprintf("on %s (%s), expires in %s [affects %d user(s) (%d%%)]", mask, reason, expires, affected, percent)
+}
+
+// regexReason is the short why of a regexp.Compile error ("missing closing )"),
+// without Go's "error parsing regexp:" wording.
+func regexReason(err error) string {
+	var se *syntax.Error
+	if errors.As(err, &se) {
+		return string(se.Code)
+	}
+	return "it can't be compiled"
 }

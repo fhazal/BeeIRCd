@@ -68,7 +68,8 @@ func (s *Server) cmdRename(c *Client, m irc.Message) {
 	}
 	from := ch.Name
 	if err := s.emit(&state.Rename{Source: c.user.UID, Old: from, New: newName, Reason: reason}); err != nil {
-		s.renameFail(c, "CANNOT_RENAME", from, newName, err.Error())
+		s.log.Printf("renaming %s to %s: %v", from, newName, err)
+		s.renameFail(c, "CANNOT_RENAME", from, newName, "The rename didn't go through. The server log says why.")
 		return
 	}
 	if ch.Member(c.user) == nil { // an oper from outside: they see nothing else
