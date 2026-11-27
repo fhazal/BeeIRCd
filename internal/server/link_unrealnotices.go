@@ -77,7 +77,12 @@ func (s *Server) remoteSendSno(l *linkConn, m irc.Message) {
 // slogLetter is the notice letter for a log line from another server, by
 // its subsystem: connects, quits, nick changes, links, opers, kills and
 // bans have theirs (the far kind), anything else is an announcement.
-func slogLetter(subsystem string) byte {
+func slogLetter(subsystem, event string) byte {
+	// A spamfilter hit is logged under tkl (SPAMFILTER_MATCH); here it is a
+	// filter notice, not a ban one.
+	if strings.HasPrefix(strings.ToUpper(event), "SPAMFILTER_MATCH") {
+		return 'f'
+	}
 	switch strings.ToLower(subsystem) {
 	case "connect":
 		return 'C'
@@ -109,6 +114,6 @@ func (s *Server) remoteSlog(l *linkConn, m irc.Message) {
 	if srv, u, ok := s.linkSource(l, m.Source); !ok || u != nil || srv == nil {
 		return
 	}
-	s.snoticeAny([]byte{slogLetter(m.Params[1])}, irc.Truncate(m.Params[3], 400))
+	s.snoticeAny([]byte{slogLetter(m.Params[1], m.Params[2])}, irc.Truncate(m.Params[3], 400))
 	s.noticeLinks(l, m)
 }

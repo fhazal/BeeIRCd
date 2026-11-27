@@ -36,3 +36,16 @@ func TestUnrealSendSnoAndSlog(t *testing.T) {
 		t.Errorf("a user's SENDSNO was passed on")
 	}
 }
+
+// UnrealIRCd logs a spamfilter hit under its tkl subsystem. It showed as a
+// ban (XLINE) notice; it is now a FILTER one, and a real ban stays XLINE.
+func TestUnrealSlogSpamfilterIsFilter(t *testing.T) {
+	hub, hop, _, _ := globopsTree(t)
+	hop.send("MODE hubop +s +fX")
+	hop.send("PING :umode")
+	hop.expect(" :umode")
+	hub.fromLinkTo(t, "a.test.local", "@unrealircd.org/json-log={} :0AA SLOG info tkl SPAMFILTER_MATCH :[Spamfilter] kit hit")
+	hop.expect("*** FILTER: [Spamfilter] kit hit")
+	hub.fromLinkTo(t, "a.test.local", "@unrealircd.org/json-log={} :0AA SLOG info tkl TKL_ADD :G-Line added kit")
+	hop.expect("*** XLINE: G-Line added kit")
+}
