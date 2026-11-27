@@ -80,12 +80,28 @@ func cmdStatus(args []string, stdout, stderr io.Writer) int {
 	}
 	p := colourFor(stdout)
 	cfg, cfgErr := config.Load(path)
-	if cfgErr == nil {
-		resp, err := ask(cfg, control.CmdStatus, "", 5*time.Second)
-		if err == nil && resp.Status != nil {
-			fmt.Fprint(stdout, statusScreen(resp.Status, p, time.Now(), backupTimerOff()))
-			return 0
+	starting := false
+	if cfgErr == nil && len(cfg.Control.Socket) <= maxSocketPath {
+		// systemd runs the server as Type=simple, so right after a boot or
+		// a start it already says "active" before the control socket is up:
+		// wait for it a little instead of calling it stopped.
+		until := time.Now().Add(statusStartWait)
+		for {
+			resp, err := ask(cfg, control.CmdStatus, "", 5*time.Second)
+			if err == nil && resp.Status != nil {
+				fmt.Fprint(stdout, statusScreen(resp.Status, p, time.Now(), backupTimerOff()))
+				return 0
+			}
+			if starting = serviceActive(); !starting || time.Now().After(until) {
+				break
+			}
+			time.Sleep(statusStartWait / 20)
 		}
+	}
+	if starting {
+		fmt.Fprintf(stdout, "\n  %s   %s\n\n  systemd says it runs, but it doesn't answer yet. Try again in a moment;\n  if it stays like this, see:  journalctl -u %s -n 50\n\n",
+			p.title("BeeIRCd "+version.Version), p.bad("● starting"), serviceName)
+		return 1
 	}
 	if cfgErr == nil && len(cfg.Control.Socket) > maxSocketPath {
 		// The server can't open a socket at so long a path, so nothing
@@ -96,6 +112,20 @@ func cmdStatus(args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprint(stdout, stoppedScreen(p, cfgErr))
 	return 3 // like systemctl status for a stopped service
+}
+
+// statusStartWait is how long status waits for a server that systemd
+// already calls active.
+var statusStartWait = 10 * time.Second
+
+// serviceActive says if systemd has the server running (or starting);
+// tests swap it out.
+var serviceActive = func() bool {
+	if !systemdHere() {
+		return false
+	}
+	out, _ := systemctl("is-active", serviceName)
+	return out == "active" || out == "activating" || out == "reloading"
 }
 
 // maxSocketPath is the longest local socket path the system takes (Linux

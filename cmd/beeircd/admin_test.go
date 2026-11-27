@@ -217,3 +217,31 @@ func TestStatusLongSocketPath(t *testing.T) {
 		t.Errorf("code %d:\n%s", code, out)
 	}
 }
+
+// Right after a boot systemd already calls the server active while its
+// control socket isn't up yet: status waits, then says "starting", never
+// "stopped". With systemd saying it isn't running, it says stopped at once.
+func TestStatusWhileStarting(t *testing.T) {
+	oldActive, oldWait := serviceActive, statusStartWait
+	defer func() { serviceActive, statusStartWait = oldActive, oldWait }()
+	statusStartWait = 200 * time.Millisecond
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "beeircd.conf")
+	os.WriteFile(path, []byte(testConf+"\n[control]\nsocket = \""+filepath.ToSlash(filepath.Join(dir, "c.sock"))+"\"\n"), 0o600)
+
+	asked := 0
+	serviceActive = func() bool { asked++; return true }
+	start := time.Now()
+	code, out := runCmd("status", "-config", path)
+	if code != 1 || !strings.Contains(out, "● starting") || strings.Contains(out, "● stopped") || asked < 2 || time.Since(start) < statusStartWait {
+		t.Errorf("active but no answer: code %d, asked %d:\n%s", code, asked, out)
+	}
+
+	serviceActive = func() bool { return false }
+	start = time.Now()
+	code, out = runCmd("status", "-config", path)
+	if code != 3 || !strings.Contains(out, "● stopped") || time.Since(start) > statusStartWait {
+		t.Errorf("not active: code %d:\n%s", code, out)
+	}
+}
