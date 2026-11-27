@@ -1,52 +1,52 @@
 {
  "release": {
-  "tag": "v1.7.0",
-  "version": "1.7.0",
-  "date": "24 Nov 2026",
-  "url": "https://github.com/fhazal/BeeIRCd/releases/tag/v1.7.0",
-  "changelog": "/docs/help/changelog/#v1-7-0"
+  "tag": "v1.7.1",
+  "version": "1.7.1",
+  "date": "27 Nov 2026",
+  "url": "https://github.com/fhazal/BeeIRCd/releases/tag/v1.7.1",
+  "changelog": "/docs/help/changelog/#v1-7-1"
  },
  "items": [
   {
    "icon": "hex",
-   "title": "Connect classes",
-   "text": "New [[class]] blocks in beeircd.conf give groups of people their own limits, picked by security group (so by country, network, TLS, web chat or IP range). A class can set its own connections per IP, the most people in it at once, sendq, ping times, flood burst and rate and channel limit, or deny people with the normal ban text; anything it leaves out comes from [limits], and with no classes nothing changes.",
-   "docs": "/docs/help/changelog/#v1-7-0",
+   "title": "A fix release",
+   "text": "No new features, 60 fixes and polish items found in a full security and bug sweep.",
+   "docs": "/docs/help/changelog/#v1-7-1",
    "docs_title": "Change log"
   },
   {
-   "icon": "panel",
-   "title": "Hive Panel",
-   "text": "A Connect classes card on Settings shows every class, how many people are in it and its limits.",
-   "docs": "/docs/run/hive-panel/",
-   "docs_title": "Hive Panel"
-  },
-  {
    "icon": "link",
-   "title": "Link rules",
-   "text": "A [[link.server]] block can carry rule = \"...\", UnrealIRCd's crule words (connected, directcon, via, directop with &&, || and !), so a server links only while the network is in the right shape, for example a leaf that joins hub2 only while hub1 is gone; with rule_for = \"all\" the rule also covers incoming links and oper CONNECT.",
+   "title": "Linking",
+   "text": "A linked server can no longer make itself the services server, take our services bot off the network with KILL, uncloak our users with MODE -x, or give users a host or ident with @, !, * or spaces.",
    "docs": "/docs/run/linking/",
    "docs_title": "Linking servers"
   },
   {
-   "icon": "panel",
-   "title": "Hive Panel",
-   "text": "The Linked servers page shows which blocks have a link rule, lets you change it in the form, refuses a rule that doesn't parse, and says when a rule stopped a link.",
-   "docs": "/docs/run/hive-panel/",
-   "docs_title": "Hive Panel"
+   "icon": "link",
+   "title": "Linking",
+   "text": "On the server that runs services, a linked server can no longer log its users in to someone's account (in its burst, with SVSLOGIN, METADATA accountname or svid); they stay logged out and opers get one notice. Real logins through SASL or NickServ on other servers keep working, also after a netsplit, a restart and the upgrade from an older version.",
+   "docs": "/docs/run/linking/",
+   "docs_title": "Linking servers"
   },
   {
-   "icon": "panel",
-   "title": "Hive Panel",
-   "text": "What happened icons sit on a soft tinted tile.",
-   "docs": "/docs/run/hive-panel/",
-   "docs_title": "Hive Panel"
+   "icon": "link",
+   "title": "Linking",
+   "text": "Users on other servers logged in through services stay logged in when the services server restarts cold, not only after a seamless update.",
+   "docs": "/docs/run/linking/",
+   "docs_title": "Linking servers"
+  },
+  {
+   "icon": "link",
+   "title": "Linking",
+   "text": "A user on a linked server with one of our services nicks no longer drops the whole link, and a link to a network with its own services no longer retries every few seconds and floods opers with notices.",
+   "docs": "/docs/run/linking/",
+   "docs_title": "Linking servers"
   }
  ],
  "testing": null,
  "earlier": {
-  "version": "1.6.0",
+  "version": "1.7.0",
   "date": "24 Nov 2026",
-  "changelog": "/docs/help/changelog/#v1-6-0"
+  "changelog": "/docs/help/changelog/#v1-7-0"
  }
 }
