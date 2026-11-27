@@ -98,9 +98,10 @@ func (b *inspBridge) banOut(m string) (string, bool) {
 // inspUID is a user from their burst, kept until its METADATA lines
 // (account) have come.
 type inspUID struct {
-	src string
-	p   []string
-	acc string
+	src   string
+	p     []string
+	acc   string
+	after []string // lines for the user, sent after its UID
 }
 
 // Mode kinds, as InspIRCd's CAPAB CHANMODES names them.
@@ -348,7 +349,7 @@ func (b *inspBridge) out(m irc.Message) []string {
 	case "EOS":
 		return []string{line(nil, src, "ENDBURST", false)}
 	case "NETINFO", "PROTOCTL", "PASS", "BEESESS", "BEEOPER", "BEEOPERR", "BEEADMIN", "BEEPLACE", "REPUTATION",
-		"SVSNOOP", "VERSION", "BATCH", "SMOD", "SINFO", "SWHOIS":
+		"SVSNOOP", "VERSION", "BATCH", "SMOD", "SINFO":
 		// VERSION: InspIRCd 4 answers it only for its own users (no
 		// remote form), so our side answers instead.
 		return nil
@@ -535,6 +536,15 @@ func (b *inspBridge) out(m irc.Message) []string {
 		return nil
 	case "SASL": // :src SASL target uid mode data...
 		return b.outSASL(src, p)
+	case "SWHOIS": // :src SWHOIS uid +|- tag prio :text -> METADATA uid swhois [:text]
+		// InspIRCd keeps one extra WHOIS line; a delete clears it.
+		if len(p) < 5 || len(p[0]) != 9 {
+			return nil
+		}
+		if p[1] == "+" && last() != "" {
+			return []string{line(nil, sourceSID(src), "METADATA", true, p[0], "swhois", last())}
+		}
+		return []string{line(nil, sourceSID(src), "METADATA", false, p[0], "swhois")}
 	case "GLOBOPS": // :uid GLOBOPS :text -> :sid SNONOTICE G :From nick: text
 		if len(p) == 0 || last() == "" {
 			return nil
@@ -1048,7 +1058,8 @@ func (b *inspBridge) In(raw string) (run, reply []string) {
 	}
 	// A held UID waits only for its own METADATA lines.
 	if b.pending != nil && !(m.Command == "METADATA" && len(m.Params) >= 2 && m.Params[0] == b.pending.p[0]) {
-		run = append(run, b.flushUID())
+		after := b.pending.after
+		run = append(append(run, b.flushUID()), after...)
 	}
 	r, rep := b.in(m)
 	return sound(append(run, r...)), sound(rep)
@@ -1657,6 +1668,19 @@ func (b *inspBridge) inMetadata(src string, p []string) []string {
 			if i > 0 && w != "" && len(out) < 100 {
 				out = append(out, line(nil, p[0], "ACCEPT", false, w))
 			}
+		}
+		return out
+	}
+	if key == "swhois" {
+		// m_swhois keeps one extra WHOIS line: here a SWHOIS line of tag
+		// "swhois" that takes the place of the one before.
+		out := []string{line(nil, sourceSID(src), "SWHOIS", true, p[0], "-", "swhois", "0", "*")}
+		if value != "" {
+			out = append(out, line(nil, sourceSID(src), "SWHOIS", true, p[0], "+", "swhois", "0", value))
+		}
+		if b.pending != nil && b.pending.p[0] == p[0] {
+			b.pending.after = append(b.pending.after, out...)
+			return nil
 		}
 		return out
 	}
