@@ -563,16 +563,34 @@ section > h2:not(.lv-title)::before, .new-head h2::before, .status-head h2::befo
 .stage.now { border-radius: 12px; }
 .band-art { border-radius: 16px; overflow: hidden; }
 .band-art .win { border-radius: 16px; }
-/* Dome House hero (28 Nov): effects moved onto the new picture */
-.scene-e .fx.beacon{left:62.45%;top:8.91%;width:6.07%;height:10.47%}
-.scene-e .fx.home{left:53.86%;top:17.92%;width:25.13%;height:35.6%}
-.scene-e .fx.m1{left:51.4%;top:20.17%}
-.scene-e .fx.m2{left:71.93%;top:13.26%}
-.scene-e .fx.m3{left:76.22%;top:23.94%}
+/* Dome House hero v2 (28 Nov): whole house cut out, sits on the page black; glow + honeycomb drawn here */
+.scene-e .sc-stage { aspect-ratio: 1440 / 760; }
+.scene-e .sc-stage::before { content: none; }
+.scene-e .comb { position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: .10;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='97' viewBox='0 0 56 97'%3E%3Cpath d='M28 0L56 16v32L28 64 0 48V16zM28 64v33' fill='none' stroke='%23f2b33d' stroke-width='1'/%3E%3C/svg%3E");
+  background-size: 84px 146px;
+  -webkit-mask-image: radial-gradient(ellipse 45% 60% at 72% 45%, #000 10%, transparent 75%); mask-image: radial-gradient(ellipse 45% 60% at 72% 45%, #000 10%, transparent 75%); }
+.scene-e .hglow { position: absolute; z-index: 0; pointer-events: none; left: 44.4%; top: 5.3%; width: 52.8%; height: 84.2%; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(242,179,61,.30), rgba(242,179,61,.10) 55%, transparent); filter: blur(10px); }
+.scene-e .house { position: absolute; left: 45.1%; top: 12.6%; width: 50%; aspect-ratio: 1440 / 1097; }
+.scene-e .house img { position: absolute; display: block; }
+.scene-e .house img.h { inset: 0; width: 100%; height: 100%; }
+.scene-e .house img.bub { mix-blend-mode: screen; height: auto; }
+.scene-e .bub.m1 { left: 18.81%; top: 11.94%; width: 8.27%; }
+.scene-e .bub.m2 { left: 49.45%; top: 3.64%; width: 10.27%; }
+.scene-e .bub.m3 { left: 57.77%; top: 16.46%; width: 7.27%; }
+.scene-e .house .fx.beacon { left: 36.3%; top: -1.7%; width: 6%; height: 7.9%; }
+.scene-e .house .fx.home { left: 44%; top: 10%; width: 30%; height: 40%; }
+.scene-e .house .fx.m1 { left: 17.8%; top: 10.6%; width: 10.3%; height: 11%; }
+.scene-e .house .fx.m2 { left: 48.4%; top: 2.3%; width: 12.3%; height: 13%; }
+.scene-e .house .fx.m3 { left: 56.8%; top: 15.1%; width: 9.3%; height: 10.4%; }
 .scene-e .set2 .pin.svc { flex-direction: row-reverse; transform: translate(calc(-100% + 4px), -50%); text-align: right; }
 .scene-e .set2 .pin.svc s { background: linear-gradient(270deg, rgba(255,215,110,.85), rgba(255,215,110,.15)); }
 @media (max-width: 860px) {
-  .scene-e .sc-stage { width: 150%; margin-left: -50%; }
+  .scene-e .sc-stage { aspect-ratio: auto; padding: 18px 4% 8px; }
+  .scene-e .house { position: relative; left: auto; top: auto; width: 100%; }
+  .scene-e .hglow { left: 0; top: 0; width: 100%; height: 100%; }
+  .scene-e .comb { -webkit-mask-image: radial-gradient(ellipse 60% 55% at 50% 50%, #000 10%, transparent 75%); mask-image: radial-gradient(ellipse 60% 55% at 50% 50%, #000 10%, transparent 75%); }
   .scene-e .set2 .pin.live:not(.l) { flex-direction: row; transform: translate(-4px, -50%); text-align: left; }
   .scene-e .set2 .pin.live:not(.l) s { background: linear-gradient(90deg, rgba(255,215,110,.85), rgba(255,215,110,.15)); }
 }
@@ -655,7 +673,7 @@ section>h2,.new-head h2,.status-head h2{font-size:clamp(28px,3.2vw,38px);letter-
         <a class="btn" href="#services"><svg aria-hidden="true"><use href="#i-code"/></svg>What it does</a>
         <a class="btn chat-btn" href="https://chat.beeircd.org/"><span class="chat-dot" aria-hidden="true"></span>Chat with us</a>
       </div>
-    </div><div class="crop"><div class="sc-stage"><img class="art" src="art/dome.webp" alt="A night diorama: a honey-dome server house on a floating island with a glowing gold edge, a glass server room, bees and chat bubbles" width="1344" height="752"><div class="fx home"></div><div class="fx beacon"></div><div class="fx glow m1"></div><div class="fx glow m2"></div><div class="fx glow m3"></div><span class="set2"><a class="pin " style="--x:77.32%;--y:35.72%" href="#services"><i></i><s></s><span><b>Your server</b><em data-live="v0">BeeIRCd 1.6.0</em></span></a><a class="pin svc" style="--x:94.91%;--y:54.57%" href="#services"><i></i><s></s><span><b>Services</b></span></a><a class="pin live" style="--x:78.16%;--y:17.92%" href="#live"><i></i><s></s><span><b>Messages</b><em data-live="all">97 people online</em></span></a><a class="pin live l" style="--x:65.49%;--y:12.16%" href="#live"><i></i><s></s><span><b>Live beacon</b><em data-live="link">linked</em></span></a></span></div></div></div>
+    </div><div class="crop"><div class="sc-stage"><div class="comb"></div><div class="hglow"></div><div class="house"><img class="h" src="art/house.webp" alt="A night diorama: a honey-dome server house on a floating island with a glowing gold edge, a glass server room, bees and chat bubbles" width="1440" height="1097"><img class="bub m1" src="art/msg1.webp" alt="" width="149" height="114"><img class="bub m2" src="art/msg2.webp" alt="" width="185" height="141"><img class="bub m3" src="art/msg3.webp" alt="" width="131" height="105"><div class="fx home"></div><div class="fx beacon"></div><div class="fx glow m1"></div><div class="fx glow m2"></div><div class="fx glow m3"></div><span class="set2"><a class="pin " style="--x:59.2%;--y:29.2%" href="#services"><i></i><s></s><span><b>Your server</b><em data-live="v0">BeeIRCd 1.6.0</em></span></a><a class="pin svc" style="--x:85.5%;--y:49.7%" href="#services"><i></i><s></s><span><b>Services</b></span></a><a class="pin live" style="--x:60.5%;--y:8.5%" href="#live"><i></i><s></s><span><b>Messages</b><em data-live="all">97 people online</em></span></a><a class="pin live l" style="--x:39.3%;--y:2.2%" href="#live"><i></i><s></s><span><b>Live beacon</b><em data-live="link">linked</em></span></a></span></div></div></div></div>
 <div class="wrap after-scene">    <div class="session" id="session" role="img" aria-label="An IRC client connected to BeeIRCd: identifying to NickServ, registering a channel with ChanServ and changing a setting with AdminServ.">
       <div class="tb" aria-hidden="true"><div class="lights"><i></i><i></i><i></i></div><div class="title"><svg viewBox="0 0 11 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="1" y="5" width="9" height="6" rx="1"/><path d="M3 5V3.5a2.5 2.5 0 0 1 5 0V5"/></svg><b>#beeircd</b>irc.beeircd.org</div><div></div></div>
       <div class="body" aria-hidden="true">
