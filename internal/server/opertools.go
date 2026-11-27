@@ -731,10 +731,13 @@ func (s *Server) remoteSdesc(l *linkConn, m irc.Message) {
 		return
 	}
 	desc := irc.Truncate(m.Params[len(m.Params)-1], maxServerDesc)
-	if u := s.net.UserByUID(m.Source); u != nil {
+	// UnrealIRCd names the oper by nick (":nick SDESC :text"); further on
+	// it goes as the UID.
+	if u := s.userBehind(l, m.Source); u != nil {
 		if r := s.links.servers[uidServer(u.UID)]; r != nil {
 			r.desc = desc
 		}
+		m.Source = u.UID
 		s.linkBroadcast(l, m.String())
 		return
 	}
