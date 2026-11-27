@@ -167,6 +167,21 @@ func waitLink(t *testing.T, what string, cond func() bool) {
 	t.Fatalf("timed out waiting for %s", what)
 }
 
+// waitBack waits like waitLink for leaf to link again. It skips leaf's
+// reconnect wait on every check: the leaf may only notice the split (and
+// set its retry time) after the first check.
+func waitBack(t *testing.T, leaf *linkNode, what string, cond func() bool) {
+	t.Helper()
+	waitLink(t, what, func() bool {
+		leaf.s.onLoop(func() {
+			for _, r := range leaf.s.links.retry {
+				r.next = time.Time{}
+			}
+		})
+		return cond()
+	})
+}
+
 func (n *linkNode) logHas(text string) bool { return strings.Contains(n.log.String(), text) }
 
 func TestLinkHubLeaf(t *testing.T) {

@@ -112,12 +112,7 @@ func TestLinkSpamfilterRemovedDuringSplit(t *testing.T) {
 		t.Fatal("a removal crossed the split")
 	}
 
-	leaf.s.onLoop(func() {
-		for _, r := range leaf.s.links.retry {
-			r.next = time.Time{}
-		}
-	})
-	waitLink(t, "relink", func() bool { return hub.user("ann") != nil && leaf.user("op") != nil })
+	waitBack(t, leaf, "relink", func() bool { return hub.user("ann") != nil && leaf.user("op") != nil })
 	gone := func(n *linkNode) bool { return !hasSpam(n, onHub) && !hasSpam(n, onLeaf) }
 	waitLink(t, "removed rules gone on both", func() bool { return gone(hub) && gone(leaf) })
 	waitLink(t, "rule set during the split synced", func() bool { return hasSpam(leaf, during) })

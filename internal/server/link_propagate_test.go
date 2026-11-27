@@ -303,12 +303,7 @@ func TestLinkBanRemovedDuringSplit(t *testing.T) {
 		t.Fatal("a removal crossed the split")
 	}
 
-	leaf.s.onLoop(func() {
-		for _, r := range leaf.s.links.retry {
-			r.next = time.Time{}
-		}
-	})
-	waitLink(t, "relink", func() bool { return hub.user("ann") != nil && leaf.user("op") != nil })
+	waitBack(t, leaf, "relink", func() bool { return hub.user("ann") != nil && leaf.user("op") != nil })
 	gone := func(n *linkNode) bool {
 		return !has(n, store.BanZline, "192.0.2.32") && !has(n, store.BanAkill, "*@192.0.2.33") && !has(n, store.BanZline, "192.0.2.35")
 	}

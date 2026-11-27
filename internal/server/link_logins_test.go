@@ -35,12 +35,7 @@ func relink(t *testing.T, hub, leaf *linkNode, op *tc, nick string) {
 	t.Helper()
 	op.send("SQUIT leaf.test.local testing")
 	waitLink(t, "leaf split", func() bool { return hub.user(nick) == nil })
-	leaf.s.onLoop(func() {
-		for _, r := range leaf.s.links.retry {
-			r.next = time.Time{}
-		}
-	})
-	waitLink(t, "leaf back", func() bool { return hub.user(nick) != nil })
+	waitBack(t, leaf, "leaf back", func() bool { return hub.user(nick) != nil })
 }
 
 // A server that is not the services server put someone's account in its

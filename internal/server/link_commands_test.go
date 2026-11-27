@@ -82,12 +82,7 @@ func TestLinkOperInfoCommands(t *testing.T) {
 	waitLink(t, "leaf split", func() bool { return hub.user("ann") == nil })
 	op.send("CONNECT leaf.test.local")
 	op.expect("connects to us; it has no host")
-	leaf.s.onLoop(func() {
-		for _, r := range leaf.s.links.retry {
-			r.next = time.Time{}
-		}
-	})
-	waitLink(t, "leaf back", func() bool { return hub.user("ann") != nil })
+	waitBack(t, leaf, "leaf back", func() bool { return hub.user("ann") != nil })
 }
 
 // A K-line holds on this server only.
@@ -162,12 +157,7 @@ func TestLinkRejoinSettles(t *testing.T) {
 	login(t, leaf.s, "twin").send("JOIN #new")
 	b.send("JOIN #leafonly")
 	time.Sleep(200 * time.Millisecond)
-	leaf.s.onLoop(func() {
-		for _, r := range leaf.s.links.retry {
-			r.next = time.Time{}
-		}
-	})
-	waitLink(t, "rejoin", func() bool { return hub.user("beta") != nil && leaf.user("alpha") != nil })
+	waitBack(t, leaf, "rejoin", func() bool { return hub.user("beta") != nil && leaf.user("alpha") != nil })
 	waitLink(t, "same state on both", func() bool { return hub.netState() == leaf.netState() })
 }
 

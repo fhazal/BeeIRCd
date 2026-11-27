@@ -161,12 +161,7 @@ func TestLinkQlinesOverSplit(t *testing.T) {
 	op.send("OS SQLINE ADD new*nick set in the split")
 	op.expect(":OperServ!")
 
-	leaf.s.onLoop(func() {
-		for _, r := range leaf.s.links.retry {
-			r.next = time.Time{}
-		}
-	})
-	waitLink(t, "relink", func() bool { return hub.user("ann") != nil })
+	waitBack(t, leaf, "relink", func() bool { return hub.user("ann") != nil })
 	waitLink(t, "the Q-lines as they are now", is("keep*nick", "new*nick"))
 	time.Sleep(100 * time.Millisecond)
 	if !is("keep*nick", "new*nick")() {

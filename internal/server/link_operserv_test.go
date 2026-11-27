@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/fhazal/beeircd/internal/store"
 )
@@ -76,12 +75,7 @@ func TestLinkOperServTools(t *testing.T) {
 	op.expect("leaf.test.local (JUPED by op: testing jupes)")
 	op.send("OS JUPE DEL leaf.test.local")
 	op.expect("The jupe on leaf.test.local is lifted.")
-	leaf.s.onLoop(func() { // skip the leaf's reconnect wait
-		for _, r := range leaf.s.links.retry {
-			r.next = time.Time{}
-		}
-	})
-	waitLink(t, "leaf back", func() bool { return hub.user("kim") != nil })
+	waitBack(t, leaf, "leaf back", func() bool { return hub.user("kim") != nil })
 }
 
 // SERVER ADD/SET/DEL rewrite beeircd.conf; LINK and UNLINK act at once.

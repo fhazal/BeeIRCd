@@ -589,12 +589,7 @@ func TestRenameLinkDuringSplit(t *testing.T) {
 		t.Fatal("the rename crossed the split")
 	}
 
-	leaf.s.onLoop(func() {
-		for _, r := range leaf.s.links.retry {
-			r.next = time.Time{}
-		}
-	})
-	waitLink(t, "relink", func() bool { return hub.user("bob") != nil && leaf.user("alice") != nil })
+	waitBack(t, leaf, "relink", func() bool { return hub.user("bob") != nil && leaf.user("alice") != nil })
 	au, bu := hub.user("alice").UID, hub.user("bob").UID
 	for _, tt := range []struct {
 		name, old string
