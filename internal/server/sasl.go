@@ -21,6 +21,10 @@ const (
 // during connect, so it is identified before it joins anything.
 func (s *Server) cmdAuthenticate(c *Client, m irc.Message) {
 	if !c.caps["sasl"] {
+		if s.saslCapValue() == "" {
+			s.reply(c, irc.ErrSaslFail, "SASL authentication failed: services are unavailable right now")
+			return
+		}
 		s.reply(c, irc.ErrSaslFail, "SASL authentication failed")
 		return
 	}

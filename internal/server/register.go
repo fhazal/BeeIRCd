@@ -32,10 +32,21 @@ const preAwayCap = "draft/pre-away"
 
 // offered are the capabilities clients may ask for now.
 func (s *Server) offered() []string {
-	if !s.cfg.Server.IRCv3Drafts {
-		return capabilities
+	out := capabilities
+	if s.saslCapValue() == "" {
+		// No services here and no SASL server linked: offering sasl would
+		// only lead to "services are unavailable right now".
+		out = make([]string, 0, len(capabilities))
+		for _, c := range capabilities {
+			if c != "sasl" {
+				out = append(out, c)
+			}
+		}
 	}
-	out := append([]string(nil), capabilities...)
+	if !s.cfg.Server.IRCv3Drafts {
+		return out
+	}
+	out = append([]string(nil), out...)
 	for _, d := range draftCaps {
 		if d == accountRegCap && s.svc.Off() {
 			continue // services run on another server
@@ -49,7 +60,10 @@ func (s *Server) offered() []string {
 func (s *Server) capValue(name string) string {
 	switch name {
 	case "sasl":
-		return "sasl=PLAIN,EXTERNAL"
+		if v := s.saslCapValue(); v != "" {
+			return v
+		}
+		return "sasl=" + saslMechList
 	case accountRegCap:
 		return s.accountRegValue()
 	case metadataCap:

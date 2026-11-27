@@ -42,13 +42,15 @@ func TestLinkSASL(t *testing.T) {
 	waitLink(t, "account on the hub", func() bool { u := hub.user("dan2"); return u != nil && u.Account == "dan" })
 }
 
-// With no services server linked, SASL fails at once with a reason.
+// With no services server linked, the sasl cap is not offered and SASL
+// fails at once with a reason.
 func TestLinkSASLNoServices(t *testing.T) {
 	n := newLinkNode(t, "leaf.test.local", "0LF", "leaf")
 	n.start(t)
 	c := raw(t, n.s)
 	c.nick = "*"
 	c.send("CAP REQ :sasl")
+	c.expect("NAK :sasl")
 	c.send("AUTHENTICATE PLAIN")
 	if l := c.expect(" 904 "); !strings.Contains(l, "services are unavailable") {
 		t.Errorf("got %q", l)

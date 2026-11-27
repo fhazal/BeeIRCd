@@ -1,6 +1,7 @@
 package server
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -115,4 +116,35 @@ func TestLinkSaslServerFromConfig(t *testing.T) {
 	if got := target(); got != "services.test.local" {
 		t.Fatalf("another server took SASL: %q", got)
 	}
+}
+
+// A server with services off offers the sasl cap only while a SASL server
+// is linked: cap-notify clients get CAP DEL when services split off and
+// CAP NEW when they are back, and a new client sees no sasl in between.
+func TestLinkSaslCapFollowsServices(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	c := raw(t, leaf.s)
+	c.nick = "*"
+	if ls := capLS302(t, c); !strings.Contains(ls, "sasl=PLAIN,EXTERNAL") {
+		t.Fatalf("no sasl while services are linked: %q", ls)
+	}
+	c.send("CAP REQ :sasl")
+	c.expect("ACK :sasl")
+
+	leaf.fromLink(t, ":"+hub.sid+" SQUIT services.test.local :gone")
+	c.expect("CAP * DEL :sasl")
+	c.send("CAP LIST")
+	if l := c.expect(" LIST "); strings.Contains(l, "sasl") {
+		t.Errorf("sasl still on after CAP DEL: %q", l)
+	}
+	d := raw(t, leaf.s)
+	d.nick = "*"
+	if ls := capLS302(t, d); strings.Contains(ls, "sasl") {
+		t.Errorf("sasl offered with no SASL server: %q", ls)
+	}
+
+	leaf.fromLink(t, ":"+hub.sid+" SID services.test.local 2 9HB :services back")
+	c.expect("CAP * NEW :sasl=PLAIN,EXTERNAL")
+	d.expect("CAP * NEW :sasl=PLAIN,EXTERNAL")
+	c.quiet("CAP * NEW")
 }

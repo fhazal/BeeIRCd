@@ -100,6 +100,7 @@ func (s *Server) linkMD(l *linkConn, m irc.Message) {
 		s.links.saslServer, s.links.saslMechs = r.name, mechs
 		s.links.saslLast = saslGone{}
 	}
+	s.saslCapSync()
 	s.linkBroadcast(l, m.String())
 }
 
@@ -118,6 +119,7 @@ func (s *Server) saslServerGone(r *remoteServer) {
 		}
 		s.links.saslLast = g
 		s.links.saslServer, s.links.saslMechs = "", ""
+		s.saslCapSync()
 	}
 }
 
@@ -141,6 +143,7 @@ func (s *Server) saslServerBack(r *remoteServer) {
 			mechs = g.mechs
 		}
 		s.links.saslServer, s.links.saslMechs, s.links.saslLast = r.name, mechs, saslGone{}
+		s.saslCapSync()
 		s.linkBroadcast(r.via, ":"+r.sid+" MD client "+r.name+" saslmechlist :"+mechs)
 		return
 	}
@@ -151,7 +154,47 @@ func (s *Server) saslServerBack(r *remoteServer) {
 		return
 	}
 	s.links.saslServer, s.links.saslMechs, s.links.saslLast = r.name, g.mechs, saslGone{}
+	s.saslCapSync()
 	s.linkBroadcast(r.via, ":"+r.sid+" MD client "+r.name+" saslmechlist :"+g.mechs)
+}
+
+// saslCapValue is the sasl cap as CAP LS 302 shows it, or "" when no one
+// can take a SASL login: services are off here and no SASL server is
+// linked.
+func (s *Server) saslCapValue() string {
+	if s.cfg.Services.On() {
+		return "sasl=" + saslMechList
+	}
+	if s.saslTarget() == "" {
+		return ""
+	}
+	if m := s.links.saslMechs; m != "" {
+		return "sasl=" + m
+	}
+	return "sasl=" + saslMechList
+}
+
+// saslCapSync tells cap-notify clients when the sasl cap came, went or
+// changed its mechanisms (CAP NEW / CAP DEL), after the SASL server
+// linked or left. Clients told DEL lose the cap.
+func (s *Server) saslCapSync() {
+	now, was := s.saslCapValue(), s.links.saslCap
+	if s.cfg.Services.On() || now == was {
+		s.links.saslCap = now
+		return
+	}
+	s.links.saslCap = now
+	for _, c := range s.clients {
+		if !c.caps["cap-notify"] {
+			continue
+		}
+		if now == "" {
+			delete(c.caps, "sasl")
+			s.capReply(c, "DEL", "sasl")
+		} else {
+			s.capReply(c, "NEW", now)
+		}
+	}
 }
 
 // saslTarget is the server our clients log in with, "" when none is

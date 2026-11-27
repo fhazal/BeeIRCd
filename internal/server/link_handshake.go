@@ -96,6 +96,9 @@ type linkState struct {
 	// coming back the same way gets it back (InspIRCd sends saslmechlist
 	// only on the first link).
 	saslLast saslGone
+	// saslCap is the sasl cap value cap-notify clients were last told
+	// ("" = not offered), so saslCapSync sends CAP NEW/DEL only on a change.
+	saslCap string
 	// qlines are nick bans from other servers; qlineSent our own as last
 	// sent, by folded mask.
 	qlines    map[string]qline
