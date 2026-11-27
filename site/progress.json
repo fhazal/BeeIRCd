@@ -1,1510 +1,1510 @@
 {
-  "updated": "2026-11-28T05:00:00+08:00",
-  "gauges": [
-    {
-      "id": "g-v1",
-      "label": "v1.0",
-      "pct": 100,
-      "title": "Version 1.0",
-      "text": "The server, linking and the Hive Panel, shipped together."
-    },
-    {
-      "id": "g-vision",
-      "label": "full vision",
-      "pct": 99,
-      "title": "Full vision",
-      "text": "Linking, Hive Panel and BeeRoom too."
-    }
-  ],
-  "now": {
-    "title": "1.7.2 release test",
-    "text": "The long tests are running on the test server (heavy linking, speed, fuzzing and a 6-hour soak). Linking with InspIRCd and UnrealIRCd passed.",
-    "start": "2026-11-27T23:30:00+08:00",
-    "end": "2026-11-28T13:00:00+08:00"
+ "updated": "2026-11-28T05:00:00+08:00",
+ "gauges": [
+  {
+   "id": "g-v1",
+   "label": "v1.0",
+   "pct": 100,
+   "title": "Version 1.0",
+   "text": "The server, linking and the Hive Panel, shipped together."
   },
-  "next": "1.7.2: finish the long tests, then 1.7.2-rc1 on the live servers.",
-  "done": [
-    [
-      "2026-11-28T05:00",
-      "New header picture on the home page: a honey-dome server house on a floating island, with pins for your server, services, messages and the live beacon."
-    ],
-    [
-      "2026-11-28T03:15",
-      "Fixed a test for restart hand-overs that failed now and then. The servers themselves were fine; only the test helper closed a connection too early."
-    ],
-    [
-      "2026-11-28T02:35",
-      "Fixed 2 things: a server without its own services no longer offers logins (SASL) while no services server is linked, and tells chat apps when logins come and go. One test that sometimes failed by itself now passes every time. Both go into the extra test round."
-    ],
-    [
-      "2026-11-28T01:45",
-      "New setting: a BeeIRCd that links to InspIRCd can now name its services server, so logins (SASL) work right away even after BeeIRCd restarts. Tested against InspIRCd: all 5 login cases pass."
-    ],
-    [
-      "2026-11-28T01:00",
-      "Fixed: after a server linked with InspIRCd reconnected, logins (SASL) failed for about a minute until services came back. Now they work again right away."
-    ],
-    [
-      "2026-11-27T23:15",
-      "Fixed: WHOIS showed opers from other servers as plain opers, without their oper level. Checked the IP bans and six panel pages: all fine. The docs are easier to read now: the grey text is darker in light mode and brighter in dark mode."
-    ],
-    [
-      "2026-11-27T23:00",
-      "Fixed 4 bugs: a linked server could take services' rights, services kept half-done logins, web chat pings skipped flood control, and one address could hold endless web chat connections."
-    ],
-    [
-      "2026-11-27T22:40",
-      "Released BeeIRCd 1.7.1: 60 fixes and polish items from a full security and bug sweep, now on both live servers."
-    ],
-    [
-      "2026-11-27T19:20",
-      "1.7.1-rc2 is out and runs on both live servers. Also fixed: right after a reboot, beeircd status could say \"stopped\" while the server was still starting."
-    ],
-    [
-      "2026-11-27T19:00",
-      "Fixed: right after the upgrade from 1.7.0, people on other servers could lose their NickServ login. 1.7.1-rc1 is on both live servers."
-    ],
-    [
-      "2026-11-27T17:50",
-      "Speed check: 5,000 users chatting, 1.7.1 is as fast as 1.7.0 (lag about 10 ms). Realname bans and SAMODE notices checked on UnrealIRCd and InspIRCd."
-    ],
-    [
-      "2026-11-27T16:55",
-      "Linking: tested against real InspIRCd and UnrealIRCd servers; 8 fixes so server notices, SWHOIS, SDESC, SAMODE and routed answers show right on both sides."
-    ],
-    [
-      "2026-11-27T03:20",
-      "Linking: InspIRCd links now carry MOTD, ADMIN, TIME, STATS, WHOIS with real idle time, KNOCK, server notices, SDESC, UNINVITE, REHASH and CONNECT."
-    ],
-    [
-      "2026-11-27T02:54",
-      "Linking: KNOCK, SAMODE on far users, opers' $server messages, routed INFO/LUSERS/CONNECT/REHASH, SWHOIS, server notices and realname bans now work across linked servers, like on other IRC servers."
-    ],
-    [
-      "2026-11-27T02:03",
-      "Linking: WALLOPS now reaches people with +w on every linked server, including UnrealIRCd and InspIRCd links, like on other IRC servers."
-    ],
-    [
-      "2026-11-27T00:06",
-      "Website: the LEAF label on the live server cards is now leaf green, and HUB gets a matching soft honey fill."
-    ],
-    [
-      "2026-11-26T23:56",
-      "Website polish is live: a bigger, calmer hero headline, What's new grouped by kind, service commands you can click to copy, and more room between sections."
-    ],
-    [
-      "2026-11-26T19:02",
-      "Release test for BeeIRCd 1.7.1, part 3: logins for people on other servers now survive a cold restart of the services server, the light panel theme is easier to read, the update test passes 32 of 32, the load test and the Windows symlink tests pass."
-    ],
-    [
-      "2026-11-26T18:22",
-      "Release test for BeeIRCd 1.7.1, part 2: the tester's bugs are fixed (a linked server could log its users in to other people's accounts, AS OPER ADD and WEBIRC replies, Rehash answering twice, Windows update and status hints), race test clean, overnight tests still running."
-    ],
-    [
-      "2026-11-26T17:28",
-      "Release test for BeeIRCd 1.7.1 started: all checks pass, a Hive Panel click-through fixed 3 phone layout bugs, and a bug sweep fixed 4 more (the live overview while the server stops, ChanServ ACCESS ADD on a FLAGS entry, a public error text, a grammar slip)."
-    ],
-    [
-      "2026-11-26T17:01",
-      "BeeRoom 1.1.1 released and live on both chats: reactions can no longer hide invisible marks, a reply keeps its link when the first line is empty, reply and react follow server changes at once, and the people search shows nicks safely."
-    ],
-    [
-      "2026-11-26T16:29",
-      "BeeRoom 1.1 released: new Bee Day and Bee Night look, replies and reactions, a front door for guests. Signed download at beeircd.org, checked with a clean install."
-    ],
-    [
-      "2026-11-26T15:51",
-      "Both live chats (webchat and chat.beeircd.org) now run the fixed BeeRoom. A strange message can no longer knock everyone off."
-    ],
-    [
-      "2026-11-26T15:48",
-      "BeeRoom release checks done. Fixed: one guest could knock everyone off the chat with a strange message, and asking for the changelog again and again made the server call GitHub each time."
-    ],
-    [
-      "2026-11-26T15:28",
-      "This site now has a Chat link and a \"Chat with us\" button. They open chat.beeircd.org, straight into #beeircd."
-    ],
-    [
-      "2026-11-26T15:19",
-      "chat.beeircd.org is up: the new chat page runs on our main server and takes you straight to #beeircd."
-    ],
-    [
-      "2026-11-26T15:12",
-      "BeeRoom: a simple chat front door. Visitors see a welcome card, pick a nick, and join one set room with one button."
-    ],
-    [
-      "2026-11-26T14:58",
-      "The SKINTERNET web chat now has the new BeeRoom look, with replies and reactions."
-    ],
-    [
-      "2026-11-26T14:42",
-      "BeeRoom: hover a message to reply or react. Replies show a quote of the original line, and reactions show as small emoji chips under the message."
-    ],
-    [
-      "2026-11-26T14:10",
-      "BeeRoom: messages from one person are grouped under a bee avatar, ops and voices get a tag, new visitors see a welcome card, and the people list is sorted by rank."
-    ],
-    [
-      "2026-11-26T13:25",
-      "Hive Panel: every corner now uses one of four calm sizes, the same in all themes."
-    ],
-    [
-      "2026-11-26T13:17",
-      "Web chat on SKINTERNET now shows each person's real address, and BeeRoom has a light Bee Day theme next to the dark one."
-    ],
-    [
-      "2026-11-26T16:10",
-      "BeeRoom: pictures of three new looks and a light theme, ready to choose from."
-    ],
-    [
-      "2026-11-26T15:50",
-      "BeeRoom polish is live on the SKINTERNET web chat."
-    ],
-    [
-      "2026-11-26T15:40",
-      "BeeRoom: logo on the sign-in screen, dark menus, simpler guest form, plain messages and the BeeRoom name everywhere."
-    ],
-    [
-      "2026-11-26T15:00",
-      "BeeRoom: guests can no longer route the chat server through a proxy of their choice."
-    ],
-    [
-      "2026-11-26T14:40",
-      "Hive Panel: hint text and yellow links are easier to read in every theme, most of all the light one."
-    ],
-    [
-      "2026-11-26T14:10",
-      "Polish pass: clearer error and help messages, one spelling for vHost and email, two small message bugs fixed."
-    ],
-    [
-      "2026-11-26T12:55",
-      "Changing a long list in the config through BeeIRCd now keeps your comments on it."
-    ],
-    [
-      "2026-11-26T12:40",
-      "Config edits now change long multi-line settings whole, the config copy made before an update is safely on disk, and the fix-by-hand steps work with folders that have spaces."
-    ],
-    [
-      "2026-11-26T12:20",
-      "A failed update now puts every file back or says exactly what to move by hand, keeps a linked config and its owner, and leaves no stray copies behind."
-    ],
-    [
-      "2026-11-26T11:58",
-      "Updates are safer: a failed step now stops with nothing changed, a restart after an update starts the new program, rehash says when the Hive Panel needs a restart, and saving the config keeps a linked file and writes it to disk safely."
-    ],
-    [
-      "2026-11-26T11:22",
-      "Config and upgrades hunt: OperServ SERVER SET no longer wipes a link's protocol and rule, and update --rollback checks your config first so going back can't take the server down."
-    ],
-    [
-      "2026-11-26T12:15",
-      "Web chat behind a proxy: visitors can no longer fake their address with the X-Real-IP header to get past a ban."
-    ],
-    [
-      "2026-11-26T11:55",
-      "Web chat hunt: one visitor can no longer fill server memory through the WebSocket port, session exceptions on hostnames now work for web chat, and gateways can't give users broken hosts."
-    ],
-    [
-      "2026-11-26T11:10",
-      "Hive Panel hunt: opers can no longer disconnect a higher oper from the panel, and many sign-ins sent at once can no longer get past the 5-try lock."
-    ],
-    [
-      "2026-11-26T10:55",
-      "A link to a network that runs its own services now retries every 10 minutes and tells opers once an hour, instead of retrying every few seconds."
-    ],
-    [
-      "2026-11-26T10:21",
-      "Linked servers can no longer give users broken hosts, and a user on a services nick is now removed instead of dropping the whole link."
-    ],
-    [
-      "2026-11-26T10:06",
-      "Linking hunt: fixed 3 bugs where a linked server could act as services, kill a services bot, or take the cloak off users."
-    ],
-    [
-      "2026-11-26T09:49",
-      "Opers can no longer force a nick change, channel join or part on an oper who ranks above them."
-    ],
-    [
-      "2026-11-26T08:28",
-      "Fixed 8 more bugs: opers on other servers are ranked properly (also from InspIRCd and UnrealIRCd), OS KILL and UMODE respect higher opers, BotServ stops on suspended channels, SECUREOPS can't be skipped with MODE SET, and early ZLINE checks match every IP form."
-    ],
-    [
-      "2026-11-25T17:10",
-      "Bug hunt fixed 10 services bugs: higher opers and channel ranks are protected properly, READONLY now really writes nothing, IPv6 ZLINEs match, and ChanServ INFO can't crash on an old Anope ban type."
-    ],
-    [
-      "2026-11-25T15:30",
-      "Fixed: an old password reset code could open a newer account that got the same number."
-    ],
-    [
-      "2026-11-25T08:07",
-      "6-hour test with 2,000 users passed: memory flat at about 150 MB, lag 7.5 ms, 0 dropped, 12 backups and 4 reloads during the run."
-    ],
-    [
-      "2026-11-25T04:20",
-      "The 6-hour test now measures the server itself, not the small helper that starts it, so a memory leak would show."
-    ],
-    [
-      "2026-11-25T01:40",
-      "Fuzz tests now cover web chat, InspIRCd links and geoip too (three were skipped before)"
-    ],
-    [
-      "2026-11-25T01:03",
-      "Race test for 1.7.0 passed: 25 packages, no races"
-    ],
-    [
-      "2026-11-24T22:35",
-      "BeeIRCd 1.7.0 released",
-      "Signed and published on GitHub. Servers see the update within a day and install it with beeircd update."
-    ],
-    [
-      "2026-11-24T21:44",
-      "Release Test for 1.7.0 passed",
-      "All tests pass, including race and load tests on Linux, the 5,000-user benchmark (same speed and memory as 1.6.0) and link tests with UnrealIRCd and InspIRCd. The bug hunt found four small issues; all are fixed."
-    ],
-    [
-      "2026-11-24T21:05",
-      "Link rules in the Hive Panel",
-      "The Linked servers page now shows which servers have a link rule, lets you change it in the form, refuses a bad rule, and says when a rule stopped a link."
-    ],
-    [
-      "2026-11-24T20:47",
-      "Docs for link rules and classes",
-      "The admin guide and feature list now explain link rules, connect classes and the new Connect classes card. Every planned UnrealIRCd and InspIRCd feature is built."
-    ],
-    [
-      "2026-11-24T20:44",
-      "Connect classes card",
-      "The Hive Panel Settings page now shows every connect class: who is in it, how many people, and its limits."
-    ],
-    [
-      "2026-11-24T20:35",
-      "Calmer icons in the activity list",
-      "The Hive Panel \"What happened\" list shows each icon on a soft tinted tile instead of a hexagon outline, in every theme."
-    ],
-    [
-      "2026-11-24T20:29",
-      "Link rules and connect classes",
-      "A server can now link only when the network is in the right shape, for example join a second hub only while the first is gone. Connect classes give groups of people their own limits, by country, web chat or IP range. Also fixed: saving an InspIRCd link in the Hive Panel lost its protocol."
-    ],
-    [
-      "2026-11-24T20:01",
-      "Calmer picture labels and rounded corners",
-      "The labels on the home page pictures are now soft text with a thin gold line instead of boxes, the bees float slowly, and every block and picture has rounded corners."
-    ],
-    [
-      "2026-11-24T19:25",
-      "Home page pictures cleaned up",
-      "The top picture is now just the pine hill, with no stray frame around it. The services and live-servers parts got their own pictures: a honey hive and two linked islands, shown in full on phones too."
-    ],
-    [
-      "2026-11-24T19:10",
-      "A moving picture at the top of the website",
-      "The top of the home page is now an illustrated night scene with two views: a café with a tunnel, and a pine hill with a honey-dome server house. On the pine hill the bees fly, the train puffs steam and chat bubbles light up like new messages."
-    ],
-    [
-      "2026-11-24T16:55",
-      "Live servers page shows the right version",
-      "The page showed the second server as 1.4.0 after it was updated to 1.6.0 without a restart. It now asks each server its version every 30 seconds."
-    ],
-    [
-      "2026-11-24T16:45",
-      "Website polish and a new bee logo",
-      "The website keeps its black and yellow look, with cleaner spacing and a new footer. The new flat bee logo replaces the old picture, also as the tab icon and phone icon."
-    ],
-    [
-      "2026-11-24T15:02",
-      "BeeIRCd 1.6.0 released",
-      "Channel stats, the Hive Panel Stats tab and more, tested in full, signed and published."
-    ],
-    [
-      "2026-11-24T13:26",
-      "Channel stats in the Hive Panel",
-      "Channel owners get a Stats tab on their channel page: the top 10 talkers for today, this week, this month and all time, the channel totals, and a switch to turn stats on or off. My nick gets a tick box to be counted."
-    ],
-    [
-      "2026-11-24T13:03",
-      "Channel stats, like Anope",
-      "Channels and people can switch on stats: lines, words, smileys and kicks for today, this week, this month and all time. Ask with !stats and !top in the channel, or ChanServ STATS and TOP. Kept in our own database, no MySQL needed."
-    ],
-    [
-      "2026-11-24T12:34",
-      "Four more Anope services features",
-      "Limit on accounts per email address, extra INFO fields like Discord or website, helper mode +h for ops in the help channel, and OperServ OLINE to give someone oper powers for one session."
-    ],
-    [
-      "2026-11-24T12:06",
-      "Three small QA notes fixed",
-      "AdminServ's own \"Sent to\" line now comes before the other server's answer, the installer counts its questions without jumping, and the admin guide says links split and come back during an update."
-    ],
-    [
-      "2026-11-24T11:57",
-      "Hive Panel Channels page fixed",
-      "The channels list no longer slides 2 pixels sideways on laptop-size screens (found by QA)."
-    ],
-    [
-      "2026-11-24T11:40",
-      "SKINTERNET runs 1.5.2",
-      "Both servers updated with nobody disconnected: 23 people on the second server and 75 on the main one stayed connected."
-    ],
-    [
-      "2026-11-24T11:21",
-      "BeeIRCd 1.5.2 released",
-      "Signed and published on GitHub, with the What's new page and docs updated."
-    ],
-    [
-      "2026-11-24T10:45",
-      "Release Test for 1.5.2 passed",
-      "All tests, race checks, 349 irctest checks, linking with UnrealIRCd and InspIRCd, ten minutes of fuzzing and a click-through of the Hive Panel in light, dark and phone size. No new bugs found."
-    ],
-    [
-      "2026-11-24T03:54",
-      "QA part 2 fixes, for 1.5.2",
-      "A channel renamed while the servers were apart no longer splits in two. Changing only the capitals of a name skips the rename wait. Read-only mode now holds on every server, METADATA CLEAR clears only the keys asked for, and refused changes no longer count toward the limit. NEVEROP also blocks raising someone to op, and a second server's admin can change that server's own settings."
-    ],
-    [
-      "2026-11-24T03:32",
-      "A removed spam filter stays removed after a reconnect",
-      "A spam filter removed while the servers were apart no longer comes back when they reconnect, the same fix as for bans. For 1.5.2."
-    ],
-    [
-      "2026-11-24T03:16",
-      "Four fixes from testing 1.5.1, for 1.5.2",
-      "A ban removed while the servers were apart no longer comes back when they reconnect. /as restart typed on a second server now restarts that server, not the main one. The update message counts only the people on that server, and turning the update check off with a settings reload now works."
-    ],
-    [
-      "2026-11-24T02:20",
-      "SKINTERNET on 1.5.1, nobody disconnected",
-      "Both SKINTERNET servers moved to 1.5.1. All 89 people stayed connected; the link between the servers came back in about 12 seconds."
-    ],
-    [
-      "2026-11-24T02:11",
-      "BeeIRCd 1.5.1 released",
-      "Fixes the missing @ and + after the servers reconnect, and restart now keeps everyone connected. Tested against the IRC test suite and both UnrealIRCd and InspIRCd links before release."
-    ],
-    [
-      "2026-11-24T01:39",
-      "Ops and voices show right after a server reconnects",
-      "When the two servers link again, people from the other server now keep their @ and + in everyone's nick list, without leaving and rejoining. Comes in the next release."
-    ],
-    [
-      "2026-11-24T01:34",
-      "Restart keeps everyone connected",
-      "beeircd restart now hands everyone over to a fresh start behind the door keeper, like updates do, instead of disconnecting them. Comes in the next release."
-    ],
-    [
-      "2026-11-24T01:30",
-      "SKINTERNET on 1.5.0, nobody disconnected",
-      "Both SKINTERNET servers moved to 1.5.0. All 89 people stayed connected through the update; the link between the servers came back in about 12 seconds."
-    ],
-    [
-      "2026-11-24T01:19",
-      "BeeIRCd 1.5.0 released",
-      "Signed and published on GitHub as the latest version, with the docs for 1.5 on the website. It adds avatars, colours and status, channel rename, and every fix planned for 1.4.1."
-    ],
-    [
-      "2026-11-24T00:55",
-      "Two more fixes, tests passed again",
-      "Logging out or switching accounts no longer carries your avatar and status into the other account, and older apps get the full list of features on servers with very long names. The full test run passed again on the final build."
-    ],
-    [
-      "2026-11-24T00:40",
-      "1.5.0 release test passed",
-      "All tests, fuzzing, the IRC conformance suite and the UnrealIRCd, InspIRCd and login kits pass. Fixed on the way: a rename racing a new channel of the same name on another server now merges the two, SASL logins get saved avatars back, and Latte theme buttons are easier to read."
-    ],
-    [
-      "2026-11-24T00:06",
-      "Avatars, colours and channel rename",
-      "Clients can now show your picture, name colour and status, and a channel can be renamed without anyone leaving: people, modes, history and its ChanServ registration all move. Both are IRCv3 drafts, switched on with ircv3-drafts. Coming in 1.5.0."
-    ],
-    [
-      "2026-11-23T23:15",
-      "SKINTERNET runs 1.4.0",
-      "Both of the network's own servers now run BeeIRCd 1.4.0. From now on, updates keep people connected."
-    ],
-    [
-      "2026-11-23T23:05",
-      "Read-only mode is fully read-only",
-      "With OperServ read-only mode on, services no longer save anything in the background (last seen, channel use, kept topics), and spam filters from linked servers no longer run out while expiry is paused. Coming in 1.4.1."
-    ],
-    [
-      "2026-11-23T22:42",
-      "New BeeIRCd logo",
-      "BeeIRCd has its own logo: a yellow hex with a cheerful bee whose wings are chat bubbles, one with a # for channels. It is now in the website header, the browser tab icon, the docs pages and the footer of the GitHub page."
-    ],
-    [
-      "2026-11-23T22:02",
-      "Homepage chat window looks like a Mac app",
-      "The chat on the front page is now a Mac-style window: traffic lights, the network's windows on the left, the people in the channel on the right, and commands that type into the input bar before they post. Light in light mode, dark in dark mode; phones show just the chat."
-    ],
-    [
-      "2026-11-23T21:47",
-      "GitHub page: licence and footer",
-      "The GitHub page now explains the licence in plain words (what you can do, what it asks back) and ends with the bee, handy links and \"Made with ☕ by BajuBesi Labs\". The repository also has its About text, website and topics."
-    ],
-    [
-      "2026-11-23T21:39",
-      "GitHub page refreshed for 1.4",
-      "The project's GitHub front page now shows 1.4: quick links, updates that keep people connected, everything added in 1.2 to 1.4, the new test numbers and the roadmap up to 1.4.1."
-    ],
-    [
-      "2026-11-23T21:25",
-      "Read-only and no-expire switches finished",
-      "Read-only mode now also locks the oper, ban, channel and spam filter forms and keeps memos unread; while either switch is on, suspensions and spam filters no longer run out. Also fixed: Undo on the services log checkboxes put back the full list instead of the default."
-    ],
-    [
-      "2026-11-23T20:35",
-      "BeeIRCd 1.4.0 released",
-      "Seamless updates: people stay connected while the server updates or restarts. Also a fuller services log, Anope-style OperServ and Global tools, and clearer installer questions."
-    ],
-    [
-      "2026-11-23T20:05",
-      "Release test for 1.4 passed",
-      "Logins, links to UnrealIRCd and InspIRCd, fuzzing, the Hive Panel in light and dark, and memory with 100 people all passed. One more fix: an update while the server is stuck no longer makes the door keeper hang."
-    ],
-    [
-      "2026-11-23T19:45",
-      "Four small fixes from the 1.4 bug sweep",
-      "A failed hand-over no longer stalls the server, a server that fails to start no longer closes every port, the services log no longer gets two writers after a rehash, and an update to a version with a new hand-over format now says up front that everyone reconnects once."
-    ],
-    [
-      "2026-11-23T19:22",
-      "Two more ways around the ban check closed",
-      "Banned visitors coming through a web-chat proxy, and bans written like 1.2.3.*, are now also turned away before any encryption work."
-    ],
-    [
-      "2026-11-23T19:10",
-      "Banned addresses are turned away sooner",
-      "The part that keeps people connected during updates now turns away banned and too-fast addresses before doing any encryption work, so they can no longer use it to waste the server's time."
-    ],
-    [
-      "2026-11-23T18:44",
-      "The seamless upgrade joined the main code",
-      "People now stay connected while a Linux server updates, rolls back or restarts. It will ship in release 1.4."
-    ],
-    [
-      "2026-11-23T18:32",
-      "The seamless upgrade passed its big tests",
-      "50 test users stayed connected through an update, a rollback and a restart, with every chat message delivered and nothing lost. The race test and the 5,000-user load test came out the same as before."
-    ],
-    [
-      "2026-11-20T13:22",
-      "The installer shows every choice before asking",
-      "Questions about the certificate, channel prefixes and server role now list what 1, 2 and 3 mean. The full ~&@%+ prefixes (owner, admin, op, halfop, voice) are now the default for new servers."
-    ],
-    [
-      "2026-11-20T12:30",
-      "Updates and restarts keep people connected",
-      "beeircd update, --rollback and /as restart hand everyone over to the new program instead of disconnecting them. The Hive Panel says whether updates keep people connected and how many stayed last time. Not in a release yet."
-    ],
-    [
-      "2026-11-20T03:10",
-      "A new server process can take over every connection from the old one",
-      "In testing, people stay in their channels with their away, caps and logins while the server program is swapped, with a pause of about 0.2 s. Not in a release yet."
-    ],
-    [
-      "2026-11-20T02:00",
-      "Services can keep their log in a file, and opers can search it from IRC",
-      "Set [services] log_file and every #services line is also saved to disk. OperServ LOGSEARCH finds lines in it, as in Anope, for the last days you choose."
-    ],
-    [
-      "2026-11-20T01:42",
-      "OperServ can reload the config, and Global can send multi-line or one-server notices",
-      "OS RELOAD does what /REHASH does. Global has a queue of up to 10 lines to send in one go, and SERVER sends a notice only to the people on one server."
-    ],
-    [
-      "2026-11-20T01:31",
-      "Services got Anope's read-only, super admin and no-expire switches, plus NickServ NEVEROP",
-      "Opers with flag a can pause all services changes during maintenance, stop anything expiring, or act as founder on every channel for a while. Users can keep themselves off channel access lists."
-    ],
-    [
-      "2026-11-19T23:45",
-      "The Hive Panel can now pick what shows in #services",
-      "The Services page has one box per event: connects, opers, kills, servers, ban hits and more. AdminServ gets the same as SET log-events."
-    ],
-    [
-      "2026-11-19T23:34",
-      "The #services channel now shows opers, kills, server links and ban hits, like Anope",
-      "Owners pick what shows with the new log_events setting. The default matches Anope plus oper lines; busy events like mode and channel changes stay off unless asked for."
-    ],
-    [
-      "2026-11-19T23:10",
-      "BeeIRCd 1.3.0 is out: signed, on GitHub and Docker, with its docs on beeircd.org",
-      "The stable 1.3.0 brings admin reach, GLOBOPS, owner messages, InspIRCd-style oper notices and many link fixes. Our own servers move to it next."
-    ],
-    [
-      "2026-11-19T22:40",
-      "Release test for 1.3.0 passed: Hive Panel click-through, link tests with UnrealIRCd and InspIRCd, and 10 minutes of fuzzing",
-      "The Hive Panel's 13 pages work in light and dark, the UnrealIRCd 6 link test passes 58 of 58 and the InspIRCd 4 one 80 of 80, and fuzzing 15 parts of the server found nothing. 1.3.0 is waiting for the final OK."
-    ],
-    [
-      "2026-11-19T22:11",
-      "Release test for 1.3.0: all automatic checks pass, and three bugs in the new admin reach code are fixed",
-      "A changed server could give its own admins whole-network power, an old remote_admin = false was ignored after an upgrade, and a linked server's own admin couldn't change the outside admins setting with AdminServ. All three are fixed and tested."
-    ],
-    [
-      "2026-11-19T20:45",
-      "Test version 1.3.0-rc8 is running on both our servers, linked and checked on the live status cards"
-    ],
-    [
-      "2026-11-19T20:30",
-      "Live server status on this page",
-      "The two SKINTERNET servers now show live on beeircd.org: up or down, people online, reply time, version, whether they are linked, and the last 24 hours. Checked every 30 seconds."
-    ],
-    [
-      "2026-11-19T20:15",
-      "Test version 1.3.0-rc8 is out: the network owner can let admins from other servers in or keep them out"
-    ],
-    [
-      "2026-11-19T20:05",
-      "Owner switch for outside admins",
-      "On the Hive Panel's Linked servers page the network owner can now let admins from other servers in, or keep them out, with one click. Nobody on another server can change it."
-    ],
-    [
-      "2026-11-19T19:45",
-      "Test version 1.3.0-rc7 is out and running on our own servers: the network owner can now give an admin powers on every server"
-    ],
-    [
-      "2026-11-19T18:40",
-      "Network admins from any server",
-      "The network owner can now give an admin whole-network reach, so their admin commands work on every server. Everyone else's admin powers stay on their own server, and each server can still refuse outside admins."
-    ],
-    [
-      "2026-11-19T17:30",
-      "Test version 1.3.0-rc6 live on SKINTERNET",
-      "Both SKINTERNET servers run the new test version with the new message settings switched on: a fixed quit message, short quit messages hidden, a ban contact address and the killer name hidden."
-    ],
-    [
-      "2026-11-19T17:21",
-      "Download button in the docs",
-      "Every docs page now has a Download button at the top, on phones too. It opens the download box on the home page."
-    ],
-    [
-      "2026-11-19T17:15",
-      "Hidden killer name for services kills too",
-      "When the owner hides who killed someone, kills sent by services now show the hidden name as well."
-    ],
-    [
-      "2026-11-19T17:10",
-      "Message settings in the Hive Panel",
-      "The Messages card now holds all the new message settings in three groups: quit and part, people turned away, and bans and kills."
-    ],
-    [
-      "2026-11-19T17:05",
-      "More message settings",
-      "Owners can now change the quit prefix, the texts people get when the server is full, too busy or the password is wrong, a notice for banned people, how bans show to others, and hide who killed someone."
-    ],
-    [
-      "2026-11-19T17:00",
-      "Messages card in the Hive Panel",
-      "The new quit, part and ban contact texts can now be set from the Hive Panel Settings page, with Undo."
-    ],
-    [
-      "2026-11-19T16:30",
-      "Owner message settings",
-      "Server owners can now set one fixed quit message, hide or replace part messages, show quit messages only after a few seconds online, and add a contact email to ban messages."
-    ],
-    [
-      "2026-11-19T15:40",
-      "GLOBOPS from UnrealIRCd 6 fixed",
-      "Oper messages sent from UnrealIRCd 6 servers now arrive too: it marks them in a slightly different way that BeeIRCd missed."
-    ],
-    [
-      "2026-11-19T15:10",
-      "Fixes from the 1.3.0-rc5 test",
-      "GLOBOPS from UnrealIRCd now reaches everyone, InspIRCd names the real oper on relayed bans, and oper notices match InspIRCd 4 more closely."
-    ],
-    [
-      "2026-11-19T14:50",
-      "Test version 1.3.0-rc5 is out",
-      "Oper notices now read word for word like InspIRCd 4, and the new GLOBOPS lets opers talk across linked servers."
-    ],
-    [
-      "2026-11-19T14:35",
-      "Oper notices worded like InspIRCd 4",
-      "Server notices for opers now read like InspIRCd 4 (connects, quits, bans, opers), and GLOBOPS lets opers talk to each other across linked servers."
-    ],
-    [
-      "2026-11-19T14:30",
-      "Clearer reply when removing a ban by nick",
-      "Removing a G-line or Z-line by nick after the ban has disconnected that person now says they are offline and to remove it by its mask."
-    ],
-    [
-      "2026-11-19T14:20",
-      "Test version 1.3.0-rc4 is out",
-      "Ban times now work like InspIRCd and UnrealIRCd (a plain number is seconds, and 2m30s works too), bans end on time, and opers show their real rank on InspIRCd servers."
-    ],
-    [
-      "2026-11-19T14:15",
-      "First step of seamless upgrades built",
-      "A small door keeper process now holds the client ports, so a later update can swap the server without dropping people. It is still being tested and is not in a release yet."
-    ],
-    [
-      "2026-11-19T14:10",
-      "InspIRCd sees real oper ranks",
-      "Opers now show on InspIRCd servers with their real rank, like \"Network Administrator\", instead of always \"IRC_Operator\". InspIRCd also counts the burst time of servers behind BeeIRCd again."
-    ],
-    [
-      "2026-11-19T13:20",
-      "Fixes from the rc3 test",
-      "KLINE now takes a time, ban times like 5s work everywhere, bans run out on time, a kill reason is no longer shown twice, SHUN and G-line removal by nick works, and InspIRCd gets an answer when it checks servers behind BeeIRCd."
-    ],
-    [
-      "2026-11-19T11:45",
-      "1.3.0-rc3 out and live",
-      "The third test version of 1.3 is out with the new server notices, and both SKINTERNET servers run it."
-    ],
-    [
-      "2026-11-19T11:40",
-      "Server notices like InspIRCd",
-      "Opers now pick which server notices they get, and the notices read the same as on InspIRCd 4. There are also new notices for nick changes, STATS and users on other servers, and the split notice no longer repeats its reason."
-    ],
-    [
-      "2026-11-19T08:58",
-      "1.3.0-rc2 out and live",
-      "The second test version of 1.3 is out, with the new link notices, and runs on both SKINTERNET servers."
-    ],
-    [
-      "2026-11-19T08:31",
-      "Link notices in InspIRCd's words",
-      "Opers now see each step of a server link worded the way InspIRCd says it, including every failed reconnect try and how long a lost link was up."
-    ],
-    [
-      "2026-11-17T04:02",
-      "1.2 tested against the real thing",
-      "Links with real UnrealIRCd and InspIRCd servers and logins from a real LDAP directory, MySQL and PostgreSQL all pass. The test found gaps on InspIRCd links (forced joins and renames, the accept list, forward bans) and a browser redirect that browsers could not read: all fixed."
-    ],
-    [
-      "2026-11-17T00:49",
-      "Modules: the first version",
-      "People can now add to BeeIRCd with small script files: their own commands, greetings and message filters, loaded while the server runs. A module that goes wrong is stopped and switched off instead of taking the server down. This is being built next to the 1.2.0 test version and comes after it."
-    ],
-    [
-      "2026-11-16T23:26",
-      "Auditorium channels and signed tokens for other services",
-      "A channel can now work like a lecture hall: the audience only sees the people on stage. Networks can add commands of their own that show a text (like FAQ), hand out signed tokens so other services know who someone is, and send browsers that open the chat port by mistake to the website."
-    ],
-    [
-      "2026-11-16T20:22",
-      "Two new channel modes and a handful of server options",
-      "Channels can make newcomers wait a little before they talk, and can pass messages that moderation stops on to the ops instead of refusing them. Networks get a rules page (RULES), separate welcome messages for opers and bots, a random quote on connect, a hidden server list, and can say who may make new channels."
-    ],
-    [
-      "2026-11-16T19:58",
-      "Log in with a password you already have",
-      "A network can now check NickServ passwords against its own directory (LDAP) or a database (MySQL, PostgreSQL, SQLite), like the one behind a forum or a company login. The account is made the first time someone logs in. Passwords set in BeeIRCd keep working next to it. Off until you switch it on."
-    ],
-    [
-      "2026-11-16T11:05",
-      "An admin API for tools and scripts",
-      "Other programs can now ask BeeIRCd who is online, look at channels, manage bans and spam filters, and follow the server's log live. It speaks the same language as UnrealIRCd's API, so tools made for that work here too. Each tool gets its own name, password and list of things it may do. Off until you switch it on."
-    ],
-    [
-      "2026-11-16T10:48",
-      "Four more guards against spam",
-      "Opers can switch on: refusing bots with random-looking names, stopping messages that hide behind look-alike letters from other alphabets, a cap on how many messages a channel or person can be sent at once, and stopping the same text being sent to many channels in one go. All off until you turn them on."
-    ],
-    [
-      "2026-11-16T10:40",
-      "Twenty commands other servers have",
-      "Notify lists the older way (WATCH), a mode that lets only people you accept message you (+g), rules for which files may be sent, and a set of oper tools: empty a channel, hold someone's nick, see every server's clock, check what a ban would hit, and send everyone to another server before maintenance. WHOWAS now remembers people across a restart."
-    ],
-    [
-      "2026-11-16T08:58",
-      "Known people and new people",
-      "BeeIRCd now gives every IP a reputation score while people from it chat, and shares it with linked servers. Opers can sort people into groups (like known-users), ban by group (~G:unknown-users), slow down floods of new connections while known people still get in, and keep new people from private messages or /LIST for their first minute."
-    ],
-    [
-      "2026-11-16T08:35",
-      "Network bans by country and network",
-      "Opers can keep a whole country or network out (/os akill add ~C:NL), silence it, or let one network back in, the same way UnrealIRCd does it, and linked UnrealIRCd servers understand them. Opers also see each sender's country on messages."
-    ],
-    [
-      "2026-11-16T08:24",
-      "Where people connect from, in the Hive Panel",
-      "The People page shows each person's country and network, and you can search by them. A new Overview card counts everyone online by country or network; click one to see who."
-    ],
-    [
-      "2026-11-16T08:04",
-      "Country and network of every user",
-      "BeeIRCd now knows which country and network each user connects from, using a free database it keeps up to date by itself. Opers see it in WHOIS, and channels can ban or let in by country (~C:NL) or network (~A:64500)."
-    ],
-    [
-      "2026-11-16T07:50",
-      "Every special ban of UnrealIRCd and InspIRCd",
-      "Bans by channel, certificate, oper class and more, bans that only block joining, nick changes, part messages or certain words, and exceptions that let someone past +m. Typed the UnrealIRCd or the InspIRCd way, BeeIRCd understands both."
-    ],
-    [
-      "2026-11-16T07:40",
-      "!mute",
-      "Channel bots take !mute nick: the person stays but can't talk, and !mute +30m nick lifts itself."
-    ],
-    [
-      "2026-11-16T07:19",
-      "Login answer in the right order",
-      "Logging in after connecting now answers \"you are logged in\" first, then tells your own client the account changed, as IRC clients expect."
-    ],
-    [
-      "2026-11-16T07:04",
-      "Six new IRCv3 extras",
-      "Read markers synced across your devices, multi-line pastes as one message, deleting your own message, sign-up from the client, connecting as away and early server limits. Off until switched on (ircv3-drafts)."
-    ],
-    [
-      "2026-11-16T07:00",
-      "ChanServ FLAGS",
-      "Channel access can now be a set of privilege letters, like +Otv, as in Anope. Anope FLAGS entries come over as they are when moving from Anope."
-    ],
-    [
-      "2026-11-16T06:31",
-      "Services in Malay",
-      "NickServ, ChanServ, MemoServ, HostServ, BotServ and HelpServ can answer in Bahasa Melayu: /ns set language ms, or a network default in Settings."
-    ],
-    [
-      "2026-11-16T05:45",
-      "1.2.0-rc1 out",
-      "A test release with HelpServ, email confirmation, the Mail card, WebSocket ports and more IRCv3. SKINTERNET runs it."
-    ],
-    [
-      "2026-11-16T05:30",
-      "Links to InspIRCd 4",
-      "BeeIRCd can now join a network with InspIRCd 4 servers: users, channels, modes, bans, services and logins all cross the link. beeircd link-info prints the block for inspircd.conf."
-    ],
-    [
-      "2026-11-16T05:02",
-      "Seven fixes from testing",
-      "ChanServ CLONE and FLAGS no longer let someone give or take more rank than they have, HelpServ helpers on any server get +h (and /msg HelpServ on / off), \"0s\" settings mean never, bots can't be muted, and !unmute lifts a mute."
-    ],
-    [
-      "2026-11-16T04:32",
-      "HelpServ",
-      "People can ask HelpServ about any command or mode, read the owner's own answers, or ask a question in words that goes to the helpers on duty (user mode +h), who take it and answer in private."
-    ],
-    [
-      "2026-11-16T04:30",
-      "Easy mail setup",
-      "The Hive Panel has a Mail card: pick Gmail, Outlook, Zoho or your own mail server, send a test mail, and see whether mails will land in the inbox, with the DNS records to add. Also beeircd mail-test."
-    ],
-    [
-      "2026-11-16T04:30",
-      "Email confirmation",
-      "Networks can make new NickServ accounts confirm their email with a code, or have an oper approve them, as with Anope. It's off unless the owner turns it on."
-    ],
-    [
-      "2026-11-16T03:45",
-      "1.1.2 out",
-      "A small fix release: ops stay put when the services server restarts, and Anope logins work. SKINTERNET runs it."
-    ],
-    [
-      "2026-11-16T03:30",
-      "Clearer link notices",
-      "Opers see how a server link is secured (TLS version and cipher), how many people came over, when a link lags and how many users a split took."
-    ],
-    [
-      "2026-11-16T03:15",
-      "Fix: ops after a restart",
-      "After the services server restarted, people could lose their @ in registered channels. Channels now keep their age across restarts and ChanServ gives ranks back."
-    ],
-    [
-      "2026-11-16T03:00",
-      "WebSocket",
-      "Web chat pages can connect straight to BeeIRCd over WebSocket, with the real visitor IP behind nginx or Apache."
-    ],
-    [
-      "2026-11-16T02:50",
-      "Standard replies",
-      "Modern IRC apps get clear error codes from BeeIRCd instead of plain notices."
-    ],
-    [
-      "2026-11-16T02:30",
-      "SKINTERNET on 1.1.1",
-      "The SKINTERNET network now runs BeeIRCd 1.1.1. Both servers updated themselves with the signed update and everyone was back within two minutes."
-    ],
-    [
-      "2026-11-16T02:30",
-      "Word censor (+G)",
-      "Ops can set +G on a channel to hide the words the admin lists in beeircd.conf; they become <censored>."
-    ],
-    [
-      "2026-11-16T02:10",
-      "Anope as services",
-      "A BeeIRCd network can now use Anope 2.0 for its services instead of the built-in ones. Every service and SASL logins work, tested against a real Anope. Fixed on the way: people who identified to Anope stopped hearing channels."
-    ],
-    [
-      "2026-11-16T02:00",
-      "Memos with read receipts",
-      "MemoServ RSEND sends a memo and tells you with another memo when it was read."
-    ],
-    [
-      "2026-11-16T01:30",
-      "Forward bans",
-      "A ban like ~f:#jail:*!*@bad.host sends people to another channel instead of just keeping them out. Bans from UnrealIRCd servers in their long form (~account:, ~quiet:) are understood too."
-    ],
-    [
-      "2026-11-16T01:00",
-      "ChanServ CLONE",
-      "Copy one channel's settings, mode lock, levels, access list, AKICKs and bad words to another channel in one command."
-    ],
-    [
-      "2026-11-16T00:40",
-      "WHOX and more IRCv3",
-      "WHO can now return just the fields a client asks for, such as accounts (WHOX). MONITOR also tells you when a watched nick goes away or changes host, and clients can skip the names list when they join a channel."
-    ],
-    [
-      "2026-11-16T00:00",
-      "BeeIRCd 1.1.1 is out",
-      "A Reason column on the spam filter page, Hive Panel sign-in in Docker fixed, more HELP topics and clearer docs. Signed, and the Docker images match the signed programs byte for byte."
-    ],
-    [
-      "2026-11-15T23:20",
-      "Spam filter shows the reason",
-      "The Hive Panel's spam filter list now has its own Reason column, so you can see what people are told when a rule catches them."
-    ],
-    [
-      "2026-11-15T22:50",
-      "BeeIRCd 1.1.0 is out",
-      "Spam filter, moving from Anope, opers by certificate and a calmer Hive Panel. Signed, on GitHub and Docker, and the documentation was checked page by page."
-    ],
-    [
-      "2026-11-15T22:47",
-      "SKINTERNET runs BeeIRCd 1.1.0",
-      "Both servers updated with one command each; the link was back in under a second."
-    ],
-    [
-      "2026-11-15T21:55",
-      "1.1.0 passed every release test",
-      "6 hours with 2,000 people online: memory flat at about 80 MB, no failures, replies in 3 ms. Race checks, link tests, fuzzing and the QA round all passed too."
-    ],
-    [
-      "2026-11-15T21:10",
-      "Documentation is live on beeircd.org/docs",
-      "Install, every beeircd.conf section, every services command, questions and answers and the change log, for 1.1 and 1.0. A new check stops a release when a setting or command has no docs."
-    ],
-    [
-      "2026-11-15T20:45",
-      "Documentation pages built",
-      "About 50 short pages: install, every beeircd.conf section with its settings, every services command, questions and answers, and the change log. They go live on beeircd.org/docs soon."
-    ],
-    [
-      "2026-11-15T14:40",
-      "1.1.0-rc4: the new This server block",
-      "The Overview bar meters and colour-coded oper flags are out as a test version, and SKINTERNET runs it."
-    ],
-    [
-      "2026-11-15T14:25",
-      "Hive Panel: This server shows your oper flags",
-      "The Overview block now has bar meters for people, reply time and memory, and shows the signed-in oper what each of their flags allows, one colour per flag (also on the Opers page)."
-    ],
-    [
-      "2026-11-15T03:00",
-      "1.1.0-rc3: linked servers share connection limits",
-      "Servers without their own services now use the services server's connection exceptions, so bouncers and home networks get the same room on every server. Also a cleaner WHOIS for opers brought over from UnrealIRCd. SKINTERNET runs it."
-    ],
-    [
-      "2026-11-15T02:10",
-      "1.1.0-rc2: three fixes from the move",
-      "Session exceptions with limit 0 now mean no limit (as in Anope), exceptions on host names work, and backups made as root stay usable. SKINTERNET runs it already."
-    ],
-    [
-      "2026-11-15T01:45",
-      "SKINTERNET moved to BeeIRCd",
-      "irc.bajubesi.org and irc.skinhead.com.my switched from UnrealIRCd and Anope to BeeIRCd in a few minutes. Accounts, passwords, channels, opers, bans and the Discord bridge all came along; about 90 people were back online right after."
-    ],
-    [
-      "2026-11-15T01:10",
-      "BeeIRCd 1.1.0-rc1 is out (test release)",
-      "A signed test release with the Anope import, certificate opers, the spam filter and the calmer What happened page. 1.0.0 stays the normal download; this one is for the move of SKINTERNET."
-    ],
-    [
-      "2026-11-15T01:00",
-      "Moving from Anope, and opers by certificate",
-      "beeircd import-anope brings a whole Anope 2.0 network over: accounts, passwords (nobody has to reset), channels, bots and bans. Tested with a real Anope and a copy of SKINTERNET's own database. Opers can now log in with their TLS certificate, like bots on UnrealIRCd do."
-    ],
-    [
-      "2026-11-14T23:45",
-      "After 1.0: spam filter and a calmer What happened page join the main line",
-      "The spam filter and the redesigned What happened page (day groups, repeats folded) were waiting until 1.0 was out. They are now in the main code, all tests pass, and they come with the next release."
-    ],
-    [
-      "2026-11-14T23:35",
-      "Test servers run 1.0",
-      "Both test servers moved to 1.0 with the normal signed update, the same way every server owner will. One small thing found: the update didn't restart the Hive Panel. Fixed for the next release."
-    ],
-    [
-      "2026-11-14T23:30",
-      "Docker images show the right version",
-      "The 1.0 Docker images now say 1.0.0 and hold exactly the same signed programs as the download. Future releases build their Docker images by themselves."
-    ],
-    [
-      "2026-11-14T23:00",
-      "BeeIRCd 1.0 and BeeRoom 1.0 released",
-      "Every release test passed: 6 hours with 2,000 people, splits and rejoins with 5,100 people on three servers, no crashes. Both are signed and the code is now public. Install with one command from beeircd.org (install.sh for the server, beeroom.sh for the web chat); fresh installs checked on Debian 13 and Ubuntu 24.04."
-    ],
-    [
-      "2026-11-14T17:30",
-      "A safety net against crashes",
-      "If a bug ever trips on one strange message, BeeIRCd now drops only that one connection, writes the details to the log and tells the opers. The rest of the network keeps running. The second tester's round has also started."
-    ],
-    [
-      "2026-11-14T15:45",
-      "Testers found four small things, all fixed",
-      "The second tester checked everything new in 1.0 and found four small problems, all fixed the same day. 1.0 also gets a crash guard: if one bad message ever makes the server fail, only that person is disconnected, not everyone. The long stress test starts again to cover it."
-    ],
-    [
-      "2026-11-14T15:40",
-      "Last pieces for 1.0 are in",
-      "Admins can now let normal users into the Hive Panel with one switch, with a short guide for putting it behind HTTPS. BeeRoom's header now fits phones, and the install guide covers the web chat. Next: one big test round before 1.0."
-    ],
-    [
-      "2026-11-14T15:15",
-      "Spam filter is built (comes after 1.0)",
-      "Rules that catch spam as it is sent: block it, warn the opers, or ban the sender. Opers manage them on IRC (same commands as UnrealIRCd) or on a new Spam filter page in the Hive Panel. Every new rule is first tried on 200 normal chat lines, so a rule that would hit normal talk is caught before it goes on. It comes in the release after 1.0."
-    ],
-    [
-      "2026-11-14T15:05",
-      "BeeIRCd 1.0 will be complete",
-      "The first release now includes everything: the server, linking, the Hive Panel for opers and normal users, and the BeeRoom web chat. No waiting for a 1.1 to get the full experience."
-    ],
-    [
-      "2026-11-14T14:10",
-      "The 1.0 test round has started",
-      "All tests pass. Clicking through every Hive Panel page and the web chat found four small problems, all fixed: an oper using the member pages could get locked out of oper sign-in, an ended suspension still blocked the Hive Panel, and two layout glitches on the channel page. A 6-hour stress test with 2,000 users is running."
-    ],
-    [
-      "2026-11-14T13:30",
-      "Nobody can lock you out of your nick",
-      "Testing found that five wrong passwords from anyone locked the real owner out for ten minutes. Now wrong guesses only lock out the address they came from; the owner signs in from their own place as usual."
-    ],
-    [
-      "2026-11-14T13:00",
-      "Two bugs fixed from testing",
-      "A software test found that on a hand-made setup with no admin password, someone could take the admin's oper rights first. That door is closed now (the installer was never affected), and a ChanServ reply that left out a word is fixed."
-    ],
-    [
-      "2026-11-14T12:45",
-      "Run your channel from the web",
-      "Channel owners can now open any of their channels in the Hive Panel: see who is there, add or remove helpers, change levels, kick lists, the topic and settings, pick a successor, read the channel's memos, or hand the channel over. Every button does exactly what ChanServ does on IRC, with the same rules."
-    ],
-    [
-      "2026-11-14T12:00",
-      "A home page and memos for everyone",
-      "People who are not opers now land on their own Home in the Hive Panel: new memos, their channels right now, who was added to their lists, where they are connected, and a short \"needs you\" list. A new Memos page reads, answers, deletes and sends memos, with the same rules as MemoServ on IRC. Ships with 1.1."
-    ],
-    [
-      "2026-11-14T11:30",
-      "Web chat inside the Hive Panel",
-      "The Hive Panel has a Chat tab: BeeRoom opens right inside it, already signed in as you. The panel hands BeeRoom a key that works once, for one minute, for your nick only, so no second password. It stays connected while you look at other pages. Ships with 1.1."
-    ],
-    [
-      "2026-11-14T11:00",
-      "Members can sign in to the Hive Panel",
-      "Anyone with a registered nick can now sign in to the Hive Panel with their NickServ password and change their nick settings with switches, and see the channels they run. No commands to remember. Opers still get the full admin pages. The server checks every request, so members never see admin data. Next: web chat inside the panel."
-    ],
-    [
-      "2026-11-14T10:20",
-      "Release candidate 2 is out",
-      "The second test version of BeeIRCd 1.0 is published and signed: server, linking and Hive Panel together. It passed a one hour fuzz test and six hours with 2,000 users online, with no one dropped and steady memory. BeeRoom web chat also runs in Docker now, next to BeeIRCd."
-    ],
-    [
-      "2026-11-14T09:55",
-      "BeeIRCd in Docker",
-      "A small Docker image (37 MB) for NAS boxes, any Linux, and Windows or Mac with Docker Desktop. Setup asks the same nine questions; the Hive Panel and daily backups work, and updating is one pull. Tested start to finish on a real machine, including an upgrade that kept every account. It ships with 1.1."
-    ],
-    [
-      "2026-11-14T09:00",
-      "BeeIRCd without systemd",
-      "A new install guide for Alpine and other machines without systemd: a ready service file, daily backups and every admin command as usual. Followed word for word on a fresh Alpine machine. Next for 1.1: Docker images and plain downloads, so BeeIRCd runs on the box people already have."
-    ],
-    [
-      "2026-11-14T07:20",
-      "BeeRoom gets its own installer",
-      "One command sets up the web chat next to Apache, nginx or Caddy, checks the download's signature and tells BeeIRCd each person's real IP. BeeIRCd stays lean: it only gained one small command. Tested on fresh machines with each web server. A hole from The Lounge was closed too: visitors can no longer fake their IP."
-    ],
-    [
-      "2026-11-14T06:35",
-      "BeeRoom web chat runs",
-      "BeeRoom now has its own code, built on The Lounge: our name and logo, the black and honey look, guests go straight to their own BeeIRCd network, and each person's real IP reaches the server. Tested in a browser against a test server; all 287 of The Lounge's own tests pass."
-    ],
-    [
-      "2026-11-14T06:00",
-      "First step for BeeRoom web chat: real IPs",
-      "A trusted web chat can now tell the server each person's real IP (WEBIRC). Bans, limits and blocklists then hit only that person, not everyone on the web chat. Ten new tests, all checks pass."
-    ],
-    [
-      "2026-11-14T05:10",
-      "One hour fuzz passed",
-      "Twelve fuzzers fed random input to every parser for an hour on the release candidate code. No crashes, no failures. The six hour soak keeps running until about 10:10."
-    ],
-    [
-      "2026-11-14T04:38",
-      "Docs checked against the code",
-      "The feature list, the spec and the admin guide were read against the 1.0 code. Old lines were fixed: linking is part of 1.0, identifying never makes you an oper, and the new Hive Panel cards are listed."
-    ],
-    [
-      "2026-11-14T04:20",
-      "Docs ready for 1.0",
-      "The README now covers server linking, the Hive Panel and BotServ, and the roadmap shows 1.0. The admin guide explains every card on the Hive Panel Overview."
-    ],
-    [
-      "2026-11-13T22:25",
-      "Heavy linking test passed",
-      "5,100 bots on three servers for an hour. One server was cut off and joined again 16 times; after every return all three saw the same users, channels, topics and modes. No crashes, memory flat."
-    ],
-    [
-      "2026-11-13T21:20",
-      "Server counts fixed on linked networks",
-      "LUSERS said \"1 server\" on a network of many. It now counts every server, this server's own links and the most people on the whole network. Found by the new linking test, which checks that every server sees the same users, channels, topics and modes."
-    ],
-    [
-      "2026-11-13T20:50",
-      "Bug sweep: three fixes",
-      "The Hive Panel now signs out an unattended tab after 30 minutes, an oper can no longer change the entry of an oper with more rights, and strangers on the link port can no longer keep the server busy before they prove who they are."
-    ],
-    [
-      "2026-11-13T20:05",
-      "Hive Panel: Server details and the guards in three",
-      "A new Server details card shows the ports, the system it runs on, the certificate names, when it started and the channel history. The Health card now says which guard stopped what: slowed down, Z-lined or blocklist. One plan from now on: 1.0 ships server, linking and Hive Panel together."
-    ],
-    [
-      "2026-11-13T19:50",
-      "Spotlight is live on the test server",
-      "The test network now runs the Spotlight panel. It passed the speed test with 5000 people first, just as fast as before."
-    ],
-    [
-      "2026-11-13T19:45",
-      "Hive Panel: Spotlight and a friendly header",
-      "The top of the Overview now greets you and says if anything needs you. The honey card became Spotlight: the busiest room right now, the newest member, today's busiest moment and anniversaries, one at a time. Nothing on the page is shown twice."
-    ],
-    [
-      "2026-11-13T18:30",
-      "Network status card on the Hive Panel",
-      "The Overview opens with a status card: is the network up, how many servers and services, the version, last backup and certificate, and a yellow uptime card with a honeycomb pattern. It turns red and grey when the server stops answering."
-    ],
-    [
-      "2026-11-13T17:55",
-      "A calmer top bar for the Hive Panel",
-      "Jump to and Theme are small icons now, the theme picker shows a colour swatch for each theme, and the badge shows the server's uptime, turning red when the server stops answering. Checked on wide screens and phones."
-    ],
-    [
-      "2026-11-13T17:20",
-      "Channel bots work for people on every server",
-      "The two test servers run the newest build. A test across the link found that channel bots ignored people on the second server; that is fixed and checked live: bad-word kicks and !commands now work on both servers."
-    ],
-    [
-      "2026-11-13T16:15",
-      "Bot changes without a quit, and fixes for linking and the panel",
-      "Changing a bot's ident or host no longer makes it quit and rejoin, so a kept-open channel stays open. The linking and Hive Panel branches got all version 1.0 fixes and BotServ, and the panel's oper pages show the bots flag."
-    ],
-    [
-      "2026-11-13T15:50",
-      "Version 1.0 release candidate 1",
-      "Both long tests passed: one hour of random-input testing, and 6 hours with 2,000 users, none dropped, memory flat. 1.0.0-rc1 is signed and published as a test version."
-    ],
-    [
-      "2026-11-13T08:45",
-      "BotServ on the main branch",
-      "BotServ joined version 1.0 on the main branch, with one more fix: changing a bot no longer loses a kept-open channel's topic. The long tests started again on this code."
-    ],
-    [
-      "2026-11-13T08:35",
-      "BotServ part 3: !commands, plus a bug sweep",
-      "People with access can type !op, !kick, !topic and the other ChanServ commands right in the channel. A bug sweep of BotServ found and fixed 3 small problems."
-    ],
-    [
-      "2026-11-13T08:25",
-      "BotServ part 2: kickers and bad words",
-      "The channel bot can now kick people for bad words, caps, floods, repeats, colours and the same line sent to many channels, and ban them after a few kicks for a set time."
-    ],
-    [
-      "2026-11-13T08:15",
-      "BotServ part 1: channel bots",
-      "Opers can make bots, channel founders put one in their channel, and the bot can talk for the channel and greet people. Version 1.0 now includes BotServ, so its gauge went down a little."
-    ],
-    [
-      "2026-11-13T07:10",
-      "Version 1.0 bug sweep: 4 fixes",
-      "A suspended account can no longer sign in through SASL or NickServ RECOVER, opers can't take over an oper with more rights, a ZLINE can't ban the whole internet, and INVITE checks channel names. The 24 hour test with 2,000 users passed: memory flat, replies in 5 ms."
-    ],
-    [
-      "2026-11-13T07:00",
-      "Version 1.0 on the main branch",
-      "All the version 1.0 work, with today's bug fixes, is now on the main branch and passes every automatic check."
-    ],
-    [
-      "2026-11-13T04:05",
-      "Hive Panel: new design",
-      "A fresh look with cards you can arrange yourself, five colour themes and a quick Jump to box (Ctrl K). The network map now shows the chosen server's details beside it."
-    ],
-    [
-      "2026-11-13T03:20",
-      "Map: servers place themselves",
-      "Each server finds its own city from its IP address (or its time zone) and tells the network, so the map fills itself. Owners can still place a server by hand. Live on the test servers in Germany and Malaysia."
-    ],
-    [
-      "2026-11-13T02:30",
-      "Hive Panel: network map",
-      "A world map of your servers you can drag round and zoom into, with live links, small icons and grouping for big networks. Light enough for slow machines."
-    ],
-    [
-      "2026-11-13T01:35",
-      "Hive Panel: realname bans",
-      "Ban by realname (SNLINE) from the Bans page: type it with spaces or as a pattern, see who it hits before you add it."
-    ],
-    [
-      "2026-11-13T00:55",
-      "Hive Panel: backups",
-      "See every kept backup, make one with a click and download it after typing your password again. Phone layout fixes too."
-    ],
-    [
-      "2026-11-13T00:25",
-      "Hive Panel: bug sweep, safety tests, installer",
-      "Four bugs found and fixed, every page tested against every oper right, millions of random requests, and the installer sets the panel up with one yes."
-    ],
-    [
-      "2026-11-13T00:05",
-      "Hive Panel: Channels",
-      "Every channel on the network with its topic, people and ChanServ details; send a notice, set the topic or suspend a channel with one click."
-    ],
-    [
-      "2026-11-12T23:30",
-      "Hive Panel: Services",
-      "The services settings in plain words, saved and applied at once, with undo. Every page of the Hive Panel is built."
-    ],
-    [
-      "2026-11-12T23:05",
-      "Hive Panel: Linked servers",
-      "A map of the network, every link with its state, connect and split with one click, and link blocks added or changed without opening beeircd.conf."
-    ],
-    [
-      "2026-11-12T22:40",
-      "Hive Panel: Opers",
-      "Add, change and remove opers with the same rules as AdminServ: nobody gives a right they don't have, and every change can be undone."
-    ],
-    [
-      "2026-11-12T22:10",
-      "Hive Panel: Bans",
-      "Network bans in one list: add one and see how many people online it would hit before you press the button, remove one with two clicks."
-    ],
-    [
-      "2026-11-12T20:35",
-      "Hive Panel: People",
-      "Everyone online on every server, searchable. Opers can send a notice, disconnect or ban with one click, and the server checks their rights every time."
-    ],
-    [
-      "2026-11-12T19:30",
-      "Hive Panel starts",
-      "The web admin is here: opers sign in with their oper password, see the server live and change settings with one click. The server checks every click against the oper's rights."
-    ],
-    [
-      "2026-11-12T18:20",
-      "Linked servers checked against misbehaving servers",
-      "Safety tests found and fixed six holes a broken linked server could use, including one bad line that crashed the server. Anope services now link to BeeIRCd too."
-    ],
-    [
-      "2026-11-12T17:50",
-      "Oper changes follow opers to every server",
-      "Changing or switching off an oper on the main server now applies at once on every linked server."
-    ],
-    [
-      "2026-11-12T17:20",
-      "Opers can log in on every server",
-      "An oper made on the main server can now /oper on any linked server; the main server checks the password. Tested on the 3-server test network."
-    ],
-    [
-      "2026-11-12T16:55",
-      "Linking two servers is copy and paste",
-      "The installer asks a new server for its hub and prints the lines the other side pastes. Tested on two fresh machines and on a 3-server test network with splits."
-    ],
-    [
-      "2026-11-12T16:05",
-      "Certificate login works on a live network",
-      "A user on a BeeIRCd server logged in by certificate through the live network's services. Wrong logins are refused."
-    ],
-    [
-      "2026-11-12T10:15",
-      "Splits and rejoins settle themselves",
-      "When a link drops and comes back, every server agrees again. New: /links, /map, /connect, /squit, /stats, /admin and K-lines. Tested with a real UnrealIRCd 6."
-    ],
-    [
-      "2026-11-12T09:45",
-      "Services work across linked servers",
-      "Log in (SASL), auto-join, oper rights, WHOIS and nick bans reach every server. New oper tools: JUPE, NOOP, DEFCON and server link blocks. Tested with a real UnrealIRCd 6."
-    ],
-    [
-      "2026-11-12T08:50",
-      "First link with a live network",
-      "BeeIRCd joined a real UnrealIRCd network with Anope for a short test: messages, nicks, topics and cloaks matched on both sides. One bug found and fixed on the spot."
-    ],
-    [
-      "2026-11-12T08:45",
-      "Cloaks that match existing UnrealIRCd networks",
-      "A cloak setting that gives the same hidden hosts as the cloak_inspircd module, checked against a real UnrealIRCd 6."
-    ],
-    [
-      "2026-11-12T08:12",
-      "Linked servers talk live",
-      "Messages, joins, nick changes, modes, network bans and kills travel between servers. Tested with a real UnrealIRCd 6."
-    ],
-    [
-      "2026-11-12T06:55",
-      "Linked servers share users and channels",
-      "Tested with a real UnrealIRCd 6: nick clashes and channel merges settle the same way on both sides."
-    ],
-    [
-      "2026-11-12T06:30",
-      "Servers link up",
-      "BeeIRCd linked with a real UnrealIRCd 6, both ways, over TLS with pinned keys."
-    ],
-    [
-      "2026-11-12T06:13",
-      "Server links start: TLS transport and the UnrealIRCd 6 handshake",
-      "Tested both ways against a real UnrealIRCd 6.2.7."
-    ],
-    [
-      "2026-11-12T06:00",
-      "One hour of fuzzing passed",
-      "Eight parsers, hundreds of millions of random inputs, no failures."
-    ],
-    [
-      "2026-11-12T05:43",
-      "Plan for server linking",
-      "Speaks the UnrealIRCd 6 server protocol, so it can join existing networks."
-    ],
-    [
-      "2026-11-12T05:00",
-      "Install and admin guides, release checks",
-      "An hour of fuzzing, a TLS scan, clean installs on Debian 13 and Ubuntu 24.04."
-    ],
-    [
-      "2026-11-12T04:49",
-      "Stricter TLS 1.2",
-      "Only forward secret ciphers."
-    ],
-    [
-      "2026-11-12T03:59",
-      "Signed updates",
-      "beeircd update checks the signature and rolls back if the new version won't start."
-    ],
-    [
-      "2026-11-12T02:58",
-      "One-command installer",
-      "beeircd install asks a few questions, then sets up systemd, the firewall and backups."
-    ],
-    [
-      "2026-11-12T01:57",
-      "Let's Encrypt and STS built in",
-      ""
-    ],
-    [
-      "2026-11-12T01:27",
-      "beeircd status, check, backup and rehash",
-      ""
-    ],
-    [
-      "2026-11-12T00:44",
-      "Connect throttle and PROXY protocol",
-      "Stops reconnect floods, works behind a load balancer."
-    ],
-    [
-      "2026-11-11T23:39",
-      "Channel history and CHATHISTORY",
-      ""
-    ],
-    [
-      "2026-11-11T22:46",
-      "User modes, KNOCK, SILENCE and SETNAME",
-      ""
-    ],
-    [
-      "2026-11-11T21:53",
-      "Protocol checks against irctest",
-      ""
-    ],
-    [
-      "2026-11-11T20:57",
-      "Test foundation",
-      ""
-    ],
-    [
-      "2026-11-11T18:54",
-      "Channel modes",
-      ""
-    ],
-    [
-      "2026-11-11T17:55",
-      "Oper classes",
-      ""
-    ],
-    [
-      "2026-11-11T16:08",
-      "HostServ",
-      ""
-    ],
-    [
-      "2026-11-11T15:44",
-      "MemoServ extras, mail and BUDDY",
-      ""
-    ],
-    [
-      "2026-11-11T15:08",
-      "MONITOR, client certificates and SASL EXTERNAL",
-      ""
-    ],
-    [
-      "2026-11-11T14:02",
-      "OperServ extras, SEEN and DNSBL",
-      ""
-    ],
-    [
-      "2026-11-11T13:09",
-      "Services answer like Anope 2.0.20",
-      ""
-    ],
-    [
-      "2026-11-11T12:03",
-      "Runs well on a 1 CPU VPS",
-      ""
-    ],
-    [
-      "2026-11-11T10:23",
-      "Network bans and extbans",
-      ""
-    ],
-    [
-      "2026-11-11T09:52",
-      "ChanServ permission sets",
-      ""
-    ],
-    [
-      "2026-11-11T06:30",
-      "Opers, OperServ and AdminServ",
-      ""
-    ],
-    [
-      "2026-11-11T05:27",
-      "ChanServ",
-      ""
-    ],
-    [
-      "2026-11-11T04:54",
-      "NickServ, MemoServ and SASL",
-      ""
-    ],
-    [
-      "2026-11-11T04:32",
-      "IRCv3, cloaked hosts and flood control",
-      ""
-    ],
-    [
-      "2026-11-11T03:48",
-      "Core chat server",
-      ""
-    ],
-    [
-      "2026-11-11T03:11",
-      "Project started",
-      ""
-    ]
+  {
+   "id": "g-vision",
+   "label": "full vision",
+   "pct": 99,
+   "title": "Full vision",
+   "text": "Linking, Hive Panel and BeeRoom too."
+  }
+ ],
+ "now": {
+  "title": "1.7.2 release test",
+  "text": "The long tests are running on the test server (heavy linking, speed, fuzzing and a 6-hour soak). Linking with InspIRCd and UnrealIRCd passed.",
+  "start": "2026-11-27T23:30:00+08:00",
+  "end": "2026-11-28T13:00:00+08:00"
+ },
+ "next": "1.7.2: finish the long tests, then 1.7.2-rc1 on the live servers.",
+ "done": [
+  [
+   "2026-11-28T05:00",
+   "New header picture on the home page: a honey-dome server house on a floating island, with pins for your server, services, messages and the live beacon."
   ],
-  "stages": [
-    {
-      "n": "Stage 1, done",
-      "title": "One server, all services",
-      "steps": [
-        [
-          "done",
-          "Core chat server, IRCv3, SASL, cloaks"
-        ],
-        [
-          "done",
-          "NickServ, ChanServ, MemoServ, HostServ, BotServ"
-        ],
-        [
-          "done",
-          "OperServ and AdminServ"
-        ],
-        [
-          "done",
-          "Installer, the beeircd command, signed updates"
-        ],
-        [
-          "done",
-          "Fuzz 1 h and soak 6 h with 2,000 users"
-        ]
-      ]
-    },
-    {
-      "n": "Stage 2, done",
-      "title": "Server linking",
-      "steps": [
-        [
-          "done",
-          "BeeIRCd to BeeIRCd over TLS, pinned keys"
-        ],
-        [
-          "done",
-          "Links to UnrealIRCd 6"
-        ],
-        [
-          "done",
-          "Services on the hub for the whole network"
-        ],
-        [
-          "done",
-          "Splits and rejoins tested with 5,100 users"
-        ]
-      ]
-    },
-    {
-      "n": "Stage 3, done",
-      "title": "Hive Panel",
-      "steps": [
-        [
-          "done",
-          "Overview, People, Channels, Bans, Opers"
-        ],
-        [
-          "done",
-          "Network map, Services, Settings, Backups"
-        ],
-        [
-          "done",
-          "Members: Home, Memos, My nick"
-        ],
-        [
-          "done",
-          "Channel manager for owners"
-        ],
-        [
-          "done",
-          "Members switch for public sign-in"
-        ]
-      ]
-    },
-    {
-      "n": "Stage 4, done",
-      "title": "BeeRoom",
-      "steps": [
-        [
-          "done",
-          "Web chat with the Bee theme"
-        ],
-        [
-          "done",
-          "Real IP for each person (WEBIRC)"
-        ],
-        [
-          "done",
-          "Own installer and a Docker image"
-        ],
-        [
-          "done",
-          "Chat tab inside the Hive Panel"
-        ],
-        [
-          "done",
-          "Signed download, out with 1.0"
-        ]
-      ]
-    }
+  [
+   "2026-11-28T03:15",
+   "Fixed a test for restart hand-overs that failed now and then. The servers themselves were fine; only the test helper closed a connection too early."
+  ],
+  [
+   "2026-11-28T02:35",
+   "Fixed 2 things: a server without its own services no longer offers logins (SASL) while no services server is linked, and tells chat apps when logins come and go. One test that sometimes failed by itself now passes every time. Both go into the extra test round."
+  ],
+  [
+   "2026-11-28T01:45",
+   "New setting: a BeeIRCd that links to InspIRCd can now name its services server, so logins (SASL) work right away even after BeeIRCd restarts. Tested against InspIRCd: all 5 login cases pass."
+  ],
+  [
+   "2026-11-28T01:00",
+   "Fixed: after a server linked with InspIRCd reconnected, logins (SASL) failed for about a minute until services came back. Now they work again right away."
+  ],
+  [
+   "2026-11-27T23:15",
+   "Fixed: WHOIS showed opers from other servers as plain opers, without their oper level. Checked the IP bans and six panel pages: all fine. The docs are easier to read now: the grey text is darker in light mode and brighter in dark mode."
+  ],
+  [
+   "2026-11-27T23:00",
+   "Fixed 4 bugs: a linked server could take services' rights, services kept half-done logins, web chat pings skipped flood control, and one address could hold endless web chat connections."
+  ],
+  [
+   "2026-11-27T22:40",
+   "Released BeeIRCd 1.7.1: 60 fixes and polish items from a full security and bug sweep, now on both live servers."
+  ],
+  [
+   "2026-11-27T19:20",
+   "1.7.1-rc2 is out and runs on both live servers. Also fixed: right after a reboot, beeircd status could say \"stopped\" while the server was still starting."
+  ],
+  [
+   "2026-11-27T19:00",
+   "Fixed: right after the upgrade from 1.7.0, people on other servers could lose their NickServ login. 1.7.1-rc1 is on both live servers."
+  ],
+  [
+   "2026-11-27T17:50",
+   "Speed check: 5,000 users chatting, 1.7.1 is as fast as 1.7.0 (lag about 10 ms). Realname bans and SAMODE notices checked on UnrealIRCd and InspIRCd."
+  ],
+  [
+   "2026-11-27T16:55",
+   "Linking: tested against real InspIRCd and UnrealIRCd servers; 8 fixes so server notices, SWHOIS, SDESC, SAMODE and routed answers show right on both sides."
+  ],
+  [
+   "2026-11-27T03:20",
+   "Linking: InspIRCd links now carry MOTD, ADMIN, TIME, STATS, WHOIS with real idle time, KNOCK, server notices, SDESC, UNINVITE, REHASH and CONNECT."
+  ],
+  [
+   "2026-11-27T02:54",
+   "Linking: KNOCK, SAMODE on far users, opers' $server messages, routed INFO/LUSERS/CONNECT/REHASH, SWHOIS, server notices and realname bans now work across linked servers, like on other IRC servers."
+  ],
+  [
+   "2026-11-27T02:03",
+   "Linking: WALLOPS now reaches people with +w on every linked server, including UnrealIRCd and InspIRCd links, like on other IRC servers."
+  ],
+  [
+   "2026-11-27T00:06",
+   "Website: the LEAF label on the live server cards is now leaf green, and HUB gets a matching soft honey fill."
+  ],
+  [
+   "2026-11-26T23:56",
+   "Website polish is live: a bigger, calmer hero headline, What's new grouped by kind, service commands you can click to copy, and more room between sections."
+  ],
+  [
+   "2026-11-26T19:02",
+   "Release test for BeeIRCd 1.7.1, part 3: logins for people on other servers now survive a cold restart of the services server, the light panel theme is easier to read, the update test passes 32 of 32, the load test and the Windows symlink tests pass."
+  ],
+  [
+   "2026-11-26T18:22",
+   "Release test for BeeIRCd 1.7.1, part 2: the tester's bugs are fixed (a linked server could log its users in to other people's accounts, AS OPER ADD and WEBIRC replies, Rehash answering twice, Windows update and status hints), race test clean, overnight tests still running."
+  ],
+  [
+   "2026-11-26T17:28",
+   "Release test for BeeIRCd 1.7.1 started: all checks pass, a Hive Panel click-through fixed 3 phone layout bugs, and a bug sweep fixed 4 more (the live overview while the server stops, ChanServ ACCESS ADD on a FLAGS entry, a public error text, a grammar slip)."
+  ],
+  [
+   "2026-11-26T17:01",
+   "BeeRoom 1.1.1 released and live on both chats: reactions can no longer hide invisible marks, a reply keeps its link when the first line is empty, reply and react follow server changes at once, and the people search shows nicks safely."
+  ],
+  [
+   "2026-11-26T16:29",
+   "BeeRoom 1.1 released: new Bee Day and Bee Night look, replies and reactions, a front door for guests. Signed download at beeircd.org, checked with a clean install."
+  ],
+  [
+   "2026-11-26T15:51",
+   "Both live chats (webchat and chat.beeircd.org) now run the fixed BeeRoom. A strange message can no longer knock everyone off."
+  ],
+  [
+   "2026-11-26T15:48",
+   "BeeRoom release checks done. Fixed: one guest could knock everyone off the chat with a strange message, and asking for the changelog again and again made the server call GitHub each time."
+  ],
+  [
+   "2026-11-26T15:28",
+   "This site now has a Chat link and a \"Chat with us\" button. They open chat.beeircd.org, straight into #beeircd."
+  ],
+  [
+   "2026-11-26T15:19",
+   "chat.beeircd.org is up: the new chat page runs on our main server and takes you straight to #beeircd."
+  ],
+  [
+   "2026-11-26T15:12",
+   "BeeRoom: a simple chat front door. Visitors see a welcome card, pick a nick, and join one set room with one button."
+  ],
+  [
+   "2026-11-26T14:58",
+   "The SKINTERNET web chat now has the new BeeRoom look, with replies and reactions."
+  ],
+  [
+   "2026-11-26T14:42",
+   "BeeRoom: hover a message to reply or react. Replies show a quote of the original line, and reactions show as small emoji chips under the message."
+  ],
+  [
+   "2026-11-26T14:10",
+   "BeeRoom: messages from one person are grouped under a bee avatar, ops and voices get a tag, new visitors see a welcome card, and the people list is sorted by rank."
+  ],
+  [
+   "2026-11-26T13:25",
+   "Hive Panel: every corner now uses one of four calm sizes, the same in all themes."
+  ],
+  [
+   "2026-11-26T13:17",
+   "Web chat on SKINTERNET now shows each person's real address, and BeeRoom has a light Bee Day theme next to the dark one."
+  ],
+  [
+   "2026-11-26T16:10",
+   "BeeRoom: pictures of three new looks and a light theme, ready to choose from."
+  ],
+  [
+   "2026-11-26T15:50",
+   "BeeRoom polish is live on the SKINTERNET web chat."
+  ],
+  [
+   "2026-11-26T15:40",
+   "BeeRoom: logo on the sign-in screen, dark menus, simpler guest form, plain messages and the BeeRoom name everywhere."
+  ],
+  [
+   "2026-11-26T15:00",
+   "BeeRoom: guests can no longer route the chat server through a proxy of their choice."
+  ],
+  [
+   "2026-11-26T14:40",
+   "Hive Panel: hint text and yellow links are easier to read in every theme, most of all the light one."
+  ],
+  [
+   "2026-11-26T14:10",
+   "Polish pass: clearer error and help messages, one spelling for vHost and email, two small message bugs fixed."
+  ],
+  [
+   "2026-11-26T12:55",
+   "Changing a long list in the config through BeeIRCd now keeps your comments on it."
+  ],
+  [
+   "2026-11-26T12:40",
+   "Config edits now change long multi-line settings whole, the config copy made before an update is safely on disk, and the fix-by-hand steps work with folders that have spaces."
+  ],
+  [
+   "2026-11-26T12:20",
+   "A failed update now puts every file back or says exactly what to move by hand, keeps a linked config and its owner, and leaves no stray copies behind."
+  ],
+  [
+   "2026-11-26T11:58",
+   "Updates are safer: a failed step now stops with nothing changed, a restart after an update starts the new program, rehash says when the Hive Panel needs a restart, and saving the config keeps a linked file and writes it to disk safely."
+  ],
+  [
+   "2026-11-26T11:22",
+   "Config and upgrades hunt: OperServ SERVER SET no longer wipes a link's protocol and rule, and update --rollback checks your config first so going back can't take the server down."
+  ],
+  [
+   "2026-11-26T12:15",
+   "Web chat behind a proxy: visitors can no longer fake their address with the X-Real-IP header to get past a ban."
+  ],
+  [
+   "2026-11-26T11:55",
+   "Web chat hunt: one visitor can no longer fill server memory through the WebSocket port, session exceptions on hostnames now work for web chat, and gateways can't give users broken hosts."
+  ],
+  [
+   "2026-11-26T11:10",
+   "Hive Panel hunt: opers can no longer disconnect a higher oper from the panel, and many sign-ins sent at once can no longer get past the 5-try lock."
+  ],
+  [
+   "2026-11-26T10:55",
+   "A link to a network that runs its own services now retries every 10 minutes and tells opers once an hour, instead of retrying every few seconds."
+  ],
+  [
+   "2026-11-26T10:21",
+   "Linked servers can no longer give users broken hosts, and a user on a services nick is now removed instead of dropping the whole link."
+  ],
+  [
+   "2026-11-26T10:06",
+   "Linking hunt: fixed 3 bugs where a linked server could act as services, kill a services bot, or take the cloak off users."
+  ],
+  [
+   "2026-11-26T09:49",
+   "Opers can no longer force a nick change, channel join or part on an oper who ranks above them."
+  ],
+  [
+   "2026-11-26T08:28",
+   "Fixed 8 more bugs: opers on other servers are ranked properly (also from InspIRCd and UnrealIRCd), OS KILL and UMODE respect higher opers, BotServ stops on suspended channels, SECUREOPS can't be skipped with MODE SET, and early ZLINE checks match every IP form."
+  ],
+  [
+   "2026-11-25T17:10",
+   "Bug hunt fixed 10 services bugs: higher opers and channel ranks are protected properly, READONLY now really writes nothing, IPv6 ZLINEs match, and ChanServ INFO can't crash on an old Anope ban type."
+  ],
+  [
+   "2026-11-25T15:30",
+   "Fixed: an old password reset code could open a newer account that got the same number."
+  ],
+  [
+   "2026-11-25T08:07",
+   "6-hour test with 2,000 users passed: memory flat at about 150 MB, lag 7.5 ms, 0 dropped, 12 backups and 4 reloads during the run."
+  ],
+  [
+   "2026-11-25T04:20",
+   "The 6-hour test now measures the server itself, not the small helper that starts it, so a memory leak would show."
+  ],
+  [
+   "2026-11-25T01:40",
+   "Fuzz tests now cover web chat, InspIRCd links and geoip too (three were skipped before)"
+  ],
+  [
+   "2026-11-25T01:03",
+   "Race test for 1.7.0 passed: 25 packages, no races"
+  ],
+  [
+   "2026-11-24T22:35",
+   "BeeIRCd 1.7.0 released",
+   "Signed and published on GitHub. Servers see the update within a day and install it with beeircd update."
+  ],
+  [
+   "2026-11-24T21:44",
+   "Release Test for 1.7.0 passed",
+   "All tests pass, including race and load tests on Linux, the 5,000-user benchmark (same speed and memory as 1.6.0) and link tests with UnrealIRCd and InspIRCd. The bug hunt found four small issues; all are fixed."
+  ],
+  [
+   "2026-11-24T21:05",
+   "Link rules in the Hive Panel",
+   "The Linked servers page now shows which servers have a link rule, lets you change it in the form, refuses a bad rule, and says when a rule stopped a link."
+  ],
+  [
+   "2026-11-24T20:47",
+   "Docs for link rules and classes",
+   "The admin guide and feature list now explain link rules, connect classes and the new Connect classes card. Every planned UnrealIRCd and InspIRCd feature is built."
+  ],
+  [
+   "2026-11-24T20:44",
+   "Connect classes card",
+   "The Hive Panel Settings page now shows every connect class: who is in it, how many people, and its limits."
+  ],
+  [
+   "2026-11-24T20:35",
+   "Calmer icons in the activity list",
+   "The Hive Panel \"What happened\" list shows each icon on a soft tinted tile instead of a hexagon outline, in every theme."
+  ],
+  [
+   "2026-11-24T20:29",
+   "Link rules and connect classes",
+   "A server can now link only when the network is in the right shape, for example join a second hub only while the first is gone. Connect classes give groups of people their own limits, by country, web chat or IP range. Also fixed: saving an InspIRCd link in the Hive Panel lost its protocol."
+  ],
+  [
+   "2026-11-24T20:01",
+   "Calmer picture labels and rounded corners",
+   "The labels on the home page pictures are now soft text with a thin gold line instead of boxes, the bees float slowly, and every block and picture has rounded corners."
+  ],
+  [
+   "2026-11-24T19:25",
+   "Home page pictures cleaned up",
+   "The top picture is now just the pine hill, with no stray frame around it. The services and live-servers parts got their own pictures: a honey hive and two linked islands, shown in full on phones too."
+  ],
+  [
+   "2026-11-24T19:10",
+   "A moving picture at the top of the website",
+   "The top of the home page is now an illustrated night scene with two views: a café with a tunnel, and a pine hill with a honey-dome server house. On the pine hill the bees fly, the train puffs steam and chat bubbles light up like new messages."
+  ],
+  [
+   "2026-11-24T16:55",
+   "Live servers page shows the right version",
+   "The page showed the second server as 1.4.0 after it was updated to 1.6.0 without a restart. It now asks each server its version every 30 seconds."
+  ],
+  [
+   "2026-11-24T16:45",
+   "Website polish and a new bee logo",
+   "The website keeps its black and yellow look, with cleaner spacing and a new footer. The new flat bee logo replaces the old picture, also as the tab icon and phone icon."
+  ],
+  [
+   "2026-11-24T15:02",
+   "BeeIRCd 1.6.0 released",
+   "Channel stats, the Hive Panel Stats tab and more, tested in full, signed and published."
+  ],
+  [
+   "2026-11-24T13:26",
+   "Channel stats in the Hive Panel",
+   "Channel owners get a Stats tab on their channel page: the top 10 talkers for today, this week, this month and all time, the channel totals, and a switch to turn stats on or off. My nick gets a tick box to be counted."
+  ],
+  [
+   "2026-11-24T13:03",
+   "Channel stats, like Anope",
+   "Channels and people can switch on stats: lines, words, smileys and kicks for today, this week, this month and all time. Ask with !stats and !top in the channel, or ChanServ STATS and TOP. Kept in our own database, no MySQL needed."
+  ],
+  [
+   "2026-11-24T12:34",
+   "Four more Anope services features",
+   "Limit on accounts per email address, extra INFO fields like Discord or website, helper mode +h for ops in the help channel, and OperServ OLINE to give someone oper powers for one session."
+  ],
+  [
+   "2026-11-24T12:06",
+   "Three small QA notes fixed",
+   "AdminServ's own \"Sent to\" line now comes before the other server's answer, the installer counts its questions without jumping, and the admin guide says links split and come back during an update."
+  ],
+  [
+   "2026-11-24T11:57",
+   "Hive Panel Channels page fixed",
+   "The channels list no longer slides 2 pixels sideways on laptop-size screens (found by QA)."
+  ],
+  [
+   "2026-11-24T11:40",
+   "SKINTERNET runs 1.5.2",
+   "Both servers updated with nobody disconnected: 23 people on the second server and 75 on the main one stayed connected."
+  ],
+  [
+   "2026-11-24T11:21",
+   "BeeIRCd 1.5.2 released",
+   "Signed and published on GitHub, with the What's new page and docs updated."
+  ],
+  [
+   "2026-11-24T10:45",
+   "Release Test for 1.5.2 passed",
+   "All tests, race checks, 349 irctest checks, linking with UnrealIRCd and InspIRCd, ten minutes of fuzzing and a click-through of the Hive Panel in light, dark and phone size. No new bugs found."
+  ],
+  [
+   "2026-11-24T03:54",
+   "QA part 2 fixes, for 1.5.2",
+   "A channel renamed while the servers were apart no longer splits in two. Changing only the capitals of a name skips the rename wait. Read-only mode now holds on every server, METADATA CLEAR clears only the keys asked for, and refused changes no longer count toward the limit. NEVEROP also blocks raising someone to op, and a second server's admin can change that server's own settings."
+  ],
+  [
+   "2026-11-24T03:32",
+   "A removed spam filter stays removed after a reconnect",
+   "A spam filter removed while the servers were apart no longer comes back when they reconnect, the same fix as for bans. For 1.5.2."
+  ],
+  [
+   "2026-11-24T03:16",
+   "Four fixes from testing 1.5.1, for 1.5.2",
+   "A ban removed while the servers were apart no longer comes back when they reconnect. /as restart typed on a second server now restarts that server, not the main one. The update message counts only the people on that server, and turning the update check off with a settings reload now works."
+  ],
+  [
+   "2026-11-24T02:20",
+   "SKINTERNET on 1.5.1, nobody disconnected",
+   "Both SKINTERNET servers moved to 1.5.1. All 89 people stayed connected; the link between the servers came back in about 12 seconds."
+  ],
+  [
+   "2026-11-24T02:11",
+   "BeeIRCd 1.5.1 released",
+   "Fixes the missing @ and + after the servers reconnect, and restart now keeps everyone connected. Tested against the IRC test suite and both UnrealIRCd and InspIRCd links before release."
+  ],
+  [
+   "2026-11-24T01:39",
+   "Ops and voices show right after a server reconnects",
+   "When the two servers link again, people from the other server now keep their @ and + in everyone's nick list, without leaving and rejoining. Comes in the next release."
+  ],
+  [
+   "2026-11-24T01:34",
+   "Restart keeps everyone connected",
+   "beeircd restart now hands everyone over to a fresh start behind the door keeper, like updates do, instead of disconnecting them. Comes in the next release."
+  ],
+  [
+   "2026-11-24T01:30",
+   "SKINTERNET on 1.5.0, nobody disconnected",
+   "Both SKINTERNET servers moved to 1.5.0. All 89 people stayed connected through the update; the link between the servers came back in about 12 seconds."
+  ],
+  [
+   "2026-11-24T01:19",
+   "BeeIRCd 1.5.0 released",
+   "Signed and published on GitHub as the latest version, with the docs for 1.5 on the website. It adds avatars, colours and status, channel rename, and every fix planned for 1.4.1."
+  ],
+  [
+   "2026-11-24T00:55",
+   "Two more fixes, tests passed again",
+   "Logging out or switching accounts no longer carries your avatar and status into the other account, and older apps get the full list of features on servers with very long names. The full test run passed again on the final build."
+  ],
+  [
+   "2026-11-24T00:40",
+   "1.5.0 release test passed",
+   "All tests, fuzzing, the IRC conformance suite and the UnrealIRCd, InspIRCd and login kits pass. Fixed on the way: a rename racing a new channel of the same name on another server now merges the two, SASL logins get saved avatars back, and Latte theme buttons are easier to read."
+  ],
+  [
+   "2026-11-24T00:06",
+   "Avatars, colours and channel rename",
+   "Clients can now show your picture, name colour and status, and a channel can be renamed without anyone leaving: people, modes, history and its ChanServ registration all move. Both are IRCv3 drafts, switched on with ircv3-drafts. Coming in 1.5.0."
+  ],
+  [
+   "2026-11-23T23:15",
+   "SKINTERNET runs 1.4.0",
+   "Both of the network's own servers now run BeeIRCd 1.4.0. From now on, updates keep people connected."
+  ],
+  [
+   "2026-11-23T23:05",
+   "Read-only mode is fully read-only",
+   "With OperServ read-only mode on, services no longer save anything in the background (last seen, channel use, kept topics), and spam filters from linked servers no longer run out while expiry is paused. Coming in 1.4.1."
+  ],
+  [
+   "2026-11-23T22:42",
+   "New BeeIRCd logo",
+   "BeeIRCd has its own logo: a yellow hex with a cheerful bee whose wings are chat bubbles, one with a # for channels. It is now in the website header, the browser tab icon, the docs pages and the footer of the GitHub page."
+  ],
+  [
+   "2026-11-23T22:02",
+   "Homepage chat window looks like a Mac app",
+   "The chat on the front page is now a Mac-style window: traffic lights, the network's windows on the left, the people in the channel on the right, and commands that type into the input bar before they post. Light in light mode, dark in dark mode; phones show just the chat."
+  ],
+  [
+   "2026-11-23T21:47",
+   "GitHub page: licence and footer",
+   "The GitHub page now explains the licence in plain words (what you can do, what it asks back) and ends with the bee, handy links and \"Made with ☕ by BajuBesi Labs\". The repository also has its About text, website and topics."
+  ],
+  [
+   "2026-11-23T21:39",
+   "GitHub page refreshed for 1.4",
+   "The project's GitHub front page now shows 1.4: quick links, updates that keep people connected, everything added in 1.2 to 1.4, the new test numbers and the roadmap up to 1.4.1."
+  ],
+  [
+   "2026-11-23T21:25",
+   "Read-only and no-expire switches finished",
+   "Read-only mode now also locks the oper, ban, channel and spam filter forms and keeps memos unread; while either switch is on, suspensions and spam filters no longer run out. Also fixed: Undo on the services log checkboxes put back the full list instead of the default."
+  ],
+  [
+   "2026-11-23T20:35",
+   "BeeIRCd 1.4.0 released",
+   "Seamless updates: people stay connected while the server updates or restarts. Also a fuller services log, Anope-style OperServ and Global tools, and clearer installer questions."
+  ],
+  [
+   "2026-11-23T20:05",
+   "Release test for 1.4 passed",
+   "Logins, links to UnrealIRCd and InspIRCd, fuzzing, the Hive Panel in light and dark, and memory with 100 people all passed. One more fix: an update while the server is stuck no longer makes the door keeper hang."
+  ],
+  [
+   "2026-11-23T19:45",
+   "Four small fixes from the 1.4 bug sweep",
+   "A failed hand-over no longer stalls the server, a server that fails to start no longer closes every port, the services log no longer gets two writers after a rehash, and an update to a version with a new hand-over format now says up front that everyone reconnects once."
+  ],
+  [
+   "2026-11-23T19:22",
+   "Two more ways around the ban check closed",
+   "Banned visitors coming through a web-chat proxy, and bans written like 1.2.3.*, are now also turned away before any encryption work."
+  ],
+  [
+   "2026-11-23T19:10",
+   "Banned addresses are turned away sooner",
+   "The part that keeps people connected during updates now turns away banned and too-fast addresses before doing any encryption work, so they can no longer use it to waste the server's time."
+  ],
+  [
+   "2026-11-23T18:44",
+   "The seamless upgrade joined the main code",
+   "People now stay connected while a Linux server updates, rolls back or restarts. It will ship in release 1.4."
+  ],
+  [
+   "2026-11-23T18:32",
+   "The seamless upgrade passed its big tests",
+   "50 test users stayed connected through an update, a rollback and a restart, with every chat message delivered and nothing lost. The race test and the 5,000-user load test came out the same as before."
+  ],
+  [
+   "2026-11-20T13:22",
+   "The installer shows every choice before asking",
+   "Questions about the certificate, channel prefixes and server role now list what 1, 2 and 3 mean. The full ~&@%+ prefixes (owner, admin, op, halfop, voice) are now the default for new servers."
+  ],
+  [
+   "2026-11-20T12:30",
+   "Updates and restarts keep people connected",
+   "beeircd update, --rollback and /as restart hand everyone over to the new program instead of disconnecting them. The Hive Panel says whether updates keep people connected and how many stayed last time. Not in a release yet."
+  ],
+  [
+   "2026-11-20T03:10",
+   "A new server process can take over every connection from the old one",
+   "In testing, people stay in their channels with their away, caps and logins while the server program is swapped, with a pause of about 0.2 s. Not in a release yet."
+  ],
+  [
+   "2026-11-20T02:00",
+   "Services can keep their log in a file, and opers can search it from IRC",
+   "Set [services] log_file and every #services line is also saved to disk. OperServ LOGSEARCH finds lines in it, as in Anope, for the last days you choose."
+  ],
+  [
+   "2026-11-20T01:42",
+   "OperServ can reload the config, and Global can send multi-line or one-server notices",
+   "OS RELOAD does what /REHASH does. Global has a queue of up to 10 lines to send in one go, and SERVER sends a notice only to the people on one server."
+  ],
+  [
+   "2026-11-20T01:31",
+   "Services got Anope's read-only, super admin and no-expire switches, plus NickServ NEVEROP",
+   "Opers with flag a can pause all services changes during maintenance, stop anything expiring, or act as founder on every channel for a while. Users can keep themselves off channel access lists."
+  ],
+  [
+   "2026-11-19T23:45",
+   "The Hive Panel can now pick what shows in #services",
+   "The Services page has one box per event: connects, opers, kills, servers, ban hits and more. AdminServ gets the same as SET log-events."
+  ],
+  [
+   "2026-11-19T23:34",
+   "The #services channel now shows opers, kills, server links and ban hits, like Anope",
+   "Owners pick what shows with the new log_events setting. The default matches Anope plus oper lines; busy events like mode and channel changes stay off unless asked for."
+  ],
+  [
+   "2026-11-19T23:10",
+   "BeeIRCd 1.3.0 is out: signed, on GitHub and Docker, with its docs on beeircd.org",
+   "The stable 1.3.0 brings admin reach, GLOBOPS, owner messages, InspIRCd-style oper notices and many link fixes. Our own servers move to it next."
+  ],
+  [
+   "2026-11-19T22:40",
+   "Release test for 1.3.0 passed: Hive Panel click-through, link tests with UnrealIRCd and InspIRCd, and 10 minutes of fuzzing",
+   "The Hive Panel's 13 pages work in light and dark, the UnrealIRCd 6 link test passes 58 of 58 and the InspIRCd 4 one 80 of 80, and fuzzing 15 parts of the server found nothing. 1.3.0 is waiting for the final OK."
+  ],
+  [
+   "2026-11-19T22:11",
+   "Release test for 1.3.0: all automatic checks pass, and three bugs in the new admin reach code are fixed",
+   "A changed server could give its own admins whole-network power, an old remote_admin = false was ignored after an upgrade, and a linked server's own admin couldn't change the outside admins setting with AdminServ. All three are fixed and tested."
+  ],
+  [
+   "2026-11-19T20:45",
+   "Test version 1.3.0-rc8 is running on both our servers, linked and checked on the live status cards"
+  ],
+  [
+   "2026-11-19T20:30",
+   "Live server status on this page",
+   "The two SKINTERNET servers now show live on beeircd.org: up or down, people online, reply time, version, whether they are linked, and the last 24 hours. Checked every 30 seconds."
+  ],
+  [
+   "2026-11-19T20:15",
+   "Test version 1.3.0-rc8 is out: the network owner can let admins from other servers in or keep them out"
+  ],
+  [
+   "2026-11-19T20:05",
+   "Owner switch for outside admins",
+   "On the Hive Panel's Linked servers page the network owner can now let admins from other servers in, or keep them out, with one click. Nobody on another server can change it."
+  ],
+  [
+   "2026-11-19T19:45",
+   "Test version 1.3.0-rc7 is out and running on our own servers: the network owner can now give an admin powers on every server"
+  ],
+  [
+   "2026-11-19T18:40",
+   "Network admins from any server",
+   "The network owner can now give an admin whole-network reach, so their admin commands work on every server. Everyone else's admin powers stay on their own server, and each server can still refuse outside admins."
+  ],
+  [
+   "2026-11-19T17:30",
+   "Test version 1.3.0-rc6 live on SKINTERNET",
+   "Both SKINTERNET servers run the new test version with the new message settings switched on: a fixed quit message, short quit messages hidden, a ban contact address and the killer name hidden."
+  ],
+  [
+   "2026-11-19T17:21",
+   "Download button in the docs",
+   "Every docs page now has a Download button at the top, on phones too. It opens the download box on the home page."
+  ],
+  [
+   "2026-11-19T17:15",
+   "Hidden killer name for services kills too",
+   "When the owner hides who killed someone, kills sent by services now show the hidden name as well."
+  ],
+  [
+   "2026-11-19T17:10",
+   "Message settings in the Hive Panel",
+   "The Messages card now holds all the new message settings in three groups: quit and part, people turned away, and bans and kills."
+  ],
+  [
+   "2026-11-19T17:05",
+   "More message settings",
+   "Owners can now change the quit prefix, the texts people get when the server is full, too busy or the password is wrong, a notice for banned people, how bans show to others, and hide who killed someone."
+  ],
+  [
+   "2026-11-19T17:00",
+   "Messages card in the Hive Panel",
+   "The new quit, part and ban contact texts can now be set from the Hive Panel Settings page, with Undo."
+  ],
+  [
+   "2026-11-19T16:30",
+   "Owner message settings",
+   "Server owners can now set one fixed quit message, hide or replace part messages, show quit messages only after a few seconds online, and add a contact email to ban messages."
+  ],
+  [
+   "2026-11-19T15:40",
+   "GLOBOPS from UnrealIRCd 6 fixed",
+   "Oper messages sent from UnrealIRCd 6 servers now arrive too: it marks them in a slightly different way that BeeIRCd missed."
+  ],
+  [
+   "2026-11-19T15:10",
+   "Fixes from the 1.3.0-rc5 test",
+   "GLOBOPS from UnrealIRCd now reaches everyone, InspIRCd names the real oper on relayed bans, and oper notices match InspIRCd 4 more closely."
+  ],
+  [
+   "2026-11-19T14:50",
+   "Test version 1.3.0-rc5 is out",
+   "Oper notices now read word for word like InspIRCd 4, and the new GLOBOPS lets opers talk across linked servers."
+  ],
+  [
+   "2026-11-19T14:35",
+   "Oper notices worded like InspIRCd 4",
+   "Server notices for opers now read like InspIRCd 4 (connects, quits, bans, opers), and GLOBOPS lets opers talk to each other across linked servers."
+  ],
+  [
+   "2026-11-19T14:30",
+   "Clearer reply when removing a ban by nick",
+   "Removing a G-line or Z-line by nick after the ban has disconnected that person now says they are offline and to remove it by its mask."
+  ],
+  [
+   "2026-11-19T14:20",
+   "Test version 1.3.0-rc4 is out",
+   "Ban times now work like InspIRCd and UnrealIRCd (a plain number is seconds, and 2m30s works too), bans end on time, and opers show their real rank on InspIRCd servers."
+  ],
+  [
+   "2026-11-19T14:15",
+   "First step of seamless upgrades built",
+   "A small door keeper process now holds the client ports, so a later update can swap the server without dropping people. It is still being tested and is not in a release yet."
+  ],
+  [
+   "2026-11-19T14:10",
+   "InspIRCd sees real oper ranks",
+   "Opers now show on InspIRCd servers with their real rank, like \"Network Administrator\", instead of always \"IRC_Operator\". InspIRCd also counts the burst time of servers behind BeeIRCd again."
+  ],
+  [
+   "2026-11-19T13:20",
+   "Fixes from the rc3 test",
+   "KLINE now takes a time, ban times like 5s work everywhere, bans run out on time, a kill reason is no longer shown twice, SHUN and G-line removal by nick works, and InspIRCd gets an answer when it checks servers behind BeeIRCd."
+  ],
+  [
+   "2026-11-19T11:45",
+   "1.3.0-rc3 out and live",
+   "The third test version of 1.3 is out with the new server notices, and both SKINTERNET servers run it."
+  ],
+  [
+   "2026-11-19T11:40",
+   "Server notices like InspIRCd",
+   "Opers now pick which server notices they get, and the notices read the same as on InspIRCd 4. There are also new notices for nick changes, STATS and users on other servers, and the split notice no longer repeats its reason."
+  ],
+  [
+   "2026-11-19T08:58",
+   "1.3.0-rc2 out and live",
+   "The second test version of 1.3 is out, with the new link notices, and runs on both SKINTERNET servers."
+  ],
+  [
+   "2026-11-19T08:31",
+   "Link notices in InspIRCd's words",
+   "Opers now see each step of a server link worded the way InspIRCd says it, including every failed reconnect try and how long a lost link was up."
+  ],
+  [
+   "2026-11-17T04:02",
+   "1.2 tested against the real thing",
+   "Links with real UnrealIRCd and InspIRCd servers and logins from a real LDAP directory, MySQL and PostgreSQL all pass. The test found gaps on InspIRCd links (forced joins and renames, the accept list, forward bans) and a browser redirect that browsers could not read: all fixed."
+  ],
+  [
+   "2026-11-17T00:49",
+   "Modules: the first version",
+   "People can now add to BeeIRCd with small script files: their own commands, greetings and message filters, loaded while the server runs. A module that goes wrong is stopped and switched off instead of taking the server down. This is being built next to the 1.2.0 test version and comes after it."
+  ],
+  [
+   "2026-11-16T23:26",
+   "Auditorium channels and signed tokens for other services",
+   "A channel can now work like a lecture hall: the audience only sees the people on stage. Networks can add commands of their own that show a text (like FAQ), hand out signed tokens so other services know who someone is, and send browsers that open the chat port by mistake to the website."
+  ],
+  [
+   "2026-11-16T20:22",
+   "Two new channel modes and a handful of server options",
+   "Channels can make newcomers wait a little before they talk, and can pass messages that moderation stops on to the ops instead of refusing them. Networks get a rules page (RULES), separate welcome messages for opers and bots, a random quote on connect, a hidden server list, and can say who may make new channels."
+  ],
+  [
+   "2026-11-16T19:58",
+   "Log in with a password you already have",
+   "A network can now check NickServ passwords against its own directory (LDAP) or a database (MySQL, PostgreSQL, SQLite), like the one behind a forum or a company login. The account is made the first time someone logs in. Passwords set in BeeIRCd keep working next to it. Off until you switch it on."
+  ],
+  [
+   "2026-11-16T11:05",
+   "An admin API for tools and scripts",
+   "Other programs can now ask BeeIRCd who is online, look at channels, manage bans and spam filters, and follow the server's log live. It speaks the same language as UnrealIRCd's API, so tools made for that work here too. Each tool gets its own name, password and list of things it may do. Off until you switch it on."
+  ],
+  [
+   "2026-11-16T10:48",
+   "Four more guards against spam",
+   "Opers can switch on: refusing bots with random-looking names, stopping messages that hide behind look-alike letters from other alphabets, a cap on how many messages a channel or person can be sent at once, and stopping the same text being sent to many channels in one go. All off until you turn them on."
+  ],
+  [
+   "2026-11-16T10:40",
+   "Twenty commands other servers have",
+   "Notify lists the older way (WATCH), a mode that lets only people you accept message you (+g), rules for which files may be sent, and a set of oper tools: empty a channel, hold someone's nick, see every server's clock, check what a ban would hit, and send everyone to another server before maintenance. WHOWAS now remembers people across a restart."
+  ],
+  [
+   "2026-11-16T08:58",
+   "Known people and new people",
+   "BeeIRCd now gives every IP a reputation score while people from it chat, and shares it with linked servers. Opers can sort people into groups (like known-users), ban by group (~G:unknown-users), slow down floods of new connections while known people still get in, and keep new people from private messages or /LIST for their first minute."
+  ],
+  [
+   "2026-11-16T08:35",
+   "Network bans by country and network",
+   "Opers can keep a whole country or network out (/os akill add ~C:NL), silence it, or let one network back in, the same way UnrealIRCd does it, and linked UnrealIRCd servers understand them. Opers also see each sender's country on messages."
+  ],
+  [
+   "2026-11-16T08:24",
+   "Where people connect from, in the Hive Panel",
+   "The People page shows each person's country and network, and you can search by them. A new Overview card counts everyone online by country or network; click one to see who."
+  ],
+  [
+   "2026-11-16T08:04",
+   "Country and network of every user",
+   "BeeIRCd now knows which country and network each user connects from, using a free database it keeps up to date by itself. Opers see it in WHOIS, and channels can ban or let in by country (~C:NL) or network (~A:64500)."
+  ],
+  [
+   "2026-11-16T07:50",
+   "Every special ban of UnrealIRCd and InspIRCd",
+   "Bans by channel, certificate, oper class and more, bans that only block joining, nick changes, part messages or certain words, and exceptions that let someone past +m. Typed the UnrealIRCd or the InspIRCd way, BeeIRCd understands both."
+  ],
+  [
+   "2026-11-16T07:40",
+   "!mute",
+   "Channel bots take !mute nick: the person stays but can't talk, and !mute +30m nick lifts itself."
+  ],
+  [
+   "2026-11-16T07:19",
+   "Login answer in the right order",
+   "Logging in after connecting now answers \"you are logged in\" first, then tells your own client the account changed, as IRC clients expect."
+  ],
+  [
+   "2026-11-16T07:04",
+   "Six new IRCv3 extras",
+   "Read markers synced across your devices, multi-line pastes as one message, deleting your own message, sign-up from the client, connecting as away and early server limits. Off until switched on (ircv3-drafts)."
+  ],
+  [
+   "2026-11-16T07:00",
+   "ChanServ FLAGS",
+   "Channel access can now be a set of privilege letters, like +Otv, as in Anope. Anope FLAGS entries come over as they are when moving from Anope."
+  ],
+  [
+   "2026-11-16T06:31",
+   "Services in Malay",
+   "NickServ, ChanServ, MemoServ, HostServ, BotServ and HelpServ can answer in Bahasa Melayu: /ns set language ms, or a network default in Settings."
+  ],
+  [
+   "2026-11-16T05:45",
+   "1.2.0-rc1 out",
+   "A test release with HelpServ, email confirmation, the Mail card, WebSocket ports and more IRCv3. SKINTERNET runs it."
+  ],
+  [
+   "2026-11-16T05:30",
+   "Links to InspIRCd 4",
+   "BeeIRCd can now join a network with InspIRCd 4 servers: users, channels, modes, bans, services and logins all cross the link. beeircd link-info prints the block for inspircd.conf."
+  ],
+  [
+   "2026-11-16T05:02",
+   "Seven fixes from testing",
+   "ChanServ CLONE and FLAGS no longer let someone give or take more rank than they have, HelpServ helpers on any server get +h (and /msg HelpServ on / off), \"0s\" settings mean never, bots can't be muted, and !unmute lifts a mute."
+  ],
+  [
+   "2026-11-16T04:32",
+   "HelpServ",
+   "People can ask HelpServ about any command or mode, read the owner's own answers, or ask a question in words that goes to the helpers on duty (user mode +h), who take it and answer in private."
+  ],
+  [
+   "2026-11-16T04:30",
+   "Easy mail setup",
+   "The Hive Panel has a Mail card: pick Gmail, Outlook, Zoho or your own mail server, send a test mail, and see whether mails will land in the inbox, with the DNS records to add. Also beeircd mail-test."
+  ],
+  [
+   "2026-11-16T04:30",
+   "Email confirmation",
+   "Networks can make new NickServ accounts confirm their email with a code, or have an oper approve them, as with Anope. It's off unless the owner turns it on."
+  ],
+  [
+   "2026-11-16T03:45",
+   "1.1.2 out",
+   "A small fix release: ops stay put when the services server restarts, and Anope logins work. SKINTERNET runs it."
+  ],
+  [
+   "2026-11-16T03:30",
+   "Clearer link notices",
+   "Opers see how a server link is secured (TLS version and cipher), how many people came over, when a link lags and how many users a split took."
+  ],
+  [
+   "2026-11-16T03:15",
+   "Fix: ops after a restart",
+   "After the services server restarted, people could lose their @ in registered channels. Channels now keep their age across restarts and ChanServ gives ranks back."
+  ],
+  [
+   "2026-11-16T03:00",
+   "WebSocket",
+   "Web chat pages can connect straight to BeeIRCd over WebSocket, with the real visitor IP behind nginx or Apache."
+  ],
+  [
+   "2026-11-16T02:50",
+   "Standard replies",
+   "Modern IRC apps get clear error codes from BeeIRCd instead of plain notices."
+  ],
+  [
+   "2026-11-16T02:30",
+   "SKINTERNET on 1.1.1",
+   "The SKINTERNET network now runs BeeIRCd 1.1.1. Both servers updated themselves with the signed update and everyone was back within two minutes."
+  ],
+  [
+   "2026-11-16T02:30",
+   "Word censor (+G)",
+   "Ops can set +G on a channel to hide the words the admin lists in beeircd.conf; they become <censored>."
+  ],
+  [
+   "2026-11-16T02:10",
+   "Anope as services",
+   "A BeeIRCd network can now use Anope 2.0 for its services instead of the built-in ones. Every service and SASL logins work, tested against a real Anope. Fixed on the way: people who identified to Anope stopped hearing channels."
+  ],
+  [
+   "2026-11-16T02:00",
+   "Memos with read receipts",
+   "MemoServ RSEND sends a memo and tells you with another memo when it was read."
+  ],
+  [
+   "2026-11-16T01:30",
+   "Forward bans",
+   "A ban like ~f:#jail:*!*@bad.host sends people to another channel instead of just keeping them out. Bans from UnrealIRCd servers in their long form (~account:, ~quiet:) are understood too."
+  ],
+  [
+   "2026-11-16T01:00",
+   "ChanServ CLONE",
+   "Copy one channel's settings, mode lock, levels, access list, AKICKs and bad words to another channel in one command."
+  ],
+  [
+   "2026-11-16T00:40",
+   "WHOX and more IRCv3",
+   "WHO can now return just the fields a client asks for, such as accounts (WHOX). MONITOR also tells you when a watched nick goes away or changes host, and clients can skip the names list when they join a channel."
+  ],
+  [
+   "2026-11-16T00:00",
+   "BeeIRCd 1.1.1 is out",
+   "A Reason column on the spam filter page, Hive Panel sign-in in Docker fixed, more HELP topics and clearer docs. Signed, and the Docker images match the signed programs byte for byte."
+  ],
+  [
+   "2026-11-15T23:20",
+   "Spam filter shows the reason",
+   "The Hive Panel's spam filter list now has its own Reason column, so you can see what people are told when a rule catches them."
+  ],
+  [
+   "2026-11-15T22:50",
+   "BeeIRCd 1.1.0 is out",
+   "Spam filter, moving from Anope, opers by certificate and a calmer Hive Panel. Signed, on GitHub and Docker, and the documentation was checked page by page."
+  ],
+  [
+   "2026-11-15T22:47",
+   "SKINTERNET runs BeeIRCd 1.1.0",
+   "Both servers updated with one command each; the link was back in under a second."
+  ],
+  [
+   "2026-11-15T21:55",
+   "1.1.0 passed every release test",
+   "6 hours with 2,000 people online: memory flat at about 80 MB, no failures, replies in 3 ms. Race checks, link tests, fuzzing and the QA round all passed too."
+  ],
+  [
+   "2026-11-15T21:10",
+   "Documentation is live on beeircd.org/docs",
+   "Install, every beeircd.conf section, every services command, questions and answers and the change log, for 1.1 and 1.0. A new check stops a release when a setting or command has no docs."
+  ],
+  [
+   "2026-11-15T20:45",
+   "Documentation pages built",
+   "About 50 short pages: install, every beeircd.conf section with its settings, every services command, questions and answers, and the change log. They go live on beeircd.org/docs soon."
+  ],
+  [
+   "2026-11-15T14:40",
+   "1.1.0-rc4: the new This server block",
+   "The Overview bar meters and colour-coded oper flags are out as a test version, and SKINTERNET runs it."
+  ],
+  [
+   "2026-11-15T14:25",
+   "Hive Panel: This server shows your oper flags",
+   "The Overview block now has bar meters for people, reply time and memory, and shows the signed-in oper what each of their flags allows, one colour per flag (also on the Opers page)."
+  ],
+  [
+   "2026-11-15T03:00",
+   "1.1.0-rc3: linked servers share connection limits",
+   "Servers without their own services now use the services server's connection exceptions, so bouncers and home networks get the same room on every server. Also a cleaner WHOIS for opers brought over from UnrealIRCd. SKINTERNET runs it."
+  ],
+  [
+   "2026-11-15T02:10",
+   "1.1.0-rc2: three fixes from the move",
+   "Session exceptions with limit 0 now mean no limit (as in Anope), exceptions on host names work, and backups made as root stay usable. SKINTERNET runs it already."
+  ],
+  [
+   "2026-11-15T01:45",
+   "SKINTERNET moved to BeeIRCd",
+   "irc.bajubesi.org and irc.skinhead.com.my switched from UnrealIRCd and Anope to BeeIRCd in a few minutes. Accounts, passwords, channels, opers, bans and the Discord bridge all came along; about 90 people were back online right after."
+  ],
+  [
+   "2026-11-15T01:10",
+   "BeeIRCd 1.1.0-rc1 is out (test release)",
+   "A signed test release with the Anope import, certificate opers, the spam filter and the calmer What happened page. 1.0.0 stays the normal download; this one is for the move of SKINTERNET."
+  ],
+  [
+   "2026-11-15T01:00",
+   "Moving from Anope, and opers by certificate",
+   "beeircd import-anope brings a whole Anope 2.0 network over: accounts, passwords (nobody has to reset), channels, bots and bans. Tested with a real Anope and a copy of SKINTERNET's own database. Opers can now log in with their TLS certificate, like bots on UnrealIRCd do."
+  ],
+  [
+   "2026-11-14T23:45",
+   "After 1.0: spam filter and a calmer What happened page join the main line",
+   "The spam filter and the redesigned What happened page (day groups, repeats folded) were waiting until 1.0 was out. They are now in the main code, all tests pass, and they come with the next release."
+  ],
+  [
+   "2026-11-14T23:35",
+   "Test servers run 1.0",
+   "Both test servers moved to 1.0 with the normal signed update, the same way every server owner will. One small thing found: the update didn't restart the Hive Panel. Fixed for the next release."
+  ],
+  [
+   "2026-11-14T23:30",
+   "Docker images show the right version",
+   "The 1.0 Docker images now say 1.0.0 and hold exactly the same signed programs as the download. Future releases build their Docker images by themselves."
+  ],
+  [
+   "2026-11-14T23:00",
+   "BeeIRCd 1.0 and BeeRoom 1.0 released",
+   "Every release test passed: 6 hours with 2,000 people, splits and rejoins with 5,100 people on three servers, no crashes. Both are signed and the code is now public. Install with one command from beeircd.org (install.sh for the server, beeroom.sh for the web chat); fresh installs checked on Debian 13 and Ubuntu 24.04."
+  ],
+  [
+   "2026-11-14T17:30",
+   "A safety net against crashes",
+   "If a bug ever trips on one strange message, BeeIRCd now drops only that one connection, writes the details to the log and tells the opers. The rest of the network keeps running. The second tester's round has also started."
+  ],
+  [
+   "2026-11-14T15:45",
+   "Testers found four small things, all fixed",
+   "The second tester checked everything new in 1.0 and found four small problems, all fixed the same day. 1.0 also gets a crash guard: if one bad message ever makes the server fail, only that person is disconnected, not everyone. The long stress test starts again to cover it."
+  ],
+  [
+   "2026-11-14T15:40",
+   "Last pieces for 1.0 are in",
+   "Admins can now let normal users into the Hive Panel with one switch, with a short guide for putting it behind HTTPS. BeeRoom's header now fits phones, and the install guide covers the web chat. Next: one big test round before 1.0."
+  ],
+  [
+   "2026-11-14T15:15",
+   "Spam filter is built (comes after 1.0)",
+   "Rules that catch spam as it is sent: block it, warn the opers, or ban the sender. Opers manage them on IRC (same commands as UnrealIRCd) or on a new Spam filter page in the Hive Panel. Every new rule is first tried on 200 normal chat lines, so a rule that would hit normal talk is caught before it goes on. It comes in the release after 1.0."
+  ],
+  [
+   "2026-11-14T15:05",
+   "BeeIRCd 1.0 will be complete",
+   "The first release now includes everything: the server, linking, the Hive Panel for opers and normal users, and the BeeRoom web chat. No waiting for a 1.1 to get the full experience."
+  ],
+  [
+   "2026-11-14T14:10",
+   "The 1.0 test round has started",
+   "All tests pass. Clicking through every Hive Panel page and the web chat found four small problems, all fixed: an oper using the member pages could get locked out of oper sign-in, an ended suspension still blocked the Hive Panel, and two layout glitches on the channel page. A 6-hour stress test with 2,000 users is running."
+  ],
+  [
+   "2026-11-14T13:30",
+   "Nobody can lock you out of your nick",
+   "Testing found that five wrong passwords from anyone locked the real owner out for ten minutes. Now wrong guesses only lock out the address they came from; the owner signs in from their own place as usual."
+  ],
+  [
+   "2026-11-14T13:00",
+   "Two bugs fixed from testing",
+   "A software test found that on a hand-made setup with no admin password, someone could take the admin's oper rights first. That door is closed now (the installer was never affected), and a ChanServ reply that left out a word is fixed."
+  ],
+  [
+   "2026-11-14T12:45",
+   "Run your channel from the web",
+   "Channel owners can now open any of their channels in the Hive Panel: see who is there, add or remove helpers, change levels, kick lists, the topic and settings, pick a successor, read the channel's memos, or hand the channel over. Every button does exactly what ChanServ does on IRC, with the same rules."
+  ],
+  [
+   "2026-11-14T12:00",
+   "A home page and memos for everyone",
+   "People who are not opers now land on their own Home in the Hive Panel: new memos, their channels right now, who was added to their lists, where they are connected, and a short \"needs you\" list. A new Memos page reads, answers, deletes and sends memos, with the same rules as MemoServ on IRC. Ships with 1.1."
+  ],
+  [
+   "2026-11-14T11:30",
+   "Web chat inside the Hive Panel",
+   "The Hive Panel has a Chat tab: BeeRoom opens right inside it, already signed in as you. The panel hands BeeRoom a key that works once, for one minute, for your nick only, so no second password. It stays connected while you look at other pages. Ships with 1.1."
+  ],
+  [
+   "2026-11-14T11:00",
+   "Members can sign in to the Hive Panel",
+   "Anyone with a registered nick can now sign in to the Hive Panel with their NickServ password and change their nick settings with switches, and see the channels they run. No commands to remember. Opers still get the full admin pages. The server checks every request, so members never see admin data. Next: web chat inside the panel."
+  ],
+  [
+   "2026-11-14T10:20",
+   "Release candidate 2 is out",
+   "The second test version of BeeIRCd 1.0 is published and signed: server, linking and Hive Panel together. It passed a one hour fuzz test and six hours with 2,000 users online, with no one dropped and steady memory. BeeRoom web chat also runs in Docker now, next to BeeIRCd."
+  ],
+  [
+   "2026-11-14T09:55",
+   "BeeIRCd in Docker",
+   "A small Docker image (37 MB) for NAS boxes, any Linux, and Windows or Mac with Docker Desktop. Setup asks the same nine questions; the Hive Panel and daily backups work, and updating is one pull. Tested start to finish on a real machine, including an upgrade that kept every account. It ships with 1.1."
+  ],
+  [
+   "2026-11-14T09:00",
+   "BeeIRCd without systemd",
+   "A new install guide for Alpine and other machines without systemd: a ready service file, daily backups and every admin command as usual. Followed word for word on a fresh Alpine machine. Next for 1.1: Docker images and plain downloads, so BeeIRCd runs on the box people already have."
+  ],
+  [
+   "2026-11-14T07:20",
+   "BeeRoom gets its own installer",
+   "One command sets up the web chat next to Apache, nginx or Caddy, checks the download's signature and tells BeeIRCd each person's real IP. BeeIRCd stays lean: it only gained one small command. Tested on fresh machines with each web server. A hole from The Lounge was closed too: visitors can no longer fake their IP."
+  ],
+  [
+   "2026-11-14T06:35",
+   "BeeRoom web chat runs",
+   "BeeRoom now has its own code, built on The Lounge: our name and logo, the black and honey look, guests go straight to their own BeeIRCd network, and each person's real IP reaches the server. Tested in a browser against a test server; all 287 of The Lounge's own tests pass."
+  ],
+  [
+   "2026-11-14T06:00",
+   "First step for BeeRoom web chat: real IPs",
+   "A trusted web chat can now tell the server each person's real IP (WEBIRC). Bans, limits and blocklists then hit only that person, not everyone on the web chat. Ten new tests, all checks pass."
+  ],
+  [
+   "2026-11-14T05:10",
+   "One hour fuzz passed",
+   "Twelve fuzzers fed random input to every parser for an hour on the release candidate code. No crashes, no failures. The six hour soak keeps running until about 10:10."
+  ],
+  [
+   "2026-11-14T04:38",
+   "Docs checked against the code",
+   "The feature list, the spec and the admin guide were read against the 1.0 code. Old lines were fixed: linking is part of 1.0, identifying never makes you an oper, and the new Hive Panel cards are listed."
+  ],
+  [
+   "2026-11-14T04:20",
+   "Docs ready for 1.0",
+   "The README now covers server linking, the Hive Panel and BotServ, and the roadmap shows 1.0. The admin guide explains every card on the Hive Panel Overview."
+  ],
+  [
+   "2026-11-13T22:25",
+   "Heavy linking test passed",
+   "5,100 bots on three servers for an hour. One server was cut off and joined again 16 times; after every return all three saw the same users, channels, topics and modes. No crashes, memory flat."
+  ],
+  [
+   "2026-11-13T21:20",
+   "Server counts fixed on linked networks",
+   "LUSERS said \"1 server\" on a network of many. It now counts every server, this server's own links and the most people on the whole network. Found by the new linking test, which checks that every server sees the same users, channels, topics and modes."
+  ],
+  [
+   "2026-11-13T20:50",
+   "Bug sweep: three fixes",
+   "The Hive Panel now signs out an unattended tab after 30 minutes, an oper can no longer change the entry of an oper with more rights, and strangers on the link port can no longer keep the server busy before they prove who they are."
+  ],
+  [
+   "2026-11-13T20:05",
+   "Hive Panel: Server details and the guards in three",
+   "A new Server details card shows the ports, the system it runs on, the certificate names, when it started and the channel history. The Health card now says which guard stopped what: slowed down, Z-lined or blocklist. One plan from now on: 1.0 ships server, linking and Hive Panel together."
+  ],
+  [
+   "2026-11-13T19:50",
+   "Spotlight is live on the test server",
+   "The test network now runs the Spotlight panel. It passed the speed test with 5000 people first, just as fast as before."
+  ],
+  [
+   "2026-11-13T19:45",
+   "Hive Panel: Spotlight and a friendly header",
+   "The top of the Overview now greets you and says if anything needs you. The honey card became Spotlight: the busiest room right now, the newest member, today's busiest moment and anniversaries, one at a time. Nothing on the page is shown twice."
+  ],
+  [
+   "2026-11-13T18:30",
+   "Network status card on the Hive Panel",
+   "The Overview opens with a status card: is the network up, how many servers and services, the version, last backup and certificate, and a yellow uptime card with a honeycomb pattern. It turns red and grey when the server stops answering."
+  ],
+  [
+   "2026-11-13T17:55",
+   "A calmer top bar for the Hive Panel",
+   "Jump to and Theme are small icons now, the theme picker shows a colour swatch for each theme, and the badge shows the server's uptime, turning red when the server stops answering. Checked on wide screens and phones."
+  ],
+  [
+   "2026-11-13T17:20",
+   "Channel bots work for people on every server",
+   "The two test servers run the newest build. A test across the link found that channel bots ignored people on the second server; that is fixed and checked live: bad-word kicks and !commands now work on both servers."
+  ],
+  [
+   "2026-11-13T16:15",
+   "Bot changes without a quit, and fixes for linking and the panel",
+   "Changing a bot's ident or host no longer makes it quit and rejoin, so a kept-open channel stays open. The linking and Hive Panel branches got all version 1.0 fixes and BotServ, and the panel's oper pages show the bots flag."
+  ],
+  [
+   "2026-11-13T15:50",
+   "Version 1.0 release candidate 1",
+   "Both long tests passed: one hour of random-input testing, and 6 hours with 2,000 users, none dropped, memory flat. 1.0.0-rc1 is signed and published as a test version."
+  ],
+  [
+   "2026-11-13T08:45",
+   "BotServ on the main branch",
+   "BotServ joined version 1.0 on the main branch, with one more fix: changing a bot no longer loses a kept-open channel's topic. The long tests started again on this code."
+  ],
+  [
+   "2026-11-13T08:35",
+   "BotServ part 3: !commands, plus a bug sweep",
+   "People with access can type !op, !kick, !topic and the other ChanServ commands right in the channel. A bug sweep of BotServ found and fixed 3 small problems."
+  ],
+  [
+   "2026-11-13T08:25",
+   "BotServ part 2: kickers and bad words",
+   "The channel bot can now kick people for bad words, caps, floods, repeats, colours and the same line sent to many channels, and ban them after a few kicks for a set time."
+  ],
+  [
+   "2026-11-13T08:15",
+   "BotServ part 1: channel bots",
+   "Opers can make bots, channel founders put one in their channel, and the bot can talk for the channel and greet people. Version 1.0 now includes BotServ, so its gauge went down a little."
+  ],
+  [
+   "2026-11-13T07:10",
+   "Version 1.0 bug sweep: 4 fixes",
+   "A suspended account can no longer sign in through SASL or NickServ RECOVER, opers can't take over an oper with more rights, a ZLINE can't ban the whole internet, and INVITE checks channel names. The 24 hour test with 2,000 users passed: memory flat, replies in 5 ms."
+  ],
+  [
+   "2026-11-13T07:00",
+   "Version 1.0 on the main branch",
+   "All the version 1.0 work, with today's bug fixes, is now on the main branch and passes every automatic check."
+  ],
+  [
+   "2026-11-13T04:05",
+   "Hive Panel: new design",
+   "A fresh look with cards you can arrange yourself, five colour themes and a quick Jump to box (Ctrl K). The network map now shows the chosen server's details beside it."
+  ],
+  [
+   "2026-11-13T03:20",
+   "Map: servers place themselves",
+   "Each server finds its own city from its IP address (or its time zone) and tells the network, so the map fills itself. Owners can still place a server by hand. Live on the test servers in Germany and Malaysia."
+  ],
+  [
+   "2026-11-13T02:30",
+   "Hive Panel: network map",
+   "A world map of your servers you can drag round and zoom into, with live links, small icons and grouping for big networks. Light enough for slow machines."
+  ],
+  [
+   "2026-11-13T01:35",
+   "Hive Panel: realname bans",
+   "Ban by realname (SNLINE) from the Bans page: type it with spaces or as a pattern, see who it hits before you add it."
+  ],
+  [
+   "2026-11-13T00:55",
+   "Hive Panel: backups",
+   "See every kept backup, make one with a click and download it after typing your password again. Phone layout fixes too."
+  ],
+  [
+   "2026-11-13T00:25",
+   "Hive Panel: bug sweep, safety tests, installer",
+   "Four bugs found and fixed, every page tested against every oper right, millions of random requests, and the installer sets the panel up with one yes."
+  ],
+  [
+   "2026-11-13T00:05",
+   "Hive Panel: Channels",
+   "Every channel on the network with its topic, people and ChanServ details; send a notice, set the topic or suspend a channel with one click."
+  ],
+  [
+   "2026-11-12T23:30",
+   "Hive Panel: Services",
+   "The services settings in plain words, saved and applied at once, with undo. Every page of the Hive Panel is built."
+  ],
+  [
+   "2026-11-12T23:05",
+   "Hive Panel: Linked servers",
+   "A map of the network, every link with its state, connect and split with one click, and link blocks added or changed without opening beeircd.conf."
+  ],
+  [
+   "2026-11-12T22:40",
+   "Hive Panel: Opers",
+   "Add, change and remove opers with the same rules as AdminServ: nobody gives a right they don't have, and every change can be undone."
+  ],
+  [
+   "2026-11-12T22:10",
+   "Hive Panel: Bans",
+   "Network bans in one list: add one and see how many people online it would hit before you press the button, remove one with two clicks."
+  ],
+  [
+   "2026-11-12T20:35",
+   "Hive Panel: People",
+   "Everyone online on every server, searchable. Opers can send a notice, disconnect or ban with one click, and the server checks their rights every time."
+  ],
+  [
+   "2026-11-12T19:30",
+   "Hive Panel starts",
+   "The web admin is here: opers sign in with their oper password, see the server live and change settings with one click. The server checks every click against the oper's rights."
+  ],
+  [
+   "2026-11-12T18:20",
+   "Linked servers checked against misbehaving servers",
+   "Safety tests found and fixed six holes a broken linked server could use, including one bad line that crashed the server. Anope services now link to BeeIRCd too."
+  ],
+  [
+   "2026-11-12T17:50",
+   "Oper changes follow opers to every server",
+   "Changing or switching off an oper on the main server now applies at once on every linked server."
+  ],
+  [
+   "2026-11-12T17:20",
+   "Opers can log in on every server",
+   "An oper made on the main server can now /oper on any linked server; the main server checks the password. Tested on the 3-server test network."
+  ],
+  [
+   "2026-11-12T16:55",
+   "Linking two servers is copy and paste",
+   "The installer asks a new server for its hub and prints the lines the other side pastes. Tested on two fresh machines and on a 3-server test network with splits."
+  ],
+  [
+   "2026-11-12T16:05",
+   "Certificate login works on a live network",
+   "A user on a BeeIRCd server logged in by certificate through the live network's services. Wrong logins are refused."
+  ],
+  [
+   "2026-11-12T10:15",
+   "Splits and rejoins settle themselves",
+   "When a link drops and comes back, every server agrees again. New: /links, /map, /connect, /squit, /stats, /admin and K-lines. Tested with a real UnrealIRCd 6."
+  ],
+  [
+   "2026-11-12T09:45",
+   "Services work across linked servers",
+   "Log in (SASL), auto-join, oper rights, WHOIS and nick bans reach every server. New oper tools: JUPE, NOOP, DEFCON and server link blocks. Tested with a real UnrealIRCd 6."
+  ],
+  [
+   "2026-11-12T08:50",
+   "First link with a live network",
+   "BeeIRCd joined a real UnrealIRCd network with Anope for a short test: messages, nicks, topics and cloaks matched on both sides. One bug found and fixed on the spot."
+  ],
+  [
+   "2026-11-12T08:45",
+   "Cloaks that match existing UnrealIRCd networks",
+   "A cloak setting that gives the same hidden hosts as the cloak_inspircd module, checked against a real UnrealIRCd 6."
+  ],
+  [
+   "2026-11-12T08:12",
+   "Linked servers talk live",
+   "Messages, joins, nick changes, modes, network bans and kills travel between servers. Tested with a real UnrealIRCd 6."
+  ],
+  [
+   "2026-11-12T06:55",
+   "Linked servers share users and channels",
+   "Tested with a real UnrealIRCd 6: nick clashes and channel merges settle the same way on both sides."
+  ],
+  [
+   "2026-11-12T06:30",
+   "Servers link up",
+   "BeeIRCd linked with a real UnrealIRCd 6, both ways, over TLS with pinned keys."
+  ],
+  [
+   "2026-11-12T06:13",
+   "Server links start: TLS transport and the UnrealIRCd 6 handshake",
+   "Tested both ways against a real UnrealIRCd 6.2.7."
+  ],
+  [
+   "2026-11-12T06:00",
+   "One hour of fuzzing passed",
+   "Eight parsers, hundreds of millions of random inputs, no failures."
+  ],
+  [
+   "2026-11-12T05:43",
+   "Plan for server linking",
+   "Speaks the UnrealIRCd 6 server protocol, so it can join existing networks."
+  ],
+  [
+   "2026-11-12T05:00",
+   "Install and admin guides, release checks",
+   "An hour of fuzzing, a TLS scan, clean installs on Debian 13 and Ubuntu 24.04."
+  ],
+  [
+   "2026-11-12T04:49",
+   "Stricter TLS 1.2",
+   "Only forward secret ciphers."
+  ],
+  [
+   "2026-11-12T03:59",
+   "Signed updates",
+   "beeircd update checks the signature and rolls back if the new version won't start."
+  ],
+  [
+   "2026-11-12T02:58",
+   "One-command installer",
+   "beeircd install asks a few questions, then sets up systemd, the firewall and backups."
+  ],
+  [
+   "2026-11-12T01:57",
+   "Let's Encrypt and STS built in",
+   ""
+  ],
+  [
+   "2026-11-12T01:27",
+   "beeircd status, check, backup and rehash",
+   ""
+  ],
+  [
+   "2026-11-12T00:44",
+   "Connect throttle and PROXY protocol",
+   "Stops reconnect floods, works behind a load balancer."
+  ],
+  [
+   "2026-11-11T23:39",
+   "Channel history and CHATHISTORY",
+   ""
+  ],
+  [
+   "2026-11-11T22:46",
+   "User modes, KNOCK, SILENCE and SETNAME",
+   ""
+  ],
+  [
+   "2026-11-11T21:53",
+   "Protocol checks against irctest",
+   ""
+  ],
+  [
+   "2026-11-11T20:57",
+   "Test foundation",
+   ""
+  ],
+  [
+   "2026-11-11T18:54",
+   "Channel modes",
+   ""
+  ],
+  [
+   "2026-11-11T17:55",
+   "Oper classes",
+   ""
+  ],
+  [
+   "2026-11-11T16:08",
+   "HostServ",
+   ""
+  ],
+  [
+   "2026-11-11T15:44",
+   "MemoServ extras, mail and BUDDY",
+   ""
+  ],
+  [
+   "2026-11-11T15:08",
+   "MONITOR, client certificates and SASL EXTERNAL",
+   ""
+  ],
+  [
+   "2026-11-11T14:02",
+   "OperServ extras, SEEN and DNSBL",
+   ""
+  ],
+  [
+   "2026-11-11T13:09",
+   "Services answer like Anope 2.0.20",
+   ""
+  ],
+  [
+   "2026-11-11T12:03",
+   "Runs well on a 1 CPU VPS",
+   ""
+  ],
+  [
+   "2026-11-11T10:23",
+   "Network bans and extbans",
+   ""
+  ],
+  [
+   "2026-11-11T09:52",
+   "ChanServ permission sets",
+   ""
+  ],
+  [
+   "2026-11-11T06:30",
+   "Opers, OperServ and AdminServ",
+   ""
+  ],
+  [
+   "2026-11-11T05:27",
+   "ChanServ",
+   ""
+  ],
+  [
+   "2026-11-11T04:54",
+   "NickServ, MemoServ and SASL",
+   ""
+  ],
+  [
+   "2026-11-11T04:32",
+   "IRCv3, cloaked hosts and flood control",
+   ""
+  ],
+  [
+   "2026-11-11T03:48",
+   "Core chat server",
+   ""
+  ],
+  [
+   "2026-11-11T03:11",
+   "Project started",
+   ""
   ]
+ ],
+ "stages": [
+  {
+   "n": "Stage 1, done",
+   "title": "One server, all services",
+   "steps": [
+    [
+     "done",
+     "Core chat server, IRCv3, SASL, cloaks"
+    ],
+    [
+     "done",
+     "NickServ, ChanServ, MemoServ, HostServ, BotServ"
+    ],
+    [
+     "done",
+     "OperServ and AdminServ"
+    ],
+    [
+     "done",
+     "Installer, the beeircd command, signed updates"
+    ],
+    [
+     "done",
+     "Fuzz 1 h and soak 6 h with 2,000 users"
+    ]
+   ]
+  },
+  {
+   "n": "Stage 2, done",
+   "title": "Server linking",
+   "steps": [
+    [
+     "done",
+     "BeeIRCd to BeeIRCd over TLS, pinned keys"
+    ],
+    [
+     "done",
+     "Links to UnrealIRCd 6"
+    ],
+    [
+     "done",
+     "Services on the hub for the whole network"
+    ],
+    [
+     "done",
+     "Splits and rejoins tested with 5,100 users"
+    ]
+   ]
+  },
+  {
+   "n": "Stage 3, done",
+   "title": "Hive Panel",
+   "steps": [
+    [
+     "done",
+     "Overview, People, Channels, Bans, Opers"
+    ],
+    [
+     "done",
+     "Network map, Services, Settings, Backups"
+    ],
+    [
+     "done",
+     "Members: Home, Memos, My nick"
+    ],
+    [
+     "done",
+     "Channel manager for owners"
+    ],
+    [
+     "done",
+     "Members switch for public sign-in"
+    ]
+   ]
+  },
+  {
+   "n": "Stage 4, done",
+   "title": "BeeRoom",
+   "steps": [
+    [
+     "done",
+     "Web chat with the Bee theme"
+    ],
+    [
+     "done",
+     "Real IP for each person (WEBIRC)"
+    ],
+    [
+     "done",
+     "Own installer and a Docker image"
+    ],
+    [
+     "done",
+     "Chat tab inside the Hive Panel"
+    ],
+    [
+     "done",
+     "Signed download, out with 1.0"
+    ]
+   ]
+  }
+ ]
 }
