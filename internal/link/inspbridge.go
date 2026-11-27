@@ -575,6 +575,13 @@ func (b *inspBridge) out(m irc.Message) []string {
 			return nil
 		}
 		return []string{line(nil, src, "ENCAP", false, sourceSID(p[0]), "UNINVITE", p[0], p[1])}
+	case "SENDSNO": // :sid SENDSNO o :text -> :sid SNONOTICE O :text
+		// Only our failed OPERs come here (operSnoInsp); InspIRCd shows a
+		// remote server's ones under O.
+		if len(p) < 2 || p[0] != "o" || last() == "" || len(src) != 3 || b.behind[src] {
+			return nil
+		}
+		return []string{line(nil, src, "SNONOTICE", true, "O", last())}
 	}
 	if len(m.Command) == 3 && m.Command[0] >= '0' && m.Command[0] <= '9' && len(p) > 0 {
 		// :src 401 uid params -> NUM src uid 401 params

@@ -54,3 +54,23 @@ func TestUnrealOperUpShowsOnce(t *testing.T) {
 	})
 	hop.quiet("From a.test.local: bob")
 }
+
+// A failed OPER here was not sent to a linked InspIRCd server, whose opers
+// see the other servers' ones under O; it now goes as SENDSNO o (the bridge
+// makes it SNONOTICE O). An oper-up is left out: InspIRCd makes its own
+// from the oper's type.
+func TestOperFailReachesInsp(t *testing.T) {
+	hub, _ := linkedPair(t)
+	rec := bridged(t, hub)
+	alice := login(t, hub.s, "alice")
+	alice.send("OPER nosuchkit171 x")
+	waitLink(t, "failed OPER sent to the InspIRCd link", func() bool {
+		return rec.sent("SENDSNO o :alice (") && rec.sent("nosuchkit171")
+	})
+	netadminOn(t, hub, alice, "alice")
+	alice.send("PING :done")
+	alice.expect(" :done")
+	if rec.sent("is now a server operator") {
+		t.Errorf("oper-up sent to the InspIRCd link")
+	}
+}

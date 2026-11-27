@@ -201,7 +201,11 @@ func snoOperUp(who, rank, account string) string {
 // worded like InspIRCd 4: why says what went wrong ("they specified the
 // wrong password").
 func (s *Server) operFail(letter byte, u *state.User, account, why string) {
-	s.sno(letter, "%s failed to log into the \x02%s\x02 oper account because %s.", snoWho(u), account, why)
+	text := snoWho(u) + " failed to log into the \x02" + account + "\x02 oper account because " + why + "."
+	s.sno(letter, "%s", text)
+	if letter == 'o' {
+		s.operSnoInsp(text)
+	}
 }
 
 // operFailWhy is the reason for operFail from the answer the services

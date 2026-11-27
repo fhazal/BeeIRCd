@@ -219,6 +219,19 @@ func (s *Server) operSnoLinks(text string) {
 	}
 }
 
+// operSnoInsp sends a failed OPER here to the InspIRCd servers linked
+// here: they show their own servers' ones network-wide (an oper-up they
+// make themselves from the oper's type). The bridge makes it SNONOTICE O.
+func (s *Server) operSnoInsp(text string) {
+	line := irc.Message{Source: s.cfg.Server.SID, Command: "SENDSNO",
+		Params: []string{"o", irc.Truncate(text, 400)}, Trailing: true}.String()
+	for _, o := range s.upLinks(nil) {
+		if o.bridge != nil {
+			o.send(line)
+		}
+	}
+}
+
 // snoOnly sends a server notice with letter without logging it (for
 // things the log already has).
 func (s *Server) snoOnly(letter byte, text string) {
