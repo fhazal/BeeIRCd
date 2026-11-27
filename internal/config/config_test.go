@@ -219,3 +219,19 @@ func TestRelativePathsFromConfigFolder(t *testing.T) {
 		}
 	}
 }
+
+// [link] sasl_server is only for a linked server without its own services.
+func TestLinkSaslServerChecks(t *testing.T) {
+	off := "\n[services]\nenabled = false\n"
+	for body, want := range map[string]string{
+		"\n[link]\nrole = \"leaf\"\nsasl_server = \"services.example.net\"\n":       "set [services] enabled = false",
+		"\n[link]\nsasl_server = \"services.example.net\"\n" + off:                  "needs [link] role hub or leaf",
+		"\n[link]\nrole = \"leaf\"\nsasl_server = \"services\"\n" + off:             "must be a server name",
+		"\n[link]\nrole = \"leaf\"\nsasl_server = \"services.example.net\"\n" + off: "",
+	} {
+		_, err := Load(write(t, good+body))
+		if want == "" && err != nil || want != "" && (err == nil || !strings.Contains(err.Error(), want)) {
+			t.Errorf("%q: got %v, want %q", body, err, want)
+		}
+	}
+}

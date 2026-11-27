@@ -78,6 +78,10 @@ func (s *Server) linkMD(l *linkConn, m irc.Message) {
 		s.ignoreOnce(l, "svs:saslmechlist", "refused saslmechlist from %s: services run on this server", r.name)
 		return
 	}
+	if n := s.cfg.Link.SaslServer; n != "" && !strings.EqualFold(n, r.name) {
+		s.ignoreOnce(l, "svs:saslmechlist", "refused saslmechlist from %s: [link] sasl_server is %s", r.name, n)
+		return
+	}
 	mechs := ""
 	if len(m.Params) > 3 {
 		mechs = m.Params[3]
@@ -123,7 +127,24 @@ func (s *Server) saslServerGone(r *remoteServer) {
 // again after a relink, so without this logins fail until services say it.
 func (s *Server) saslServerBack(r *remoteServer) {
 	g := s.links.saslLast
-	if r == nil || r.via == nil || g.name == "" || s.links.saslServer != "" || s.cfg.Services.On() {
+	if r == nil || r.via == nil || s.links.saslServer != "" || s.cfg.Services.On() {
+		return
+	}
+	if n := s.cfg.Link.SaslServer; n != "" {
+		// Named in the config: it takes SASL as soon as it is linked, with
+		// the mechanisms it last said, until it says new ones.
+		if !strings.EqualFold(r.name, n) {
+			return
+		}
+		mechs := saslMechList
+		if strings.EqualFold(g.name, r.name) && g.mechs != "" {
+			mechs = g.mechs
+		}
+		s.links.saslServer, s.links.saslMechs, s.links.saslLast = r.name, mechs, saslGone{}
+		s.linkBroadcast(r.via, ":"+r.sid+" MD client "+r.name+" saslmechlist :"+mechs)
+		return
+	}
+	if g.name == "" {
 		return
 	}
 	if !strings.EqualFold(r.name, g.name) || r.sid != g.sid || g.peer == "" || !strings.EqualFold(r.via.peer.Name, g.peer) {

@@ -40,6 +40,12 @@ type Link struct {
 	// HideSplit shows non-opers "*.net *.split" as the quit reason of a
 	// netsplit instead of the two server names (L8).
 	HideSplit bool `toml:"hide_split"`
+	// SaslServer names the linked services server that takes SASL logins
+	// when services are off here. Normally it says so itself (saslmechlist),
+	// but InspIRCd does not tell a server that links later, so after a
+	// restart logins fail until services relink. Set, only this server may
+	// take SASL, and it does as soon as it is linked.
+	SaslServer string `toml:"sasl_server"`
 }
 
 // LinkServer is one [[link.server]] block, like UnrealIRCd's link { }.
@@ -217,6 +223,18 @@ func (c *Config) checkLink() error {
 			return fmt.Errorf("[services] server_sid %q must be a digit and two capital letters or digits", sid)
 		case sid == c.Server.SID:
 			return fmt.Errorf("[services] server_sid must differ from [server] sid")
+		}
+	}
+	if n := c.Link.SaslServer; n != "" {
+		switch {
+		case !c.Link.Linked():
+			return fmt.Errorf("[link] sasl_server needs [link] role hub or leaf")
+		case c.Services.On():
+			return fmt.Errorf("[link] sasl_server is for a server without its own services: set [services] enabled = false")
+		case !ValidServerName(n) || !strings.Contains(n, "."):
+			return fmt.Errorf("[link] sasl_server %q must be a server name like services.example.net", n)
+		case strings.EqualFold(n, c.Server.Name):
+			return fmt.Errorf("[link] sasl_server must differ from [server] name")
 		}
 	}
 	seen := map[string]bool{}

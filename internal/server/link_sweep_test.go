@@ -94,3 +94,25 @@ func TestLinkSaslSessionsGoWithTheLink(t *testing.T) {
 		t.Fatalf("%d SASL sessions left after the link dropped", got)
 	}
 }
+
+// A leaf that starts after services linked never hears saslmechlist from
+// InspIRCd. With [link] sasl_server naming services it takes them as the
+// SASL server as soon as they are linked, and no other server may.
+func TestLinkSaslServerFromConfig(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	target := func() (t string) { leaf.s.onLoop(func() { t = leaf.s.saslTarget() }); return t }
+	leaf.fromLink(t, ":"+hub.sid+" SQUIT services.test.local :gone")
+	waitLink(t, "services gone on the leaf", func() bool { return target() == "" })
+	leaf.s.onLoop(func() {
+		leaf.s.cfg.Link.SaslServer = "services.test.local"
+		leaf.s.links.saslLast = saslGone{} // as after a restart: nothing remembered
+	})
+	leaf.fromLink(t, ":"+hub.sid+" SID services.test.local 2 9HC :services, no saslmechlist")
+	waitLink(t, "the named server is the SASL server", func() bool { return target() == "services.test.local" })
+	leaf.fromLink(t, ":"+hub.sid+" SID fake.test.local 2 9FK :fake")
+	leaf.fromLink(t, ":9FK MD client fake.test.local saslmechlist :PLAIN")
+	time.Sleep(200 * time.Millisecond)
+	if got := target(); got != "services.test.local" {
+		t.Fatalf("another server took SASL: %q", got)
+	}
+}

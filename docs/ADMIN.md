@@ -2111,6 +2111,7 @@ links with BeeIRCd and UnrealIRCd 6, and translates to and from InspIRCd
 | `port` | `7000` for hub/leaf | TLS port for server links (restart) |
 | `cert`, `key` | next to services.db | This server's link certificate, made at the first start as a hub or leaf and never renewed, so its fingerprint stays the same. It is in every backup |
 | `hide_split` | `false` | In a netsplit, show non-opers `*.net *.split` as the quit reason instead of the two server names (opers always see them) |
+| `sasl_server` | – | Only for a server with `[services] enabled = false`: the name of the linked services server that takes SASL logins, like `services.example.net`. Normally services announce themselves, but InspIRCd doesn't tell a server that links after services did, so without this, logins on a restarted BeeIRCd behind InspIRCd fail until services relink. When set, only this server may take SASL logins (restart) |
 | `outside_admins` | `"network"` | Whether admins from other servers may run AdminServ here. `network`: admins whose reach is network (see [Admin roles](#admin-roles)) can; admins with home reach can't. `none`: no admin commands from other servers. Either way an outside admin can never change this setting, the link blocks, or the config admin's oper entry and password (restart) |
 | `remote_admin` | – | Replaced by `outside_admins`. Still read so old configs load: `remote_admin = false` with no `outside_admins` line means `outside_admins = "none"` |
 
@@ -2223,6 +2224,15 @@ so letters may differ; a mode one side doesn't have is not sent (BeeIRCd
 as op when it has no `customprefix` ranks for them). Load `banexception`
 and `inviteexception` there for `+e` and `+I`. Remote `/STATS`, `/MOTD`
 and AdminServ `SERVER` don't reach an InspIRCd server.
+
+If the services (like Anope) hang off the InspIRCd side and BeeIRCd's
+own services are off, name them with `sasl_server` in `[link]`:
+InspIRCd only tells servers that are already linked when services
+arrive, so a BeeIRCd that restarts later wouldn't know where to send
+SASL logins.
+
+    [link]
+    sasl_server = "services.example.net"
 
 **Anope as the services server.** Instead of the built-in services, a
 BeeIRCd network can use Anope 2.0 (tested with 2.0.20). Anope links to
