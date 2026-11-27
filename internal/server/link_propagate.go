@@ -303,13 +303,20 @@ func (s *Server) userByUIDOrNick(x string) *state.User {
 	return s.net.UserByNick(x)
 }
 
-// sourceName is how a link source (SID or UID) shows to people: a server
+// sourceName is how a link source (SID or UID, or a server name or nick, as
+// UnrealIRCd names them on numerics and notices) shows to people: a server
 // name or a nick.
 func (s *Server) sourceName(src string) string {
 	if r := s.links.servers[src]; r != nil {
 		return r.name
 	}
 	if u := s.net.UserByUID(src); u != nil {
+		return u.Nick
+	}
+	if r := s.serverByName(src); r != nil {
+		return r.name
+	}
+	if u := s.net.UserByNick(src); u != nil {
 		return u.Nick
 	}
 	return s.cfg.Server.Name
