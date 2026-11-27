@@ -200,6 +200,23 @@ func (s *Server) sno(letter byte, format string, a ...any) {
 	text := fmt.Sprintf(format, a...)
 	s.log.Print(text)
 	s.snoOnly(letter, text)
+	if letter == 'o' {
+		s.operSnoLinks(text)
+	}
+}
+
+// operSnoLinks sends one of our oper notices (an oper-up, a logout, a
+// failed OPER) to the UnrealIRCd servers linked here, whose opers with the
+// o notice letter see it from our server (SENDSNO). Another BeeIRCd shows
+// these from the oper's details, InspIRCd from the oper's type.
+func (s *Server) operSnoLinks(text string) {
+	line := irc.Message{Source: s.cfg.Server.SID, Command: "SENDSNO",
+		Params: []string{"o", irc.Truncate(text, 400)}}.String()
+	for _, o := range s.upLinks(nil) {
+		if o.bridge == nil && !o.peer.Bee {
+			o.send(line)
+		}
+	}
 }
 
 // snoOnly sends a server notice with letter without logging it (for
