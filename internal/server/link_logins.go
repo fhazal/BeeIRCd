@@ -54,6 +54,10 @@ const (
 	// loginGrantCap: past this many records, the ones of people who are
 	// not on the network go first.
 	loginGrantCap = 100000
+	// loginsTrustOld: how long after an upgrade from a version without
+	// login records the logins from links are taken: long enough for the
+	// links to come back and burst.
+	loginsTrustOld = 10 * time.Minute
 	// linkLoginNoticeEvery: at most one oper notice per link this often
 	// about logins we ignored; the log has every one.
 	linkLoginNoticeEvery = time.Minute
@@ -122,6 +126,15 @@ func (s *Server) linkLoginOK(l *linkConn, uid, nick, account, truth string) bool
 		// renamed since), and be the same account.
 		if a, err := s.store.AccountByNick(account); err == nil && a != nil && irc.EqualFold(a.Name, account) &&
 			(g.id == 0 || a.ID == g.id) {
+			return true
+		}
+	}
+	// Just upgraded from a version that kept no records: nobody has one
+	// yet, so take the login as that version did, and keep it from now on.
+	if _, had := s.links.logins[uid]; !had && time.Now().Before(s.links.loginsTrustUntil) {
+		if a, err := s.store.AccountByNick(account); err == nil && a != nil && irc.EqualFold(a.Name, account) {
+			s.log.Printf("link %s: took the login to %s for %s (%s): the last version kept no login records", l.peer.Name, account, nick, uid)
+			s.grantLogin(uid, a.Name, false)
 			return true
 		}
 	}
@@ -221,6 +234,9 @@ func (s *Server) loadLogins(now time.Time) {
 	}
 	if s.links.logins == nil {
 		s.links.logins = map[string]loginGrant{}
+	}
+	if s.store.LinkLoginsNew() {
+		s.links.loginsTrustUntil = now.Add(loginsTrustOld)
 	}
 	for _, l := range all {
 		g := loginGrant{account: l.Account, id: l.AccountID, gone: l.Gone}

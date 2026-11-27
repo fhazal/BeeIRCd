@@ -123,6 +123,9 @@ type handoverSnap struct {
 	// UID (link_logins.go), so they keep them when their server links
 	// again.
 	Logins map[string]string
+	// LoginsKept: the last server kept login records (1.7.1 and later).
+	// Without them, logins from links are taken for a while (linkLoginOK).
+	LoginsKept bool
 }
 
 type timedBanSnap struct {
@@ -397,7 +400,7 @@ func (s *Server) handoverNow() {
 
 	snap := &handoverSnap{
 		Server: s.cfg.Server.Name, SID: s.cfg.Server.SID, Casemapping: irc.Casemapping(),
-		From: version.String(), Taken: time.Now(),
+		From: version.String(), Taken: time.Now(), LoginsKept: true,
 		MaxLocal: s.maxLocal, MaxGlobal: s.maxGlobal, DayPeak: s.dayPeak, DayPeakAt: s.dayPeakAt,
 	}
 	for _, b := range s.timedBans {
@@ -789,6 +792,10 @@ func (s *Server) takeOver(r *resume) (err error) {
 	// the last server may have changed records after its last write. The
 	// database is rewritten from it at the next flush.
 	s.links.logins, s.links.loginsDirty, s.links.loginsAll = nil, nil, true
+	s.links.loginsTrustUntil = time.Time{}
+	if !snap.LoginsKept && !s.svc.Off() {
+		s.links.loginsTrustUntil = time.Now().Add(loginsTrustOld)
+	}
 	for uid, account := range snap.Logins {
 		s.grantLogin(uid, account, true) // their server links again soon
 	}

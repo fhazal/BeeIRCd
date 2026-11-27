@@ -98,6 +98,9 @@ type Store struct {
 	md    *mdCache // IRCv3 metadata (metadata.go)
 	cs    *csCache // chanstats counts (chanstats.go)
 	notes []string // what the migrations changed, for the server log
+	// linkLoginsNew: the database comes from a version before 1.7.1 (it
+	// had accounts but no link_logins table until this Open).
+	linkLoginsNew bool
 }
 
 // SET KILL modes, kept in Account.Protect.
@@ -186,6 +189,11 @@ func Open(path string) (*Store, error) {
 		}
 		return fail(err)
 	}
+	// A database from before 1.7.1: it has accounts but no link_logins.
+	var hadAccounts, hadLinkLogins int
+	if err := db.QueryRow("SELECT count(*) FILTER (WHERE name = 'accounts'), count(*) FILTER (WHERE name = 'link_logins') FROM sqlite_master WHERE type = 'table'").Scan(&hadAccounts, &hadLinkLogins); err != nil {
+		return fail(err)
+	}
 	if _, err := db.Exec(schema + channelSchema + operSchema + chanExtraSchema + netbanSchema + nsMoreSchema + msMoreSchema + hostServSchema + historySchema + panelSchema + botServSchema + botKickSchema + spamfilterSchema + helpServSchema + readMarkerSchema + reputationSchema + whowasSchema + linkLoginSchema + metadataSchema + fieldsSchema + chanStatsSchema); err != nil {
 		return fail(err)
 	}
@@ -238,7 +246,7 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return fail(err)
 	}
-	return &Store{db: db, c: c, bs: bs, md: md, cs: cs, notes: notes}, nil
+	return &Store{db: db, c: c, bs: bs, md: md, cs: cs, notes: notes, linkLoginsNew: hadAccounts > 0 && hadLinkLogins == 0}, nil
 }
 
 // Notes says what opening the database changed in it (old settings that

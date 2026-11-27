@@ -120,6 +120,10 @@ type linkState struct {
 	loginsDirty map[string]struct{}
 	loginsAll   bool
 	loginsRetry time.Time // no database write before this, after a failed one
+	// loginsTrustUntil: after an upgrade from a version that kept no
+	// login records (before 1.7.1), logins from links are taken until
+	// then, as that version did, and recorded (linkLoginOK).
+	loginsTrustUntil time.Time
 }
 
 type linkRetry struct {

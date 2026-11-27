@@ -1,7 +1,11 @@
 package server
 
 import (
+	"database/sql"
 	"fmt"
+	"io"
+	"log"
+	"net"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -510,4 +514,114 @@ func TestLoginsNetsplitWrittenInOneBatch(t *testing.T) {
 			}
 		}
 	})
+}
+
+// The hub is upgraded from a version that kept no login records (before
+// 1.7.1) with a cold restart: its database has no link_logins table. The
+// logins the leaf bursts are taken for a while, as that version did, and
+// recorded from then on (live, 1.7.1-rc1: two people were logged out).
+func TestLinkLoginOldDatabaseTrusted(t *testing.T) {
+	hub, leaf, danUID, samUID := loggedInPeople(t)
+	stopServer(hub.s)
+	waitLink(t, "leaf lost the hub", func() bool { return len(leaf.servers()) == 0 })
+	db, err := sql.Open("sqlite", "file:"+hub.db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("DROP TABLE link_logins"); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	hub.start(t)
+	waitLink(t, "leaf back", func() bool {
+		leaf.s.onLoop(func() {
+			for _, r := range leaf.s.links.retry {
+				r.next = time.Time{}
+			}
+		})
+		return hub.user("sam") != nil && hub.user("dan") != nil
+	})
+	checkOldLogins(t, hub, leaf, danUID, samUID)
+}
+
+// The same with a hand-over from such a version: its snapshot has no
+// login records and no LoginsKept.
+func TestLinkLoginOldHandoverTrusted(t *testing.T) {
+	hub, leaf, danUID, samUID := loggedInPeople(t)
+	old := hub.s
+	got := make(chan *handed, 1)
+	old.post(func() {
+		old.hand.keepConns = true
+		old.hand.give = func(b []byte, conns map[string]net.Conn) error {
+			got <- &handed{append([]byte(nil), b...), conns}
+			return nil
+		}
+		old.startHandover()
+	})
+	var h *handed
+	select {
+	case h = <-got:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the hub never handed over")
+	}
+	stopServer(old)
+	snap, err := decodeHandover(h.snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !snap.LoginsKept || len(snap.Logins) != 2 {
+		t.Fatalf("snapshot: kept %v, logins %v", snap.LoginsKept, snap.Logins)
+	}
+	snap.LoginsKept, snap.Logins = false, nil
+	if h.snapshot, err = encodeHandover(snap, handoverVersion); err != nil {
+		t.Fatal(err)
+	}
+	r := h.resume(nil)
+	prev := newTestServer
+	newTestServer = func(cfg *config.Config) (*Server, func(), error) {
+		s, err := newServer(cfg, log.New(io.Discard, "", 0), nil, r)
+		return s, func() {}, err
+	}
+	hub.log = &syncBuf{}
+	hub.s = testServerWith(t, func(c *config.Config) { *c = *old.cfg }, func(s *Server) { s.log = log.New(hub.log, "", 0) })
+	newTestServer = prev
+	waitLink(t, "leaf back", func() bool {
+		leaf.s.onLoop(func() {
+			for _, r := range leaf.s.links.retry {
+				r.next = time.Time{}
+			}
+		})
+		return hub.user("sam") != nil && hub.user("dan") != nil
+	})
+	checkOldLogins(t, hub, leaf, danUID, samUID)
+}
+
+// checkOldLogins: dan and sam kept their logins on both servers, the hub
+// says why and keeps records of them now; once the wait is over, a login
+// our services did not give is ignored again.
+func checkOldLogins(t *testing.T, hub, leaf *linkNode, danUID, samUID string) {
+	t.Helper()
+	logged := func(n *linkNode, nick string) bool { u := n.user(nick); return u != nil && u.Account == "dan" }
+	waitLink(t, "both logged in on both", func() bool {
+		return logged(hub, "dan") && logged(hub, "sam") && logged(leaf, "dan") && logged(leaf, "sam")
+	})
+	if hub.logHas("ignored a login") {
+		t.Errorf("the hub dropped a real login:\n%s", hub.log.String())
+	}
+	if !hub.logHas("took the login to dan for dan (" + danUID + "): the last version kept no login records") {
+		t.Errorf("no note for dan in the hub's log:\n%s", hub.log.String())
+	}
+	hub.s.onLoop(func() {
+		for _, uid := range []string{danUID, samUID} {
+			if g, ok := hub.s.links.logins[uid]; !ok || g.account != "dan" || g.id == 0 || !g.gone.IsZero() {
+				t.Errorf("record of %s: %+v, %v", uid, g, ok)
+			}
+		}
+		hub.s.links.loginsTrustUntil = time.Now().Add(-time.Second)
+	})
+	ts := time.Now().Unix()
+	hub.fromLink(t, fmt.Sprintf(":0LF UID acctspoof 1 %d qa fake.host 0LFZZZZZ4 dan +i * * fwAAAQ== :x", ts))
+	if u := hub.user("acctspoof"); u == nil || u.Account != "" {
+		t.Errorf("acctspoof came in as %+v", u)
+	}
 }

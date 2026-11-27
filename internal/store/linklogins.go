@@ -28,6 +28,10 @@ type LinkLogin struct {
 	Gone         time.Time
 }
 
+// LinkLoginsNew says the database comes from a version before 1.7.1: it
+// had no link_logins table, so there were no records to load.
+func (s *Store) LinkLoginsNew() bool { return s.linkLoginsNew }
+
 // LinkLogins returns every saved login.
 func (s *Store) LinkLogins() ([]LinkLogin, error) {
 	var out []LinkLogin
