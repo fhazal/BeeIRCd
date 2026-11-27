@@ -7,9 +7,11 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -379,4 +381,47 @@ func TestWebSocketPingFlood(t *testing.T) {
 	if pongs == 0 {
 		t.Fatal("no ping answered at all")
 	}
+}
+
+// Connections that never finish the WebSocket upgrade must not pile up:
+// past a few per address the rest are closed at once, and the ones in
+// the handshake are dropped once wsWait is up.
+func TestWebSocketHalfOpenCap(t *testing.T) {
+	s := wsServer(t, config.Listen{})
+	addr := s.Addrs()[len(s.Addrs())-1].String()
+	var conns []net.Conn
+	t.Cleanup(func() {
+		for _, c := range conns {
+			c.Close()
+		}
+	})
+	for range 100 {
+		c, err := net.Dial("tcp", addr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		conns = append(conns, c)
+		io.WriteString(c, "GET / HTTP/1.1\r\n") // and never the rest
+	}
+	time.Sleep(500 * time.Millisecond) // the acceptor has seen them all
+	open := 0
+	for _, c := range conns {
+		c.SetReadDeadline(time.Now().Add(20 * time.Millisecond))
+		if _, err := c.Read(make([]byte, 1)); err != nil && errors.Is(err, os.ErrDeadlineExceeded) {
+			open++
+		}
+	}
+	if open > wsMaxHalfOpen {
+		t.Fatalf("%d of 100 half-open WebSocket connections from one address still open", open)
+	}
+	if open == 0 {
+		t.Fatal("not even one handshake was waited for")
+	}
+	// Once those go, a real page gets in again.
+	for _, c := range conns {
+		c.Close()
+	}
+	time.Sleep(100 * time.Millisecond)
+	w := wsDial(t, s, false, nil)
+	w.register("late")
 }

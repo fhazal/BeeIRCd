@@ -527,6 +527,9 @@ type acceptor struct {
 	// refuseIP (the gate only) does the same for the visitor address a
 	// proxy gives on a WebSocket port, once the HTTP request is read.
 	refuseIP func(ip net.IP, conn net.Conn, l listener) bool
+
+	halfMu sync.Mutex
+	half   map[string]int // WebSocket upgrades in progress per address (websocket.go)
 }
 
 // acceptLoop starts the accept loop of one client port.

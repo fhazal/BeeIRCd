@@ -40,6 +40,11 @@ const (
 	// (cookies included); without a cap one visitor could fill the
 	// server's memory in the seconds the handshake may take.
 	wsMaxHeader = 64 << 10
+
+	// wsMaxHalfOpen caps the upgrades in progress from one address (not
+	// behind a proxy). A page needs one; a few tabs or a shared NAT
+	// opening at once stay well below it.
+	wsMaxHalfOpen = 16
 )
 
 var (
@@ -57,6 +62,15 @@ func (a *acceptor) acceptWebSocket(conn net.Conn, l listener) {
 	if l.proxy && !l.proxyAllowed(conn.RemoteAddr()) {
 		conn.Close() // not our proxy: nobody else may claim an address
 		return
+	}
+	if !l.proxy {
+		// Behind a proxy every visitor comes from the proxy's address.
+		ip, ok := addrOf(conn.RemoteAddr())
+		if !ok || !a.halfOpen(ip.String()) {
+			conn.Close()
+			return
+		}
+		defer a.halfDone(ip.String())
 	}
 	raw := conn
 	if l.tls {
@@ -79,6 +93,32 @@ func (a *acceptor) acceptWebSocket(conn net.Conn, l listener) {
 	if !a.hand(ws, ws.secure) {
 		raw.Close()
 	}
+}
+
+// halfOpen counts one more upgrade in progress from ip; false (and not
+// counted) when ip has wsMaxHalfOpen already. Until the upgrade is done a
+// connection is not a client yet, so the session limit doesn't see it:
+// without this one address could hold any number of sockets for wsWait
+// each.
+func (a *acceptor) halfOpen(ip string) bool {
+	a.halfMu.Lock()
+	defer a.halfMu.Unlock()
+	if a.half[ip] >= wsMaxHalfOpen {
+		return false
+	}
+	if a.half == nil {
+		a.half = make(map[string]int)
+	}
+	a.half[ip]++
+	return true
+}
+
+func (a *acceptor) halfDone(ip string) {
+	a.halfMu.Lock()
+	if a.half[ip]--; a.half[ip] <= 0 {
+		delete(a.half, ip)
+	}
+	a.halfMu.Unlock()
 }
 
 // wsHandshake reads the HTTP upgrade request and answers it. deny (the
