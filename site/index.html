@@ -563,6 +563,19 @@ section > h2:not(.lv-title)::before, .new-head h2::before, .status-head h2::befo
 .stage.now { border-radius: 12px; }
 .band-art { border-radius: 16px; overflow: hidden; }
 .band-art .win { border-radius: 16px; }
+/* Dome House hero (28 Nov): effects moved onto the new picture */
+.scene-e .fx.beacon{left:55%;top:3.4%;width:5.8%;height:10%}
+.scene-e .fx.home{left:46.8%;top:12%;width:24%;height:34%}
+.scene-e .fx.m1{left:44.45%;top:14.15%}
+.scene-e .fx.m2{left:64.05%;top:7.55%}
+.scene-e .fx.m3{left:68.15%;top:17.75%}
+@media (max-width: 860px) {
+  .scene-e .sc-stage { width: 150%; margin-left: -45%; }
+  .scene-e .set2 .pin.live:not(.l) { flex-direction: row; transform: translate(-4px, -50%); text-align: left; }
+  .scene-e .set2 .pin.live:not(.l) s { background: linear-gradient(90deg, rgba(255,215,110,.85), rgba(255,215,110,.15)); }
+  .scene-e .set2 .pin.svc { flex-direction: row-reverse; transform: translate(calc(-100% + 4px), -50%); text-align: right; }
+  .scene-e .set2 .pin.svc s { background: linear-gradient(270deg, rgba(255,215,110,.85), rgba(255,215,110,.15)); }
+}
 </style>
 <style id="polish-mock">
 /* P1 hero type: bigger, tighter, balanced lines */
@@ -642,7 +655,7 @@ section>h2,.new-head h2,.status-head h2{font-size:clamp(28px,3.2vw,38px);letter-
         <a class="btn" href="#services"><svg aria-hidden="true"><use href="#i-code"/></svg>What it does</a>
         <a class="btn chat-btn" href="https://chat.beeircd.org/"><span class="chat-dot" aria-hidden="true"></span>Chat with us</a>
       </div>
-    </div><div class="crop"><div class="sc-stage"><img class="art" src="art/pine.webp" alt="A night diorama: a honey-dome server house on a pine hill, bees, and a black and gold steam train carrying chat bubbles out of a tunnel" width="1344" height="752"><div class="fx home"></div><div class="fx beacon"></div><div class="fx lamp"></div><div class="fx glow m1"></div><div class="fx glow m2"></div><div class="fx glow m3"></div><div class="fx steam"><i></i><i></i><i></i></div><div class="fx bee b1"><img src="art/bee1.webp" alt=""></div><div class="fx bee b2"><img src="art/bee2.webp" alt=""></div><div class="fx bee b3"><img src="art/bee3.webp" alt=""></div><span class="set2"><a class="pin " style="--x:73%;--y:22%" href="#services"><i></i><s></s><span><b>Your server</b><em data-live="v0">BeeIRCd 1.6.0</em></span></a><a class="pin l" style="--x:61%;--y:57%" href="#services"><i></i><s></s><span><b>Services in the basement</b></span></a><a class="pin live l" style="--x:86.5%;--y:53%" href="#live"><i></i><s></s><span><b>Messages</b><em data-live="all">97 people online</em></span></a><a class="pin live" style="--x:75.3%;--y:5%" href="#live"><i></i><s></s><span><b>Live beacon</b><em data-live="link">linked</em></span></a></span></div></div></div>
+    </div><div class="crop"><div class="sc-stage"><img class="art" src="art/dome.webp" alt="A night diorama: a honey-dome server house on a floating island with a glowing gold edge, a glass server room, bees and chat bubbles" width="1344" height="752"><div class="fx home"></div><div class="fx beacon"></div><div class="fx glow m1"></div><div class="fx glow m2"></div><div class="fx glow m3"></div><span class="set2"><a class="pin " style="--x:69.2%;--y:29%" href="#services"><i></i><s></s><span><b>Your server</b><em data-live="v0">BeeIRCd 1.6.0</em></span></a><a class="pin svc" style="--x:86%;--y:47%" href="#services"><i></i><s></s><span><b>Services</b></span></a><a class="pin live" style="--x:70%;--y:12%" href="#live"><i></i><s></s><span><b>Messages</b><em data-live="all">97 people online</em></span></a><a class="pin live l" style="--x:57.9%;--y:6.5%" href="#live"><i></i><s></s><span><b>Live beacon</b><em data-live="link">linked</em></span></a></span></div></div></div>
 <div class="wrap after-scene">    <div class="session" id="session" role="img" aria-label="An IRC client connected to BeeIRCd: identifying to NickServ, registering a channel with ChanServ and changing a setting with AdminServ.">
       <div class="tb" aria-hidden="true"><div class="lights"><i></i><i></i><i></i></div><div class="title"><svg viewBox="0 0 11 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="1" y="5" width="9" height="6" rx="1"/><path d="M3 5V3.5a2.5 2.5 0 0 1 5 0V5"/></svg><b>#beeircd</b>irc.beeircd.org</div><div></div></div>
       <div class="body" aria-hidden="true">
