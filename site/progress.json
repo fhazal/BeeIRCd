@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-28T05:00:00+08:00",
+ "updated": "2026-11-28T05:06:27+08:00",
  "gauges": [
   {
    "id": "g-v1",
@@ -24,6 +24,10 @@
  },
  "next": "1.7.2: finish the long tests, then 1.7.2-rc1 on the live servers.",
  "done": [
+  [
+   "2026-11-28T05:06",
+   "Website header: the Dome House now sits on the right like the old picture"
+  ],
   [
    "2026-11-28T05:00",
    "New header picture on the home page: a honey-dome server house on a floating island, with pins for your server, services, messages and the live beacon."
