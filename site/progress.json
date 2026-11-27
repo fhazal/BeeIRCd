@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-28T02:35:00+08:00",
+ "updated": "2026-11-28T03:15:00+08:00",
  "gauges": [
   {
    "id": "g-v1",
@@ -24,6 +24,10 @@
  },
  "next": "1.7.2: finish the long tests, then 1.7.2-rc1 on the live servers.",
  "done": [
+  [
+   "2026-11-28T03:15",
+   "Fixed a test for restart hand-overs that failed now and then. The servers themselves were fine; only the test helper closed a connection too early."
+  ],
   [
    "2026-11-28T02:35",
    "Fixed 2 things: a server without its own services no longer offers logins (SASL) while no services server is linked, and tells chat apps when logins come and go. One test that sometimes failed by itself now passes every time. Both go into the extra test round."
