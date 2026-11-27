@@ -288,7 +288,10 @@ func (s *Server) remoteOperMD(l *linkConn, m irc.Message) {
 			m.Params = m.Params[:3]
 		}
 	}
-	if !wasOper && u.OperClass+u.OperFlags != "" && !u.Service && s.serverSynced(uidServer(uid)) {
+	// An UnrealIRCd server sends its own oper-up notice (SLOG, or SENDSNO
+	// from a BeeIRCd behind it); another BeeIRCd and InspIRCd do not.
+	ownNotice := l.peer.Bee || l.bridge != nil
+	if !wasOper && ownNotice && u.OperClass+u.OperFlags != "" && !u.Service && s.serverSynced(uidServer(uid)) {
 		s.sno('O', "From %s: %s", u.Server, snoOperUp(snoWho(u), s.operRank(u.OperClass, u.OperTitle), ""))
 	}
 	for o := range s.links.conns {

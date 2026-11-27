@@ -35,3 +35,22 @@ func TestOperNoticesReachUnreal(t *testing.T) {
 		t.Errorf("oper notice sent to a BeeIRCd link")
 	}
 }
+
+// An UnrealIRCd server sends its own oper-up notice (SLOG); ours from the
+// oper's class came as well, so opers here saw it twice. Only the far one
+// shows now; a BeeIRCd peer still gets ours (TestRemoteSnoticeTexts).
+func TestUnrealOperUpShowsOnce(t *testing.T) {
+	hub, hop, _, _ := globopsTree(t)
+	hop.send("MODE hubop +s +O")
+	hop.send("PING :umode")
+	hop.expect(" :umode")
+	var uid string
+	hub.s.onLoop(func() { uid = hub.s.net.UserByNick("bob").UID })
+	hub.fromLinkTo(t, "a.test.local", ":0AA MD client "+uid+" operclass :netadmin")
+	waitLink(t, "bob opered at the hub", func() bool {
+		var c string
+		hub.s.onLoop(func() { c = hub.s.net.UserByNick("bob").OperClass })
+		return c == "netadmin"
+	})
+	hop.quiet("From a.test.local: bob")
+}
