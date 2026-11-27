@@ -58,6 +58,21 @@ func TestLinkServicesNameReusedAfterSplit(t *testing.T) {
 	bobKept(t, leaf, "a server reusing the services name")
 }
 
+// The services server splits and comes back the same way, without a new
+// saslmechlist (InspIRCd sends it only on the first link): the leaf must
+// take it as the SASL server again, so logins work at once.
+func TestLinkSaslServerBackAfterRelink(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	target := func() (t string) { leaf.s.onLoop(func() { t = leaf.s.saslTarget() }); return t }
+	if got := target(); got != "services.test.local" {
+		t.Fatalf("SASL server before the split is %q", got)
+	}
+	leaf.fromLink(t, ":"+hub.sid+" SQUIT services.test.local :gone")
+	waitLink(t, "services gone on the leaf", func() bool { return target() == "" })
+	leaf.fromLink(t, ":"+hub.sid+" SID services.test.local 2 9HB :services back")
+	waitLink(t, "services back as the SASL server", func() bool { return target() == "services.test.local" })
+}
+
 // The link to a server whose clients are halfway through SASL with our
 // services drops: their sessions must go with it, not stay forever.
 func TestLinkSaslSessionsGoWithTheLink(t *testing.T) {

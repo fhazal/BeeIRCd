@@ -86,6 +86,7 @@ func (s *Server) linkMD(l *linkConn, m irc.Message) {
 		if strings.EqualFold(s.links.saslServer, r.name) {
 			s.links.saslServer, s.links.saslMechs = "", ""
 		}
+		s.links.saslLast = saslGone{}
 	} else if cur := s.serverByName(s.links.saslServer); cur != nil && cur != r {
 		// One SASL server per network: a second one saying so would get
 		// the services' rights over our users (fromServices).
@@ -93,16 +94,43 @@ func (s *Server) linkMD(l *linkConn, m irc.Message) {
 		return
 	} else {
 		s.links.saslServer, s.links.saslMechs = r.name, mechs
+		s.links.saslLast = saslGone{}
 	}
 	s.linkBroadcast(l, m.String())
 }
 
+// saslGone is the SASL server that left: its name and SID, the direct
+// link it came in by, and its mechanisms.
+type saslGone struct{ name, sid, peer, mechs string }
+
 // saslServerGone forgets the SASL server when r leaves the network, so a
-// server that comes in later under its name gets none of its rights.
+// server that comes in later under its name gets none of its rights. It
+// is kept in saslLast for saslServerBack.
 func (s *Server) saslServerGone(r *remoteServer) {
 	if r != nil && strings.EqualFold(r.name, s.links.saslServer) {
+		g := saslGone{name: r.name, sid: r.sid, mechs: s.links.saslMechs}
+		if r.via != nil {
+			g.peer = r.via.peer.Name
+		}
+		s.links.saslLast = g
 		s.links.saslServer, s.links.saslMechs = "", ""
 	}
+}
+
+// saslServerBack makes r the SASL server again when it is the one that
+// left, back with the same SID through a link to the same server, and no
+// other server took SASL meanwhile. InspIRCd does not send saslmechlist
+// again after a relink, so without this logins fail until services say it.
+func (s *Server) saslServerBack(r *remoteServer) {
+	g := s.links.saslLast
+	if r == nil || r.via == nil || g.name == "" || s.links.saslServer != "" || s.cfg.Services.On() {
+		return
+	}
+	if !strings.EqualFold(r.name, g.name) || r.sid != g.sid || g.peer == "" || !strings.EqualFold(r.via.peer.Name, g.peer) {
+		return
+	}
+	s.links.saslServer, s.links.saslMechs, s.links.saslLast = r.name, g.mechs, saslGone{}
+	s.linkBroadcast(r.via, ":"+r.sid+" MD client "+r.name+" saslmechlist :"+g.mechs)
 }
 
 // saslTarget is the server our clients log in with, "" when none is

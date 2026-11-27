@@ -92,6 +92,10 @@ type linkState struct {
 	// clients on other servers, by UID.
 	saslServer, saslMechs string
 	sasl                  map[string]*saslSession
+	// saslLast is the SASL server that left in a split, so the same server
+	// coming back the same way gets it back (InspIRCd sends saslmechlist
+	// only on the first link).
+	saslLast saslGone
 	// qlines are nick bans from other servers; qlineSent our own as last
 	// sent, by folded mask.
 	qlines    map[string]qline
@@ -660,6 +664,7 @@ func (s *Server) linkUp(l *linkConn) {
 	}
 	s.lnotice("Finished bursting to \x02%s\x02.", p.Name)
 	s.linkBroadcast(l, fmt.Sprintf(":%s SID %s 2 %s :%s", s.cfg.Server.SID, p.Name, p.SID, p.Description))
+	s.saslServerBack(s.links.servers[p.SID])
 }
 
 // burstServers lists the servers to introduce to l: everyone not behind
@@ -900,6 +905,7 @@ func (s *Server) linkSID(l *linkConn, m irc.Message) {
 	s.links.servers[sid] = r
 	s.svc.LogServerJoin(name, desc, up.name)
 	s.linkBroadcast(l, fmt.Sprintf(":%s SID %s %d %s :%s", up.sid, name, r.hops+1, sid, desc))
+	s.saslServerBack(r)
 	s.lnotice("Server \x02%s\x02 introduced server \x02%s\x02 (%s)", up.name, name, desc)
 }
 
