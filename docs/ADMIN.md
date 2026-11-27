@@ -1786,7 +1786,8 @@ that text after every rank: "is a Network Administrator (IRCop)". The tag
 is the one set on the server the oper opered on, so setting it on the hub
 is enough. Every BeeIRCd server on the network shows the same lines (a
 server older than 1.3.0 doesn't send its tag; then the viewer's own is
-used).
+used). A linked InspIRCd server holds only one extra WHOIS line per user,
+so its users see just the first one.
 
 The server admin from beeircd.conf sets their own title, WHOIS lines and
 vhost from IRC: `/as oper <name> set title|swhois|vhost <text>` (OFF
