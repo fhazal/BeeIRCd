@@ -429,6 +429,7 @@ type link struct {
 	handing    bool            // asked to hand over: no more clients for this server
 	asked      chan struct{}   // the server asks for a hand-over
 	got        chan *payload   // its hand-over, complete
+	answered   chan struct{}   // the gate wrote its answer to that hand-over (or couldn't)
 	resumed    chan resumeNote // it took over the last server's clients (or couldn't)
 }
 
@@ -443,7 +444,7 @@ func newLink(conns, ctl *os.File) (*link, error) {
 		c.Close()
 		return nil, err
 	}
-	return &link{conns: c, ctl: k, asked: make(chan struct{}, 1), got: make(chan *payload, 1), resumed: make(chan resumeNote, 1)}, nil
+	return &link{conns: c, ctl: k, asked: make(chan struct{}, 1), got: make(chan *payload, 1), answered: make(chan struct{}, 1), resumed: make(chan resumeNote, 1)}, nil
 }
 
 func (l *link) close() {
@@ -484,6 +485,7 @@ func (l *link) serve(front Front) {
 		fds := rights(oob[:oobn])
 		var m ctlMsg
 		var out any = ack{}
+		handed := false // this message completed a hand-over (it went to l.got)
 		if flags&(syscall.MSG_TRUNC|syscall.MSG_CTRUNC) != 0 {
 			m.Op, out = "bad", ack{Err: "gate: message too long"}
 		} else if err := json.Unmarshal(buf[:n], &m); err != nil {
@@ -513,8 +515,11 @@ func (l *link) serve(front Front) {
 				out = ack{Err: fmt.Sprintf("gate: got %d of %d clients", len(pend.fds), m.N)}
 				pend.drop()
 			} else {
+				// l.got before the answer: once the server has its answer
+				// it may exit, and run must find the hand-over by then.
 				select {
 				case l.got <- pend:
+					handed = true
 				default:
 					pend.drop() // a second hand-over from one server: never happens
 				}
@@ -530,7 +535,17 @@ func (l *link) serve(front Front) {
 		}
 		closeAll(fds)
 		reply, _ := json.Marshal(out)
-		if _, err := l.ctl.Write(reply); err != nil {
+		_, werr := l.ctl.Write(reply)
+		if handed {
+			// Loop closes this link only after this: closed earlier, the
+			// server's Give reads EOF instead of the answer and says
+			// goodbye to clients the next server already holds.
+			select {
+			case l.answered <- struct{}{}:
+			default:
+			}
+		}
+		if werr != nil {
 			return
 		}
 	}
@@ -1139,6 +1154,10 @@ func (lp *Loop) Handover(wait time.Duration) (*Child, error) {
 	go func() { sent <- l.sendOld(p) }()
 	child.hand = child.load(snap, n)
 	<-sent
+	// run closes a link once its server process has exited, so after
+	// the server read the gate's answer to Give. Here the old server
+	// lives on: close its link only once that answer is written.
+	<-old.answered
 	lp.d.clear(old)
 	old.close()
 	lp.l, lp.child = l, child
