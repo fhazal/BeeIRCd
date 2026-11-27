@@ -173,3 +173,44 @@ func TestWildcardNet(t *testing.T) {
 		}
 	}
 }
+
+// Every Z-line in a form the gate can take (a CIDR, one IPv4, IPv6 in any
+// spelling, an IPv6 CIDR, an IPv4 prefix glob) refuses at the gate exactly
+// the addresses ZlineFor refuses, so a banned IP can't get past the fast
+// path while the slow check would stop it.
+func TestGateZlinesMatchZlineFor(t *testing.T) {
+	masks := []string{
+		"1.2.3.0/24", "1.2.3.77/24", "5.6.7.8", "5.6.7.8/32",
+		"2001:db8::1", "2001:DB8::2", "2001:0db8:0000:0000:0000:0000:0000:0003", "2001:DB8:0:0:0:0:0:4",
+		"::ffff:9.9.9.9", "::FFFF:9.9.9.10", "0:0:0:0:0:ffff:9.9.9.11",
+		"2001:db8:aa::/48", "2001:DB8:BB::/48", "2001:0db8:00cc:0000::/64",
+		"10.20.30.*", "11.*", "12.13.*.*",
+	}
+	ips := []string{
+		"1.2.3.0", "1.2.3.4", "1.2.3.255", "1.2.4.1", "5.6.7.8", "5.6.7.9",
+		"2001:db8::1", "2001:db8::2", "2001:db8::3", "2001:db8::4", "2001:db8::5",
+		"9.9.9.9", "9.9.9.10", "9.9.9.11", "9.9.9.12",
+		"2001:db8:aa::1", "2001:db8:aa:ffff::9", "2001:db8:ab::1", "2001:db8:bb::7",
+		"2001:db8:cc::1", "2001:db8:cc:1::1",
+		"10.20.30.1", "10.20.31.1", "11.0.0.1", "11.255.1.2", "12.13.200.1", "12.14.0.1", "::1", "8.8.8.8",
+	}
+	for _, m := range masks {
+		s, _ := newServices(t)
+		if err := s.store.AddNetBan(store.NetBan{Kind: store.BanZline, Mask: m, Reason: "test", SetBy: "test", SetAt: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
+		s.reloadOperData()
+		gb := s.GateZlines()
+		if len(gb) != 1 {
+			t.Errorf("%s: gate list %v, want one entry", m, gb)
+			continue
+		}
+		for _, ip := range ips {
+			slow := s.ZlineFor(ip) != nil
+			fast := gb[0].Net.Contains(netip.MustParseAddr(ip).Unmap())
+			if slow != fast {
+				t.Errorf("ZLINE %s, client %s: ZlineFor refuses %v, gate %s refuses %v", m, ip, slow, gb[0].Net, fast)
+			}
+		}
+	}
+}
