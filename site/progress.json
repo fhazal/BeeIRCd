@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-27T19:00:00+08:00",
+ "updated": "2026-11-27T19:20:00+08:00",
  "gauges": [
   {
    "id": "g-v1",
@@ -18,12 +18,16 @@
  ],
  "now": {
   "title": "Getting BeeIRCd 1.7.1 ready",
-  "text": "1.7.1-rc1 runs on both live servers. It logged out two people right after the upgrade; that is fixed and tested, and a second test release comes next.",
+  "text": "1.7.1-rc2 runs on both live servers with the login fix; everyone stayed connected and signed in during the upgrade.",
   "start": "2026-11-27T09:00:00+08:00",
   "end": "2026-11-27T22:00:00+08:00"
  },
- "next": "Release BeeIRCd 1.7.1-rc2 with the login fix and run it on the live servers.",
+ "next": "Watch rc2 for a while, then release the final BeeIRCd 1.7.1.",
  "done": [
+  [
+   "2026-11-27T19:20",
+   "1.7.1-rc2 is out and runs on both live servers. Also fixed: right after a reboot, beeircd status could say \"stopped\" while the server was still starting."
+  ],
   [
    "2026-11-27T19:00",
    "Fixed: right after the upgrade from 1.7.0, people on other servers could lose their NickServ login. 1.7.1-rc1 is on both live servers."
