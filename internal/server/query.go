@@ -218,7 +218,12 @@ func (s *Server) whoisOne(c *Client, u *state.User, reply func(code string, p ..
 		if u.OperTag != nil {
 			tag = *u.OperTag // their server's oper_tag
 		}
-		rank, own = operRank(u.OperTitle, u.OperSwhois, tag)
+		title := u.OperTitle
+		if title == "" && len(u.OperSwhois) == 0 && u.OperTag == nil {
+			// No BeeIRCd look (UnrealIRCd, InspIRCd): the rank of their class.
+			title = s.classTitle(u.OperClass)
+		}
+		rank, own = operRank(title, u.OperSwhois, tag)
 		reply(irc.RplWhoisOperator, u.Nick, rank)
 	}
 	for _, line := range own {

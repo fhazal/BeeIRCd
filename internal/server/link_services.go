@@ -222,6 +222,29 @@ func (s *Server) operRank(class, title string) string {
 	return title
 }
 
+// classTitle is the WHOIS title for an oper class from another server:
+// our class's title when we have it (UnrealIRCd's and InspIRCd's usual
+// names too, as in flagsForClass), else the class name itself.
+func (s *Server) classTitle(class string) string {
+	if class == "" {
+		return ""
+	}
+	base := strings.TrimSuffix(strings.ToLower(class), "-with-override")
+	switch base {
+	case "locop":
+		base = "helper"
+	case "globalop":
+		base = "globop"
+	}
+	if oc, ok := s.cfg.Class(class); ok {
+		return oc.Title
+	}
+	if oc, ok := s.cfg.Class(base); ok {
+		return oc.Title
+	}
+	return class
+}
+
 // linkOperInfo tells every link but except about uid's oper status.
 func (s *Server) linkOperInfo(except *linkConn, uid, class, flags, look string) {
 	for o := range s.links.conns {
