@@ -46,6 +46,8 @@ var (
 	errWSProtocol = errors.New("websocket: protocol error")
 	errWSTooBig   = errors.New("websocket: message too big")
 	errWSBadText  = errors.New("websocket: text message is not UTF-8")
+
+	wsEmptyLine = []byte("\r\n") // only read from: Read copies it out
 )
 
 // acceptWebSocket does the TLS and HTTP handshake off the loop, then hands
@@ -256,7 +258,10 @@ func (w *wsConn) Read(p []byte) (int, error) {
 }
 
 // readMessage reads frames until a whole message is in, and queues it as a
-// line. Pings are answered on the way; a close frame ends the stream.
+// line. Pings are answered on the way; a close frame ends the stream. A
+// ping, a pong or an empty message queues an empty line, which the reader
+// drops but charges like an empty TCP line: so flood control slows a
+// flood of control frames too.
 func (w *wsConn) readMessage() error {
 	for {
 		op, fin, data, err := w.frame()
@@ -286,9 +291,11 @@ func (w *wsConn) readMessage() error {
 			if err != nil {
 				return err
 			}
-			continue
+			w.pending = wsEmptyLine
+			return nil
 		case 0xA:
-			continue
+			w.pending = wsEmptyLine
+			return nil
 		default:
 			return errWSProtocol
 		}
@@ -300,7 +307,8 @@ func (w *wsConn) readMessage() error {
 			return errWSBadText
 		}
 		if len(line) == 0 {
-			continue
+			w.pending = wsEmptyLine
+			return nil
 		}
 		w.pending = append(append(make([]byte, 0, len(line)+2), line...), '\r', '\n')
 		return nil

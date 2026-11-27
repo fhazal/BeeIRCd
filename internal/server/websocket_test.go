@@ -332,3 +332,51 @@ func TestWebSocketHeaderTooBig(t *testing.T) {
 		t.Fatalf("too big a request: reply %d, err %v; want 431", got, err)
 	}
 }
+
+// A web client must not get round flood control with WebSocket control
+// frames: each ping (or pong, or empty message) costs a line, like an
+// empty line from a TCP client, so a flood of them is slowed down too.
+func TestWebSocketPingFlood(t *testing.T) {
+	s := testServer(t, func(c *config.Config) {
+		c.Limits.FloodBurst, c.Limits.FloodRate = 5, 2
+		c.Listen = append(c.Listen, config.Listen{Address: "127.0.0.1:0", WebSocket: true})
+	})
+	w := wsDial(t, s, false, nil)
+	w.register("pinger")
+	w.send("PING :ready")
+	w.expect("ready")
+	time.Sleep(3 * time.Second) // the burst spent on registering comes back
+	for range 100 {
+		w.frame(0x9, true, []byte("x"))
+	}
+	pongs := 0
+	end := time.Now().Add(1500 * time.Millisecond)
+	for time.Now().Before(end) {
+		w.conn.SetReadDeadline(end)
+		var h [2]byte
+		if _, err := io.ReadFull(w.r, h[:]); err != nil {
+			break
+		}
+		n := int(h[1] & 0x7f)
+		if n == 126 {
+			var b [2]byte
+			if _, err := io.ReadFull(w.r, b[:]); err != nil {
+				break
+			}
+			n = int(binary.BigEndian.Uint16(b[:]))
+		}
+		data := make([]byte, n)
+		if _, err := io.ReadFull(w.r, data); err != nil {
+			break
+		}
+		if h[0]&0x0f == 0xA {
+			pongs++
+		}
+	}
+	if pongs > 20 {
+		t.Fatalf("%d of 100 pings answered in 1.5s: control frames skip flood control", pongs)
+	}
+	if pongs == 0 {
+		t.Fatal("no ping answered at all")
+	}
+}
