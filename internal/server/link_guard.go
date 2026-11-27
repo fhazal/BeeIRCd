@@ -92,6 +92,12 @@ func (s *Server) linkGate(l *linkConn, m irc.Message) bool {
 		if m.Command == "SVSLOGIN" && l.bridge != nil && srv != nil && len(m.Params) >= 2 && uidServer(m.Params[1]) == srv.sid {
 			return true
 		}
+		// An InspIRCd oper's SAMODE on a user comes as a MODE from that
+		// oper (the bridge makes it SVS2MODE): trusted as an oper's KILL
+		// is; svsChanges still keeps +o and +z out.
+		if m.Command == "SVS2MODE" && l.bridge != nil && u != nil && u.Modes['o'] {
+			return true
+		}
 		s.ignoreOnce(l, "svs:"+m.Command, "refused %s from %s: only services may send it", m.Command, m.Source)
 		return false
 	}
