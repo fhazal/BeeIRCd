@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-28T05:06:27+08:00",
+ "updated": "2026-11-28T05:10:08+08:00",
  "gauges": [
   {
    "id": "g-v1",
@@ -24,6 +24,10 @@
  },
  "next": "1.7.2: finish the long tests, then 1.7.2-rc1 on the live servers.",
  "done": [
+  [
+   "2026-11-28T05:10",
+   "New Live on SKINTERNET picture: the two servers as sky-city islands above the clouds, linked by a gold beam"
+  ],
   [
    "2026-11-28T05:06",
    "Website header: the Dome House now sits on the right like the old picture"
