@@ -57,3 +57,25 @@ func TestLinkServicesNameReusedAfterSplit(t *testing.T) {
 	leaf.fromLink(t, ":0FK SVSKILL "+b+" :spoof")
 	bobKept(t, leaf, "a server reusing the services name")
 }
+
+// The link to a server whose clients are halfway through SASL with our
+// services drops: their sessions must go with it, not stay forever.
+func TestLinkSaslSessionsGoWithTheLink(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	for _, uid := range []string{"0LFAAAAAX", "0LFAAAAAY"} {
+		hub.fromLink(t, ":"+leaf.sid+" SASL services.test.local "+uid+" H host.test 192.0.2.1 P")
+	}
+	hub.fromLink(t, ":"+leaf.sid+" SASL services.test.local 0LFAAAAAY S PLAIN")
+	n := func() (n int) { hub.s.onLoop(func() { n = len(hub.s.links.sasl) }); return n }
+	if got := n(); got != 2 {
+		t.Fatalf("%d sessions before the split, want 2", got)
+	}
+	hub.s.onLoop(func() {
+		for l := range hub.s.links.conns {
+			hub.s.dropLink(l, "test split")
+		}
+	})
+	if got := n(); got != 0 {
+		t.Fatalf("%d SASL sessions left after the link dropped", got)
+	}
+}

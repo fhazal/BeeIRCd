@@ -1058,6 +1058,7 @@ func (s *Server) dropLink(l *linkConn, reason string) {
 	l.closed = true
 	delete(s.links.conns, l)
 	s.dropQlinesVia(l)
+	s.dropSaslVia(l)
 	s.operRelayLost(l)
 	l.netjoin.end()
 	l.send("ERROR :Closing Link: " + s.cfg.Server.Name + " (" + reason + ")")

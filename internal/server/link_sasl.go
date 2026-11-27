@@ -240,6 +240,17 @@ func (s *Server) remoteLogin(l *linkConn, line string, target, uid, account stri
 	}
 }
 
+// dropSaslVia ends the logins our services run for clients behind l (it
+// split); their server fails them at their next line or its timer.
+func (s *Server) dropSaslVia(l *linkConn) {
+	for uid, ss := range s.links.sasl {
+		if ss.from == l {
+			ss.gone = true
+			delete(s.links.sasl, uid)
+		}
+	}
+}
+
 // saslServe runs a login for a client on another server (our services).
 func (s *Server) saslServe(l *linkConn, from, uid, mode, data string, extra []string) {
 	if s.links.sasl == nil {
