@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-28T01:45:00+08:00",
+ "updated": "2026-11-28T02:35:00+08:00",
  "gauges": [
   {
    "id": "g-v1",
@@ -24,6 +24,10 @@
  },
  "next": "1.7.2: finish the long tests, then 1.7.2-rc1 on the live servers.",
  "done": [
+  [
+   "2026-11-28T02:35",
+   "Fixed 2 things: a server without its own services no longer offers logins (SASL) while no services server is linked, and tells chat apps when logins come and go. One test that sometimes failed by itself now passes every time. Both go into the extra test round."
+  ],
   [
    "2026-11-28T01:45",
    "New setting: a BeeIRCd that links to InspIRCd can now name its services server, so logins (SASL) work right away even after BeeIRCd restarts. Tested against InspIRCd: all 5 login cases pass."
