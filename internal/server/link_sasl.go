@@ -86,10 +86,23 @@ func (s *Server) linkMD(l *linkConn, m irc.Message) {
 		if strings.EqualFold(s.links.saslServer, r.name) {
 			s.links.saslServer, s.links.saslMechs = "", ""
 		}
+	} else if cur := s.serverByName(s.links.saslServer); cur != nil && cur != r {
+		// One SASL server per network: a second one saying so would get
+		// the services' rights over our users (fromServices).
+		s.ignoreOnce(l, "svs:saslmechlist", "refused saslmechlist from %s: %s is the services server", r.name, cur.name)
+		return
 	} else {
 		s.links.saslServer, s.links.saslMechs = r.name, mechs
 	}
 	s.linkBroadcast(l, m.String())
+}
+
+// saslServerGone forgets the SASL server when r leaves the network, so a
+// server that comes in later under its name gets none of its rights.
+func (s *Server) saslServerGone(r *remoteServer) {
+	if r != nil && strings.EqualFold(r.name, s.links.saslServer) {
+		s.links.saslServer, s.links.saslMechs = "", ""
+	}
 }
 
 // saslTarget is the server our clients log in with, "" when none is

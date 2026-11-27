@@ -985,6 +985,7 @@ func (s *Server) splitOff(sid, near, far, reason string) (servers, users int) {
 	s.logSplit(gone, reason)
 	users = s.quitSplit(gone, near, far)
 	for k := range gone {
+		s.saslServerGone(s.links.servers[k])
 		delete(s.links.servers, k)
 		delete(s.roBy, k)
 	}
@@ -1080,6 +1081,7 @@ func (s *Server) dropLink(l *linkConn, reason string) {
 	}
 	users := s.quitSplit(behind, s.cfg.Server.Name, l.peer.Name)
 	for sid := range behind {
+		s.saslServerGone(s.links.servers[sid])
 		delete(s.links.servers, sid)
 		delete(s.roBy, sid)
 	}
