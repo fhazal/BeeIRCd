@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-27T23:00:00+08:00",
+ "updated": "2026-11-27T23:15:00+08:00",
  "gauges": [
   {
    "id": "g-v1",
@@ -17,13 +17,17 @@
   }
  ],
  "now": {
-  "title": "Working on 1.7.2",
-  "text": "Checking the last suspicions from the sweep: 4 of 7 were real bugs and are fixed on main.",
+  "title": "1.7.2 fixes done",
+  "text": "All 11 checks from the sweep are done: 5 were real bugs and are fixed, the rest are fine. Next comes the full release test.",
   "start": "2026-11-27T23:00:00+08:00",
   "end": "2026-11-29T12:00:00+08:00"
  },
- "next": "1.7.2: small gaps (remote oper levels, IP bans, panel files), then the release test.",
+ "next": "1.7.2: the release test (including linking with InspIRCd and UnrealIRCd), then 1.7.2-rc1 on the live servers.",
  "done": [
+  [
+   "2026-11-27T23:15",
+   "Fixed: WHOIS showed opers from other servers as plain opers, without their oper level. Checked the IP bans and six panel pages: all fine. The docs are easier to read now: the grey text is darker in light mode and brighter in dark mode."
+  ],
   [
    "2026-11-27T23:00",
    "Fixed 4 bugs: a linked server could take services' rights, services kept half-done logins, web chat pings skipped flood control, and one address could hold endless web chat connections."
