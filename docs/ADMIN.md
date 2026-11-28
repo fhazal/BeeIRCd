@@ -1895,7 +1895,39 @@ under `[security_group.exclude]` (the same items).
 | `ip` | Addresses or ranges, like `["192.0.2.0/24"]` |
 | `server_port` | The port of this server they connected to |
 | `security_group` | In one of these other groups |
+| `rule` | A rule that comes out true (below) |
 | `exclude` | The block of items that keep people out |
+
+`rule` is UnrealIRCd's rule language: words joined with `&&`, `||`, `!`
+and `( )`, and numbers compared with `<`, `<=`, `>`, `>=`, `==` or `!=`.
+Put arguments with spaces or `!` in 'single quotes'. It counts like any
+other item, and works under `exclude` too.
+
+```toml
+[[security_group]]
+name = "newbies"
+rule = "reputation() < 10 && online_time() < 300 && !is_identified()"
+
+[[security_group]]
+name = "trusted-tls"
+rule = "is_tls() && (match_country(NL) || in_security_group(known-users))"
+[security_group.exclude]
+rule = "match_mask('*!*@*.proxy.example.net')"
+```
+
+Yes/no words: `is_identified()`, `is_webirc()`, `is_websocket()`,
+`is_tls()`, `is_oper()`, `is_away()`, `is_local()`, `has_swhois()`.
+Numbers: `reputation()`, `online_time()` (seconds), `server_port()`,
+`channel_count()`. With an argument: `in_security_group(name)`,
+`in_channel('#chan')` (or `'@#chan'` for op and up), `has_user_mode(letters)`,
+`cap_set(name)`, and `match_mask`, `match_ip` (address, range or `*`
+mask), `match_account` (`0` = not logged in), `match_country`,
+`match_asn`, `match_asname`, `match_certfp`, `match_realname`,
+`match_realhost`, `match_vhost`, `match_server`, `match_away`,
+`match_operlogin`, `match_operclass`, all with `*` and `?`. The link
+words `connected()`, `directcon()`, `via()` and `directop()` work too.
+Groups are worked out again on connect, login, a user mode change and
+once a minute, so `is_away()` or `in_channel()` can lag up to a minute.
 
 ### [[class]]
 

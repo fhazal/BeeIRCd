@@ -53,12 +53,23 @@ type GroupMatch struct {
 	ServerPort []int `toml:"server_port"`
 	// SecurityGroup: in one of these other groups.
 	SecurityGroup []string `toml:"security_group"`
+	// Rule: a user rule that comes out true, like UnrealIRCd's
+	// "reputation() < 10 && !is_tls()" (see ParseUserRule).
+	Rule string `toml:"rule"`
 }
 
 func (m GroupMatch) empty() bool {
 	return !m.Identified && !m.WebIRC && !m.WebSocket && !m.TLS && m.ReputationScore == 0 && m.ReputationBelow == 0 &&
 		m.ConnectTime.Duration == 0 && m.ConnectBelow.Duration == 0 && len(m.Mask) == 0 && len(m.IP) == 0 &&
-		len(m.ServerPort) == 0 && len(m.SecurityGroup) == 0
+		len(m.ServerPort) == 0 && len(m.SecurityGroup) == 0 && strings.TrimSpace(m.Rule) == ""
+}
+
+// UserRule is the parsed rule item, nil when there is none.
+func (m GroupMatch) UserRule() *UserRule {
+	if strings.TrimSpace(m.Rule) == "" {
+		return nil
+	}
+	return CachedUserRule(m.Rule)
 }
 
 // SecurityGroup is a [[security_group]] block: a named set of people
@@ -174,7 +185,15 @@ func (c *Config) checkMatch(name string, m GroupMatch) error {
 			return fmt.Errorf("[[security_group]] %s: server_port %d is not a port", name, p)
 		}
 	}
-	for _, o := range m.SecurityGroup {
+	others := m.SecurityGroup
+	if strings.TrimSpace(m.Rule) != "" {
+		r, err := ParseUserRule(m.Rule)
+		if err != nil {
+			return fmt.Errorf("[[security_group]] %s: rule %q: %v", name, strings.TrimSpace(m.Rule), err)
+		}
+		others = append(slices.Clip(others), r.Groups()...)
+	}
+	for _, o := range others {
 		switch {
 		case strings.EqualFold(o, name):
 			return fmt.Errorf("[[security_group]] %s can't be in itself", name)

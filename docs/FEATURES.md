@@ -129,9 +129,9 @@ Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few 
 | `unrealircd.org/issued-by` tag for opers: who is behind a KICK, MODE, KILL, JOIN or PART (an oper command, services or an RPC call) | ✅ | UnrealIRCd's issued-by-tag and its values; carried over UnrealIRCd and BeeIRCd links |
 | Oper command log (`[log] oper_commands`): every command that needs oper rights, with who, account and parameters, to the server log and the log channel | ✅ | InspIRCd's operlog; passwords never logged; off by default |
 | One network ban list: AKILL / G-line, ZLINE, Q-line, R-line (realname), SHUN, ELINE exemptions, all with expiry | ✅ | matches the real host and IP, never the cloak |
-| Channel extbans: every extban of UnrealIRCd 6 and InspIRCd 4, with country and ASN (security groups to come) | ✅ | Either server's names work; links translate them (`/HELP EXTBANS`) |
+| Channel extbans: every extban of UnrealIRCd 6 and InspIRCd 4, with country, ASN and security groups (`~G:`) | ✅ | Either server's names work; links translate them (`/HELP EXTBANS`) |
 | Reputation: a score per IP for chatting, saved, shared with BeeIRCd and UnrealIRCd links, in WHOIS for opers, `/REPUTATION` | ✅ | UnrealIRCd's rules: 5-minute rounds, channels of 3, expiry by score |
-| Security groups (`known-users`, `unknown-users`, `tls-users`, `webirc-users`, `websocket-users` and your own) with include and exclude items, `~G:` bans, in WHOIS for opers | ✅ | UnrealIRCd's security-group |
+| Security groups (`known-users`, `unknown-users`, `tls-users`, `webirc-users`, `websocket-users` and your own) with include and exclude items, `rule =` items in UnrealIRCd's rule language (`reputation() < 10 && !is_tls()`), `~G:` bans, in WHOIS for opers | ✅ | UnrealIRCd's security-group and its rule words |
 | New-user connect throttle (`[connthrottle]`, `/THROTTLE`) | ✅ | Known people still get in |
 | Restricted commands for new people (`[[restrict]]`) | ✅ | UnrealIRCd's restrict-commands |
 | Random-looking nicks refused at connect (`[antirandom]`) | ✅ | like UnrealIRCd's antirandom, with its own scoring; off by default |
