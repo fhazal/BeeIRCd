@@ -13,6 +13,7 @@ import (
 // Places on the network map.
 func TestPanelMapPlace(t *testing.T) {
 	s, path, _ := fileServer(t, "")
+	s.onLoop(func() { s.links.zone = "UTC" }) // no place from the machine's time zone
 	boss(t, s)
 	f := func(v float64) *float64 { return &v }
 	ask := func(r control.Request) *control.Response {
@@ -79,7 +80,8 @@ func TestPanelMapPlaceLinked(t *testing.T) {
 	hub, leaf := linkedPair(t)
 	path := filepath.Join(t.TempDir(), "beeircd.conf")
 	os.WriteFile(path, []byte(fileConf), 0o600)
-	hub.s.onLoop(func() { hub.s.cfg.Path = path })
+	hub.s.onLoop(func() { hub.s.cfg.Path = path; hub.s.links.zone = "UTC" })
+	leaf.s.onLoop(func() { leaf.s.links.zone = "UTC" }) // no place from the machine's time zone
 	po := &control.PanelOper{Account: "Boss", Flags: allFlags, Owner: true}
 	lat, lon := 50.11, 8.68
 	var r control.Response
