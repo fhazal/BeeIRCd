@@ -126,6 +126,34 @@ func TestRestrictMsgAndHiddenBans(t *testing.T) {
 	o.expect(" 367 Boss #den *!*@bad.example ")
 }
 
+// [channels] hide_lists = "beI" hides those lists like hide_bans does
+// +b; without b in it, everyone may read the bans again.
+func TestHideLists(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	s.onLoop(func() { s.cfg.Channels.HideLists = "beI" })
+	a := login(t, s, "ann")
+	b := login(t, s, "bob")
+	o := boss(t, s)
+	b.send("JOIN #den")
+	b.expect(" 366 bob #den ")
+	b.send("MODE #den +beI *!*@bad.example *!*@good.example *!*@guest.example")
+	b.expect("MODE #den +beI")
+	for _, l := range []string{"b", "e", "I"} {
+		a.send("MODE #den " + l)
+		a.expect(" 482 ann #den ")
+	}
+	b.send("MODE #den e")
+	b.expect(" 348 bob #den *!*@good.example ")
+	o.send("MODE #den b")
+	o.expect(" 367 Boss #den *!*@bad.example ")
+
+	s.onLoop(func() { s.cfg.Channels.HideLists = "eI" })
+	a.send("MODE #den b")
+	a.expect(" 367 ann #den *!*@bad.example ")
+	a.send("MODE #den e")
+	a.expect(" 482 ann #den ")
+}
+
 func TestShowFileAndAbbreviations(t *testing.T) {
 	s := testServer(t, func(c *config.Config) {
 		c.ShowFiles = []config.ShowFile{

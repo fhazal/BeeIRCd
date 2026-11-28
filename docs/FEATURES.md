@@ -16,15 +16,16 @@ How to set each one up is in [ADMIN.md](ADMIN.md); installing is in [INSTALL.md]
 | RULES, OPERMOTD, BOTMOTD, a random quote on connect | ✅ | `[motd]` |
 | Commands of your own that show a text, like `/FAQ` | ✅ | `[[showfile]]` |
 | User mode `+G`: the words in `[censor]` are hidden in private messages to you | ✅ | |
-| Private messages to opers only, a ban list only ops can read, shortened commands (`WHOW.`) | ✅ | `[limits] restrict_msg`, `abbreviations`; `[channels] hide_bans` |
+| Private messages to opers only, a ban list only ops can read, shortened commands (`WHOW.`) | ✅ | `[limits] restrict_msg`, `abbreviations`; `[channels] hide_bans`, `hide_lists` (InspIRCd's hidelist: `b`, `e`, `I`), `hide_modes` (InspIRCd's hidemode: changes of those modes only ops see) |
 | A PING new connections must answer, and a redirect for browsers that open an IRC port | ✅ | `[server] ping_cookie`, `web_redirect` |
 | EXTJWT: signed tokens for other services | ✅ | `[extjwt]` |
 | Auto-join on connect (with groups that skip it) and at `/oper` (more channels by oper flag), set in AdminServ or the Hive Panel | ✅ | `[server] auto_join`, `auto_join_skip`, `oper_join`, `oper_join_flag` |
-| Hidden server list, modes and channels at `/oper`, modes on connect, switched-off commands, who may make channels | ✅ | `[server] hide_servers`, `oper_modes`, `oper_join`, `connect_modes`; `[limits] disabled_commands`; `[channels] create` |
+| Hidden or flat server list, modes and channels at `/oper`, modes on connect, switched-off commands, who may make channels | ✅ | `[server] hide_servers`, `flat_map` (every server shown straight under yours), `oper_modes`, `oper_join`, `connect_modes`; `[limits] disabled_commands`; `[channels] create` |
 | Input limits | ✅ | lines over 510 bytes or tags over 4096 bytes get 417 and are dropped, not cut |
 | User modes `i w o s r x` | ✅ | |
 | User modes `B d D R T p Z H W q z` | ✅ | UnrealIRCd letters and rules: bot, deaf, private-message filters, hidden channels, hidden oper, WHOIS notice, unkickable, TLS |
 | Caller ID: user mode `g` and ACCEPT | ✅ | private messages only from people on your accept list (InspIRCd's callerid, numerics 716-718); works across linked BeeIRCd and InspIRCd servers |
+| Common channels: user mode `c` | ✅ | private messages only from people who share a channel with you (InspIRCd's commonchans, 531); opers and services still get through; works across linked BeeIRCd, InspIRCd and UnrealIRCd servers |
 | WATCH and MONITOR notify lists | ✅ | WATCH with UnrealIRCd's numerics (128 nicks), MONITOR (100); one list engine |
 | Channel modes `o v b e I k l i m n p s t R M r` | ✅ | |
 | Channel modes `c S C T N K V Q z Z D P O` | ✅ | UnrealIRCd letters and rules |

@@ -31,7 +31,8 @@ func isCTCP(text string) bool {
 
 // refusesMessage says why t's user modes refuse a private message from c
 // ("" = allowed), like UnrealIRCd's privdeaf, regonlymsg, noctcp and
-// secureonlymsg. Opers get past +D, +T and +R.
+// secureonlymsg, and InspIRCd's commonchans (+c). Opers get past +D, +T,
+// +R and +c.
 func (s *Server) refusesMessage(c *Client, t *state.User, verb, text string) string {
 	u := c.user
 	if t == u || t.Service || u.Service {
@@ -49,8 +50,27 @@ func (s *Server) refusesMessage(c *Client, t *state.User, verb, text string) str
 		return "You must be connected via TLS to message this user"
 	case u.HasMode('Z') && !t.TLS && !oper:
 		return "Recipient is not connected via TLS and you are +Z"
+	case t.HasMode('c') && !oper && !s.svc.IsBot(u) && !state.SharesChannel(t, u):
+		return commonChansWhy
 	}
 	return ""
+}
+
+// commonChansWhy is the 531 for +c (only people who share a channel).
+const commonChansWhy = "You must share a channel with this user to private message them"
+
+// farCommonChansBlocked reports whether +c on t (ours) refuses a private
+// message from someone on another server. Their own server checks first
+// when it knows +c (BeeIRCd, InspIRCd); this catches UnrealIRCd, which
+// doesn't. tell sends them the 531.
+func (s *Server) farCommonChansBlocked(t, from *state.User, tell bool) bool {
+	if from == nil || from == t || !t.HasMode('c') || from.Service || from.Modes['o'] || state.SharesChannel(t, from) {
+		return false
+	}
+	if tell {
+		host{s}.Numeric(from.UID, irc.ErrCantSendToUser, t.Nick, commonChansWhy)
+	}
+	return true
 }
 
 // silenced reports whether t's SILENCE list holds a mask matching u.

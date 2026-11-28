@@ -78,15 +78,20 @@ func (s *Server) cmdLinks(c *Client, m irc.Message) {
 	if len(m.Params) > 0 {
 		mask = m.Params[len(m.Params)-1]
 	}
+	flat := s.flatMap(c)
 	for _, n := range s.netServers() {
 		if !irc.Match(mask, n.name) || (s.hideServers(c) && n.sid != s.cfg.Server.SID) {
 			continue
 		}
-		up := n.name
-		if n.uplink != "" {
+		up, hops := n.name, n.hops
+		switch {
+		case n.uplink == "":
+		case flat:
+			up, hops = s.cfg.Server.Name, 1 // flat_map: straight to us
+		default:
 			up = s.sidName(n.uplink)
 		}
-		s.reply(c, rplLinks, n.name, up, strconv.Itoa(n.hops)+" "+n.desc)
+		s.reply(c, rplLinks, n.name, up, strconv.Itoa(hops)+" "+n.desc)
 	}
 	s.reply(c, rplEndOfLinks, mask, "End of /LINKS list.")
 }
@@ -112,8 +117,13 @@ func (s *Server) cmdMap(c *Client, m irc.Message) {
 	}
 	kids := map[string][]netServer{}
 	all := s.netServers()
+	flat := s.flatMap(c)
 	for _, n := range all[1:] {
-		kids[n.uplink] = append(kids[n.uplink], n)
+		up := n.uplink
+		if flat {
+			up = all[0].sid // flat_map: every server straight under us
+		}
+		kids[up] = append(kids[up], n)
 	}
 	var walk func(n netServer, prefix string, last bool, top bool)
 	walk = func(n netServer, prefix string, last bool, top bool) {

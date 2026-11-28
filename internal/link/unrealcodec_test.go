@@ -144,3 +144,20 @@ func TestUnrealHelperModeOnlyToBee(t *testing.T) {
 		}
 	}
 }
+
+// +c (common channels) is ours too: UnrealIRCd has no such mode.
+func TestUnrealCommonChansOnlyToBee(t *testing.T) {
+	for _, bee := range []bool{false, true} {
+		c := &unrealCodec{bee: bee}
+		want := "+ic"
+		if !bee {
+			want = "+i"
+		}
+		if got := c.ourModes("+ic"); got != want {
+			t.Errorf("bee %v: modes %q, want %q", bee, got, want)
+		}
+		if out := c.Encode(&UMode{Source: "0BEAAAAAA", UID: "0BEAAAAAA", Modes: "+c"}); bee == (len(out) == 0) {
+			t.Errorf("bee %v: +c alone sent as %q", bee, out)
+		}
+	}
+}

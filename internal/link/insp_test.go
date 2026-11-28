@@ -570,3 +570,12 @@ func TestInspBridgeSnotice(t *testing.T) {
 		}
 	}
 }
+
+// Our +c is InspIRCd's commonchans, whatever letter their side gives it.
+func TestInspCommonChansName(t *testing.T) {
+	ours := ourUserModes("ic")
+	theirs := parseInspModes("simple:invisible=i simple:commonchans=c")
+	if n := ours.name['c']; n != "commonchans" || theirs.letter[n] != 'c' {
+		t.Errorf("c is %q on our side, %q on theirs", n, theirs.letter[n])
+	}
+}

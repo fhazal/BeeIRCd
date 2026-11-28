@@ -17,6 +17,23 @@ type Channels struct {
 	// HideBans lets only ops (and opers) read a channel's ban list. The
 	// exception and invite lists are for ops only either way.
 	HideBans bool `toml:"hide_bans"`
+	// HideLists are the lists only ops (and opers) may read, like
+	// InspIRCd's hidelist: "b" bans, "e" exceptions, "I" invite
+	// exceptions. hide_bans = true counts as "b".
+	HideLists string `toml:"hide_lists"`
+	// HideModes are channel mode letters whose changes only ops (@ and
+	// up) and whoever made the change are shown, like InspIRCd's
+	// hidemode. Others get the rest of the line, or nothing.
+	HideModes string `toml:"hide_modes"`
+}
+
+// ChannelModeLetters are every channel mode BeeIRCd knows, ranks
+// included (hide_modes may only name these).
+const ChannelModeLetters = "beIkBEFHJLWflCDGKMNOPQRSTUVZcimnprstuzqaohv"
+
+// HidesList reports whether only ops (and opers) may read list l.
+func (c *Channels) HidesList(l byte) bool {
+	return l == 'b' && c.HideBans || strings.IndexByte(c.HideLists, l) >= 0
 }
 
 // FloodProfiles are the +F profiles, as UnrealIRCd 6.2 ships them. The p
@@ -45,6 +62,16 @@ func (c *Channels) setDefaults() {
 func (c *Channels) check() error {
 	if _, ok := FloodProfiles[c.FloodProfile]; !ok {
 		return fmt.Errorf("[channels] flood_profile %q: use one of %s", c.FloodProfile, strings.Join(ProfileNames(), ", "))
+	}
+	for _, l := range c.HideLists {
+		if !strings.ContainsRune("beI", l) {
+			return fmt.Errorf("[channels] hide_lists %q: use the letters b (bans), e (exceptions) and I (invite exceptions)", c.HideLists)
+		}
+	}
+	for _, l := range c.HideModes {
+		if !strings.ContainsRune(ChannelModeLetters, l) {
+			return fmt.Errorf("[channels] hide_modes %q: %c is not a channel mode (HELP CHMODES lists them)", c.HideModes, l)
+		}
 	}
 	return nil
 }

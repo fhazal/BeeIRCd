@@ -44,6 +44,39 @@ func TestLinkNetsplitBatch(t *testing.T) {
 	}
 }
 
+// [server] flat_map: people who are not opers see every server straight
+// under theirs, one hop away; opers see the real tree; hide_servers wins.
+func TestLinkFlatMap(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	leaf.s.onLoop(func() { leaf.s.cfg.Server.FlatMap = true })
+	ann := login(t, leaf.s, "ann")
+	ann.send("LINKS")
+	ann.expect(" 364 ann leaf.test.local leaf.test.local :0 ")
+	ann.expect(" 364 ann hub.test.local leaf.test.local :1 ")
+	ann.expect(" 364 ann services.test.local leaf.test.local :1 ")
+	ann.expect(" 365 ann * ")
+	ann.send("MAP")
+	ann.expect(" 006 ann :leaf.test.local (0LF) 1")
+	ann.expect(" 006 ann :|- hub.test.local (0HB) 0")
+	ann.expect(" 006 ann :`- services.test.local (9HB) ")
+	ann.expect(" 007 ann ")
+
+	op := login(t, leaf.s, "op")
+	netadminOn(t, leaf, op, "op")
+	op.send("LINKS")
+	op.expect(" 364 op services.test.local hub.test.local :2 ")
+	op.send("MAP")
+	op.expect(" 006 op :   `- services.test.local (9HB) ")
+
+	leaf.s.onLoop(func() { leaf.s.cfg.Server.HideServers = true })
+	ann.send("LINKS")
+	ann.expect(" 364 ann leaf.test.local leaf.test.local :0 ")
+	if l := ann.expect(" ann "); !strings.Contains(l, " 365 ann ") {
+		t.Errorf("hide_servers lost, next line: %q", l)
+	}
+	hub.seen(t, "ann")
+}
+
 // LINKS, MAP, remote VERSION/MOTD/ADMIN/TIME/STATS, CONNECT and SQUIT.
 func TestLinkOperInfoCommands(t *testing.T) {
 	hub, leaf := linkedPair(t)

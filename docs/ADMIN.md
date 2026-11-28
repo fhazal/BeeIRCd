@@ -513,6 +513,11 @@ restart ends it too. It applies to the server you type it on.
   off the list (as on InspIRCd). A refused sender is told, and
   you are told who tried, at most once a minute for each sender. Opers
   and services always get through.
+- **Common channels.** `/MODE yournick +c` lets only people who are in a
+  channel with you send you private messages (InspIRCd's commonchans).
+  Others get 531. The channel may be on any linked server. Opers and
+  services always get through. UnrealIRCd servers don't know the mode,
+  so BeeIRCd checks messages from their users itself.
 - **Notify lists.** `WATCH` and `MONITOR` both tell a client when a nick
   comes online or leaves; clients pick the one they know.
 - `CYCLE #channel` leaves and rejoins, `REMOVE #channel nick [reason]`
@@ -1372,6 +1377,7 @@ Unknown settings are refused, so a typo shows up in `beeircd check`.
 | `casemapping` | `"ascii"` | How nicks and channels ignore case: `"ascii"` (only A-Z: `Belon` = `belon`, but `[` and `{` differ, like UnrealIRCd 6 and InspIRCd) or `"rfc1459"` (also `[]\~` = `{}|^`). Every linked server needs the same; UnrealIRCd links need ascii. Changing it moves the stored nicks and channels to the new rule at the next start; going to rfc1459 is refused when two stored names would become one (restart) |
 | `ident_lookup` | `false` | Ask the ident server (port 113) of every connecting computer for the username; with an answer the username shows without the leading `~`. Off by default: almost nobody runs an ident server any more, and each login waits up to 3 seconds for the answer. Not asked on WebSocket or `proxy` ports |
 | `hide_servers` | `false` | Keep the server list from people who are not opers: LINKS and MAP only show the server they are on |
+| `flat_map` | `false` | People who are not opers see every server as linked straight to the one they are on in LINKS and MAP, one hop away (UnrealIRCd's flat-map). Opers see the real tree. With `hide_servers` on too, `hide_servers` wins |
 | `connect_modes` | – | User modes everyone gets when they connect, like `"+R"` (on top of `+i`, and `+x` with cloaking) |
 | `oper_modes` | – | User modes set at `/oper`, like `"+WH"` |
 | `auto_join` | – | Channels everyone joins when they connect, like `["#chat"]` (UnrealIRCd's `set::auto-join`). It is a normal JOIN: bans, keys and limits still apply. See "Auto-join" below |
@@ -1600,6 +1606,8 @@ log_file    = "services.log"
 | `flood_profile` | `"normal"` | The +F profile for channels without their own: `very-strict`, `strict`, `normal`, `relaxed`, `very-relaxed`, `off` |
 | `create` | `"everyone"` | Who may make a new channel: `"everyone"`, `"registered"` (logged in to NickServ) or `"opers"` |
 | `hide_bans` | `false` | Only ops (and opers) may read a channel's ban list; the exception and invite lists are for ops only either way |
+| `hide_lists` | `""` | The lists only ops may read, like InspIRCd's hidelist: `b` bans, `e` exceptions, `I` invite exceptions, like `"beI"`. `hide_bans = true` counts as `b`, and opers may still read the ban list. `e` and `I` are for ops only either way, so today only `b` changes what people see |
+| `hide_modes` | `""` | Channel mode letters whose changes only ops (`@` and up) see, like InspIRCd's hidemode, like `"beIk"`. Whoever made the change and whoever a rank change (`+v`, `+o`...) is about see it too. When one MODE line mixes hidden and other letters, the others get a line with only the rest, or nothing. Only what people on this server are sent changes; links get every change as before |
 
 ### [history]
 

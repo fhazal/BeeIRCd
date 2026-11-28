@@ -881,7 +881,7 @@ func (s *Server) remoteMessage(l *linkConn, raw irc.Message, m *link.Message) {
 	if from != nil && s.silenced(t, from) {
 		return
 	}
-	if s.callerBlocked(t, from, m.Verb == "PRIVMSG") {
+	if s.callerBlocked(t, from, m.Verb == "PRIVMSG") || s.farCommonChansBlocked(t, from, m.Verb == "PRIVMSG") {
 		return
 	}
 	if file, ok := dccFile(m.Text); ok && m.Verb != "TAGMSG" && s.dccSoftBlocked(from, t, file) {

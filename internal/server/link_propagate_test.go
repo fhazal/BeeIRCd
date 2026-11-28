@@ -363,3 +363,24 @@ func TestLinkKillRemoteNoDoubleWrap(t *testing.T) {
 		t.Errorf("kill %q", k)
 	}
 }
+
+// +c across a link: the channel both are in may live on either server.
+func TestLinkCommonChans(t *testing.T) {
+	hub, leaf := linkedPair(t)
+	ann := login(t, hub.s, "ann")
+	bob := login(t, leaf.s, "bob")
+	hub.seen(t, "bob")
+	leaf.seen(t, "ann")
+	bob.send("MODE bob +c")
+	bob.expect("MODE bob +c")
+	waitLink(t, "+c on the hub", func() bool { u := hub.user("bob"); return u != nil && u.Modes['c'] })
+	ann.send("PRIVMSG bob :hi")
+	ann.expectNumeric("531", "bob", ":You must share a channel with this user")
+	joinAll("#hive", ann, bob)
+	waitLink(t, "bob in #hive on the hub", func() (in bool) {
+		hub.s.onLoop(func() { in = hub.s.net.Channel("#hive").Member(hub.s.net.UserByNick("bob")) != nil })
+		return
+	})
+	ann.send("PRIVMSG bob :now it works")
+	bob.expect("PRIVMSG bob :now it works")
+}

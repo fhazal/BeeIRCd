@@ -285,3 +285,62 @@ func TestHelperMode(t *testing.T) {
 		t.Errorf("-o kept +h: %s", l)
 	}
 }
+
+// +c (InspIRCd's commonchans): private messages only from people who
+// share a channel; opers and services still get through.
+func TestCommonChansMode(t *testing.T) {
+	s, _, _ := fileServer(t, "")
+	a, b := login(t, s, "alice"), login(t, s, "bob")
+	b.send("MODE bob +c")
+	b.expect("MODE bob +c")
+	a.send("PRIVMSG bob :hi")
+	a.expectNumeric("531", "bob", ":You must share a channel with this user")
+	a.send("NOTICE bob :a notice")
+	a.send("TAGMSG bob")
+	a.sync()
+	b.quiet("a notice")
+	b.send("PRIVMSG alice :you can still get my messages")
+	a.expect("PRIVMSG alice :you can still get my messages")
+
+	joinAll("#both", a, b)
+	a.send("PRIVMSG bob :now we share #both")
+	b.expect("PRIVMSG bob :now we share #both")
+	a.send("PART #both")
+	a.expect("PART #both")
+	a.send("PRIVMSG bob :and now we don't")
+	a.expectNumeric("531", "bob")
+
+	o := boss(t, s)
+	o.send("PRIVMSG bob :opers get through")
+	b.expect("PRIVMSG bob :opers get through")
+	b.send("PRIVMSG NickServ :HELP")
+	b.expect("NOTICE bob :")
+
+	b.send("MODE bob -c")
+	b.expect("MODE bob -c")
+	a.send("PRIVMSG bob :back to normal")
+	b.expect("PRIVMSG bob :back to normal")
+}
+
+// A sender on a server that doesn't know +c (UnrealIRCd) is caught by
+// the server of the person with +c, and told.
+func TestCommonChansFar(t *testing.T) {
+	s := testServer(t, nil)
+	a, b := login(t, s, "alice"), login(t, s, "bob")
+	b.send("MODE bob +c")
+	b.expect("MODE bob +c")
+	var blocked, shared bool
+	s.onLoop(func() {
+		to, from := s.net.UserByNick("bob"), s.net.UserByNick("alice")
+		blocked = s.farCommonChansBlocked(to, from, true)
+	})
+	a.expectNumeric("531", "bob", ":You must share a channel with this user")
+	joinAll("#x", a, b)
+	s.onLoop(func() {
+		to, from := s.net.UserByNick("bob"), s.net.UserByNick("alice")
+		shared = !s.farCommonChansBlocked(to, from, true)
+	})
+	if !blocked || !shared {
+		t.Errorf("blocked %v, let through with a shared channel %v", blocked, shared)
+	}
+}

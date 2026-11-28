@@ -119,13 +119,13 @@ func sendUserModes(m string) string {
 	return "+" + strings.ReplaceAll(m, "s", "")
 }
 
-// ourModes leaves out the user modes only BeeIRCd has (+h helper) when
-// the other side is UnrealIRCd.
+// ourModes leaves out the user modes only BeeIRCd has (+h helper, +c
+// common channels) when the other side is UnrealIRCd.
 func (c *unrealCodec) ourModes(m string) string {
 	if c.bee {
 		return m
 	}
-	return strings.ReplaceAll(m, "h", "")
+	return strings.NewReplacer("h", "", "c", "").Replace(m)
 }
 
 func (c *unrealCodec) User(u User, sid string) []string {
