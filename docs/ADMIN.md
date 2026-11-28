@@ -513,6 +513,11 @@ restart ends it too. It applies to the server you type it on.
   off the list (as on InspIRCd). A refused sender is told, and
   you are told who tried, at most once a minute for each sender. Opers
   and services always get through.
+- **Common channels.** `/MODE yournick +c` lets only people who are in a
+  channel with you send you private messages (InspIRCd's commonchans).
+  Others get 531. The channel may be on any linked server. Opers and
+  services always get through. UnrealIRCd servers don't know the mode,
+  so BeeIRCd checks messages from their users itself.
 - **Notify lists.** `WATCH` and `MONITOR` both tell a client when a nick
   comes online or leaves; clients pick the one they know.
 - `CYCLE #channel` leaves and rejoins, `REMOVE #channel nick [reason]`
