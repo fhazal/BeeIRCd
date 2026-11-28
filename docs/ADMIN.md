@@ -1605,6 +1605,7 @@ log_file    = "services.log"
 | `flood_profile` | `"normal"` | The +F profile for channels without their own: `very-strict`, `strict`, `normal`, `relaxed`, `very-relaxed`, `off` |
 | `create` | `"everyone"` | Who may make a new channel: `"everyone"`, `"registered"` (logged in to NickServ) or `"opers"` |
 | `hide_bans` | `false` | Only ops (and opers) may read a channel's ban list; the exception and invite lists are for ops only either way |
+| `hide_lists` | `""` | The lists only ops may read, like InspIRCd's hidelist: `b` bans, `e` exceptions, `I` invite exceptions, like `"beI"`. `hide_bans = true` counts as `b`, and opers may still read the ban list. `e` and `I` are for ops only either way, so today only `b` changes what people see |
 
 ### [history]
 

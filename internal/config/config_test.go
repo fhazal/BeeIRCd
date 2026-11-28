@@ -79,12 +79,31 @@ func TestLoadErrors(t *testing.T) {
 		"chan_fields: has \"X\" twice": good + "\n[services]\nchan_fields = [\"x\", \"X\"]\n",
 		"help_channel \"help\"":        good + "\n[services]\nhelp_channel = \"help\"\n",
 		"must be a word":               good + "\n[services]\nchan_fields = [\"two words\"]\n",
+		"hide_lists \"bq\": use the":   good + "\n[channels]\nhide_lists = \"bq\"\n",
 	}
 	for want, body := range cases {
 		_, err := Load(write(t, body))
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("want error containing %q, got %v", want, err)
 		}
+	}
+}
+
+// [channels] hide_lists takes b, e and I; hide_bans counts as b.
+func TestHideListsConfig(t *testing.T) {
+	c, err := Load(write(t, good+"\n[channels]\nhide_lists = \"eI\"\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Channels.HidesList('b') || !c.Channels.HidesList('e') || !c.Channels.HidesList('I') {
+		t.Errorf("hide_lists eI: %+v", c.Channels)
+	}
+	c.Channels.HideBans = true
+	if !c.Channels.HidesList('b') {
+		t.Error("hide_bans doesn't hide b")
+	}
+	if c, _ := Load(write(t, good)); c.Channels.HidesList('b') || c.Channels.HidesList('e') {
+		t.Error("lists hidden by default")
 	}
 }
 

@@ -874,6 +874,7 @@ var chmodesHelp = []string{
 	"Lists:",
 	" b <mask>   ban (and extbans: HELP EXTBANS)  e <mask>   ban exception",
 	" I <mask>   invite exception",
+	" Only ops see the e and I lists; a server may hide b from others too.",
 	"With a value (ops):",
 	" k <key>    key needed to join                l <n>      at most n people",
 	" f [..]:<s> flood guard, like +f [10j#R10,40m#M10,5n#N15]:15",
