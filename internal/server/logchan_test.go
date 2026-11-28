@@ -249,3 +249,18 @@ func TestOperCommandLogOff(t *testing.T) {
 		}
 	}
 }
+
+// AdminServ commands carry passwords (OPER <nick> SET PASSWORD): they are
+// services commands, never logged as oper commands.
+func TestOperCommandLogNoAdminServPassword(t *testing.T) {
+	var buf syncBuf
+	s, _, _ := fileServerWith(t, "\n[log]\noper_commands = true\n", func(s *Server) { s.log = log.New(&buf, "", 0) })
+	b := boss(t, s)
+	b.send("AS OPER Boss SET PASSWORD Secret-Pass-12345")
+	b.send("PRIVMSG AdminServ :OPER Boss SET PASSWORD Secret-Pass-67890")
+	b.send("KILL nobody :x")
+	b.sync()
+	if strings.Contains(buf.String(), "Secret-Pass") {
+		t.Errorf("a password reached the server log:\n%s", buf.String())
+	}
+}
