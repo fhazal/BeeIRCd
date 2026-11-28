@@ -25,7 +25,7 @@ func init() {
 	commands["OPERMOTD"] = command{0, false, (*Server).cmdOperMotd}
 	commands["BOTMOTD"] = command{0, false, (*Server).cmdBotMotd}
 	commands["RULES"] = command{0, false, (*Server).cmdRules}
-	helpTopics["OPERMOTD"] = []string{"OPERMOTD", "Shows the message of the day for opers (opers)."}
+	helpTopics["OPERMOTD"] = []string{"OPERMOTD", "Shows the message of the day for opers (opers). AdminServ OMOTD edits it."}
 	helpTopics["BOTMOTD"] = []string{"BOTMOTD", "Shows the message of the day for bots."}
 	helpTopics["RULES"] = []string{"RULES", "Shows the rules of this network."}
 }

@@ -74,6 +74,7 @@ can change things; every oper can look.
 | `SHOW [setting]` | The settings AdminServ can change, with their values |
 | `SET <setting> <value>` | Change one now and save it |
 | `MOTD SHOW\|SET\|ADD\|DEL\|CLEAR` | Edit the message of the day |
+| `OMOTD SHOW\|SET\|ADD\|DEL\|CLEAR` | Edit the oper MOTD (`[motd] oper_file`, shown at `/oper` and by `OPERMOTD`); with no `oper_file` yet it makes `opermotd.txt` next to `beeircd.conf` |
 | `PORT LIST\|ADD\|DEL <port> [TLS]` | Open or close a port now |
 | `OPER LIST`, `OPER <nick> ADD\|SET\|DEL\|DISABLE\|ENABLE` | Who is an IRC operator, their class, flags, hosts, password, title, vhost, swhois |
 | `CLASS LIST`, `CLASS <name> ADD\|SET\|DEL` | Oper classes |
@@ -1456,7 +1457,7 @@ One block per port.
 | --- | --- | --- |
 | `file` | – | The message of the day |
 | `text` | – | Used when there is no file |
-| `oper_file` | – | A message for opers: shown after `/oper` and by `OPERMOTD` |
+| `oper_file` | – | A message for opers: shown after `/oper` and by `OPERMOTD`; AdminServ `OMOTD` edits it |
 | `oper_text` | – | Used when there is no `oper_file` |
 | `bot_file` | – | A message for bots, shown by `BOTMOTD` |
 | `bot_text` | – | Used when there is no `bot_file` |
@@ -2278,7 +2279,7 @@ and software), `JUPE <server> [reason]` / `JUPE LIST` / `JUPE DEL`
 (nobody may be an IRC operator there), `DEFCON 1-5`, and `SERVER LIST |
 ADD | SET | DEL | LINK | UNLINK` (writes the `[[link.server]]` blocks,
 also in AdminServ). AdminServ `SERVER <name> STATUS` and
-`SERVER <name> <command>` run on another BeeIRCd (SET, MOTD, OPER, CLASS,
+`SERVER <name> <command>` run on another BeeIRCd (SET, MOTD, OMOTD, OPER, CLASS,
 SHOW, HISTORY, DIFF, UNDO, DNSBL, RESTART, DIE; it needs `outside_admins =
 "network"` there and network reach, see [Admin roles](#admin-roles); ports
 and link blocks are changed in that server's shell). A plain `/as restart`

@@ -683,6 +683,54 @@ func TestAdminServSettingsAndMotd(t *testing.T) {
 	b.expect(" 422 Boss :MOTD File is missing")
 }
 
+// AdminServ OMOTD edits the oper MOTD: without oper_file it makes
+// opermotd.txt next to the config, /opermotd shows it, and HISTORY, DIFF
+// and UNDO know it.
+func TestAdminServOperMotd(t *testing.T) {
+	s, path, _ := fileServer(t, "")
+	b := boss(t, s)
+
+	b.send("AS OMOTD SHOW")
+	b.expect(asLine("Boss", "The oper MOTD is empty."))
+	b.send("AS OMOTD ADD")
+	b.expect(asLine("Boss", "Syntax: OMOTD ADD <text>"))
+	b.send("AS OMOTD SET Opers: read #staff first")
+	b.expect(asLine("Boss", "The oper MOTD has 1 line now. See it: /opermotd"))
+	b.send("AS OMOTD ADD No KILLs for fun")
+	b.expect(asLine("Boss", "The oper MOTD has 2 lines now. See it: /opermotd"))
+	b.send("OPERMOTD")
+	b.expect(" 372 Boss :- Opers: read #staff first")
+	b.expect(" 372 Boss :- No KILLs for fun")
+	if body, err := os.ReadFile(filepath.Join(filepath.Dir(path), "opermotd.txt")); err != nil || string(body) != "Opers: read #staff first\nNo KILLs for fun\n" {
+		t.Errorf("opermotd.txt = %q, %v", body, err)
+	}
+	raw, _ := os.ReadFile(path)
+	if !strings.Contains(string(raw), `oper_file = "opermotd.txt"`) {
+		t.Errorf("config doesn't point at opermotd.txt:\n%s", raw)
+	}
+	// The normal MOTD is not touched.
+	b.send("MOTD")
+	b.expect(" 372 Boss :- Welcome to BeeNet")
+
+	b.send("AS OMOTD DEL 1")
+	b.expect(asLine("Boss", "The oper MOTD has 1 line now."))
+	b.send("AS HISTORY 1")
+	l := b.expect("OMOTD")
+	n := strings.Fields(strings.SplitN(l, " :", 2)[1])[0]
+	b.send("AS DIFF " + n)
+	b.expect("before: 2 line(s): Opers: read #staff first / No KILLs for fun")
+	b.expect("after:  1 line(s): No KILLs for fun")
+	b.send("AS UNDO " + n)
+	b.expect(asLine("Boss", "The oper MOTD is back to how it was before "+n+"."))
+	b.send("AS OMOTD SHOW")
+	b.expect(asLine("Boss", "  1   Opers: read #staff first"))
+	b.expect(asLine("Boss", "  2   No KILLs for fun"))
+	b.send("AS OMOTD CLEAR")
+	b.expect(asLine("Boss", "The oper MOTD has 0 lines now."))
+	b.send("OPERMOTD")
+	b.expect(" 425 Boss :OPERMOTD File is missing")
+}
+
 func TestAdminServPorts(t *testing.T) {
 	s, path, _ := fileServer(t, "")
 	b := boss(t, s)

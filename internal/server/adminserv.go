@@ -33,6 +33,8 @@ func adminCommands() map[string]adminCmd {
 			"Changes a setting at once and saves it to beeircd.conf (comments stay).\nExample: /as set max-users 500   /as set cloak off   /as set nick-expire 120d\nOn a leaf, a\nsetting of that server (limits, messages, joins, ...) changes the leaf; a\nnetwork setting (services ones, members) is changed on the hub.\nSee them all: /as show", asSet},
 		"MOTD": {"MOTD SHOW|SET|ADD|DEL|CLEAR [text]", "edit the message of the day",
 			"MOTD SHOW            the MOTD with line numbers\nMOTD SET <text>      replace it with one line\nMOTD ADD <text>      add a line at the end\nMOTD DEL <number>    remove a line\nMOTD CLEAR           empty it", asMotd},
+		"OMOTD": {"OMOTD SHOW|SET|ADD|DEL|CLEAR [text]", "edit the oper MOTD",
+			"The oper MOTD is shown at /oper and by /opermotd ([motd] oper_file).\nOMOTD SHOW            the oper MOTD with line numbers\nOMOTD SET <text>      replace it with one line\nOMOTD ADD <text>      add a line at the end\nOMOTD DEL <number>    remove a line\nOMOTD CLEAR           empty it\nWith no oper_file yet, opermotd.txt is made next to beeircd.conf.", asOMotd},
 		"PORT": {"PORT ADD|DEL|LIST [port] [TLS]", "open or close a port",
 			"PORT LIST\nPORT ADD <port> [TLS]   opens it now, on the same address as the first port\nPORT ADD <address:port> [TLS]\nPORT DEL <port|address:port>\nPeople already connected through a closed port stay connected.", asPort},
 		"OPER": {"OPER LIST | OPER <nick> ADD|SET|DEL|DISABLE|ENABLE ...", "who is an IRC operator",
@@ -40,16 +42,16 @@ func adminCommands() map[string]adminCmd {
 		"CLASS": {"CLASS LIST | CLASS <name> ADD|SET|DEL ...", "oper classes",
 			"CLASS LIST\nCLASS <name> ADD FLAGS <letters>\nCLASS <name> SET FLAGS <letters>\nCLASS <name> SET TITLE <text>|OFF   WHOIS line, like: is a Network Administrator\nCLASS <name> SET VHOST <host>|OFF   shown host at /oper, like staff.example.org\nCLASS <name> SET SWHOIS <line> [| <line> ...]|OFF\nCLASS <name> DEL   a built-in class goes back to its defaults\nClasses are saved as [[operclass]] blocks in beeircd.conf.", asClass},
 		"HISTORY": {"HISTORY [count]", "the changes AdminServ made",
-			"Lists the latest changes made with AdminServ (settings, MOTD, ports, opers,\nclasses), newest first. The last 200 are kept.", asHistory},
+			"Lists the latest changes made with AdminServ (settings, MOTD, oper MOTD, ports,\nopers, classes), newest first. The last 200 are kept.", asHistory},
 		"DIFF": {"DIFF <number>", "one change, before and after", "Shows what change <number> (from HISTORY) was before and after.", asDiff},
 		"UNDO": {"UNDO <number>", "put a change back",
-			"Puts back how things were before change <number> (from HISTORY): settings,\nthe MOTD, classes and oper entries. Ports are changed back with PORT ADD/DEL,\npasswords with a new one. The undo is itself a change in the history.", asUndo},
+			"Puts back how things were before change <number> (from HISTORY): settings,\nthe MOTD and oper MOTD, classes and oper entries. Ports are changed back with\nPORT ADD/DEL, passwords with a new one. The undo is itself a change in the history.", asUndo},
 		"DNSBL": {"DNSBL LIST | CHECK <ip> | ENABLE|DISABLE <name>", "the DNS blocklists",
 			"DNSBL LIST              the [[dnsbl]] lists of beeircd.conf, with their hits\nDNSBL CHECK <ip>        look an IP up in every list now, with its answers\nDNSBL DISABLE <name>    stop using a list until the server restarts\nDNSBL ENABLE <name>     use it again\nNew connections are looked up when they connect; LAN IPs, ELINEs and session\nexceptions are skipped. Each list says what a hit does: reject (refuse the\nconnection), soft-reject (let in only people who log in, with the login\nprompt), or a zline, akill or shun for its ban_time.", asDnsbl},
 		"SPAMREPORT": {"SPAMREPORT LIST | KEY <name> <rpckey|OFF> | STAGING <name> ON|OFF", "where /SPAMREPORT sends spammers",
 			"SPAMREPORT LIST                the [[spamreport]] places of beeircd.conf\nSPAMREPORT KEY <name> <rpckey>  save a DroneBL RPC key (adds a dronebl place\n                               called <name> when there is none). OFF removes it.\nSPAMREPORT STAGING <name> ON    send to DroneBL's test list instead of the real one\nGet a DroneBL key at https://dronebl.org/rpckey_signup. Keys are never shown.", asSpamReport},
 		"SERVER": {"SERVER LIST|ADD|SET|DEL|LINK|UNLINK ... | SERVER <name> STATUS|<command>", "linked servers",
-			serverHelp + "\nSERVER <name> STATUS       version, uptime, users and links of that server\nSERVER <name> <command>    run an AdminServ command there (SET, MOTD, OPER,\n                           CLASS, SHOW, HISTORY, DIFF, UNDO, DNSBL, RESTART,\n                           DIE); a server you are not on must take outside\n                           admins ([link] outside_admins = network) and your\n                           admin reach must be network", asServer},
+			serverHelp + "\nSERVER <name> STATUS       version, uptime, users and links of that server\nSERVER <name> <command>    run an AdminServ command there (SET, MOTD, OMOTD,\n                           OPER, CLASS, SHOW, HISTORY, DIFF, UNDO, DNSBL,\n                           RESTART, DIE); a server you are not on must take outside\n                           admins ([link] outside_admins = network) and your\n                           admin reach must be network", asServer},
 		"RESTART": {"RESTART [reason]", "restart the server",
 			"Starts the server you are on again. Behind the door keeper (beeircd run on\nLinux) nobody is disconnected: everyone is handed over to the new server\nprocess. Otherwise everyone is disconnected and reconnects. You are asked to\nrepeat it with a code first. Another server: SERVER <name> RESTART.", asStop(stopRestart)},
 		"DIE": {"DIE [reason]", "stop the server",
@@ -868,15 +870,40 @@ func asSet(s *Server, c *Client, args []string) {
 
 // MOTD
 
-func asMotd(s *Server, c *Client, args []string) {
+// motdFile is a text file AdminServ edits: the MOTD or the oper MOTD.
+type motdFile struct {
+	cmd   string // MOTD or OMOTD
+	name  string // in replies: "The MOTD", "The oper MOTD"
+	kind  string // HISTORY kind
+	key   string // [motd] key of the file
+	deflt string // file name next to the config when there is none
+	see   string // how to see it
+	lines func(*config.Config) []string
+	path  func(*config.Config) *string
+}
+
+var (
+	motdMain = motdFile{"MOTD", "The MOTD", "motd", "file", "motd.txt", "/motd",
+		func(c *config.Config) []string { return c.MOTDLines() },
+		func(c *config.Config) *string { return &c.MOTD.File }}
+	motdOper = motdFile{"OMOTD", "The oper MOTD", "omotd", "oper_file", "opermotd.txt", "/opermotd",
+		func(c *config.Config) []string { return config.TextLines(c.MOTD.OperFile, c.MOTD.OperText) },
+		func(c *config.Config) *string { return &c.MOTD.OperFile }}
+)
+
+func asMotd(s *Server, c *Client, args []string)  { s.editMotd(c, motdMain, args) }
+func asOMotd(s *Server, c *Client, args []string) { s.editMotd(c, motdOper, args) }
+
+// editMotd is MOTD and OMOTD SHOW|SET|ADD|DEL|CLEAR.
+func (s *Server) editMotd(c *Client, mf motdFile, args []string) {
 	sub := strings.ToUpper(argAt(args, 0))
-	lines := append([]string(nil), s.cfg.MOTDLines()...)
+	lines := append([]string(nil), mf.lines(s.cfg)...)
 	before := strings.Join(lines, "\n")
 	text := strings.Join(args[min(1, len(args)):], " ")
 	switch sub {
 	case "SHOW", "":
 		if len(lines) == 0 {
-			s.as(c, "The MOTD is empty.")
+			s.as(c, "%s is empty.", mf.name)
 			return
 		}
 		for i, l := range lines {
@@ -886,53 +913,54 @@ func asMotd(s *Server, c *Client, args []string) {
 		return
 	case "SET":
 		if text == "" {
-			s.as(c, "Syntax: MOTD SET <text>")
+			s.as(c, "Syntax: %s SET <text>", mf.cmd)
 			return
 		}
 		lines = []string{text}
 	case "ADD":
 		if text == "" {
-			s.as(c, "Syntax: MOTD ADD <text>")
+			s.as(c, "Syntax: %s ADD <text>", mf.cmd)
 			return
 		}
 		if len(lines) >= 100 {
-			s.as(c, "The MOTD has 100 lines, the most.")
+			s.as(c, "%s has 100 lines, the most.", mf.name)
 			return
 		}
 		lines = append(lines, text)
 	case "DEL":
 		n, err := strconv.Atoi(argAt(args, 1))
 		if err != nil || n < 1 || n > len(lines) {
-			s.as(c, "Syntax: MOTD DEL <number> (see /as motd show)")
+			s.as(c, "Syntax: %s DEL <number> (see /as %s show)", mf.cmd, strings.ToLower(mf.cmd))
 			return
 		}
 		lines = append(lines[:n-1], lines[n:]...)
 	case "CLEAR":
 		lines = nil
 	default:
-		s.as(c, "Syntax: MOTD SHOW|SET|ADD|DEL|CLEAR [text]")
+		s.as(c, "Syntax: %s SHOW|SET|ADD|DEL|CLEAR [text]", mf.cmd)
 		return
 	}
-	if err := s.writeMotd(lines); err != nil {
+	if err := s.writeMotdFile(mf, lines); err != nil {
 		s.log.Printf("AdminServ: %v", err)
 		s.as(c, "Not saved: %v", err)
 		return
 	}
-	s.audit(c, s.adminServ, "MOTD %s", strings.TrimSpace(sub+" "+text))
-	s.record(c, "motd", "motd", before, strings.Join(lines, "\n"))
+	s.audit(c, s.adminServ, "%s %s", mf.cmd, strings.TrimSpace(sub+" "+text))
+	s.record(c, mf.kind, mf.kind, before, strings.Join(lines, "\n"))
 	s.svc.LogAdmin(c.uid, s.adminServ, strings.TrimSpace(sub+" "+text))
-	s.as(c, "The MOTD has %s now. See it: /motd", plural(len(lines), "line"))
+	s.as(c, "%s has %s now. See it: %s", mf.name, plural(len(lines), "line"), mf.see)
 }
 
-// writeMotd saves the MOTD file, creating motd.txt next to the config when
-// there is no file yet.
-func (s *Server) writeMotd(lines []string) error {
-	path := s.cfg.MOTD.File
+// writeMotdFile saves mf's file, creating mf.deflt next to the config (and
+// pointing [motd] at it) when there is no file yet.
+func (s *Server) writeMotdFile(mf motdFile, lines []string) error {
+	cur := mf.path(s.cfg)
+	path := *cur
 	if path == "" {
 		if s.cfg.Path == "" {
 			return fmt.Errorf("no config file to save next to")
 		}
-		path = filepath.Join(filepath.Dir(s.cfg.Path), "motd.txt")
+		path = filepath.Join(filepath.Dir(s.cfg.Path), mf.deflt)
 	}
 	body := strings.Join(lines, "\n")
 	if body != "" {
@@ -946,14 +974,14 @@ func (s *Server) writeMotd(lines []string) error {
 		os.Remove(tmp)
 		return err
 	}
-	if s.cfg.MOTD.File == "" {
+	if *cur == "" {
 		if _, err := config.Edit(s.cfg.Path, func(d *config.Doc) error {
-			d.Set("motd", "file", config.Quote("motd.txt"))
+			d.Set("motd", mf.key, config.Quote(mf.deflt))
 			return nil
 		}); err != nil {
 			return err
 		}
-		s.cfg.MOTD.File = path
+		*cur = path
 	}
 	return nil
 }
