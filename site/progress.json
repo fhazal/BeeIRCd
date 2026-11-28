@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-28T19:15:00+08:00",
+ "updated": "2026-11-28T18:58:00+08:00",
  "gauges": [
   {
    "id": "g-v1",
@@ -24,10 +24,6 @@
  },
  "next": "Final 1.7.2 once rc1 runs well.",
  "done": [
-  [
-   "2026-11-28T19:15",
-   "Hive picture labels now each point into a room of the hive: #beeircd kept by ChanServ, your nick kept by NickServ, and seven services in one program"
-  ],
   [
    "2026-11-28T18:58",
    "Website picture labels made smaller so the art shows through, and the Hive labels now point to the channel and the services (ChanServ keeps #beeircd, NickServ keeps your nick)"
