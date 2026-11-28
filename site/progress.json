@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-28T15:45:00+08:00",
+ "updated": "2026-11-28T16:20:00+08:00",
  "gauges": [
   {
    "id": "g-v1",
@@ -17,13 +17,17 @@
   }
  ],
  "now": {
-  "title": "1.7.2 ready for rc1",
-  "text": "The release test passed: race checks, linking with InspIRCd and UnrealIRCd, updates, hand-overs, heavy linking, speed, fuzzing and a 6-hour soak.",
-  "start": "2026-11-28T15:45:00+08:00",
-  "end": "2026-11-28T20:00:00+08:00"
+  "title": "1.7.2-rc1 live",
+  "text": "Both SKINTERNET servers run the 1.7.2 test version. Watching it for a few hours before the final 1.7.2.",
+  "start": "2026-11-28T16:20:00+08:00",
+  "end": "2026-11-29T12:00:00+08:00"
  },
- "next": "1.7.2-rc1 on the live servers.",
+ "next": "Final 1.7.2 once rc1 runs well.",
  "done": [
+  [
+   "2026-11-28T16:20",
+   "1.7.2-rc1 published and live on both SKINTERNET servers: every person stayed connected during the switch"
+  ],
   [
    "2026-11-28T15:45",
    "1.7.2 release test passed: as fast as 1.7.1 or faster (chat lag 10.3 ms vs 11.1 ms), 6 hours without a problem, and SASL logins work through InspIRCd and UnrealIRCd relinks"
