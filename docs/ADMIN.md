@@ -2180,6 +2180,14 @@ and U-line the services server and name it, or SASL stays off there:
 A BeeIRCd with services off can also link to an UnrealIRCd network that
 runs Anope: logins (SASL) go to Anope.
 
+Tip for Anope 2.0: when UnrealIRCd drops its link (an oper SQUITs it, or
+UnrealIRCd restarts), Anope quits **without saving**. It saves only every
+`updatetimeout` (5 minutes by default), so accounts and changes made
+since then are lost, and those people's logins fail afterwards. Save more
+often: in the `options` block of `services.conf` set `updatetimeout = 1m`.
+Have Anope start again by itself too (for example a systemd unit with
+`Restart=always`). `kill -HUP` on Anope saves at once, before planned work on the link.
+
 **Linking an InspIRCd 4 server.** InspIRCd 4 (protocol 1206, tested
 with 4.12) links over TLS with a password on both sides and pinned
 certificates. On the InspIRCd side load `ssl_openssl`, `spanningtree`,
