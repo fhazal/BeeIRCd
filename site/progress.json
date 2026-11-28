@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-28T19:15:00+08:00",
+ "updated": "2026-11-28T20:35:00+08:00",
  "gauges": [
   {
    "id": "g-v1",
@@ -17,13 +17,17 @@
   }
  ],
  "now": {
-  "title": "1.7.2-rc1 live",
-  "text": "Both SKINTERNET servers run the 1.7.2 test version. Watching it for a few hours before the final 1.7.2.",
-  "start": "2026-11-28T16:20:00+08:00",
-  "end": "2026-11-29T12:00:00+08:00"
+  "title": "1.7.2 released",
+  "text": "1.7.2 is out: 7 fixes and a new linking setting. Both SKINTERNET servers run it, and everyone stayed connected during the update.",
+  "start": "2026-11-28T20:30:00+08:00",
+  "end": "2026-11-29T20:00:00+08:00"
  },
- "next": "Final 1.7.2 once rc1 runs well.",
+ "next": "Choosing the next step after 1.7.2.",
  "done": [
+  [
+   "2026-11-28T20:30",
+   "1.7.2 released: 7 fixes and a new linking setting (sasl_server). Both SKINTERNET servers updated, 105 people stayed connected"
+  ],
   [
    "2026-11-28T19:15",
    "Hive picture labels now each point into a room of the hive: #beeircd kept by ChanServ, your nick kept by NickServ, and seven services in one program"

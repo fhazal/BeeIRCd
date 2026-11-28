@@ -1,55 +1,52 @@
 {
  "release": {
-  "tag": "v1.7.1",
-  "version": "1.7.1",
-  "date": "27 Nov 2026",
-  "url": "https://github.com/fhazal/BeeIRCd/releases/tag/v1.7.1",
-  "changelog": "/docs/help/changelog/#v1-7-1"
+  "tag": "v1.7.2",
+  "version": "1.7.2",
+  "date": "28 Nov 2026",
+  "url": "https://github.com/fhazal/BeeIRCd/releases/tag/v1.7.2",
+  "changelog": "/docs/help/changelog/#v1-7-2"
  },
  "items": [
   {
    "icon": "hex",
    "title": "A fix release",
-   "text": "No new features, 60 fixes and polish items found in a full security and bug sweep.",
-   "docs": "/docs/help/changelog/#v1-7-1",
+   "text": "7 fixes, mostly found by checking the last suspicions from the 1.7.1 sweep, and one new linking setting.",
+   "docs": "/docs/help/changelog/#v1-7-2",
    "docs_title": "Change log"
   },
   {
    "icon": "link",
    "title": "Linking",
-   "text": "A linked server can no longer make itself the services server, take our services bot off the network with KILL, uncloak our users with MODE -x, or give users a host or ident with @, !, * or spaces.",
+   "text": "A linked server can no longer take the services server's rights by saying it takes SASL logins while services are linked, or by coming in later under the services server's name after a split.",
    "docs": "/docs/run/linking/",
    "docs_title": "Linking servers"
   },
   {
    "icon": "link",
    "title": "Linking",
-   "text": "On the server that runs services, a linked server can no longer log its users in to someone's account (in its burst, with SVSLOGIN, METADATA accountname or svid); they stay logged out and opers get one notice. Real logins through SASL or NickServ on other servers keep working, also after a netsplit, a restart and the upgrade from an older version.",
+   "text": "half-done SASL logins are cleaned up when a link drops, instead of being kept forever.",
    "docs": "/docs/run/linking/",
    "docs_title": "Linking servers"
   },
   {
-   "icon": "link",
-   "title": "Linking",
-   "text": "Users on other servers logged in through services stay logged in when the services server restarts cold, not only after a seamless update.",
-   "docs": "/docs/run/linking/",
-   "docs_title": "Linking servers"
+   "icon": "chat",
+   "title": "Web chat",
+   "text": "Pings and empty messages from a web chat client now count towards flood control.",
+   "docs": "/docs/run/beeroom/",
+   "docs_title": "BeeRoom web chat"
   },
   {
-   "icon": "link",
-   "title": "Linking",
-   "text": "A user on a linked server with one of our services nicks no longer drops the whole link, and a link to a network with its own services no longer retries every few seconds and floods opers with notices.",
-   "docs": "/docs/run/linking/",
-   "docs_title": "Linking servers"
+   "icon": "chat",
+   "title": "Web chat",
+   "text": "One IP address can hold at most 16 web chat connections that haven't finished connecting; more are refused (connections through your own proxy are not counted).",
+   "docs": "/docs/run/beeroom/",
+   "docs_title": "BeeRoom web chat"
   }
  ],
- "testing": {
-  "version": "1.7.2-rc1",
-  "changelog": "https://github.com/fhazal/BeeIRCd/releases/tag/v1.7.2-rc1"
- },
+ "testing": null,
  "earlier": {
-  "version": "1.7.0",
-  "date": "24 Nov 2026",
-  "changelog": "/docs/help/changelog/#v1-7-0"
+  "version": "1.7.1",
+  "date": "27 Nov 2026",
+  "changelog": "/docs/help/changelog/#v1-7-1"
  }
 }
