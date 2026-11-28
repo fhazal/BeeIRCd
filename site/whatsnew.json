@@ -43,7 +43,10 @@
    "docs_title": "Linking servers"
   }
  ],
- "testing": null,
+ "testing": {
+  "version": "1.7.2-rc1",
+  "changelog": "https://github.com/fhazal/BeeIRCd/releases/tag/v1.7.2-rc1"
+ },
  "earlier": {
   "version": "1.7.0",
   "date": "24 Nov 2026",
