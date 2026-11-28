@@ -505,7 +505,7 @@ func (s *Server) certTick(now time.Time) {
 func (s *Server) cmdRehash(c *Client, m irc.Message) {
 	// REHASH <server>: that server rehashes (-flags are not a server).
 	if t := m.Param(0); !strings.HasPrefix(t, "-") && c.can(saFlag) && s.askElsewhere(c, "REHASH", t, "") {
-		s.logOperCmd(c)
+		s.operCheckPassed(c)
 		return
 	}
 	s.rehashHere(c)

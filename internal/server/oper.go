@@ -264,7 +264,7 @@ func (s *Server) snoticeOpers(letter byte, text string) {
 func (s *Server) needFlag(c *Client, sv *state.User, f byte) bool {
 	if c.can(f) {
 		if sv == nil {
-			s.logOperCmd(c)
+			s.operCheckPassed(c)
 		}
 		return true
 	}
@@ -489,7 +489,7 @@ func (s *Server) killUser(u *state.User, by, reason string) {
 	if shown != by {
 		src = s.cfg.Server.Name // [messages] hide_killed_by: not the oper
 	}
-	tc.send(irc.Message{Source: src, Command: "KILL", Params: []string{u.Nick, reason}, Trailing: true}.String())
+	tc.send(irc.Message{Tags: s.issuedTags(tc), Source: src, Command: "KILL", Params: []string{u.Nick, reason}, Trailing: true}.String())
 	s.sno('k', "Local kill by %s: %s (%s)", by, snoRealMask(u), reason)
 	s.quit(tc, "Killed ("+shown+" ("+reason+"))")
 }

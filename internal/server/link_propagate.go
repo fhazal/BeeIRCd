@@ -87,14 +87,14 @@ func (s *Server) linkOut(ev state.Event, org *linkOrigin) {
 		// Only the target's server needs it.
 		if t := s.linkOf(inv.UID); t != nil && t != from && t.up && !t.closed {
 			for _, line := range s.linkLines(t, ev, src, from) {
-				t.send(line)
+				t.send(s.issuedLine(t, line))
 			}
 		}
 		return
 	}
 	for _, o := range s.upLinks(from) {
 		for _, line := range s.linkLines(o, ev, src, from) {
-			o.send(line)
+			o.send(s.issuedLine(o, line))
 		}
 	}
 }
@@ -575,7 +575,7 @@ func (s *Server) remoteSendUmode(l *linkConn, m irc.Message) {
 // linkBroadcastKill tells every link but one that uid was killed.
 func (s *Server) linkBroadcastKill(except *linkConn, src, uid, reason string) {
 	for _, o := range s.upLinks(except) {
-		o.send(o.codecOf().Kill(src, uid, reason))
+		o.send(s.issuedLine(o, o.codecOf().Kill(src, uid, reason)))
 	}
 }
 

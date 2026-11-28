@@ -119,6 +119,8 @@ type Server struct {
 	netjoin     *netjoinBatch               // set while a link's burst is handled
 	netsplit    *netjoinBatch               // set while the users of a split server quit
 	origin      *linkOrigin                 // where the next emitted event came from
+	issuer      string                      // unrealircd.org/issued-by of what runs now (issuedby.go)
+	cmdBy       *Client                     // whose command runs now (runHandler)
 	banFrom     *linkConn                   // the link a ban change came from, while it is applied
 	wg          sync.WaitGroup
 	hand        handState // passing the clients on to the next server process (handover.go)

@@ -25,6 +25,7 @@ type outMsg struct {
 	account   string
 	bot       bool   // from a +B user: IRCv3 bot tag
 	country   string // the sender's country (GeoIP): unrealircd.org/geoip, for opers
+	issuedBy  string // the oper, RPC user or service behind it: unrealircd.org/issued-by, for opers
 	at        time.Time
 	needCap   string   // only clients with this capability get it
 	multi     []mlPart // the lines of a draft/multiline message
@@ -50,7 +51,7 @@ func (c *Client) capKey() uint8 {
 	if c.caps["message-tags"] {
 		k |= 8
 		if c.isOper() {
-			k |= 16 // gets the geoip tag
+			k |= 16 // gets the geoip and issued-by tags
 		}
 	}
 	return k
@@ -59,11 +60,12 @@ func (c *Client) capKey() uint8 {
 // out starts a message from u.
 func (s *Server) out(u *state.User, cmd string, params ...string) *outMsg {
 	return &outMsg{
-		msg:     irc.Message{Source: u.Prefix(), Command: cmd, Params: params},
-		account: u.Account,
-		bot:     u.HasMode('B'),
-		country: u.Country,
-		at:      time.Now(),
+		msg:      irc.Message{Source: u.Prefix(), Command: cmd, Params: params},
+		account:  u.Account,
+		bot:      u.HasMode('B'),
+		country:  u.Country,
+		issuedBy: s.issuer,
+		at:       time.Now(),
 	}
 }
 
@@ -117,6 +119,9 @@ func (c *Client) build(o *outMsg) string {
 		}
 		if o.country != "" && c.isOper() {
 			add("unrealircd.org/geoip", o.country) // as UnrealIRCd: opers only
+		}
+		if o.issuedBy != "" && c.isOper() {
+			add(issuedByTag, o.issuedBy) // as UnrealIRCd: opers only
 		}
 		for k, v := range o.tags {
 			add(k, v)

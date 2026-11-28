@@ -386,6 +386,16 @@ ALLTIME asks them for their clock too. UnrealIRCd has no SANICK: someone
 on an UnrealIRCd server is renamed the way services do it, which works
 when this server is in that server's `ulines`.
 
+**Who did it (issued-by tag).** Opers whose client has `message-tags` see
+who is behind a line in UnrealIRCd's `unrealircd.org/issued-by` tag: an
+oper command (`OPER:Boss@irc.example.org:Boss`, for KILL, SAKICK, SAMODE,
+SAJOIN, SAPART, CHGHOST and the other commands that need oper rights), a
+services action (`SERVICES:OperServ@services.example.org`, like an
+OperServ or ChanServ KICK) or an Admin API call
+(`RPC:tool@irc.example.org`, with the `rpc.set_issuer` name after a `:`).
+Nobody else gets it. It travels to UnrealIRCd and BeeIRCd links and comes
+back from them; InspIRCd links don't carry it.
+
 **Moving people before maintenance.** `/JUMPSERVER irc2.example.org NEW
 back in an hour` sends everyone who connects from then on to
 irc2.example.org (numeric 010; most clients follow it by themselves) and

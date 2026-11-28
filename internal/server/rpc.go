@@ -507,10 +507,13 @@ func (s *Server) rpcHandle(rc *rpcConn, body []byte) []byte {
 		params = []byte("{}")
 	}
 	if !s.onLoop(func() {
+		prev := s.issuer
 		if m.changes {
 			s.sno('a', "RPC %s: %s %s", rc.by(), req.Method, irc.Truncate(string(params), 300))
+			s.issuer = s.rpcIssuer(rc)
 		}
 		resp.Result, resp.Error = m.run(s, rc, params)
+		s.issuer = prev
 		if resp.Error == nil && resp.Result == nil {
 			resp.Result = true
 		}

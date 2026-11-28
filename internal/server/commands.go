@@ -257,13 +257,22 @@ func (s *Server) runCommand(c *Client, m irc.Message) {
 		if c.registered && !s.spamCheck(c, &m) {
 			return
 		}
-		if c.registered && s.cfg.Log.OperCommands {
-			mc := m         // a copy, so m stays off the heap when this is off
-			c.operCmd = &mc // logged when an oper check passes (operlog.go)
-			defer func() { c.operCmd = nil }()
-		}
-		cmd.run(s, c, m)
+		s.runHandler(c, cmd.run, m)
 	}
+}
+
+// runHandler runs c's command. While it runs, an oper check that passes
+// (needOper, needFlag) logs it ([log] oper_commands) and marks what it
+// sends as issued by that oper (issuedby.go).
+func (s *Server) runHandler(c *Client, run handler, m irc.Message) {
+	prevBy, prevIssuer := s.cmdBy, s.issuer
+	s.cmdBy = c
+	if c.registered && s.cfg.Log.OperCommands {
+		mc := m         // a copy, so m stays off the heap when this is off
+		c.operCmd = &mc // logged when an oper check passes (operlog.go)
+	}
+	defer func() { s.cmdBy, s.issuer, c.operCmd = prevBy, prevIssuer, nil }()
+	run(s, c, m)
 }
 
 // utf8Params reports whether every parameter of m is UTF-8.

@@ -31,6 +31,15 @@ func operCmdText(m irc.Message) string {
 	return strings.Join(parts, " ")
 }
 
+// operCheckPassed runs when c passed an oper check in a command: the
+// command is logged, and what it sends is issued by c.
+func (s *Server) operCheckPassed(c *Client) {
+	if s.cmdBy == c && c.user != nil {
+		s.issuer = s.operIssuer(c)
+	}
+	s.logOperCmd(c)
+}
+
 // logOperCmd logs the command c is running, once, when [log]
 // oper_commands is on.
 func (s *Server) logOperCmd(c *Client) {
