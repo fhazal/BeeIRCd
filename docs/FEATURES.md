@@ -16,7 +16,7 @@ How to set each one up is in [ADMIN.md](ADMIN.md); installing is in [INSTALL.md]
 | RULES, OPERMOTD, BOTMOTD, a random quote on connect | ✅ | `[motd]` |
 | Commands of your own that show a text, like `/FAQ` | ✅ | `[[showfile]]` |
 | User mode `+G`: the words in `[censor]` are hidden in private messages to you | ✅ | |
-| Private messages to opers only, a ban list only ops can read, shortened commands (`WHOW.`) | ✅ | `[limits] restrict_msg`, `abbreviations`; `[channels] hide_bans`, `hide_lists` (InspIRCd's hidelist: `b`, `e`, `I`) |
+| Private messages to opers only, a ban list only ops can read, shortened commands (`WHOW.`) | ✅ | `[limits] restrict_msg`, `abbreviations`; `[channels] hide_bans`, `hide_lists` (InspIRCd's hidelist: `b`, `e`, `I`), `hide_modes` (InspIRCd's hidemode: changes of those modes only ops see) |
 | A PING new connections must answer, and a redirect for browsers that open an IRC port | ✅ | `[server] ping_cookie`, `web_redirect` |
 | EXTJWT: signed tokens for other services | ✅ | `[extjwt]` |
 | Auto-join on connect (with groups that skip it) and at `/oper` (more channels by oper flag), set in AdminServ or the Hive Panel | ✅ | `[server] auto_join`, `auto_join_skip`, `oper_join`, `oper_join_flag` |

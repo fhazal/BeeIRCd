@@ -303,3 +303,45 @@ func TestFloodProfileSettingAndHelp(t *testing.T) {
 	b.send("HELPOP")
 	b.expect(" 705 Boss * :Other topics: CHMODES (channel modes), EXTBANS (special bans), UMODES (user modes).")
 }
+
+// [channels] hide_modes: those changes go to the ops, whoever made them
+// and whoever a rank change is about; the others get the rest of the line.
+func TestHideModes(t *testing.T) {
+	s := testServer(t, func(c *config.Config) { c.Channels.HideModes = "kv" })
+	op, ann, cat := login(t, s, "op"), login(t, s, "ann"), login(t, s, "cat")
+	joinAll("#hid", op, ann, cat)
+	op.send("MODE #hid +kp sesame")
+	if l := op.expect("MODE #hid +"); !strings.Contains(l, "k") || !strings.Contains(l, "sesame") {
+		t.Fatalf("the op gets %q", l)
+	}
+	ann.expect(":op!~op@127.0.0.1 MODE #hid +p\r")
+	cat.expect(":op!~op@127.0.0.1 MODE #hid +p\r")
+
+	// Only a hidden change: the others get nothing.
+	op.send("MODE #hid -k sesame")
+	op.expect("MODE #hid -k")
+	op.send("MODE #hid +o ann")
+	op.expect("MODE #hid +o ann")
+	ann.expect("MODE #hid +o ann")
+	if l := cat.expect("MODE #hid "); !strings.Contains(l, "+o ann") {
+		t.Fatalf("cat saw %q", l)
+	}
+
+	// ann is an op now and sees everything; cat only what isn't hidden,
+	// and a hidden rank change about cat.
+	op.send("MODE #hid +v cat")
+	ann.expect("MODE #hid +v cat")
+	cat.expect("MODE #hid +v cat")
+	op.send("MODE #hid +mv ann")
+	ann.expect("MODE #hid +mv ann")
+	cat.expect(":op!~op@127.0.0.1 MODE #hid +m\r")
+	cat.sync()
+}
+
+// ChannelModeLetters (what hide_modes may name) are the letters we have.
+func TestChannelModeLettersKnown(t *testing.T) {
+	want := chanModesList + chanModesKey + chanModesParam + chanModesFlags + "qaohv"
+	if config.ChannelModeLetters != want {
+		t.Errorf("config.ChannelModeLetters = %q, want %q", config.ChannelModeLetters, want)
+	}
+}

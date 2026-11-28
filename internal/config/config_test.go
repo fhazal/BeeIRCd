@@ -80,6 +80,7 @@ func TestLoadErrors(t *testing.T) {
 		"help_channel \"help\"":        good + "\n[services]\nhelp_channel = \"help\"\n",
 		"must be a word":               good + "\n[services]\nchan_fields = [\"two words\"]\n",
 		"hide_lists \"bq\": use the":   good + "\n[channels]\nhide_lists = \"bq\"\n",
+		"hide_modes \"kX\": X is not":  good + "\n[channels]\nhide_modes = \"kX\"\n",
 	}
 	for want, body := range cases {
 		_, err := Load(write(t, body))
@@ -102,8 +103,11 @@ func TestHideListsConfig(t *testing.T) {
 	if !c.Channels.HidesList('b') {
 		t.Error("hide_bans doesn't hide b")
 	}
-	if c, _ := Load(write(t, good)); c.Channels.HidesList('b') || c.Channels.HidesList('e') {
-		t.Error("lists hidden by default")
+	if c, _ := Load(write(t, good)); c.Channels.HidesList('b') || c.Channels.HidesList('e') || c.Channels.HideModes != "" {
+		t.Error("lists or modes hidden by default")
+	}
+	if _, err := Load(write(t, good+"\n[channels]\nhide_modes = \"beIklov\"\n")); err != nil {
+		t.Errorf("hide_modes beIklov: %v", err)
 	}
 }
 

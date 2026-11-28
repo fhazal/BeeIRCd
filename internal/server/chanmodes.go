@@ -903,6 +903,7 @@ var chmodesHelp = []string{
 	" Z everyone is on TLS (the server, with +z)",
 	"Halfops and up, and opers with flag g, skip c S G C T E B and the message",
 	"parts of +f. Channels without +F use the server's flood profile.",
+	"A server may show changes of some modes to the ops only.",
 }
 
 var extbansHelp = []string{

@@ -1,6 +1,8 @@
 package server
 
 import (
+	"strings"
+
 	"github.com/fhazal/beeircd/internal/irc"
 	"github.com/fhazal/beeircd/internal/state"
 )
@@ -174,7 +176,13 @@ func (s *Server) prepare(ev state.Event) func() {
 		}
 		return func() {
 			ch := s.net.Channel(e.Channel)
-			for _, line := range modeLines(fromState(e.Changes)) {
+			all := fromState(e.Changes)
+			shown, hides := s.shownModes(all)
+			if hides && ch != nil {
+				s.sendHiddenModes(ch, e, name, all, shown)
+				return
+			}
+			for _, line := range modeLines(all) {
 				o := s.outFrom(e.Source, "MODE", append([]string{name}, line...)...)
 				if ch == nil { // -P closed the empty channel: tell whoever did it
 					if src := s.net.UserByUID(e.Source); src != nil {
@@ -312,6 +320,55 @@ func (s *Server) deliverAll(to []*state.User, o *outMsg) {
 
 // modeLines splits changes into MODE parameter lists of at most
 // maxModeParams arguments each.
+// shownModes leaves out the changes [channels] hide_modes keeps for the
+// ops; hides reports whether it left any out.
+func (s *Server) shownModes(all []modeChange) (shown []modeChange, hides bool) {
+	hidden := s.cfg.Channels.HideModes
+	if hidden == "" {
+		return all, false
+	}
+	for _, m := range all {
+		if strings.IndexByte(hidden, m.mode) >= 0 {
+			hides = true
+		} else {
+			shown = append(shown, m)
+		}
+	}
+	if !hides {
+		return all, false
+	}
+	return shown, true
+}
+
+// sendHiddenModes gives ops (@ and up), whoever made the change and
+// whoever a hidden rank change is about every change in all; the other people
+// here get only shown, if anything.
+func (s *Server) sendHiddenModes(ch *state.Channel, e *state.ChannelMode, name string, all, shown []modeChange) {
+	lines := func(changes []modeChange) []*outMsg {
+		var out []*outMsg
+		for _, line := range modeLines(changes) {
+			out = append(out, s.outFrom(e.Source, "MODE", append([]string{name}, line...)...))
+		}
+		return out
+	}
+	full, part := lines(all), lines(shown)
+	sees := map[string]bool{e.Source: true}
+	for _, m := range e.Changes {
+		if m.UID != "" && strings.IndexByte(s.cfg.Channels.HideModes, m.Mode) >= 0 {
+			sees[m.UID] = true
+		}
+	}
+	for _, m := range ch.Members {
+		send := part
+		if sees[m.User.UID] || m.AtLeast(state.RankOp) {
+			send = full
+		}
+		for _, o := range send {
+			s.deliverTo(m.User, o)
+		}
+	}
+}
+
 func modeLines(changes []modeChange) [][]string {
 	var out [][]string
 	for len(changes) > 0 {

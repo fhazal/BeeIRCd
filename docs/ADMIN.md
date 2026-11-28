@@ -1606,6 +1606,7 @@ log_file    = "services.log"
 | `create` | `"everyone"` | Who may make a new channel: `"everyone"`, `"registered"` (logged in to NickServ) or `"opers"` |
 | `hide_bans` | `false` | Only ops (and opers) may read a channel's ban list; the exception and invite lists are for ops only either way |
 | `hide_lists` | `""` | The lists only ops may read, like InspIRCd's hidelist: `b` bans, `e` exceptions, `I` invite exceptions, like `"beI"`. `hide_bans = true` counts as `b`, and opers may still read the ban list. `e` and `I` are for ops only either way, so today only `b` changes what people see |
+| `hide_modes` | `""` | Channel mode letters whose changes only ops (`@` and up) see, like InspIRCd's hidemode, like `"beIk"`. Whoever made the change and whoever a rank change (`+v`, `+o`...) is about see it too. When one MODE line mixes hidden and other letters, the others get a line with only the rest, or nothing. Only what people on this server are sent changes; links get every change as before |
 
 ### [history]
 
