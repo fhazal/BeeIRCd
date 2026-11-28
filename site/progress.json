@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-28T16:20:00+08:00",
+ "updated": "2026-11-28T18:25:00+08:00",
  "gauges": [
   {
    "id": "g-v1",
@@ -24,6 +24,10 @@
  },
  "next": "Final 1.7.2 once rc1 runs well.",
  "done": [
+  [
+   "2026-11-28T18:25",
+   "Website pictures got animated labels: small data plates on the Dome House and the Hive (live people count, version), and a lock-on card with a node rail on the sky islands"
+  ],
   [
    "2026-11-28T16:20",
    "1.7.2-rc1 published and live on both SKINTERNET servers: every person stayed connected during the switch"
