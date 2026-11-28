@@ -600,8 +600,12 @@ func (s *Server) linkUpLine(l *linkConn, m irc.Message) {
 	if !l.eos {
 		s.netjoin = s.netjoinFor(l)
 	}
+	prev := s.issuer
+	if v := m.Tags[issuedByTag]; v != "" {
+		s.issuer = v // what it sets off here and on is issued by the same
+	}
 	s.linkCommand(l, m)
-	s.netjoin = nil
+	s.netjoin, s.issuer = nil, prev
 }
 
 // linkUp runs when the handshake is done: the server joins the tree, we

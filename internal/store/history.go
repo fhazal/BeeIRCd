@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS admin_history (
 );
 `
 
-// Change is one recorded AdminServ change. Kind is "set", "motd", "port",
+// Change is one recorded AdminServ change. Kind is "set", "motd", "omotd", "port",
 // "oper" or "class"; Key what it was about (a setting, an oper's account,
 // a class); Old and New the values before and after (encoded by kind).
 type Change struct {

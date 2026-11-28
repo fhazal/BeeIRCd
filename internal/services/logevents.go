@@ -137,6 +137,18 @@ func (s *Services) LogKill(u *state.User, by, reason string) {
 	s.logTo(s.global, "USERS: "+anopeMask(u)+" was killed by "+by+" (Reason: "+reason+")")
 }
 
+// LogOperCommand posts an oper's command ([log] oper_commands), from
+// OperServ.
+// With log_events unset they go too: the switch asked for them.
+func (s *Services) LogOperCommand(text string) {
+	if s.off || (s.logChannel() == "" && !s.logFileOn()) {
+		return
+	}
+	if s.cfg.Services.LogEvents == nil || s.cfg.Services.LogEventOn("opercmd") {
+		s.logTo(s.operServ, text)
+	}
+}
+
 // LogServerJoin posts that a server joined the network, from Global.
 func (s *Services) LogServerJoin(name, desc, uplink string) {
 	if !s.logEventOn("server") {

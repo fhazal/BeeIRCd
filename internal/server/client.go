@@ -51,6 +51,7 @@ type Client struct {
 	webircBusy            bool         // a hashed WEBIRC password is being checked
 	tempShun              bool         // a spam filter shunned this connection (until it reconnects)
 	shunLogged            bool         // a SHUN hit went to the services log once
+	operCmd               *irc.Message // the command running, for [log] oper_commands (operlog.go)
 	closed                bool
 	caps                  map[string]bool      // IRCv3 capabilities this client asked for
 	preAway               string               // AWAY sent before registration (draft/pre-away)

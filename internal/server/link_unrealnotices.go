@@ -30,15 +30,16 @@ func unrealSno(l byte) byte {
 }
 
 // snoticeAny sends text to every oper with +s whose snomask has any of the
-// letters, once each.
-func (s *Server) snoticeAny(letters []byte, text string) {
+// letters, once each. jsonTag is the server's unrealircd.org/json-log tag
+// for it ("" = none), passed on to opers with message-tags.
+func (s *Server) snoticeAny(letters []byte, text, jsonTag string) {
 	if len(letters) == 0 {
 		return
 	}
 	for c := range s.opers {
 		for _, l := range letters {
 			if c.wantsSno(l) {
-				s.notice(c, "*** "+snoCategory(letters[0])+": "+text)
+				s.snoNotice(c, "*** "+snoCategory(letters[0])+": "+text, jsonTag)
 				break
 			}
 		}
@@ -70,7 +71,7 @@ func (s *Server) remoteSendSno(l *linkConn, m irc.Message) {
 	for i := 0; i < len(m.Params[0]); i++ {
 		letters = append(letters, unrealSno(m.Params[0][i]))
 	}
-	s.snoticeAny(letters, irc.Truncate(m.Params[1], 400))
+	s.snoticeAny(letters, irc.Truncate(m.Params[1], 400), "")
 	s.noticeLinks(l, m)
 }
 
@@ -114,6 +115,6 @@ func (s *Server) remoteSlog(l *linkConn, m irc.Message) {
 	if srv, u, ok := s.linkSource(l, m.Source); !ok || u != nil || srv == nil {
 		return
 	}
-	s.snoticeAny([]byte{slogLetter(m.Params[1], m.Params[2])}, irc.Truncate(m.Params[3], 400))
+	s.snoticeAny([]byte{slogLetter(m.Params[1], m.Params[2])}, irc.Truncate(m.Params[3], 400), m.Tags[jsonLogTagName])
 	s.noticeLinks(l, m)
 }

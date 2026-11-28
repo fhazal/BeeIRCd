@@ -74,6 +74,7 @@ func init() {
 // needOper checks that c is an IRC operator (any flags).
 func (s *Server) needOper(c *Client) bool {
 	if c.isOper() {
+		s.operCheckPassed(c)
 		return true
 	}
 	s.reply(c, irc.ErrNoPrivileges, "Permission denied: you're not an IRC operator")

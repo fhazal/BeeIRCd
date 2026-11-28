@@ -111,7 +111,7 @@ Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few 
 | **HostServ**: ON, OFF, GROUP, REQUEST; opers SET, SETALL, DEL, DELALL, LIST, WAITING, ACTIVATE, REJECT | ✅ |
 | **BotServ**: channel bots, ASSIGN, SAY, ACT, GREET, 10 kickers, BADWORDS, fantasy commands (`!op`, `!kick`, `!mute` ...) | ✅ |
 | **OperServ**: STATS, GLOBAL, AKILL, ZLINE, SNLINE, SHUN, SQLINE, EXCEPTION, KILL, MODE, KICK, FORBID, SESSION, NEWS, IGNORE, USERLIST, CHANLIST, SEEN, CHANKILL, SVSNICK, SVSJOIN, SVSPART, OLINE, RELOAD, LOGSEARCH | ✅ |
-| **AdminServ**: server settings, MOTD, ports, opers and classes from IRC, with HISTORY, DIFF and UNDO | ✅ |
+| **AdminServ**: server settings, MOTD, oper MOTD (OMOTD), ports, opers and classes from IRC, with HISTORY, DIFF and UNDO | ✅ |
 | Mail (SMTP with STARTTLS or TLS on 465, or a sendmail program) with Anope's templates; easy setup in the Hive Panel (Gmail, Outlook, Zoho presets, test mail with plain-words errors, SPF / DKIM / DMARC check) and `beeircd mail-test` | ✅ |
 | Services log channel, lines exactly as Anope writes them | ✅ |
 | Services in your language: NickServ `SET LANGUAGE` (English, Bahasa Melayu), a network default (`default_language`); the oper tools stay English | ✅ |
@@ -125,6 +125,9 @@ Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few 
 | Oper by TLS client certificate, with or without a password | ✅ | like UnrealIRCd's certfp oper blocks |
 | Oper flags `a b c g h k s` and oper classes | ✅ | built-in helper, globop, admin, netadmin; oper vhost and swhois |
 | `/KILL`, `/WALLOPS`, server notices | ✅ | |
+| `unrealircd.org/json-log` tag on server notices for opers with message-tags (UnrealIRCd's JSON fields), and UnrealIRCd's own passed on | ✅ | UnrealIRCd's json-log-tag |
+| `unrealircd.org/issued-by` tag for opers: who is behind a KICK, MODE, KILL, JOIN or PART (an oper command, services or an RPC call) | ✅ | UnrealIRCd's issued-by-tag and its values; carried over UnrealIRCd and BeeIRCd links |
+| Oper command log (`[log] oper_commands`): every command that needs oper rights, with who, account and parameters, to the server log and the log channel | ✅ | InspIRCd's operlog; passwords never logged; off by default |
 | One network ban list: AKILL / G-line, ZLINE, Q-line, R-line (realname), SHUN, ELINE exemptions, all with expiry | ✅ | matches the real host and IP, never the cloak |
 | Channel extbans: every extban of UnrealIRCd 6 and InspIRCd 4, with country and ASN (security groups to come) | ✅ | Either server's names work; links translate them (`/HELP EXTBANS`) |
 | Reputation: a score per IP for chatting, saved, shared with BeeIRCd and UnrealIRCd links, in WHOIS for opers, `/REPUTATION` | ✅ | UnrealIRCd's rules: 5-minute rounds, channels of 3, expiry by score |

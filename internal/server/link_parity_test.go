@@ -128,7 +128,8 @@ func TestSamodeUnrealLinks(t *testing.T) {
 		u := hub.user("bob")
 		return u != nil && u.Modes['B'] && !u.Modes['o']
 	})
-	if !hub.logHas("link b.test.local -> :" + svc + " SVS2MODE " + bob + " +B") {
+	// It goes on with the oper behind it (unrealircd.org/issued-by).
+	if !hub.logHas("link b.test.local -> @unrealircd.org/issued-by=OPER:") || !hub.logHas(" :"+svc+" SVS2MODE "+bob+" +B") {
 		t.Errorf("b didn't hear of it")
 	}
 	if hub.logHas("+oB") {

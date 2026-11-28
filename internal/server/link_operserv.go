@@ -627,7 +627,7 @@ func linkBlockKV(b config.LinkServer) []config.KV {
 // elsewhere: live settings, RESTART and DIE (ports and link blocks need
 // the shell there). A BeeIRCd from before RESTART and DIE were here
 // answers that they can't be run from another server.
-var remoteAdminOK = map[string]bool{"SHOW": true, "SET": true, "MOTD": true, "OPER": true, "CLASS": true,
+var remoteAdminOK = map[string]bool{"SHOW": true, "SET": true, "MOTD": true, "OMOTD": true, "OPER": true, "CLASS": true,
 	"HISTORY": true, "DIFF": true, "UNDO": true, "DNSBL": true, "STATUS": true, "RESTART": true, "DIE": true}
 
 // asServerOn is "/as server <name> <command ...>": run it on server name.

@@ -74,6 +74,7 @@ can change things; every oper can look.
 | `SHOW [setting]` | The settings AdminServ can change, with their values |
 | `SET <setting> <value>` | Change one now and save it |
 | `MOTD SHOW\|SET\|ADD\|DEL\|CLEAR` | Edit the message of the day |
+| `OMOTD SHOW\|SET\|ADD\|DEL\|CLEAR` | Edit the oper MOTD (`[motd] oper_file`, shown at `/oper` and by `OPERMOTD`); with no `oper_file` yet it makes `opermotd.txt` next to `beeircd.conf` |
 | `PORT LIST\|ADD\|DEL <port> [TLS]` | Open or close a port now |
 | `OPER LIST`, `OPER <nick> ADD\|SET\|DEL\|DISABLE\|ENABLE` | Who is an IRC operator, their class, flags, hosts, password, title, vhost, swhois |
 | `CLASS LIST`, `CLASS <name> ADD\|SET\|DEL` | Oper classes |
@@ -384,6 +385,26 @@ both ways with InspIRCd servers that have those modules loaded, and
 ALLTIME asks them for their clock too. UnrealIRCd has no SANICK: someone
 on an UnrealIRCd server is renamed the way services do it, which works
 when this server is in that server's `ulines`.
+
+**Who did it (issued-by tag).** Opers whose client has `message-tags` see
+who is behind a line in UnrealIRCd's `unrealircd.org/issued-by` tag: an
+oper command (`OPER:Boss@irc.example.org:Boss`, for KILL, SAKICK, SAMODE,
+SAJOIN, SAPART, CHGHOST and the other commands that need oper rights), a
+services action (`SERVICES:OperServ@services.example.org`, like an
+OperServ or ChanServ KICK) or an Admin API call
+(`RPC:tool@irc.example.org`, with the `rpc.set_issuer` name after a `:`).
+Nobody else gets it. It travels to UnrealIRCd and BeeIRCd links and comes
+back from them; InspIRCd links don't carry it.
+
+**Server notices as JSON (json-log tag).** For opers whose client has
+`message-tags`, each server notice also carries UnrealIRCd's
+`unrealircd.org/json-log` tag: a small JSON object with `timestamp`,
+`level`, `subsystem`, `event_id`, `log_source` (this server) and `msg`
+(the notice text), like
+`{"timestamp":"2026-11-28T10:00:00.000Z","level":"info","subsystem":"connect","event_id":"LOCAL_CLIENT_CONNECT","log_source":"irc.example.org","msg":"Client connecting ..."}`.
+The subsystem and event id follow the notice letter (`connect`, `kill`,
+`oper`, `tkl`, `link`, `nick`, ...), with UnrealIRCd's names where it has
+one. A notice from an UnrealIRCd server keeps that server's own tag.
 
 **Moving people before maintenance.** `/JUMPSERVER irc2.example.org NEW
 back in an hour` sends everyone who connects from then on to
@@ -1462,7 +1483,7 @@ One block per port.
 | --- | --- | --- |
 | `file` | – | The message of the day |
 | `text` | – | Used when there is no file |
-| `oper_file` | – | A message for opers: shown after `/oper` and by `OPERMOTD` |
+| `oper_file` | – | A message for opers: shown after `/oper` and by `OPERMOTD`; AdminServ `OMOTD` edits it |
 | `oper_text` | – | Used when there is no `oper_file` |
 | `bot_file` | – | A message for bots, shown by `BOTMOTD` |
 | `bot_text` | – | Used when there is no `bot_file` |
@@ -1537,8 +1558,10 @@ block. The names:
 | `umode` | `USERS:` someone's user modes change |
 | `host` | `USERS:` someone's shown host changes |
 | `channel` | `CHANNEL:` joins, parts, a channel created and a channel left empty (not the log channel itself) |
+| `opercmd` | `OPERCMD:` an oper used a command that needs oper rights (only with [`[log] oper_commands`](#log)) |
 
-Unset, every event but `umode`, `host` and `channel` is on; an older
+Unset, every event but `umode`, `host` and `channel` is on (and
+`opercmd` when `[log] oper_commands` is on); an older
 config with `log_connects = false` also leaves out `connect`, `quit` and
 `nick`. A list you set replaces that default. Ban and session lines stop
 at 5 per ban mask (or IP) in 10 seconds, then one `... and N more hits`
@@ -1573,6 +1596,26 @@ with a new `log_file` closes the old file and opens the new one.
 log_channel = "#services"
 log_events  = ["connect", "quit", "oper", "kill", "server", "bans", "channel"]
 log_file    = "services.log"
+```
+
+### [log]
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `oper_commands` | `false` | Log every command an oper uses that needs oper rights (KILL, SAJOIN, SAMODE, GLINE, CHGHOST, WALLOPS, REHASH, ...), like InspIRCd's operlog |
+
+Each line names the oper (`nick!ident@host`), their account and oper
+name, and the command with its parameters, like
+`OPERCMD: Boss!boss@host (account Boss, oper Boss) used KILL guest :go away`.
+It goes to the server log, and to the services log channel and log file
+as event `opercmd` from OperServ (on unless `log_events` is set without
+it). Passwords are never written: they show as `*****`. Commands any user
+may use, and ones refused for missing rights, are not logged. Services
+commands (`/os`, `/as`, ...) are already in the log channel.
+
+```toml
+[log]
+oper_commands = true
 ```
 
 ### [limits]
@@ -2286,7 +2329,7 @@ and software), `JUPE <server> [reason]` / `JUPE LIST` / `JUPE DEL`
 (nobody may be an IRC operator there), `DEFCON 1-5`, and `SERVER LIST |
 ADD | SET | DEL | LINK | UNLINK` (writes the `[[link.server]]` blocks,
 also in AdminServ). AdminServ `SERVER <name> STATUS` and
-`SERVER <name> <command>` run on another BeeIRCd (SET, MOTD, OPER, CLASS,
+`SERVER <name> <command>` run on another BeeIRCd (SET, MOTD, OMOTD, OPER, CLASS,
 SHOW, HISTORY, DIFF, UNDO, DNSBL, RESTART, DIE; it needs `outside_admins =
 "network"` there and network reach, see [Admin roles](#admin-roles); ports
 and link blocks are changed in that server's shell). A plain `/as restart`

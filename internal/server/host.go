@@ -18,7 +18,16 @@ type host struct{ s *Server }
 
 var _ services.Host = host{}
 
-func (h host) Emit(ev state.Event) error { return h.s.emit(ev) }
+func (h host) Emit(ev state.Event) error {
+	s := h.s
+	if s.issuer == "" {
+		if v := s.servicesIssuer(ev); v != "" {
+			s.issuer = v
+			defer func() { s.issuer = "" }()
+		}
+	}
+	return s.emit(ev)
+}
 
 func (h host) Notice(fromUID, toUID, text string) {
 	s := h.s
@@ -82,6 +91,7 @@ func (h host) ServerNotice(uid, text string) {
 func (h host) Snotice(letter byte, text string) { h.s.sno(letter, "%s", text) }
 
 func (h host) Disconnect(uid, reason string) {
+	defer h.s.servicesDid("")()
 	if c := h.s.clients[uid]; c != nil {
 		h.s.quit(c, reason)
 		return
@@ -92,6 +102,7 @@ func (h host) Disconnect(uid, reason string) {
 }
 
 func (h host) Kill(uid, by, reason string) {
+	defer h.s.servicesDid(by)()
 	if u := h.s.net.UserByUID(uid); u != nil {
 		h.s.killUser(u, by, reason)
 	}
@@ -120,6 +131,7 @@ func (h host) IsAdminAccount(a *store.Account) bool { return h.s.isAdminAccount(
 
 func (h host) ApplyChannelModes(uid, srcUID, channel, modes string, args []string) {
 	s := h.s
+	defer s.servicesDid(srcUID)()
 	c, src, ch := s.clients[uid], s.net.UserByUID(srcUID), s.net.Channel(channel)
 	if c == nil || src == nil || ch == nil {
 		return
@@ -237,6 +249,7 @@ func (h host) JoinBlocked(uid, channel, key string) (string, bool) {
 
 func (h host) ForceJoin(uid, channel string) {
 	s := h.s
+	defer s.servicesDid("")()
 	c := s.clients[uid]
 	if c == nil && s.net.UserByUID(uid) != nil {
 		s.svsJoinRemote(uid, channel) // on another server: it joins them
@@ -282,6 +295,7 @@ func (h host) SessionOper(uid, flags string) bool {
 }
 
 func (h host) SetUserModes(uid, srcUID, modes string) bool {
+	defer h.s.servicesDid(srcUID)()
 	c := h.s.clients[uid]
 	if c == nil && h.s.net.UserByUID(uid) != nil {
 		// On another server: their server sets them (SVS2MODE), as

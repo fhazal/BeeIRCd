@@ -75,7 +75,7 @@ func describeRecord(kind, v string) string {
 	switch {
 	case v == "":
 		return "(none)"
-	case kind == "motd":
+	case kind == "motd" || kind == "omotd":
 		return strconv.Itoa(len(strings.Split(v, "\n"))) + " line(s): " + strings.ReplaceAll(v, "\n", " / ")
 	case kind == "oper":
 		var r operRecord
@@ -385,19 +385,23 @@ func asUndo(s *Server, c *Client, args []string) {
 	switch ch.Kind {
 	case "set":
 		s.applySetting(c, s.adminServ, ch.Key, ch.Old)
-	case "motd":
+	case "motd", "omotd":
+		mf := motdMain
+		if ch.Kind == "omotd" {
+			mf = motdOper
+		}
 		var lines []string
 		if ch.Old != "" {
 			lines = strings.Split(ch.Old, "\n")
 		}
-		now := strings.Join(s.cfg.MOTDLines(), "\n")
-		if err := s.writeMotd(lines); err != nil {
+		now := strings.Join(mf.lines(s.cfg), "\n")
+		if err := s.writeMotdFile(mf, lines); err != nil {
 			s.as(c, "Not saved: %v", err)
 			return
 		}
-		s.record(c, "motd", "motd", now, ch.Old)
-		s.audit(c, s.adminServ, "UNDO #%d (MOTD)", ch.ID)
-		s.as(c, "The MOTD is back to how it was before #%d.", ch.ID)
+		s.record(c, mf.kind, mf.kind, now, ch.Old)
+		s.audit(c, s.adminServ, "UNDO #%d (%s)", ch.ID, mf.cmd)
+		s.as(c, "%s is back to how it was before #%d.", mf.name, ch.ID)
 	case "class":
 		if ch.Old == "" {
 			if s.saveClass(c, ch.Key, nil, "undo") {
