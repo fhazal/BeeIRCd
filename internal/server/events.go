@@ -318,8 +318,6 @@ func (s *Server) deliverAll(to []*state.User, o *outMsg) {
 	}
 }
 
-// modeLines splits changes into MODE parameter lists of at most
-// maxModeParams arguments each.
 // shownModes leaves out the changes [channels] hide_modes keeps for the
 // ops; hides reports whether it left any out.
 func (s *Server) shownModes(all []modeChange) (shown []modeChange, hides bool) {
@@ -369,6 +367,8 @@ func (s *Server) sendHiddenModes(ch *state.Channel, e *state.ChannelMode, name s
 	}
 }
 
+// modeLines splits changes into MODE parameter lists of at most
+// maxModeParams arguments each.
 func modeLines(changes []modeChange) [][]string {
 	var out [][]string
 	for len(changes) > 0 {
