@@ -250,11 +250,16 @@ func (s *Server) lnotice(format string, a ...any) {
 	s.snoticeOpers('l', text)
 }
 
-// snoticeOpers sends text to the opers with +s whose snomask has letter.
+// snoticeOpers sends text to the opers with +s whose snomask has letter,
+// with the unrealircd.org/json-log tag for those with message-tags.
 func (s *Server) snoticeOpers(letter byte, text string) {
+	var tag string // made once, for the first oper who gets it
 	for c := range s.opers {
 		if c.wantsSno(letter) {
-			s.notice(c, "*** "+snoCategory(letter)+": "+text)
+			if c.caps["message-tags"] && tag == "" {
+				tag = s.jsonLogTag(letter, text)
+			}
+			s.snoNotice(c, "*** "+snoCategory(letter)+": "+text, tag)
 		}
 	}
 }

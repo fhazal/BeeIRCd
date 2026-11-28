@@ -396,6 +396,16 @@ OperServ or ChanServ KICK) or an Admin API call
 Nobody else gets it. It travels to UnrealIRCd and BeeIRCd links and comes
 back from them; InspIRCd links don't carry it.
 
+**Server notices as JSON (json-log tag).** For opers whose client has
+`message-tags`, each server notice also carries UnrealIRCd's
+`unrealircd.org/json-log` tag: a small JSON object with `timestamp`,
+`level`, `subsystem`, `event_id`, `log_source` (this server) and `msg`
+(the notice text), like
+`{"timestamp":"2026-11-28T10:00:00.000Z","level":"info","subsystem":"connect","event_id":"LOCAL_CLIENT_CONNECT","log_source":"irc.example.org","msg":"Client connecting ..."}`.
+The subsystem and event id follow the notice letter (`connect`, `kill`,
+`oper`, `tkl`, `link`, `nick`, ...), with UnrealIRCd's names where it has
+one. A notice from an UnrealIRCd server keeps that server's own tag.
+
 **Moving people before maintenance.** `/JUMPSERVER irc2.example.org NEW
 back in an hour` sends everyone who connects from then on to
 irc2.example.org (numeric 010; most clients follow it by themselves) and
