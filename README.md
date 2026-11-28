@@ -118,7 +118,8 @@ The full list, with what is planned and what is only an idea, is in [docs/FEATUR
 | **1.6** | Channel stats, help channel, accounts per email | ✅ Released |
 | **1.7** | Connect classes, link rules, `STATS Y/G` | ✅ Released |
 | **1.7.1** | 60 linking and security fixes | ✅ Released |
-| **1.7.2** | SASL over links, `sasl_server` | 🧪 Testing (rc1) |
+| **1.7.2** | SASL over links, `sasl_server` | ✅ Released |
+| **1.7.3** | Last small UnrealIRCd / InspIRCd features (+c, hidden lists and modes, oper log, security group rules) | 🔨 Building |
 | **Later** | Module system | 🔭 Planned |
 
 ## 📦 Installing
