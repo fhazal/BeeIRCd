@@ -243,8 +243,9 @@ func TestUserRuleEval(t *testing.T) {
 	if r.String() != "in_security_group(a) || !in_security_group(b)" || strings.Join(r.Groups(), ",") != "a,b" {
 		t.Errorf("String %q, Groups %v", r.String(), r.Groups())
 	}
-	if CachedUserRule("is_tls()") == nil || CachedUserRule("is_tls(") != nil || CachedUserRule("is_tls()") != CachedUserRule("is_tls()") {
-		t.Error("CachedUserRule")
+	first, again := CachedUserRule("is_tls()"), CachedUserRule("is_tls()")
+	if first == nil || CachedUserRule("is_tls(") != nil || first != again {
+		t.Error("CachedUserRule: want the same parsed rule back, nil for a bad one")
 	}
 	if len(UserRuleWords()) != len(userWords) {
 		t.Error("UserRuleWords")
