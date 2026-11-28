@@ -100,9 +100,19 @@ type Config struct {
 	AllowDCC []AllowDCC `toml:"allow_dcc"`
 	// OperClasses are the [[operclass]] blocks (see Classes).
 	OperClasses []OperClass `toml:"operclass"`
+	// Log is [log]: extra lines for the server log.
+	Log LogConf `toml:"log"`
 
 	// Path is the file this was read from; AdminServ writes changes there.
 	Path string `toml:"-"`
+}
+
+// LogConf is the [log] section.
+type LogConf struct {
+	// OperCommands writes every command an oper uses that needs oper
+	// rights to the server log and the log channel (event opercmd), like
+	// InspIRCd's operlog. Off by default.
+	OperCommands bool `toml:"oper_commands"`
 }
 
 // DNSBL is one DNS blocklist new connections are looked up in, like
@@ -691,9 +701,11 @@ func (s Services) RegDelayOr() time.Duration {
 func (s Services) LogConnectsOn() bool { return s.LogConnects == nil || *s.LogConnects }
 
 // LogEventNames are the events log_events takes.
-var LogEventNames = []string{"connect", "quit", "nick", "oper", "kill", "server", "bans", "other", "umode", "host", "channel"}
+var LogEventNames = []string{"connect", "quit", "nick", "oper", "kill", "server", "bans", "other", "umode", "host", "channel", "opercmd"}
 
 // LogEventsDefault are the events logged when log_events is unset.
+// opercmd isn't one: its lines need [log] oper_commands, which then also
+// logs them with log_events unset.
 var LogEventsDefault = []string{"connect", "quit", "nick", "oper", "kill", "server", "bans", "other"}
 
 // LogEventOn reports whether event (one of LogEventNames) goes to the log

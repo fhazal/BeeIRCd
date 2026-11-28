@@ -1532,8 +1532,10 @@ block. The names:
 | `umode` | `USERS:` someone's user modes change |
 | `host` | `USERS:` someone's shown host changes |
 | `channel` | `CHANNEL:` joins, parts, a channel created and a channel left empty (not the log channel itself) |
+| `opercmd` | `OPERCMD:` an oper used a command that needs oper rights (only with [`[log] oper_commands`](#log)) |
 
-Unset, every event but `umode`, `host` and `channel` is on; an older
+Unset, every event but `umode`, `host` and `channel` is on (and
+`opercmd` when `[log] oper_commands` is on); an older
 config with `log_connects = false` also leaves out `connect`, `quit` and
 `nick`. A list you set replaces that default. Ban and session lines stop
 at 5 per ban mask (or IP) in 10 seconds, then one `... and N more hits`
@@ -1568,6 +1570,26 @@ with a new `log_file` closes the old file and opens the new one.
 log_channel = "#services"
 log_events  = ["connect", "quit", "oper", "kill", "server", "bans", "channel"]
 log_file    = "services.log"
+```
+
+### [log]
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `oper_commands` | `false` | Log every command an oper uses that needs oper rights (KILL, SAJOIN, SAMODE, GLINE, CHGHOST, WALLOPS, REHASH, ...), like InspIRCd's operlog |
+
+Each line names the oper (`nick!ident@host`), their account and oper
+name, and the command with its parameters, like
+`OPERCMD: Boss!boss@host (account Boss, oper Boss) used KILL guest :go away`.
+It goes to the server log, and to the services log channel and log file
+as event `opercmd` from OperServ (on unless `log_events` is set without
+it). Passwords are never written: they show as `*****`. Commands any user
+may use, and ones refused for missing rights, are not logged. Services
+commands (`/os`, `/as`, ...) are already in the log channel.
+
+```toml
+[log]
+oper_commands = true
 ```
 
 ### [limits]

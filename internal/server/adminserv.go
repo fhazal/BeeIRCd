@@ -632,7 +632,7 @@ func baseSettings() []setting {
 			}},
 		{name: "log-connects", table: "services", key: "log_connects", help: "also log connects and quits there", kind: 'b',
 			get: func(c *config.Config) string { return onoff(c.Services.LogConnectsOn()) }, apply: servicesApply},
-		{name: "log-events", table: "services", key: "log_events", help: "events logged there: connect, quit, nick, oper, kill, server, bans, other, umode, host, channel (* all, OFF none, DEFAULT)", kind: 'e',
+		{name: "log-events", table: "services", key: "log_events", help: "events logged there: connect, quit, nick, oper, kill, server, bans, other, umode, host, channel, opercmd (* all, OFF none, DEFAULT)", kind: 'e',
 			get: logEventsGet, apply: servicesApply, enc: logEventsEnc},
 		{name: "registration", table: "services", key: "registration", help: "new NickServ accounts: none (ready at once), mail (confirm by email) or admin (an oper confirms)", kind: 't', hi: 5,
 			get: func(c *config.Config) string { return c.Services.RegistrationMode() }, apply: servicesApply,

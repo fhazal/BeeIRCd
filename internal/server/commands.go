@@ -257,6 +257,11 @@ func (s *Server) runCommand(c *Client, m irc.Message) {
 		if c.registered && !s.spamCheck(c, &m) {
 			return
 		}
+		if c.registered && s.cfg.Log.OperCommands {
+			mc := m         // a copy, so m stays off the heap when this is off
+			c.operCmd = &mc // logged when an oper check passes (operlog.go)
+			defer func() { c.operCmd = nil }()
+		}
 		cmd.run(s, c, m)
 	}
 }

@@ -155,7 +155,7 @@ func TestLogEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, e := range LogEventNames {
-		want := e != "umode" && e != "host" && e != "channel"
+		want := e != "umode" && e != "host" && e != "channel" && e != "opercmd"
 		if got := c.Services.LogEventOn(e); got != want {
 			t.Errorf("default %s = %v, want %v", e, got, want)
 		}

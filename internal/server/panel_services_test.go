@@ -84,7 +84,7 @@ func TestLogEventsSetting(t *testing.T) {
 
 	// Unset: the default list, without umode, host and channel.
 	st := find()
-	if st.Kind != "events" || st.Table != "services" || st.Value != "connect,quit,nick,oper,kill,server,bans,other" || len(st.Choices) != 11 {
+	if st.Kind != "events" || st.Table != "services" || st.Value != "connect,quit,nick,oper,kill,server,bans,other" || len(st.Choices) != 12 {
 		t.Fatalf("default: %+v", st)
 	}
 	if r := set("kill, Bans umode"); r.Changed == nil || r.Changed.New != "kill,bans,umode" {

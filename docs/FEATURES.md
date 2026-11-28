@@ -124,6 +124,7 @@ Commands, syntax and replies follow **Anope 2.0** (the stable line), with a few 
 | Oper by TLS client certificate, with or without a password | ✅ | like UnrealIRCd's certfp oper blocks |
 | Oper flags `a b c g h k s` and oper classes | ✅ | built-in helper, globop, admin, netadmin; oper vhost and swhois |
 | `/KILL`, `/WALLOPS`, server notices | ✅ | |
+| Oper command log (`[log] oper_commands`): every command that needs oper rights, with who, account and parameters, to the server log and the log channel | ✅ | InspIRCd's operlog; passwords never logged; off by default |
 | One network ban list: AKILL / G-line, ZLINE, Q-line, R-line (realname), SHUN, ELINE exemptions, all with expiry | ✅ | matches the real host and IP, never the cloak |
 | Channel extbans: every extban of UnrealIRCd 6 and InspIRCd 4, with country and ASN (security groups to come) | ✅ | Either server's names work; links translate them (`/HELP EXTBANS`) |
 | Reputation: a score per IP for chatting, saved, shared with BeeIRCd and UnrealIRCd links, in WHOIS for opers, `/REPUTATION` | ✅ | UnrealIRCd's rules: 5-minute rounds, channels of 3, expiry by score |

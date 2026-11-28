@@ -2,9 +2,12 @@ package server
 
 import (
 	"encoding/base64"
+	"log"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/fhazal/beeircd/internal/irc"
 )
 
 // The services log channel ([services] log_channel) and channel mode +O.
@@ -190,4 +193,59 @@ func TestLogChannelEvents(t *testing.T) {
 	b.send("KLINE +1h victim go away")
 	b.expect(osl + "KLINE: *@127.0.0.1 hit victim!~victim@127.0.0.1 (set by Boss: go away)")
 	v.expect("ERROR")
+}
+
+// [log] oper_commands: commands that need oper rights go to the server
+// log and the log channel (event opercmd); others, and refused ones, don't.
+func TestOperCommandLog(t *testing.T) {
+	var buf syncBuf
+	s, _, _ := fileServerWith(t, "\n[log]\noper_commands = true\n", func(s *Server) { s.log = log.New(&buf, "", 0) })
+	b := boss(t, s)
+	b.send("AS SET log-channel #services")
+	b.expect("log-channel is now #services")
+	joinAll("#services", b)
+	osl := ":OperServ!services@irc.test.local " + logSrc
+
+	g := login(t, s, "guest")
+	g.send("KILL Boss :not allowed")
+	g.expect(" 481 guest :Permission denied")
+	b.send("PRIVMSG guest :hello there")
+	b.send("KILL guest :go away now")
+	if l := b.expect(osl + "OPERCMD: Boss!"); !strings.Contains(l, "(account Boss") || !strings.HasSuffix(l, " used KILL guest :go away now") {
+		t.Errorf("log channel line: %q", l)
+	}
+	b.sync()
+	logged := buf.String()
+	if !strings.Contains(logged, "OPERCMD: Boss!") || !strings.Contains(logged, "used KILL guest :go away now") {
+		t.Errorf("server log lacks the KILL:\n%s", logged)
+	}
+	if strings.Contains(logged, "hello there") || strings.Contains(logged, "not allowed") {
+		t.Errorf("server log has a command that needs no oper rights, or a refused one:\n%s", logged)
+	}
+}
+
+// Off by default; secret parameters never reach the log.
+func TestOperCommandLogOff(t *testing.T) {
+	var buf syncBuf
+	s, _, _ := fileServerWith(t, "", func(s *Server) { s.log = log.New(&buf, "", 0) })
+	b := boss(t, s)
+	login(t, s, "guest")
+	b.send("KILL guest :bye")
+	b.expect("Local kill by Boss")
+	b.sync()
+	if strings.Contains(buf.String(), "OPERCMD") {
+		t.Errorf("logged with oper_commands off:\n%s", buf.String())
+	}
+	for in, want := range map[string]string{
+		"OPER Boss Hive-2026":   "OPER Boss *****",
+		"KILL guest :go away":   "KILL guest :go away",
+		"SAJOIN guest #a":       "SAJOIN guest #a",
+		"WALLOPS :hello":        "WALLOPS hello",
+		"AUTHENTICATE c2VjcmV0": "AUTHENTICATE *****",
+	} {
+		m, _ := irc.Parse(in)
+		if got := operCmdText(m); got != want {
+			t.Errorf("operCmdText(%q) = %q, want %q", in, got, want)
+		}
+	}
 }

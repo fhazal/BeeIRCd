@@ -263,6 +263,9 @@ func (s *Server) snoticeOpers(letter byte, text string) {
 // numeric when sv is nil).
 func (s *Server) needFlag(c *Client, sv *state.User, f byte) bool {
 	if c.can(f) {
+		if sv == nil {
+			s.logOperCmd(c)
+		}
 		return true
 	}
 	if sv == nil {
