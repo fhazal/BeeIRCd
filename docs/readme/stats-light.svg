@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="96" viewBox="0 0 900 96" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+<rect x="0.5" y=".5" width="215.0" height="95" rx="12" fill="#fff8e1" stroke="#f0d78c"/>
+<text x="108.0" y="48" text-anchor="middle" font-size="30" font-weight="800" fill="#a86a00">5,000</text>
+<text x="108.0" y="74" text-anchor="middle" font-size="14" fill="#57606a">users on 1 CPU / 512 MB</text>
+<rect x="228.5" y=".5" width="215.0" height="95" rx="12" fill="#fff8e1" stroke="#f0d78c"/>
+<text x="336.0" y="48" text-anchor="middle" font-size="30" font-weight="800" fill="#a86a00">349</text>
+<text x="336.0" y="74" text-anchor="middle" font-size="14" fill="#57606a">irctest checks passing</text>
+<rect x="456.5" y=".5" width="215.0" height="95" rx="12" fill="#fff8e1" stroke="#f0d78c"/>
+<text x="564.0" y="48" text-anchor="middle" font-size="30" font-weight="800" fill="#a86a00">0</text>
+<text x="564.0" y="74" text-anchor="middle" font-size="14" fill="#57606a">quits on update</text>
+<rect x="684.5" y=".5" width="215.0" height="95" rx="12" fill="#fff8e1" stroke="#f0d78c"/>
+<text x="792.0" y="48" text-anchor="middle" font-size="30" font-weight="800" fill="#a86a00">3</text>
+<text x="792.0" y="74" text-anchor="middle" font-size="14" fill="#57606a">server families it links to</text>
+</svg>

@@ -1,112 +1,106 @@
 <div align="center">
 
-<img src="docs/banner.webp" alt="BeeIRCd, the Internet Relay Chat daemon" width="85%">
-
-# BeeIRCd
-
-**The Hive of IRC.**<br>
-Where communities gather, conversations thrive, and every connection strengthens the hive.
-
-An IRC server with its services built in: one program, one config file, everything a network needs.<br>
-Classic IRC feel · services in the box · IRCv3 · light on a 1-CPU VPS
+<img src="docs/readme/hero.webp" alt="BeeIRCd, the Hive of IRC. An IRC server with its services built in." width="100%">
 
 [![CI](https://github.com/fhazal/BeeIRCd/actions/workflows/ci.yml/badge.svg)](https://github.com/fhazal/BeeIRCd/actions/workflows/ci.yml)
 ![Go 1.27](https://img.shields.io/badge/Go-1.27-00add8?logo=go&logoColor=white)
-[![Licence: AGPL-3.0-or-later](https://img.shields.io/badge/licence-AGPL--3.0--or--later-f5b301)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/fhazal/BeeIRCd?color=f5b301)](https://github.com/fhazal/BeeIRCd/releases/latest)
+[![Licence: AGPL-3.0-or-later](https://img.shields.io/badge/licence-AGPL--3.0--or--later-d9a000)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/fhazal/BeeIRCd?color=d9a000)](https://github.com/fhazal/BeeIRCd/releases/latest)
+[![Pre-release](https://img.shields.io/github/v/release/fhazal/BeeIRCd?include_prereleases&label=pre-release&color=d9a000)](https://github.com/fhazal/BeeIRCd/releases)
+![irctest 349 passing](https://img.shields.io/badge/irctest-349%20passing-2ea44f)
 
-[![Website](https://img.shields.io/badge/Website-beeircd.org-f5b301?style=for-the-badge)](https://beeircd.org)
-
-**[Install](docs/INSTALL.md)** · **[Run it](docs/ADMIN.md)** · **[Features](docs/FEATURES.md)** · **[What's new](https://github.com/fhazal/BeeIRCd/releases/latest)** · **[Progress](https://beeircd.org)**
+**[Install](docs/INSTALL.md)** · **[Run it](docs/ADMIN.md)** · **[Features](docs/FEATURES.md)** · **[What's new](https://github.com/fhazal/BeeIRCd/releases/latest)** · **[Website](https://beeircd.org)** · **[Try the web chat](https://chat.beeircd.org/)**
 
 </div>
 
 > [!NOTE]
-> BeeIRCd is a free, open-source IRC server by **BajuBesi Labs**, written from scratch in Go. **1.4 is out**: updates now keep people connected. On Linux a small door keeper holds the ports and hands everyone over to the new version, so nobody sees a quit.
-
----
+> **1.7.1 is out** with 60 linking and security fixes. **1.7.2-rc1** is testing now on our own network: SASL over links to UnrealIRCd and InspIRCd, and a new `sasl_server` setting.
 
 ## 🐝 Why BeeIRCd
 
-Running an IRC network usually means two programs that have to be wired together: a server (UnrealIRCd, InspIRCd) and a services package (Anope, Atheme). BeeIRCd is both. Start it once, and NickServ, ChanServ and friends are already there, sharing one database and one config.
+Running an IRC network usually means two programs wired together: a server (UnrealIRCd, InspIRCd) and a services package (Anope, Atheme). BeeIRCd is both, written from scratch in Go by **BajuBesi Labs**.
 
-- 🧩 **All in one**: server and services in a single binary, no separate services package to link and babysit.
-- 🔗 **Linking**: grow one server into a network. Links are TLS with pinned keys, no passwords, to other BeeIRCd servers, UnrealIRCd 6 or InspIRCd 4.
-- 🔄 **Updates without goodbyes**: `beeircd update` hands every connection to the new version. Nicks, channels, logins and chat history stay; nobody reconnects.
-- 🍯 **Hive Panel**: a web admin built in (`beeircd web`). Opers sign in with their oper account and see only what their flags allow.
-- 🛡️ **Services you already know**: commands, syntax and replies follow **Anope 2.0** (the stable line), so admins and users feel at home.
-- 👑 **AdminServ**: run the server from IRC itself, ConferenceRoom style: settings, MOTD, ports, opers and classes, with history and undo.
-- ⚡ **Small and fast**: 5,000 users on a 1-CPU / 512 MB VPS with single-digit millisecond lag.
-- 🌐 **Modern IRC**: IRCv3 capabilities, SASL, TLS, cloaked hosts, MONITOR.
+<table><tr>
+<td width="300"><img src="docs/readme/why-allinone.webp" alt="" width="300"></td>
+<td>
 
-## ✨ What's inside today
+### 🧩 All in one
+**One building, every floor already furnished.**
+
+- Server and services in a single program
+- NickServ, ChanServ, MemoServ and friends from the first start
+- One database, one config file
+
+</td>
+</tr></table>
+<table><tr>
+<td>
+
+### 🔗 Grows into a network
+**Start with one server, add more when you need them.**
+
+- TLS links locked by pinned keys, no passwords
+- Links to BeeIRCd, UnrealIRCd 6 and InspIRCd 4
+- Connect classes and link rules included
+
+</td>
+<td width="300"><img src="docs/readme/why-network.webp" alt="" width="300"></td>
+</tr></table>
+<table><tr>
+<td width="300"><img src="docs/readme/why-updates.webp" alt="" width="300"></td>
+<td>
+
+### 🔄 Updates without goodbyes
+**The hive moves house and nobody notices.**
+
+- `beeircd update` hands every connection to the new version
+- Nicks, channels, logins and history stay
+- Nobody sees a quit
+
+</td>
+</tr></table>
+<table><tr>
+<td>
+
+### 🍯 Hive Panel
+**A web control room, built in.**
+
+- Opers sign in with their oper account
+- Each sees only what their flags allow
+- Every change kept in history, with undo
+
+</td>
+<td width="300"><img src="docs/readme/why-panel.webp" alt="" width="300"></td>
+</tr></table>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/stats-dark.svg">
+  <img src="docs/readme/stats-light.svg" alt="5,000 users on 1 CPU / 512 MB · 349 irctest checks passing · 0 quits on update · 3 server families it links to" width="100%">
+</picture>
+
+## ✨ What's inside
 
 <table>
 <tr><td width="50%" valign="top">
 
-**🖧 Server**
-- TLS 1.2+ listeners, HMAC host cloaking
-- Prefixes `@+` or `~&@%+` (your choice)
-- UnrealIRCd-style channel modes, flood guard `+f` / `+F` profiles, `+L` link channels
-- Bans with extbans `~a ~r ~m ~t`, timed bans
-- AKILL, Z-lines, SHUN, SQLINE / SNLINE, DNS blocklists (DroneBL, EFnetRBL)
-- Oper classes, oper vhosts and swhois, `/oper <nick> <password>` or a TLS client certificate
-- Spam filter: `/SPAMFILTER` and `STATS F` with UnrealIRCd's syntax, shared over links
-- Seamless updates and restarts through the door keeper (Linux)
-- Auto-join, soft bans with a login prompt, spam reports to DroneBL
-- English and Malay, per person or as the network default
+**🖧 Server**<br>
+TLS, cloaking, Unreal-style modes, extbans, spam filter, connect classes, `STATS Y/G`, English + Malay
 
 </td><td width="50%" valign="top">
 
-**🤖 Services (Anope 2.0 style)**
-- **NickServ**: register, identify, SASL PLAIN + EXTERNAL, certificates, grouping, AJOIN
-- **ChanServ**: access levels, xOP lists, AKICK, MLOCK, SET options
-- **MemoServ**: memos, channel memos, notify by mail
-- **HostServ**: vhosts with requests and approval
-- **OperServ**: AKILL, sessions, news, SEEN, IGNORE, READONLY, NOEXPIRE, LOGSEARCH
-- **BotServ**: channel bots, kickers, bad words, fantasy commands
-- **AdminServ**: live server settings with HISTORY / DIFF / UNDO
-- **Global**: network notices, multi-line with QUEUE, or to one server
-- A `#services` log channel, Anope style, kept on disk too
-- **Moving from Anope**: `beeircd import-anope` brings anope.db over, passwords too
+**🤖 Services (Anope 2.0)**<br>
+NickServ, ChanServ, MemoServ, HostServ, OperServ, BotServ, AdminServ, Global, `import-anope`
 
 </td></tr>
 <tr><td valign="top">
 
-**🔗 Linking**
-- Hub and leaf, TLS on its own port, locked by fingerprint
-- BeeIRCd to BeeIRCd, UnrealIRCd 6 and InspIRCd 4, with services and SASL
-- One network: users, channels, bans, services and oper entries shared
-- `/MAP`, `beeircd link-info`, links shown in `beeircd status`
+**📡 IRCv3**<br>
+CAP 302, SASL, message-tags, labeled-response, metadata, channel rename, MONITOR, WHOX
 
 </td><td valign="top">
 
-**🍯 Hive Panel**
-- Overview: network status, Spotlight, health, server details
-- People, Channels, Bans, Opers, Linked servers with a network map
-- Services, Settings, Backups and Spam filter; changes kept in HISTORY with Undo
-- Every click checked by the server against your oper flags
-
-</td></tr>
-<tr><td valign="top">
-
-**📡 IRCv3**
-- CAP 302, message-tags, server-time, message-ids
-- SASL, account-notify, account-tag, extended-join
-- batch, labeled-response, echo-message
-- chghost, invite-notify, away-notify, MONITOR, extended-monitor
-- WHOX, bot mode, no-implicit-names
-
-</td><td valign="top">
-
-**✅ Tested**
-- Unit, integration and fuzz tests, race detector in CI
-- [irctest](https://github.com/progval/irctest) conformance: 348 passing
-- Linking test: 5,100 users on three servers, one cut off and rejoined 16 times, all agree after each
-- 6 hour soak with 2,000 users, and fuzzing of every parser before each release
-- Links checked against UnrealIRCd 6 and InspIRCd 4 before every release
-- 50 bots kept connected through update, rollback and restart
-- Live checks against a real test network after every deploy
+**✅ Tested**<br>
+Unit, fuzz and race tests, 6 h soak, link tests against UnrealIRCd 6 and InspIRCd 4 before every release
 
 </td></tr>
 </table>
@@ -117,12 +111,13 @@ The full list, with what is planned and what is only an idea, is in [docs/FEATUR
 
 | Version | What | Status |
 | --- | --- | --- |
-| 1.0 | Server and services, linking (BeeIRCd and UnrealIRCd 6), Hive Panel, BeeRoom web chat | ✅ Released |
-| 1.1 | Spam filter, moving from Anope, opers by certificate, a calmer "What happened" page | ✅ Released |
-| 1.2 | UnrealIRCd's web panel works with BeeIRCd, languages (English, Malay), IRCv3 drafts | ✅ Released |
-| 1.3 | Auto-join, soft bans with a login prompt, spam reports, oper tools on every panel page | ✅ Released |
-| 1.4 | Updates keep people connected, Anope-style services log, OperServ READONLY / NOEXPIRE | ✅ Released |
-| 1.4.1 | Read-only mode covers every form, small fixes | 🔜 Next |
+| **1.0 – 1.4** | Server, services, linking, Hive Panel, BeeRoom, spam filter, Anope import, languages, seamless updates | ✅ Released |
+| **1.5** | IRCv3 metadata, channel rename | ✅ Released |
+| **1.6** | Channel stats, help channel, accounts per email | ✅ Released |
+| **1.7** | Connect classes, link rules, `STATS Y/G` | ✅ Released |
+| **1.7.1** | 60 linking and security fixes | ✅ Released |
+| **1.7.2** | SASL over links, `sasl_server` | 🧪 Testing (rc1) |
+| **Later** | Module system | 🔭 Planned |
 
 ## 📦 Installing
 
@@ -185,7 +180,10 @@ BeeIRCd is free software under the [GNU Affero General Public License v3.0 or la
 
 <div align="center">
 
-<img src="docs/logo/beeircd.svg" alt="BeeIRCd" width="300">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/logo/logo-dark.svg">
+  <img src="docs/logo/logo-light.svg" alt="BeeIRCd" width="300">
+</picture>
 
 **The Hive of IRC**
 
