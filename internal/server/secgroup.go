@@ -71,7 +71,122 @@ func (s *Server) groupMatch(u *state.User, m config.GroupMatch, now time.Time, d
 			return true
 		}
 	}
+	if r := m.UserRule(); r != nil && r.Matches(ruleUser{ruleNet{s}, u, c, now, depth}) {
+		return true
+	}
 	return false
+}
+
+// ruleUser is one person as a security group rule sees them
+// (config.RuleUser), with UnrealIRCd's words. c is nil for people on
+// other servers; words about the connection give 0 for them.
+type ruleUser struct {
+	ruleNet
+	u     *state.User
+	c     *Client
+	now   time.Time
+	depth int
+}
+
+func yes(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func (r ruleUser) RuleValue(word, arg string) int {
+	u, c := r.u, r.c
+	switch word {
+	case "is_identified":
+		return yes(u.Account != "")
+	case "is_webirc":
+		return yes(u.Gateway != "")
+	case "is_websocket":
+		return yes(c != nil && c.websocket)
+	case "is_tls":
+		return yes(u.TLS || u.HasMode('z'))
+	case "is_oper":
+		return yes(u.HasMode('o'))
+	case "is_away":
+		return yes(u.Away != "")
+	case "is_local":
+		return yes(c != nil)
+	case "has_swhois":
+		return yes(len(u.Swhois) > 0 || len(u.OperSwhois) > 0 || (c != nil && len(c.operSwhois) > 0))
+	case "reputation":
+		return r.s.repScore(u.IP)
+	case "online_time":
+		return int(r.now.Sub(u.SignOn) / time.Second)
+	case "server_port":
+		if c != nil {
+			return c.port
+		}
+	case "channel_count":
+		return len(u.Channels)
+	case "in_security_group":
+		return yes(r.s.inGroup(u, arg, r.now, r.depth+1))
+	case "in_channel":
+		// '#help', or with a status like '@#help' (op or more).
+		name, prefix := arg, ""
+		if i := strings.IndexByte(arg, '#'); i > 0 {
+			prefix, name = arg[:i], arg[i:]
+		}
+		for _, ch := range u.Channels {
+			if irc.Match(name, ch.Name) && (prefix == "" || state.MatchUser("~channel:"+prefix+ch.Name, u)) {
+				return 1
+			}
+		}
+	case "has_user_mode":
+		for i := 0; i < len(arg); i++ {
+			if !u.HasMode(arg[i]) {
+				return 0
+			}
+		}
+		return yes(arg != "")
+	case "cap_set":
+		return yes(c != nil && c.caps[strings.ToLower(arg)])
+	case "match_mask":
+		return yes(state.MatchUser(arg, u))
+	case "match_ip":
+		if n, err := config.ParseCIDR(arg); err == nil {
+			ip := net.ParseIP(u.IP)
+			return yes(ip != nil && n.Contains(ip))
+		}
+		return yes(u.IP != "" && irc.Match(arg, u.IP))
+	case "match_account":
+		if arg == "0" {
+			return yes(u.Account == "")
+		}
+		return yes(u.Account != "" && irc.Match(arg, u.Account))
+	case "match_country":
+		return yes(u.Country != "" && irc.Match(arg, u.Country))
+	case "match_asn":
+		return yes(u.ASN != 0 && arg == strconv.FormatUint(uint64(u.ASN), 10))
+	case "match_asname":
+		return yes(u.ASOrg != "" && irc.Match(arg, u.ASOrg))
+	case "match_certfp":
+		return yes(u.CertFP != "" && irc.Match(arg, u.CertFP))
+	case "match_realname":
+		return yes(irc.Match(arg, u.Realname))
+	case "match_realhost":
+		return yes(irc.Match(arg, u.RealHost))
+	case "match_vhost":
+		return yes(irc.Match(arg, u.Host))
+	case "match_server":
+		return yes(irc.Match(arg, u.Server))
+	case "match_away":
+		return yes(u.Away != "" && irc.Match(arg, u.Away))
+	case "match_operlogin":
+		return yes(u.HasMode('o') && u.OperName != "" && irc.Match(arg, u.OperName))
+	case "match_operclass":
+		class := u.OperClass
+		if c != nil && c.operClass != "" {
+			class = c.operClass
+		}
+		return yes(u.HasMode('o') && class != "" && irc.Match(arg, class))
+	}
+	return 0
 }
 
 // groupsOf is every group u is in: known-users or unknown-users first.
