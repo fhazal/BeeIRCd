@@ -95,6 +95,12 @@ func (s *Server) hideServers(c *Client) bool {
 	return s.cfg.Server.HideServers && !c.isOper()
 }
 
+// flatMap reports whether c sees every server as linked straight to this
+// one in MAP and LINKS.
+func (s *Server) flatMap(c *Client) bool {
+	return s.cfg.Server.FlatMap && !c.isOper()
+}
+
 // operExtras runs after a fresh /oper: the oper MOTD, [server] oper_modes
 // and oper_join.
 func (s *Server) operExtras(c *Client) {

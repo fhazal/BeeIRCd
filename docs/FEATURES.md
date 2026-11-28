@@ -20,7 +20,7 @@ How to set each one up is in [ADMIN.md](ADMIN.md); installing is in [INSTALL.md]
 | A PING new connections must answer, and a redirect for browsers that open an IRC port | ✅ | `[server] ping_cookie`, `web_redirect` |
 | EXTJWT: signed tokens for other services | ✅ | `[extjwt]` |
 | Auto-join on connect (with groups that skip it) and at `/oper` (more channels by oper flag), set in AdminServ or the Hive Panel | ✅ | `[server] auto_join`, `auto_join_skip`, `oper_join`, `oper_join_flag` |
-| Hidden server list, modes and channels at `/oper`, modes on connect, switched-off commands, who may make channels | ✅ | `[server] hide_servers`, `oper_modes`, `oper_join`, `connect_modes`; `[limits] disabled_commands`; `[channels] create` |
+| Hidden or flat server list, modes and channels at `/oper`, modes on connect, switched-off commands, who may make channels | ✅ | `[server] hide_servers`, `flat_map` (every server shown straight under yours), `oper_modes`, `oper_join`, `connect_modes`; `[limits] disabled_commands`; `[channels] create` |
 | Input limits | ✅ | lines over 510 bytes or tags over 4096 bytes get 417 and are dropped, not cut |
 | User modes `i w o s r x` | ✅ | |
 | User modes `B d D R T p Z H W q z` | ✅ | UnrealIRCd letters and rules: bot, deaf, private-message filters, hidden channels, hidden oper, WHOIS notice, unkickable, TLS |

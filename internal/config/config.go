@@ -193,6 +193,10 @@ type Server struct {
 	// HideServers keeps the server list from people who are not opers:
 	// LINKS and MAP only show the server they are on.
 	HideServers bool `toml:"hide_servers"`
+	// FlatMap shows people who are not opers every server as linked
+	// straight to this one in MAP and LINKS (UnrealIRCd's flat-map).
+	// HideServers goes first.
+	FlatMap bool `toml:"flat_map"`
 	// ConnectModes are user modes everyone gets when they connect, like
 	// "+R" (on top of +i, and +x with cloaking).
 	ConnectModes string `toml:"connect_modes"`

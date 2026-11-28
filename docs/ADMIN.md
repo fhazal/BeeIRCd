@@ -1377,6 +1377,7 @@ Unknown settings are refused, so a typo shows up in `beeircd check`.
 | `casemapping` | `"ascii"` | How nicks and channels ignore case: `"ascii"` (only A-Z: `Belon` = `belon`, but `[` and `{` differ, like UnrealIRCd 6 and InspIRCd) or `"rfc1459"` (also `[]\~` = `{}|^`). Every linked server needs the same; UnrealIRCd links need ascii. Changing it moves the stored nicks and channels to the new rule at the next start; going to rfc1459 is refused when two stored names would become one (restart) |
 | `ident_lookup` | `false` | Ask the ident server (port 113) of every connecting computer for the username; with an answer the username shows without the leading `~`. Off by default: almost nobody runs an ident server any more, and each login waits up to 3 seconds for the answer. Not asked on WebSocket or `proxy` ports |
 | `hide_servers` | `false` | Keep the server list from people who are not opers: LINKS and MAP only show the server they are on |
+| `flat_map` | `false` | People who are not opers see every server as linked straight to the one they are on in LINKS and MAP, one hop away (UnrealIRCd's flat-map). Opers see the real tree. With `hide_servers` on too, `hide_servers` wins |
 | `connect_modes` | – | User modes everyone gets when they connect, like `"+R"` (on top of `+i`, and `+x` with cloaking) |
 | `oper_modes` | – | User modes set at `/oper`, like `"+WH"` |
 | `auto_join` | – | Channels everyone joins when they connect, like `["#chat"]` (UnrealIRCd's `set::auto-join`). It is a normal JOIN: bans, keys and limits still apply. See "Auto-join" below |
