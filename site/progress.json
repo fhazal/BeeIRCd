@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-28T05:21:38+08:00",
+ "updated": "2026-11-28T15:45:00+08:00",
  "gauges": [
   {
    "id": "g-v1",
@@ -17,13 +17,17 @@
   }
  ],
  "now": {
-  "title": "1.7.2 release test",
-  "text": "The long tests are running on the test server (heavy linking, speed, fuzzing and a 6-hour soak). Linking with InspIRCd and UnrealIRCd passed.",
-  "start": "2026-11-27T23:30:00+08:00",
-  "end": "2026-11-28T13:00:00+08:00"
+  "title": "1.7.2 ready for rc1",
+  "text": "The release test passed: race checks, linking with InspIRCd and UnrealIRCd, updates, hand-overs, heavy linking, speed, fuzzing and a 6-hour soak.",
+  "start": "2026-11-28T15:45:00+08:00",
+  "end": "2026-11-28T20:00:00+08:00"
  },
- "next": "1.7.2: finish the long tests, then 1.7.2-rc1 on the live servers.",
+ "next": "1.7.2-rc1 on the live servers.",
  "done": [
+  [
+   "2026-11-28T15:45",
+   "1.7.2 release test passed: as fast as 1.7.1 or faster (chat lag 10.3 ms vs 11.1 ms), 6 hours without a problem, and SASL logins work through InspIRCd and UnrealIRCd relinks"
+  ],
   [
    "2026-11-28T05:21",
    "Website header: the whole Dome House now shows, sharp, sitting on the page black with a soft honey glow"
