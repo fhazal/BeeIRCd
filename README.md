@@ -20,9 +20,10 @@
 
 Running an IRC network usually means two programs wired together: a server (UnrealIRCd, InspIRCd) and a services package (Anope, Atheme). BeeIRCd is both, written from scratch in Go by **BajuBesi Labs**.
 
-<table><tr>
-<td width="300"><img src="docs/readme/why-allinone.webp" alt="" width="300"></td>
-<td>
+<table>
+<tr>
+<td width="50%" align="center"><img src="docs/readme/why-allinone.webp" alt="" width="260"></td>
+<td width="50%">
 
 ### 🧩 All in one
 **One building, every floor already furnished.**
@@ -32,9 +33,9 @@ Running an IRC network usually means two programs wired together: a server (Unre
 - One database, one config file
 
 </td>
-</tr></table>
-<table><tr>
-<td>
+</tr>
+<tr>
+<td width="50%">
 
 ### 🔗 Grows into a network
 **Start with one server, add more when you need them.**
@@ -44,11 +45,11 @@ Running an IRC network usually means two programs wired together: a server (Unre
 - Connect classes and link rules included
 
 </td>
-<td width="300"><img src="docs/readme/why-network.webp" alt="" width="300"></td>
-</tr></table>
-<table><tr>
-<td width="300"><img src="docs/readme/why-updates.webp" alt="" width="300"></td>
-<td>
+<td width="50%" align="center"><img src="docs/readme/why-network.webp" alt="" width="260"></td>
+</tr>
+<tr>
+<td width="50%" align="center"><img src="docs/readme/why-updates.webp" alt="" width="260"></td>
+<td width="50%">
 
 ### 🔄 Updates without goodbyes
 **The hive moves house and nobody notices.**
@@ -58,9 +59,9 @@ Running an IRC network usually means two programs wired together: a server (Unre
 - Nobody sees a quit
 
 </td>
-</tr></table>
-<table><tr>
-<td>
+</tr>
+<tr>
+<td width="50%">
 
 ### 🍯 Hive Panel
 **A web control room, built in.**
@@ -70,8 +71,9 @@ Running an IRC network usually means two programs wired together: a server (Unre
 - Every change kept in history, with undo
 
 </td>
-<td width="300"><img src="docs/readme/why-panel.webp" alt="" width="300"></td>
-</tr></table>
+<td width="50%" align="center"><img src="docs/readme/why-panel.webp" alt="" width="260"></td>
+</tr>
+</table>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/readme/stats-dark.svg">
