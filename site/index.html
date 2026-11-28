@@ -658,6 +658,23 @@ section > h2:not(.lv-title)::before, .new-head h2::before, .status-head h2::befo
   .hud-rail { grid-template-columns: repeat(2, minmax(0,1fr)); margin-top: 8px; }
   .hud-dock + .hud-rail { margin-top: 8px; }
 }
+/* desktop: lock-on card and leader at 60% */
+@media (min-width: 861px) {
+  .hud-ld { width: 55px; height: 35px; transform: translate(16px, calc(-35px + var(--dy,0px) * .35)); }
+  .hud-ld.l { transform: translate(calc(-100% - 16px), calc(-35px + var(--dy,0px) * .35)) scaleX(-1); }
+  .hud-card:not(.hud-dk) { width: 204px; height: 98px; transform: translate(71px, calc(-55px + var(--dy,0px))); }
+  .hud-card.l:not(.hud-dk) { transform: translate(calc(-100% - 71px), calc(-55px + var(--dy,0px))); }
+  .hud-card:not(.hud-dk) .hud-bg { clip-path: polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px); }
+  .hud-card:not(.hud-dk) .hud-ol path { stroke-width: 1; }
+  .hud-card:not(.hud-dk) .hud-in { padding: 7px 9px 7px 11px; }
+  .hud-card:not(.hud-dk) .hud-top { font-size: 7.5px; gap: 5px; } .hud-card:not(.hud-dk) .hud-top .hud-bars { height: 6px; } .hud-card:not(.hud-dk) .hud-top .hud-px { font-size: 9.5px; }
+  .hud-card:not(.hud-dk) .hud-nm { font-size: 12.5px; margin: 4px 0 0; } .hud-card:not(.hud-dk) .hud-tg { font-size: 7.5px; }
+  .hud-card:not(.hud-dk) .hud-row { margin-top: 5px; gap: 8px; } .hud-card:not(.hud-dk) .hud-big { font-size: 24px; min-width: 34px; }
+  .hud-card:not(.hud-dk) .hud-big.txt { font-size: 11.5px; padding-top: 8px; } .hud-card:not(.hud-dk) .hud-big small { font-size: 7px; margin-top: 3px; }
+  .hud-card:not(.hud-dk) .hud-st { font-size: 7px; padding: 2px 5px; margin-bottom: 3px; }
+  .hud-card:not(.hud-dk) .hud-seg { gap: 2px; margin-bottom: 4px; min-width: 28px; } .hud-card:not(.hud-dk) .hud-seg i { height: 5.5px; }
+  .hud-card:not(.hud-dk) .hud-haz { width: 26px; height: 4px; } .hud-lock.on { width: 38px; height: 38px; }
+}
 /* frozen states: ?still shot hook and reduced motion */
 .hud-still .hud-bc *, .hud-still .hud-lock, .hud-still .hud-ld *, .hud-still .hud-card, .hud-still .hud-card *, .hud-still .hud-spot, .hud-still .hud-scan, .hud-still .hud-ri, .hud-still .hud-ri::before { transition: none !important; animation: none !important; }
 @media (prefers-reduced-motion: reduce) {
@@ -716,10 +733,11 @@ section > h2:not(.lv-title)::before, .new-head h2::before, .status-head h2::befo
 .plt-cur::after { content: "_"; color: var(--hud-gold); animation: plt-blink .7s steps(1) infinite; }
 @keyframes plt-blink { 50% { opacity: 0; } }
 /* --lift raises a label body above its wire so it clears the art below (desktop only) */
-@media (min-width: 861px) { .plt-bd { margin-top: calc(-1 * var(--lift, 0px)); } }
+@media (min-width: 861px) { .plt-bd { margin-top: calc(-.6 * var(--lift, 0px)); } }
 /* mid widths: the frame is narrower, so shrink the label bodies to keep them apart and inside the frame */
-@media (min-width: 861px) and (max-width: 1200px) { .plt-bd { transform: scale(.78); transform-origin: left top; } .plt.l .plt-bd { transform-origin: right top; } }
-@media (min-width: 861px) and (max-width: 1100px) { .plt-bd { transform: scale(.68); } .plt-wire { width: calc(var(--wire, 34px) * .7); } }
+/* desktop: label bodies at 60% so they stay small next to the art; a bit smaller again on narrow frames */
+@media (min-width: 861px) { .plt-bd { transform: scale(.6); transform-origin: left top; } .plt.l .plt-bd { transform-origin: right top; } .plt-wire { width: calc(var(--wire, 34px) * .65); } }
+@media (min-width: 861px) and (max-width: 1100px) { .plt-bd { transform: scale(.54); } .plt-wire { width: calc(var(--wire, 34px) * .5); } }
 /* phones: dot + title only; a tap or focus opens the full label */
 @media (max-width: 860px) {
   .plt-wire { width: 22px; }
@@ -892,7 +910,7 @@ section>h2,.new-head h2,.status-head h2{font-size:clamp(28px,3.2vw,38px);letter-
   <section class="wrap">
     <h2>Seven services, one program</h2>
     <p class="intro">No separate services package to link and keep in sync. The services answer the way they always have, with a short notice and the next step to take.</p>
-    <figure class="band-art hive"><div class="win"><div class="bst"><img class="art" src="art/hive.webp" alt="A cutaway honey hive: the chat server and its services as rooms in one hive" loading="lazy" width="1344" height="752"><a class="plt live l" style="--x:50.8%;--y:31%;--lift:32px" href="#live" data-src="all"><i class="plt-dot"></i><i class="plt-wire"></i><span class="plt-bd plt-pl"><span class="plt-big"><span class="plt-n">--</span><small>ONLINE</small></span><span class="plt-t" data-t="#beeircd">#beeircd</span><span class="plt-tx"><span>our own channel</span><span>come say hi</span></span><span class="plt-bar"><i></i><b>JOIN</b></span></span></a><a class="plt l" style="--x:43.6%;--y:50%" href="#get"><i class="plt-dot"></i><i class="plt-wire"></i><span class="plt-bd plt-tl"><span class="plt-sq"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10l5 9-5 9H7l-5-9z"/></svg></span><span class="plt-t" data-t="The server">The server</span><span class="plt-tx"><span data-line="v0">BeeIRCd --</span><span>7 services inside</span></span></span></a></div></div><figcaption class="cap"><b>Everything lives in one hive</b>The chat server and all seven services run as one program.</figcaption></figure><div class="svcs">
+    <figure class="band-art hive"><div class="win"><div class="bst"><img class="art" src="art/hive.webp" alt="A cutaway honey hive: the chat server and its services as rooms in one hive" loading="lazy" width="1344" height="752"><a class="plt live l" style="--x:50.8%;--y:31%;--lift:32px" href="#live" data-src="all"><i class="plt-dot"></i><i class="plt-wire"></i><span class="plt-bd plt-pl"><span class="plt-big"><span class="plt-n">--</span><small>ONLINE</small></span><span class="plt-t" data-t="#beeircd">#beeircd</span><span class="plt-tx"><span>kept by ChanServ</span><span>come say hi</span></span><span class="plt-bar"><i></i><b>JOIN</b></span></span></a><a class="plt l" style="--x:43.6%;--y:50%" href="#services"><i class="plt-dot"></i><i class="plt-wire"></i><span class="plt-bd plt-tl"><span class="plt-sq"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10l5 9-5 9H7l-5-9z"/></svg></span><span class="plt-t" data-t="Your nick">Your nick</span><span class="plt-tx"><span>/ns register</span><span>kept by NickServ</span></span></span></a></div></div><figcaption class="cap"><b>Everything lives in one hive</b>The chat server and all seven services run as one program.</figcaption></figure><div class="svcs">
       <div class="svc-row"><svg aria-hidden="true"><use href="#i-user"/></svg><b>NickServ</b><span>Keeps your nick yours. Identify with a password or SASL, group nicks, recover a ghost.</span><code>/ns register &lt;password&gt;</code></div>
       <div class="svc-row"><svg aria-hidden="true"><use href="#i-hash"/></svg><b>ChanServ</b><span>Keeps a channel yours. Founder, SOP, AOP, VOP and UOP levels, AKICK, mode and topic lock.</span><code>/cs register #channel &lt;description&gt;</code></div>
       <div class="svc-row"><svg aria-hidden="true"><use href="#i-mail"/></svg><b>MemoServ</b><span>Messages for people who are away, and memos to a channel's founder and SOPs.</span><code>/ms send ember see you at nine</code></div>
@@ -1353,7 +1371,7 @@ fetch('whatsnew.json', { cache: 'no-cache' }).then(function (r) { if (!r.ok) thr
   var RM = matchMedia('(prefers-reduced-motion: reduce)'), TOUCH = matchMedia('(hover: none)');
   var m = /[?&]still(?:=(\d+))?(?:&|$)/.exec(location.search), STILL = !!m;
   if (STILL) document.documentElement.classList.add('hud-still');
-  var OL = '<div class="hud-bg"></div><svg class="hud-ol" viewBox="0 0 340 164" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M16 .5H339.5V148L324 163.5H.5V16Z"/><path class="dim" pathLength="1" d="M6 30V6H30M334 134V158H310"/></svg>';
+  var OL = '<div class="hud-bg"></div><svg class="hud-ol" viewBox="0 0 204 98" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M10 .5H203.5V88L193.5 97.5H.5V10Z"/><path class="dim" pathLength="1" d="M4 18V4H18M200 80V94H186"/></svg>';
   function mk(tag, cls, html) { var e = document.createElement(tag); e.className = cls; if (html) e.innerHTML = html; return e; }
   function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   var items = bcs.map(function (b) {
@@ -1450,10 +1468,10 @@ fetch('whatsnew.json', { cache: 'no-cache' }).then(function (r) { if (!r.ok) thr
   function place(it) {
     var F = fig.getBoundingClientRect(), B = it.b.getBoundingClientRect();
     var bx = B.left + B.width / 2 - F.left, by = B.top + B.height / 2 - F.top, dy = 0;
-    var right = F.width - 8 - (bx + 118 + 340), left = bx - 118 - 340 - 8;
+    var right = F.width - 8 - (bx + 71 + 204), left = bx - 71 - 204 - 8;
     var l = right < 0 && left > right;
-    if (by - 92 < 8) dy = 100 - by; else if (by + 72 > F.height - 8) dy = F.height - 80 - by;
-    dy = Math.max(-100, Math.min(50, dy));
+    if (by - 55 < 8) dy = 63 - by; else if (by + 43 > F.height - 8) dy = F.height - 51 - by;
+    dy = Math.max(-60, Math.min(30, dy));
     [it.card, it.ld].forEach(function (e) { e.classList.toggle('l', l); e.style.setProperty('--dy', Math.round(dy) + 'px'); });
   }
   var cur = -1, hold = false, inView = false, tick = 0;
