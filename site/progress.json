@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-28T22:40:00+08:00",
+ "updated": "2026-11-28T23:00:00+08:00",
  "gauges": [
   {
    "id": "g-v1",
@@ -18,12 +18,16 @@
  ],
  "now": {
   "title": "1.7.3: the small gaps",
-  "text": "Building the last small UnrealIRCd and InspIRCd features BeeIRCd lacked. 8 of 9 are done, the last one (rules in security groups) is being built.",
+  "text": "All 9 small UnrealIRCd and InspIRCd features are built and on main. Next comes the full 1.7.3 release test.",
   "start": "2026-11-28T21:10:00+08:00",
   "end": "2026-11-30T20:00:00+08:00"
  },
- "next": "Rules in security groups, then the 1.7.3 release test.",
+ "next": "The 1.7.3 release test, then a test version (rc1).",
  "done": [
+  [
+   "2026-11-28T22:55",
+   "Security groups can now use rules in UnrealIRCd's rule words, like \"not logged in and a low reputation\". All 9 features for 1.7.3 are built"
+  ],
   [
    "2026-11-28T22:35",
    "1.7.3 so far: user mode +c (private messages only from people in a shared channel), hiding channel lists and chosen mode changes from non-ops, a flat server map, the oper MOTD in AdminServ, a log of every oper command, and the issued-by and json-log tags for opers"
